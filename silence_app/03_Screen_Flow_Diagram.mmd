@@ -1,0 +1,74 @@
+graph TD
+    subgraph Auth
+        A[Splash Screen] --> B{Logged in?}
+        B -->|No| C[Auth Screen]
+        C --> D[Role Selection]
+        D -->|Admin| E[Admin Home]
+        D -->|Member| F[Member Home]
+        B -->|Yes| G[Check Role]
+        G -->|Admin| E
+        G -->|Member| F
+    end
+
+    subgraph AdminFlows
+        E --> H{Setup complete?}
+        H -->|No| I[Setup Card + Modal]
+        I --> J[Stage1: Basic Info]
+        J --> K[Stage2: Floors/Seats]
+        K --> L[Stage3: Shifts/Plans]
+        L --> M[Launch Library]
+        H -->|Yes| N[Operational Dashboard]
+        
+        N --> O[Reservations Tab]
+        O --> P[Layout Sub-tab]
+        O --> Q[Members Sub-tab]
+        O --> R[Requests Sub-tab]
+        O --> S[Archive Sub-tab]
+        
+        P --> T[Seat Actions Modal]
+        Q --> U[Member Detail Screen]
+        U --> V[Edit Session / Renew / Transfer]
+        
+        R --> W[Join Request Approval]
+        W --> X[Seat Picker Modal]
+        
+        N --> Y[Analytics Tab]
+        N --> Z[Profile Tab]
+        Z --> AA[Subscription / Audit Log / Referral]
+        
+        N --> AB[Announcement Composer Bottom Sheet]
+        N --> AC[QR Modal (Joining/Attendance)]
+    end
+
+    subgraph MemberFlows
+        F --> AD[My Library Tab]
+        AD --> AE[Membership Card]
+        AE --> AF[Renew Plan]
+        AE --> AG[Request Seat Change]
+        AE --> AH[Request Hold / Exit]
+        
+        F --> AI[Explore Tab]
+        AI --> AJ[Library Detail]
+        AJ --> AK[Join Flow - Step 0 to Step5]
+        AK --> AL[Payment (UPI/Cash)]
+        AL --> AM[Join Request Submitted]
+        
+        AD --> AN[Floating Scan Button]
+        AN --> AO[QR Scanner]
+        AO --> AP[Check-in / Check-out]
+        AP --> AQ[Offline Queue Sync]
+        
+        F --> AR[Analytics Tab]
+        AR --> AS[Streak / Leaderboard / Badges]
+        AR --> AT[Attendance CSV Export]
+        
+        F --> AU[Profile Tab]
+        AU --> AV[Referral Code Share]
+        AU --> AW[Edit Profile / Verify Phone]
+    end
+
+    subgraph Shared
+        AX[Push Notifications - FCM] --> AY[Member / Admin]
+        AZ[Offline Sync] --> BA[IndexedDB Queue]
+        BB[Scheduled Jobs] --> BC[Auto-checkout / Auto-hold / Notifications]
+    end

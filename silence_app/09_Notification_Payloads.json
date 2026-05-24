@@ -1,0 +1,357 @@
+{
+  "version": "1.0",
+  "description": "FCM push notification payloads for SILENCE. All notifications use FCM. Data payload includes screen destination and relevant IDs.",
+  "notifications": [
+    {
+      "event": "join_approved",
+      "recipient": "member",
+      "title": "✅ Membership Approved!",
+      "body_template": "Approved! Seat {seat_label} at {library_name}. Starts {start_date}.",
+      "data": { "screen": "MemberHome", "membership_id": "{membership_id}" },
+      "trigger": "Admin approves join request",
+      "example": "✅ Membership Approved! Approved! Seat G-12 at Sunshine Library. Starts 25 May 2026."
+    },
+    {
+      "event": "join_rejected",
+      "recipient": "member",
+      "title": "Application Not Approved",
+      "body_template": "Your application at {library_name} was not approved. Reason: {reason}.",
+      "data": { "screen": "Explore" },
+      "trigger": "Admin rejects join request with reason",
+      "example": "Application Not Approved: Your application at Sunshine Library was not approved. Reason: No seats available."
+    },
+    {
+      "event": "payment_confirmed",
+      "recipient": "member",
+      "title": "Payment Confirmed",
+      "body_template": "₹{amount} confirmed at {library_name}. Plan: {start_date} to {end_date}. Seat: {seat_label}. Ref: {ref_id}.",
+      "data": { "screen": "MemberHome", "library_id": "{library_id}" },
+      "trigger": "Admin confirms payment (cash or UPI)",
+      "example": "Payment Confirmed: ₹700 confirmed at Sunshine Library. Plan: 25 May 2026 to 24 June 2026. Seat: G-12. Ref: PY-4K9M2P."
+    },
+    {
+      "event": "payment_rejected",
+      "recipient": "member",
+      "title": "Payment Not Confirmed",
+      "body_template": "Your payment of ₹{amount} at {library_name} was not confirmed. Reason: {reason}. You can re-upload or contact library.",
+      "data": { "screen": "JoinFlow", "library_id": "{library_id}" },
+      "trigger": "Admin rejects payment proof",
+      "example": "Payment Not Confirmed: Your payment of ₹700 at Sunshine Library was not confirmed. Reason: Screenshot unreadable."
+    },
+    {
+      "event": "plan_expiring_7days",
+      "recipient": "member",
+      "title": "Plan Expires Soon",
+      "body_template": "Your plan at {library_name} expires in {days} days. Tap to renew and keep your seat {seat_label}.",
+      "data": { "screen": "Renewal", "membership_id": "{membership_id}" },
+      "trigger": "7 days before membership expiry (9 AM)",
+      "example": "Plan Expires Soon: Your plan at Sunshine Library expires in 7 days. Tap to renew and keep your seat G-12."
+    },
+    {
+      "event": "plan_expires_today",
+      "recipient": "member",
+      "title": "Plan Expires Today",
+      "body_template": "Your plan at {library_name} expires today. Renew to keep your seat {seat_label}.",
+      "data": { "screen": "Renewal", "membership_id": "{membership_id}" },
+      "trigger": "On expiry date at 9 AM",
+      "example": "Plan Expires Today: Your plan at Sunshine Library expires today. Renew to keep your seat G-12."
+    },
+    {
+      "event": "plan_expired_yesterday",
+      "recipient": "member",
+      "title": "Membership Expired",
+      "body_template": "Your membership at {library_name} expired. Renew now – seat may be reassigned in 3 days.",
+      "data": { "screen": "Renewal", "membership_id": "{membership_id}" },
+      "trigger": "Day after expiry at 9 AM",
+      "example": "Membership Expired: Your membership at Sunshine Library expired. Renew now – seat may be reassigned in 3 days."
+    },
+    {
+      "event": "join_request_expiring_2days",
+      "recipient": "member",
+      "title": "Application Expiring Soon",
+      "body_template": "Your application at {library_name} will expire in 2 days. Contact library or reapply.",
+      "data": { "screen": "Explore", "library_id": "{library_id}" },
+      "trigger": "Day 5 after join request submission (9 AM)",
+      "example": "Application Expiring Soon: Your application at Sunshine Library will expire in 2 days. Contact library or reapply."
+    },
+    {
+      "event": "join_request_auto_expired",
+      "recipient": "member",
+      "title": "Application Expired",
+      "body_template": "Your application at {library_name} has expired. Contact library or reapply.",
+      "data": { "screen": "Explore", "library_id": "{library_id}" },
+      "trigger": "7 days after submission with no admin action",
+      "example": "Application Expired: Your application at Sunshine Library has expired. Contact library or reapply."
+    },
+    {
+      "event": "badge_earned",
+      "recipient": "member",
+      "title": "🏆 Badge Earned!",
+      "body_template": "You earned the {badge_name} badge! Check your Analytics.",
+      "data": { "screen": "MemberAnalytics" },
+      "trigger": "Member meets badge criteria (7-day streak, early bird, etc.)",
+      "example": "🏆 Badge Earned! You earned the 7-Day Streak badge! Check your Analytics."
+    },
+    {
+      "event": "announcement",
+      "recipient": "member",
+      "title": "{library_name} Announcement",
+      "body_template": "{message_preview}",
+      "data": { "screen": "MemberHome", "announcement_id": "{announcement_id}" },
+      "trigger": "Admin sends announcement",
+      "example": "Sunshine Library Announcement: Library will be closed on Monday for maintenance."
+    },
+    {
+      "event": "trial_ending_tomorrow",
+      "recipient": "member",
+      "title": "Trial Ends Tomorrow",
+      "body_template": "Your trial at {library_name} ends tomorrow. Pay to keep your seat and streak.",
+      "data": { "screen": "Renewal", "membership_id": "{membership_id}" },
+      "trigger": "1 day before trial ends at 9 AM",
+      "example": "Trial Ends Tomorrow: Your trial at Sunshine Library ends tomorrow. Pay to keep your seat and streak."
+    },
+    {
+      "event": "hold_approved",
+      "recipient": "member",
+      "title": "Hold Request Approved",
+      "body_template": "Your hold at {library_name} has been approved. Seat {seat_label} reserved until {end_date}. Expiry extended to {new_expiry}.",
+      "data": { "screen": "MemberHome", "library_id": "{library_id}" },
+      "trigger": "Admin approves hold request",
+      "example": "Hold Request Approved: Your hold at Sunshine Library has been approved. Seat G-12 reserved until 30 June. Expiry extended to 25 July."
+    },
+    {
+      "event": "hold_rejected",
+      "recipient": "member",
+      "title": "Hold Request Not Approved",
+      "body_template": "Your hold request at {library_name} was not approved. Contact library for details.",
+      "data": { "screen": "MemberHome", "library_id": "{library_id}" },
+      "trigger": "Admin rejects hold request",
+      "example": "Hold Request Not Approved: Your hold request at Sunshine Library was not approved. Contact library for details."
+    },
+    {
+      "event": "hold_ending_2days",
+      "recipient": "member",
+      "title": "Hold Ending Soon",
+      "body_template": "Your membership hold at {library_name} ends in 2 days. Resume studying!",
+      "data": { "screen": "MemberHome", "library_id": "{library_id}" },
+      "trigger": "2 days before hold end date at 9 AM",
+      "example": "Hold Ending Soon: Your membership hold at Sunshine Library ends in 2 days. Resume studying!"
+    },
+    {
+      "event": "hold_auto_cancelled",
+      "recipient": "member",
+      "title": "Hold Ended",
+      "body_template": "Your hold at {library_name} has ended and seat has been released. You can rejoin to continue.",
+      "data": { "screen": "Explore", "library_id": "{library_id}" },
+      "trigger": "Hold end date passed and member did not check in within 3 days",
+      "example": "Hold Ended: Your hold at Sunshine Library has ended and seat has been released. You can rejoin to continue."
+    },
+    {
+      "event": "referral_reward_pending",
+      "recipient": "member",
+      "title": "Referral Reward Pending",
+      "body_template": "Your reward for referring {friend_name} is pending – they need {checkins_left} more check-ins.",
+      "data": { "screen": "MemberProfile" },
+      "trigger": "Referral friend joins, reward not yet released",
+      "example": "Referral Reward Pending: Your reward for referring Rahul is pending – they need 3 more check-ins."
+    },
+    {
+      "event": "referral_reward_credited",
+      "recipient": "member",
+      "title": "🎁 Referral Reward Credited!",
+      "body_template": "{days} free days added to your membership at {library_name} because {friend_name} completed their check-ins.",
+      "data": { "screen": "MemberHome", "library_id": "{library_id}" },
+      "trigger": "Referred member completes required check-ins/days",
+      "example": "🎁 Referral Reward Credited! 3 free days added to your membership at Sunshine Library because Rahul completed their check-ins."
+    },
+    {
+      "event": "referral_reward_cancelled",
+      "recipient": "member",
+      "title": "Referral Reward Cancelled",
+      "body_template": "The referral reward for {friend_name} was cancelled because they left the library.",
+      "data": { "screen": "MemberProfile" },
+      "trigger": "Referred member exits before completing reward conditions",
+      "example": "Referral Reward Cancelled: The referral reward for Rahul was cancelled because they left the library."
+    },
+    {
+      "event": "renewal_offer_ready",
+      "recipient": "member",
+      "title": "Renewal Offer Ready",
+      "body_template": "{library_name} has prepared a renewal for you: {plan} at ₹{amount}. Tap to confirm or decline (24h).",
+      "data": { "screen": "Renewal", "membership_id": "{membership_id}" },
+      "trigger": "Admin uses 'Notify Member First' renewal option",
+      "example": "Renewal Offer Ready: Sunshine Library has prepared a renewal for you: Monthly at ₹700. Tap to confirm or decline (24h)."
+    },
+    {
+      "event": "member_transferred",
+      "recipient": "member",
+      "title": "Membership Transferred",
+      "body_template": "Your membership has been transferred from {from_library} to {to_library}. Seat: {seat_label}, Shift: {shift_name}.",
+      "data": { "screen": "MemberHome", "library_id": "{to_library_id}" },
+      "trigger": "Admin completes member transfer between libraries",
+      "example": "Membership Transferred: Your membership has been transferred from City Library to Sunshine Library. Seat: G-12, Shift: Morning."
+    },
+    {
+      "event": "library_closed_today",
+      "recipient": "member",
+      "title": "Library Closed Today",
+      "body_template": "{library_name} is closed today ({reason}). Your streak is protected.",
+      "data": { "screen": "MemberHome", "library_id": "{library_id}" },
+      "trigger": "Admin taps 'Close Today'",
+      "example": "Library Closed Today: Sunshine Library is closed today (maintenance). Your streak is protected."
+    },
+    {
+      "event": "scheduled_closure_reminder",
+      "recipient": "member",
+      "title": "Upcoming Library Closure",
+      "body_template": "{library_name} will be closed from {start_date} to {end_date} for {reason}. Your streak is protected.",
+      "data": { "screen": "MemberHome", "library_id": "{library_id}" },
+      "trigger": "Admin creates scheduled closure (immediate or reminder)",
+      "example": "Upcoming Library Closure: Sunshine Library will be closed from 20 Oct to 22 Oct for Diwali. Your streak is protected."
+    },
+    {
+      "event": "manual_checkin_requested",
+      "recipient": "admin",
+      "title": "Manual Check-in Request",
+      "body_template": "{member_name} couldn't scan at {library_name} – requesting manual check-in at {time}.",
+      "data": { "screen": "AttendanceTab", "member_id": "{member_id}" },
+      "trigger": "Member reports 2 failed scans, taps 'Contact Admin'",
+      "example": "Manual Check-in Request: Rahul couldn't scan at Sunshine Library – requesting manual check-in at 09:15 AM."
+    },
+    {
+      "event": "new_join_request",
+      "recipient": "admin",
+      "title": "New Join Application",
+      "body_template": "New application from {member_name} at {library_name}.",
+      "data": { "screen": "RequestsTab", "filter": "join" },
+      "trigger": "Member submits join request",
+      "example": "New Join Application: New application from Priya at Sunshine Library."
+    },
+    {
+      "event": "payment_proof_submitted",
+      "recipient": "admin",
+      "title": "Payment Proof Submitted",
+      "body_template": "{member_name} submitted ₹{amount} proof at {library_name}. Tap to confirm.",
+      "data": { "screen": "RequestsTab", "request_id": "{request_id}" },
+      "trigger": "Member uploads UPI screenshot",
+      "example": "Payment Proof Submitted: Priya submitted ₹700 proof at Sunshine Library. Tap to confirm."
+    },
+    {
+      "event": "payment_pending_48h",
+      "recipient": "admin",
+      "title": "⚠️ Payment Proof Waiting 48 Hours",
+      "body_template": "{member_name}'s payment proof for ₹{amount} at {library_name} has been waiting 48 hours. Review now.",
+      "data": { "screen": "RequestsTab", "request_id": "{request_id}" },
+      "trigger": "48 hours after payment proof submission with no admin action",
+      "example": "⚠️ Payment Proof Waiting 48 Hours: Priya's payment proof for ₹700 at Sunshine Library has been waiting 48 hours. Review now."
+    },
+    {
+      "event": "member_exited",
+      "recipient": "admin",
+      "title": "Member Exited",
+      "body_template": "{member_name} exited {library_name}.",
+      "data": { "screen": "ArchiveTab", "library_id": "{library_id}" },
+      "trigger": "Member completes exit flow",
+      "example": "Member Exited: Rahul exited Sunshine Library."
+    },
+    {
+      "event": "seat_change_requested",
+      "recipient": "admin",
+      "title": "Seat Change Request",
+      "body_template": "{member_name} requested a seat change at {library_name}. Reason: {reason}.",
+      "data": { "screen": "RequestsTab", "filter": "seat_change" },
+      "trigger": "Member submits seat change request",
+      "example": "Seat Change Request: Rahul requested a seat change at Sunshine Library. Reason: Need window seat."
+    },
+    {
+      "event": "hold_request_submitted",
+      "recipient": "admin",
+      "title": "Hold Request",
+      "body_template": "{member_name} requested a hold at {library_name} from {start_date} to {end_date}. Reason: {reason}.",
+      "data": { "screen": "RequestsTab", "filter": "hold" },
+      "trigger": "Member submits hold request",
+      "example": "Hold Request: Rahul requested a hold at Sunshine Library from 1 June to 10 June. Reason: Exams."
+    },
+    {
+      "event": "subscription_expiring",
+      "recipient": "admin",
+      "title": "Your Subscription Expires Soon",
+      "body_template": "Your Silence subscription expires in {days} days. Renew to keep managing your library.",
+      "data": { "screen": "Subscription" },
+      "trigger": "7 days before subscription expiry",
+      "example": "Your Subscription Expires Soon: Your Silence subscription expires in 7 days. Renew to keep managing your library."
+    },
+    {
+      "event": "seat_auto_held",
+      "recipient": "admin",
+      "title": "Seat Auto-Held",
+      "body_template": "{member_name}'s seat at {library_name} has been auto-held (expired {days} days ago).",
+      "data": { "screen": "LayoutTab", "library_id": "{library_id}" },
+      "trigger": "Auto-hold trigger after expiry grace period",
+      "example": "Seat Auto-Held: Rahul's seat at Sunshine Library has been auto-held (expired 3 days ago)."
+    },
+    {
+      "event": "member_referred_new_joiner",
+      "recipient": "admin",
+      "title": "Member Referral",
+      "body_template": "{referrer_name} referred {new_member_name} who just joined {library_name}. Reward {referrer_name} with free days?",
+      "data": { "screen": "ReferralSettings", "library_id": "{library_id}" },
+      "trigger": "New member joins using referral code (rewards disabled)",
+      "example": "Member Referral: Rahul referred Priya who just joined Sunshine Library. Reward Rahul with free days?"
+    },
+    {
+      "event": "join_request_expiring_tomorrow",
+      "recipient": "admin",
+      "title": "Join Request Expires Tomorrow",
+      "body_template": "{member_name}'s join request at {library_name} expires tomorrow. Approve or reject now.",
+      "data": { "screen": "RequestsTab", "filter": "join" },
+      "trigger": "6 days after join request submission (9 AM)",
+      "example": "Join Request Expires Tomorrow: Priya's join request at Sunshine Library expires tomorrow. Approve or reject now."
+    },
+    {
+      "event": "maintenance_seat_7days",
+      "recipient": "admin",
+      "title": "Seat in Maintenance >7 Days",
+      "body_template": "Seat {seat_label} at {library_name} has been in maintenance for 7 days. Has it been fixed?",
+      "data": { "screen": "LayoutTab", "library_id": "{library_id}" },
+      "trigger": "7 days after marking seat maintenance",
+      "example": "Seat in Maintenance >7 Days: Seat G-12 at Sunshine Library has been in maintenance for 7 days. Has it been fixed?"
+    },
+    {
+      "event": "post_shift_overtime_scan",
+      "recipient": "admin",
+      "title": "Overtime Check-out",
+      "body_template": "{member_name} checked out {minutes} minutes after {shift_name} shift ended at {library_name}.",
+      "data": { "screen": "AttendanceTab", "member_id": "{member_id}" },
+      "trigger": "Member scans checkout after shift end",
+      "example": "Overtime Check-out: Rahul checked out 25 minutes after Morning shift ended at Sunshine Library."
+    },
+    {
+      "event": "verified_badge_earned",
+      "recipient": "admin",
+      "title": "🎖️ Library Verified!",
+      "body_template": "Congratulations! {library_name} has earned the Verified badge. Your library now shows the verified tick.",
+      "data": { "screen": "LibraryProfile", "library_id": "{library_id}" },
+      "trigger": "Library meets all verified badge criteria",
+      "example": "🎖️ Library Verified! Congratulations! Sunshine Library has earned the Verified badge. Your library now shows the verified tick."
+    },
+    {
+      "event": "flagged_offline_sync",
+      "recipient": "admin",
+      "title": "Offline Sync Requires Review",
+      "body_template": "{member_name}'s scan from {date} couldn't be auto-verified (QR was regenerated or clock skew). Review needed.",
+      "data": { "screen": "AttendanceTab", "member_id": "{member_id}" },
+      "trigger": "Offline scan sync fails QR version check or clock skew >15 min",
+      "example": "Offline Sync Requires Review: Rahul's scan from 24 May 2026 couldn't be auto-verified. Review needed."
+    },
+    {
+      "event": "qr_regenerated",
+      "recipient": "admin",
+      "title": "QR Code Regenerated",
+      "body_template": "{qr_type} QR for {library_name} was regenerated by {admin_name}. Old QR valid for 7 more days.",
+      "data": { "screen": "QRModal", "library_id": "{library_id}" },
+      "trigger": "Admin regenerates QR code",
+      "example": "QR Code Regenerated: Attendance QR for Sunshine Library was regenerated by Admin. Old QR valid for 7 more days."
+    }
+  ]
+}

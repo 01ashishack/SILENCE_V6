@@ -1,0 +1,229 @@
+version: "1.0"
+description: "State machine workflows for SILENCE v6.1"
+
+# ----------------------------------------------------------------------
+# 1. JOIN REQUEST WORKFLOW (Member -> Admin approval)
+# ----------------------------------------------------------------------
+join_request:
+  description: "Member applies to join a library; admin approves/rejects; seat assigned on approval."
+  initial_state: draft
+  states:
+    draft:
+      on_entry: "User fills join flow form (profile, shift, plan, add-ons, payment proof)."
+      transitions:
+        - event: submit
+          target: pending
+          action: "Create join_request record. Send push notification to admin."
+    pending:
+      on_entry: "Set expires_at = now() + 7 days. Show 'Payment Under Review' to member."
+      on_exit: "Cancel any pending timer."
+      transitions:
+        - event: approve
+          target: approved
+          condition: "seat available in chosen shift"
+          action: "Create membership record, assign seat, send notification to member."
+        - event: reject
+          target: rejected
+          condition: "admin provides rejection reason"
+          action: "Notify member with reason. Delete join_request."
+        - event: expire
+          target: expired
+          condition: "current_date > expires_at and status = pending"
+          action: "Auto-reject. Notify member. Delete join_request."
+    approved:
+      final: true
+    rejected:
+      final: true
+    expired:
+      final: true
+
+# ----------------------------------------------------------------------
+# 2. MEMBERSHIP RENEWAL WORKFLOW (Admin or Member initiated)
+# ----------------------------------------------------------------------
+renewal:
+  description: "Renew an existing membership. Admin can renew silently or notify member. Member can self-renew."
+  initial_state: initiated
+  states:
+    initiated:
+      on_entry: "User (admin or member) opens renewal screen. Pre-fill with current plan/shift/seat."
+      transitions:
+        - event: admin_renew_silent
+          target: renewed
+          condition: "admin confirms payment (cash/UPI)"
+          action: "Create new membership record with updated dates. Seat stays assigned. Notify member."
+        - event: admin_notify_member
+          target: waiting_member_confirmation
+          action: "Send push notification to member: 'Your library prepared a renewal. Confirm within 24h.'"
+        - event: member_self_renew
+          target: renewed
+          condition: "member confirms payment (cash/UPI - offline), admin must approve payment separately"
+          action: "Create payment record (pending). Admin confirms payment → renewal finalised."
+    waiting_member_confirmation:
+      on_entry: "Set timeout 24h. Member sees 'Renewal offer expires in X hours'."
+      transitions:
+        - event: member_accept
+          target: renewed
+          action: "Create payment record (pending). Admin confirms payment → finalise."
+        - event: member_decline
+          target: cancelled
+          action: "Notify admin. No changes."
+        - event: timeout
+          target: renewed
+          condition: "no response within 24h"
+          action: "Auto-accept. Create payment record (pending). Admin confirms payment → finalise."
+    renewed:
+      final: true
+      on_entry: "Update membership.end_date. Notify member. Log in audit log."
+    cancelled:
+      final: true
+
+# ----------------------------------------------------------------------
+# 3. HOLD REQUEST WORKFLOW (Member-initiated pause)
+# ----------------------------------------------------------------------
+hold_request:
+  description: "Member requests to pause membership. Seat reserved, billing paused, expiry extended."
+  initial_state: pending_approval
+  states:
+    pending_approval:
+      on_entry: "Member submits start_date, end_date, reason. Admin notified."
+      transitions:
+        - event: admin_approve
+          target: active_hold
+          condition: "duration within limits (max_hold_days, max_holds_per_period)"
+          action: "Set membership.status='hold', hold_until=end_date. Extend expiry by hold duration. Notify member. Log audit."
+        - event: admin_reject
+          target: rejected
+          action: "Notify member with reason. No changes."
+    active_hold:
+      on_entry: "Member cannot check in. Seat shows 'Hold' (amber). Billing paused."
+      on_exit: "Restore membership status to active, recalc expiry."
+      transitions:
+        - event: auto_end
+          target: resumed
+          condition: "current_date >= hold_until"
+          action: "Restore membership to active. Notify member: 'Hold ended. Resume studying.'"
+        - event: member_cancel
+          target: resumed
+          action: "Member manually cancels hold early. Notify admin. Seat remains reserved."
+        - event: admin_force_end
+          target: resumed
+          action: "Admin ends hold early. Notify member."
+    resumed:
+      final: true
+      on_entry: "Seat color back to occupied. Member can check in. Expiry already extended."
+    rejected:
+      final: true
+
+# ----------------------------------------------------------------------
+# 4. SEAT CHANGE REQUEST WORKFLOW
+# ----------------------------------------------------------------------
+seat_change_request:
+  description: "Member requests to move to a different seat (same shift). Admin assigns new seat."
+  initial_state: pending
+  states:
+    pending:
+      on_entry: "Member submits reason, optional preferred section. Admin notified."
+      transitions:
+        - event: admin_assign
+          target: assigned
+          condition: "new seat is vacant in same shift"
+          action: "Update seat_id in membership. Free old seat. Notify member. Log audit."
+        - event: admin_reject
+          target: rejected
+          action: "Notify member with reason."
+        - event: member_cancel
+          target: cancelled
+          action: "Member withdraws request. No changes."
+    assigned:
+      final: true
+    rejected:
+      final: true
+    cancelled:
+      final: true
+
+# ----------------------------------------------------------------------
+# 5. CHECK-IN / CHECK-OUT WORKFLOW (including auto-checkout and overtime)
+# ----------------------------------------------------------------------
+attendance:
+  description: "QR scan based check-in/out. Handles normal, auto-checkout, overtime, manual entry."
+  initial_state: no_active_session
+  states:
+    no_active_session:
+      on_entry: "Member has no open session for today for this shift."
+      transitions:
+        - event: scan_checkin
+          target: active_session
+          condition: "membership active OR (expired AND admin toggle allowed)"
+          action: "Create attendance record with check_in_time = now()."
+        - event: manual_checkin_admin
+          target: active_session
+          condition: "admin triggers manual check-in via dashboard"
+          action: "Create attendance record with check_in_time = admin-selected timestamp, session_type='manual'."
+    active_session:
+      on_entry: "Member is checked in."
+      on_exit: "Compute duration = checkout_time - check_in_time. Update attendance record."
+      transitions:
+        - event: scan_checkout_normal
+          target: no_active_session
+          condition: "scan occurs before shift end time + auto_checkout_delay_minutes"
+          action: "Set check_out_time = now(). Compute duration. Session_type='normal'."
+        - event: scan_checkout_overtime
+          target: no_active_session
+          condition: "scan occurs after shift end time"
+          action: "Set check_out_time = now(). Overtime included in duration. Notify admin passively. Session_type='normal'."
+        - event: auto_checkout
+          target: no_active_session
+          condition: "shift end time + auto_checkout_delay_minutes reached and no scan after shift end"
+          action: "Set check_out_time = shift_end_time. Duration computed. Session_type='auto_checkout'."
+        - event: admin_force_checkout
+          target: no_active_session
+          action: "Admin closes session manually from dashboard. Set check_out_time = now() or admin-selected. Session_type='admin_edited'."
+        - event: member_forgot_checkout_next_day
+          target: no_active_session
+          condition: "member scans check-in next day without checking out previous day"
+          action: "Previous session marked as 'incomplete' (0 hours). New session created normally."
+
+# ----------------------------------------------------------------------
+# 6. MEMBER TRANSFER WORKFLOW (between libraries of same admin)
+# ----------------------------------------------------------------------
+transfer:
+  description: "Admin moves a member from one library to another. Preserves member ID, history, streak."
+  initial_state: initiated
+  states:
+    initiated:
+      on_entry: "Admin selects destination library, shift, seat, transfer date."
+      transitions:
+        - event: confirm_transfer
+          target: transferred
+          condition: "seat available in destination library for chosen shift"
+          action: "End current membership (status='transferred'). Create new membership at destination. Preserve member_id. Link via transferred_from column. Log in audit. Notify member."
+    transferred:
+      final: true
+      on_entry: "Old seat freed. New seat occupied. History viewable in both libraries."
+
+# ----------------------------------------------------------------------
+# 7. LIBRARY PERMANENT CLOSURE WORKFLOW (Admin only)
+# ----------------------------------------------------------------------
+library_closure:
+  description: "Admin permanently closes a library. Irreversible."
+  initial_state: active
+  states:
+    active:
+      on_entry: "Library is operational."
+      transitions:
+        - event: admin_initiate_closure
+          target: pre_closure_check
+          action: "System checks: active members, pending join requests, trial members."
+    pre_closure_check:
+      on_entry: "Show admin summary of affected users. Require confirmation."
+      transitions:
+        - event: confirm_closure
+          target: closing
+          condition: "admin types library name"
+          action: "Notify all active members, auto-reject pending requests, notify trial members. Set library.status='closed'."
+        - event: cancel
+          target: active
+          action: "Abort closure. No changes."
+    closing:
+      final: true
+      on_entry: "Library read-only for admin. QR scans rejected with message. Explore shows 'Permanently Closed'."

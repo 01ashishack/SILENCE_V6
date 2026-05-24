@@ -1,0 +1,99 @@
+Supabase Storage Structure – SILENCE App
+
+Bucket: silence_assets (public bucket – read by anyone, write restricted)
+├── library_photos/
+│   └── {library_id}/
+│       ├── cover_1.jpg
+│       ├── cover_2.jpg
+│       ├── interior_1.jpg
+│       └── ...
+├── qr_assets/
+│   └── {library_id}/
+│       ├── joining_qr_{version}.png
+│       └── attendance_qr_{version}.png
+└── default_avatars/
+    ├── admin_default.png
+    └── member_default.png
+
+Bucket: silence_private (private bucket – only owner or uploader can access)
+├── member_profiles/
+│   └── {member_id}/
+│       ├── profile_photo.jpg
+│       ├── id_proof_aadhaar.jpg
+│       └── id_proof_pan.jpg
+├── payment_proofs/
+│   └── {payment_id}/
+│       ├── upi_screenshot.png
+│       └── cash_receipt.jpg
+├── expense_receipts/
+│   └── {expense_id}/
+│       └── receipt.jpg
+└── admin_documents/
+    └── {admin_id}/
+        └── id_proof.jpg
+
+Bucket: silence_temp (public but auto-delete after 24 hours)
+└── temp_uploads/
+    └── {session_id}/
+        └── *.tmp
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RLS / Storage Policies (Supabase)
+
+Bucket: silence_assets
+- SELECT: authenticated users or anon (if library is active)
+- INSERT: authenticated (admin only for library_photos; system for QR assets)
+- UPDATE: authenticated (admin only for their own library_photos)
+- DELETE: authenticated (admin only for their own library_photos)
+
+Folder-specific:
+  library_photos/{library_id}/
+    - SELECT: anyone (public library listing)
+    - INSERT/UPDATE/DELETE: admin with matching library_id
+  qr_assets/{library_id}/
+    - SELECT: admin with matching library_id; members can view their library's QR
+    - INSERT/UPDATE/DELETE: admin with matching library_id
+  default_avatars/
+    - SELECT: anyone
+    - INSERT: system only (pre-seeded)
+
+Bucket: silence_private
+- SELECT: authenticated user who is either:
+    - the member (profile_photos, id_proofs)
+    - the library owner (for payment_proofs, expense_receipts of their library)
+    - admin with specific access
+- INSERT: authenticated user uploading their own data
+- UPDATE: same as SELECT
+- DELETE: same as SELECT (plus system cleanup after retention expiry)
+
+Folder-specific:
+  member_profiles/{member_id}/
+    - SELECT: member_id = auth.uid() OR admin of member's library
+    - INSERT: member_id = auth.uid()
+  payment_proofs/{payment_id}/
+    - SELECT: admin of the library linked to payment OR member who made payment
+    - INSERT: member who made payment
+  expense_receipts/{expense_id}/
+    - SELECT/INSERT/UPDATE/DELETE: admin of the library linked to expense
+  admin_documents/{admin_id}/
+    - SELECT/INSERT/UPDATE/DELETE: admin_id = auth.uid()
+
+Bucket: silence_temp
+- SELECT/INSERT/UPDATE/DELETE: authenticated user (temporary, any operation)
+- Auto-delete policy: TTL 24 hours via Supabase Storage lifecycle rule.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Naming Conventions
+
+- library_id, member_id, payment_id, expense_id → UUID format (no spaces)
+- All image files: max 5 MB, JPG or PNG
+- ID proof files: max 10 MB (PDF allowed for Aadhaar)
+- QR assets: PNG, 500x500px
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Retention Rules
+
+- Payment proofs: kept for 7 years (legal requirement)
+- Member ID proofs: kept for 1 year after membership exit, then auto-deleted
+- Library photos: kept as long as library exists
+- Temporary uploads: deleted after 24 hours

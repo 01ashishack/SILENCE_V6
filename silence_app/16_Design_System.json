@@ -1,0 +1,205 @@
+{
+  "version": "1.0",
+  "app_name": "SILENCE",
+  "colors": {
+    "primary": "#E65C00",
+    "primary_light": "#FF8234",
+    "primary_dark": "#B84500",
+    "secondary": "#0D1B2A",
+    "background_light": "#FFFFFF",
+    "background_dark": "#0D1B2A",
+    "surface": "#F8F9FA",
+    "surface_variant": "#F1F3F4",
+    "error": "#DC2626",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "info": "#3B82F6",
+    "text_primary": "#1F2937",
+    "text_secondary": "#6B7280",
+    "text_on_primary": "#FFFFFF",
+    "text_on_dark": "#FFFFFF",
+    "border_light": "#E5E7EB",
+    "border_focus": "#E65C00",
+    "seat_vacant": "#22C55E",
+    "seat_occupied": "#3B82F6",
+    "seat_hold": "#F59E0B",
+    "seat_maintenance": "#9CA3AF",
+    "seat_expiring": "#F97316"
+  },
+  "typography": {
+    "font_family": {
+      "default": "system-ui, -apple-system, Roboto, sans-serif",
+      "monospace": "monospace"
+    },
+    "font_sizes": {
+      "xs": 11,
+      "sm": 12,
+      "base": 14,
+      "md": 15,
+      "lg": 16,
+      "xl": 18,
+      "2xl": 20,
+      "3xl": 24,
+      "4xl": 32
+    },
+    "font_weights": {
+      "normal": "400",
+      "medium": "500",
+      "semibold": "600",
+      "bold": "700"
+    },
+    "line_heights": {
+      "tight": 1.2,
+      "normal": 1.4,
+      "relaxed": 1.6
+    }
+  },
+  "spacing": {
+    "base_unit": 8,
+    "scale": {
+      "0": 0,
+      "1": 4,
+      "2": 8,
+      "3": 12,
+      "4": 16,
+      "5": 20,
+      "6": 24,
+      "7": 32,
+      "8": 40,
+      "9": 48,
+      "10": 64
+    }
+  },
+  "border_radius": {
+    "none": 0,
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "xl": 16,
+    "2xl": 24,
+    "full": 9999
+  },
+  "shadows": {
+    "none": "none",
+    "sm": "0 1px 2px 0 rgba(0,0,0,0.05)",
+    "md": "0 4px 6px -1px rgba(0,0,0,0.1)",
+    "lg": "0 10px 15px -3px rgba(0,0,0,0.1)",
+    "xl": "0 20px 25px -5px rgba(0,0,0,0.1)",
+    "button": "0 2px 4px rgba(0,0,0,0.1)"
+  },
+  "components": {
+    "button": {
+      "primary": {
+        "background": "#E65C00",
+        "text_color": "#FFFFFF",
+        "padding_horizontal": 16,
+        "padding_vertical": 12,
+        "border_radius": 8,
+        "font_weight": "600"
+      },
+      "secondary": {
+        "background": "transparent",
+        "border_width": 1,
+        "border_color": "#E65C00",
+        "text_color": "#E65C00",
+        "padding_horizontal": 16,
+        "padding_vertical": 12,
+        "border_radius": 8,
+        "font_weight": "500"
+      },
+      "destructive": {
+        "background": "#DC2626",
+        "text_color": "#FFFFFF",
+        "padding_horizontal": 16,
+        "padding_vertical": 12,
+        "border_radius": 8,
+        "font_weight": "600"
+      }
+    },
+    "card": {
+      "background": "#FFFFFF",
+      "border_radius": 12,
+      "shadow": "md",
+      "padding": 16,
+      "margin_bottom": 12
+    },
+    "input": {
+      "border_width": 1,
+      "border_color": "#E5E7EB",
+      "border_radius": 8,
+      "padding_horizontal": 12,
+      "padding_vertical": 10,
+      "font_size": 14,
+      "focus_border_color": "#E65C00"
+    },
+    "chip": {
+      "background": "#F3F4F6",
+      "border_radius": 20,
+      "padding_horizontal": 12,
+      "padding_vertical": 6,
+      "font_size": 12,
+      "active_background": "#E65C00",
+      "active_text_color": "#FFFFFF"
+    },
+    "bottom_sheet": {
+      "border_radius_top": 20,
+      "background": "#FFFFFF",
+      "padding": 20,
+      "drag_handle": true,
+      "height_medium": 0.5,
+      "height_large": 0.9
+    },
+    "seat_grid_cell": {
+      "width": 52,
+      "height": 44,
+      "border_radius": 8,
+      "font_size": 10,
+      "font_weight": "500",
+      "text_color": "#FFFFFF"
+    },
+    "member_card": {
+      "padding": 12,
+      "margin_bottom": 8,
+      "border_radius": 12,
+      "left_border_width": 4,
+      "left_border_colors": {
+        "active": "#10B981",
+        "expiring": "#F59E0B",
+        "expired": "#DC2626",
+        "hold": "#F59E0B",
+        "trial": "#8B5CF6"
+      }
+    }
+  },
+  "icons": {
+    "library": "Feather",
+    "icon_set": "https://feathericons.com/",
+    "size_sm": 16,
+    "size_md": 20,
+    "size_lg": 24,
+    "size_xl": 32
+  },
+  "breakpoints": {
+    "mobile": 375,
+    "tablet": 768,
+    "desktop": 1024
+  },
+  "animations": {
+    "duration_fast": 150,
+    "duration_normal": 300,
+    "duration_slow": 500,
+    "easing": "ease-in-out"
+  },
+  "z_index": {
+    "bottom_sheet": 1000,
+    "modal": 2000,
+    "toast": 3000,
+    "loader": 4000
+  }
+}
+  "branding": {
+    "logo_primary": "LOGO.png",
+    "logo_horizontal": "horizontal app logo.png",
+    "splash_logo": "horizontal app logo.png",
+    "app_icon": "LOGO.png"
+  }

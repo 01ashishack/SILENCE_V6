@@ -1,0 +1,552 @@
+{
+  "version": "1.0",
+  "description": "RLS policies for SILENCE. All tables have RLS enabled. Policies use auth.uid() from Supabase JWT.",
+  "policies": [
+    {
+      "table": "users",
+      "description": "Users can read their own record; admins can read all users (for member management); anyone can insert (signup).",
+      "policies": [
+        {
+          "name": "Users can view own profile",
+          "action": "SELECT",
+          "using": "auth.uid() = id"
+        },
+        {
+          "name": "Admins can view all users (for member lists)",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE owner_id = auth.uid())"
+        },
+        {
+          "name": "Users can update own profile",
+          "action": "UPDATE",
+          "using": "auth.uid() = id",
+          "with_check": "auth.uid() = id"
+        },
+        {
+          "name": "Anyone can insert (signup)",
+          "action": "INSERT",
+          "with_check": "true"
+        },
+        {
+          "name": "No delete for regular users",
+          "action": "DELETE",
+          "using": "false"
+        }
+      ]
+    },
+    {
+      "table": "libraries",
+      "description": "Anyone can view active libraries. Only owner can insert/update/delete.",
+      "policies": [
+        {
+          "name": "Anyone can view active libraries",
+          "action": "SELECT",
+          "using": "status = 'active' OR status = 'setup' OR owner_id = auth.uid()"
+        },
+        {
+          "name": "Only owner can insert",
+          "action": "INSERT",
+          "with_check": "auth.uid() = owner_id"
+        },
+        {
+          "name": "Only owner can update",
+          "action": "UPDATE",
+          "using": "auth.uid() = owner_id",
+          "with_check": "auth.uid() = owner_id"
+        },
+        {
+          "name": "Only owner can delete (only if status = 'setup')",
+          "action": "DELETE",
+          "using": "auth.uid() = owner_id AND status = 'setup'"
+        }
+      ]
+    },
+    {
+      "table": "shifts",
+      "description": "Only library owner can manage shifts.",
+      "policies": [
+        {
+          "name": "Admins can manage shifts of their libraries",
+          "action": "ALL",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Anyone can view shifts (for explore/join)",
+          "action": "SELECT",
+          "using": "true"
+        }
+      ]
+    },
+    {
+      "table": "floors",
+      "description": "Library owner can manage floors.",
+      "policies": [
+        {
+          "name": "Owner full access",
+          "action": "ALL",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Read only for others",
+          "action": "SELECT",
+          "using": "true"
+        }
+      ]
+    },
+    {
+      "table": "sections",
+      "description": "Same as floors.",
+      "policies": [
+        {
+          "name": "Owner full access",
+          "action": "ALL",
+          "using": "EXISTS (SELECT 1 FROM floors JOIN libraries ON floors.library_id = libraries.id WHERE floors.id = floor_id AND libraries.owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM floors JOIN libraries ON floors.library_id = libraries.id WHERE floors.id = floor_id AND libraries.owner_id = auth.uid())"
+        },
+        {
+          "name": "Read only for others",
+          "action": "SELECT",
+          "using": "true"
+        }
+      ]
+    },
+    {
+      "table": "seats",
+      "description": "Anyone can view seats; only owner can update status.",
+      "policies": [
+        {
+          "name": "Anyone can view seats",
+          "action": "SELECT",
+          "using": "true"
+        },
+        {
+          "name": "Owner can update seats (status, occupied_by, maintenance)",
+          "action": "UPDATE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Owner can insert/delete",
+          "action": "INSERT",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Owner can delete",
+          "action": "DELETE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "memberships",
+      "description": "Members can view their own; admins can view all members of their libraries; system can insert/update.",
+      "policies": [
+        {
+          "name": "Member view own memberships",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view all memberships of their libraries",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Admin insert (add member manually)",
+          "action": "INSERT",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Admin update (approve, renew, hold, transfer)",
+          "action": "UPDATE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "System can update (auto-hold, auto-expiry)",
+          "action": "UPDATE",
+          "using": "true",
+          "with_check": "true",
+          "note": "Use service_role key for scheduled jobs"
+        }
+      ]
+    },
+    {
+      "table": "attendance",
+      "description": "Members can view own; admins can view all of their libraries; members can insert (check-in/out).",
+      "policies": [
+        {
+          "name": "Member view own attendance",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view all attendance of their libraries",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Member insert (check-in/out)",
+          "action": "INSERT",
+          "with_check": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin insert (manual check-in)",
+          "action": "INSERT",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Admin update (edit session duration)",
+          "action": "UPDATE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "payments",
+      "description": "Members can view own; admins can view all of their libraries; members can insert (UPI proof); admin can update status.",
+      "policies": [
+        {
+          "name": "Member view own payments",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view all payments of their libraries",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Member insert (upload proof)",
+          "action": "INSERT",
+          "with_check": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin update status (confirm/reject/dispute)",
+          "action": "UPDATE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "join_requests",
+      "description": "Members can view their own; admins can view requests for their libraries; members can insert; admin can update.",
+      "policies": [
+        {
+          "name": "Member view own requests",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view requests for their libraries",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Member insert new request",
+          "action": "INSERT",
+          "with_check": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin update (approve/reject)",
+          "action": "UPDATE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "seat_change_requests",
+      "description": "Members can view their own; admins can view for their libraries; members can insert; admin can update.",
+      "policies": [
+        {
+          "name": "Member view own",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Member insert",
+          "action": "INSERT",
+          "with_check": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin update",
+          "action": "UPDATE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "hold_requests",
+      "description": "Similar to seat_change_requests.",
+      "policies": [
+        {
+          "name": "Member view own",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Member insert",
+          "action": "INSERT",
+          "with_check": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin update",
+          "action": "UPDATE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "transfers",
+      "description": "Only admin can insert (create transfer). Members can view their own transfers.",
+      "policies": [
+        {
+          "name": "Member view own transfers",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE from_library_id = library_id AND owner_id = auth.uid()) OR EXISTS (SELECT 1 FROM libraries WHERE to_library_id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Admin insert",
+          "action": "INSERT",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE from_library_id = library_id AND owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "add_ons",
+      "description": "Only library owner can manage add-ons; anyone can view.",
+      "policies": [
+        {
+          "name": "Anyone can view",
+          "action": "SELECT",
+          "using": "true"
+        },
+        {
+          "name": "Owner can insert/update/delete",
+          "action": "ALL",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "member_add_ons",
+      "description": "Members can view their own; admin can view all.",
+      "policies": [
+        {
+          "name": "Member view own",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM memberships WHERE id = membership_id AND member_id = auth.uid())"
+        },
+        {
+          "name": "Admin view",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM add_ons JOIN libraries ON add_ons.library_id = libraries.id WHERE add_ons.id = add_on_id AND libraries.owner_id = auth.uid())"
+        },
+        {
+          "name": "Admin insert/update",
+          "action": "INSERT",
+          "with_check": "EXISTS (SELECT 1 FROM add_ons JOIN libraries ON add_ons.library_id = libraries.id WHERE add_ons.id = add_on_id AND libraries.owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "referrals",
+      "description": "Members can view their own referrals; admin can view all referrals for their libraries.",
+      "policies": [
+        {
+          "name": "Member view own referrals (as referrer or referred)",
+          "action": "SELECT",
+          "using": "referrer_member_id = auth.uid() OR referred_member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "System insert (via join flow)",
+          "action": "INSERT",
+          "with_check": "true",
+          "note": "Service role only for insert"
+        }
+      ]
+    },
+    {
+      "table": "badges",
+      "description": "Members can view their own; admin can view all.",
+      "policies": [
+        {
+          "name": "Member view own badges",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view badges of members in their libraries",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM memberships WHERE memberships.member_id = badges.member_id AND library_id = badges.library_id AND EXISTS (SELECT 1 FROM libraries WHERE id = memberships.library_id AND owner_id = auth.uid()))"
+        },
+        {
+          "name": "System insert (auto-earn)",
+          "action": "INSERT",
+          "with_check": "true",
+          "note": "Service role or trigger"
+        }
+      ]
+    },
+    {
+      "table": "announcements",
+      "description": "Admin can manage announcements; members can view.",
+      "policies": [
+        {
+          "name": "Admin insert",
+          "action": "INSERT",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Admin update/delete",
+          "action": "UPDATE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Members can view announcements of their libraries",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM memberships WHERE memberships.library_id = announcements.library_id AND memberships.member_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "announcement_reads",
+      "description": "Members can mark reads; admin can view read status.",
+      "policies": [
+        {
+          "name": "Member insert own read",
+          "action": "INSERT",
+          "with_check": "member_id = auth.uid()"
+        },
+        {
+          "name": "Member view own reads",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view reads",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM announcements WHERE announcements.id = announcement_id AND EXISTS (SELECT 1 FROM libraries WHERE libraries.id = announcements.library_id AND libraries.owner_id = auth.uid()))"
+        }
+      ]
+    },
+    {
+      "table": "queries",
+      "description": "Members can create queries and view their own; admin can view and reply.",
+      "policies": [
+        {
+          "name": "Member insert",
+          "action": "INSERT",
+          "with_check": "member_id = auth.uid()"
+        },
+        {
+          "name": "Member view own queries",
+          "action": "SELECT",
+          "using": "member_id = auth.uid()"
+        },
+        {
+          "name": "Admin view queries of their libraries",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Admin update (reply, close)",
+          "action": "UPDATE",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        }
+      ]
+    },
+    {
+      "table": "notifications",
+      "description": "Users can view their own notifications; system can insert.",
+      "policies": [
+        {
+          "name": "User view own",
+          "action": "SELECT",
+          "using": "user_id = auth.uid()"
+        },
+        {
+          "name": "System insert",
+          "action": "INSERT",
+          "with_check": "true",
+          "note": "Service role"
+        },
+        {
+          "name": "User update read_at",
+          "action": "UPDATE",
+          "using": "user_id = auth.uid()",
+          "with_check": "user_id = auth.uid()"
+        }
+      ]
+    },
+    {
+      "table": "audit_log",
+      "description": "Only admin (owner) can view audit log for their libraries.",
+      "policies": [
+        {
+          "name": "Admin view own audit log",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "System insert",
+          "action": "INSERT",
+          "with_check": "true",
+          "note": "Service role or trigger"
+        }
+      ]
+    },
+    {
+      "table": "scheduled_closures",
+      "description": "Admin can manage closures; members can view.",
+      "policies": [
+        {
+          "name": "Admin full access",
+          "action": "ALL",
+          "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())",
+          "with_check": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())"
+        },
+        {
+          "name": "Members can view closures of their libraries",
+          "action": "SELECT",
+          "using": "EXISTS (SELECT 1 FROM memberships WHERE memberships.library_id = scheduled_closures.library_id AND memberships.member_id = auth.uid())"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "All tables must have `ALTER TABLE table_name ENABLE ROW LEVEL SECURITY;` executed.",
+    "Service role key (service_role) is used for scheduled jobs (auto-checkout, auto-hold, expiry notifications).",
+    "For real-time subscriptions, policies still apply.",
+    "Indexes are defined in the database schema file (04_Database_Schema.json)."
+  ]
+}

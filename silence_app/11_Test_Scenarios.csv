@@ -1,0 +1,77 @@
+Test ID,Feature,Test Scenario,Expected Result,Priority
+T01,Auth,New user signs up with email/password,User is created in Supabase, redirected to Role Selection,P0
+T02,Auth,User signs up with Google,Role selection screen shown after OAuth callback,P0
+T03,Auth,User selects "Library Owner" role,Role saved to users table, navigates to Admin Home,P0
+T04,Auth,User selects "Student" role,Role saved, navigates to Member Home,P0
+T05,Auth,User with existing library reopens app,Directly lands on operational dashboard (no setup modal),P0
+T06,Admin Onboarding,New admin with no library opens app,Library Setup Stage 1 opens as mandatory modal,P0
+T07,Admin Onboarding,Admin completes Stage 1 (basic info),Library code generated (SIL-XXXXXX), library saved,P0
+T08,Admin Onboarding,Admin completes Stage 2 (floors, sections, seats),Seats created with labels, linked to shifts (multi-shift model),P0
+T09,Admin Onboarding,Admin completes Stage 3 (shifts, plans) with upsert,Shifts saved, old shifts soft-deleted, no orphaned memberships,P0
+T10,Admin Onboarding,All 4 steps complete,Launch Library button appears, setup card disappears,P0
+T11,Admin Dashboard,Admin views stats grid (revenue, active today, etc.),All numbers load correctly, zero values show "0" not blank,P0
+T12,Admin Dashboard,Admin taps any stat card,Navigates to filtered members list (e.g., Active Today list),P0
+T13,Admin Dashboard,Admin selects "All Libraries" in library switcher,Aggregate stats shown (sum revenue, weighted occupancy),P0
+T14,QR Regeneration,Admin taps Regenerate on Attendance QR,Old QR continues working for 7 days, new QR generated,P0
+T15,QR Regeneration,Admin types "REGENERATE" and confirms,QR regenerated, version number increments,P0
+T16,Seat Management,Admin adds a floor with name "Ground Floor",Floor appears in Layout tab, seat grid updates,P0
+T17,Seat Management,Admin bulk generates seats (G-A, 01 to 30),30 seats created with labels G-A-01 to G-A-30,P0
+T18,Seat Management,Admin marks a seat as maintenance,Seat turns gray with wrench icon, not assignable,P0
+T19,Seat Management,Admin reassigns a member to another seat (same shift),Member moved, old seat freed, new seat occupied,P0
+T20,Join Request,Member applies to join library (cash payment),Join request created, admin sees in Requests tab,P0
+T21,Join Request,Admin approves request with seat assignment,Membership created, seat marked occupied, member notified,P0
+T22,Join Request,Admin rejects request with reason,Member notified with rejection reason, join request removed,P0
+T23,Join Request (UPI),Member uploads UPI screenshot + sender name,Admin sees screenshot and sender, can confirm/reject,P0
+T24,Join Request (Cash),Admin confirms cash payment with receipt photo,Member receives push notification with receipt details,P0
+T25,Join Request (Trial),Library has trial enabled, member selects trial,Payment step skipped, membership created with trial status,P0
+T26,Join Request (Existing Member),Member with same phone rejoins,Admin sees "Returning Member" badge, old record reactivated,P0
+T27,Attendance,Member scans Attendance QR (valid membership),Check-in recorded, session started,P0
+T28,Attendance,Member scans again within 3 minutes,Shows "Already checked in at [time]" (not silent),P0
+T29,Attendance,Member scans checkout after shift end (overtime),Checkout accepted, overtime included in duration, admin notified passively,P0
+T30,Attendance,Member forgets checkout, auto-checkout triggers at shift end + 10 min,Session closed at shift end, duration calculated,P0
+T31,Attendance,Admin manually checks in member (QR fails),Manual entry created with reason, flagged in analytics,P0
+T32,Offline,Member scans while offline (no internet),Scan saved to local queue (IndexedDB), success message shown,P0
+T33,Offline,Offline queue reaches 500 scans,New scans blocked with "Storage full – reconnect" message,P0
+T34,Offline,App comes online after offline scans,Queue syncs in FIFO order, "X scans synced" toast shown,P0
+T35,Offline,Admin views member list while offline,Last cached member list (≤200 rows) shown,P0
+T36,Membership Renewal,Admin renews member silently (payment confirmed),New membership period starts, member notified,P0
+T37,Membership Renewal,Member self-renews via app (payment proof uploaded),Admin confirms payment → renewal finalised,P0
+T38,Membership Renewal,Member expired 5 days ago with no activity,Admin sees date choice prompt (from expiry / from today),P0
+T39,Discount,Admin applies discount during join/renewal,Discount amount stored, member sees discounted price on card,P0
+T40,Discount,Discount exceeds max_discount_percent rule,Blocked, admin sees validation error,P1
+T41,Hold Request,Member requests hold (pause),Admin approves, seat changes to Hold (amber), billing paused,P0
+T42,Hold Request,Member on hold tries to check in,Check-in rejected with "Membership on hold" message,P0
+T43,Hold Request,Hold period ends, auto-resume,Member can check in again, expiry extended,P0
+T44,Seat Change Request,Member requests seat change with reason,Admin assigns new seat, member moved, old seat freed,P0
+T45,Member Transfer (same admin),Admin transfers member to another library,Old membership marked 'transferred', new membership created, streak preserved,P1
+T46,Announcement,Admin sends announcement to "All Members",All members receive push notification, announcement appears in Home tab,P0
+T47,Announcement,Member taps announcement,Marked as read, read count increments in admin view,P0
+T48,Referral,Member shares referral code, friend joins using code,Referral record created with status 'pending',P1
+T49,Referral Reward,Referred member completes 5 check-ins,Referrer gets free days credited, referral status 'credited',P1
+T50,Referral Reward (failure),Referred member exits before completing check-ins,Referral status 'cancelled', no reward,P1
+T51,Badge,Member maintains 7-day streak,Badge "7-Day Streak" earned, notification sent,P1
+T52,Badge,Member checks in before 7 AM on 5 days,Badge "Early Bird" earned,P1
+T53,Leaderboard,Member views leaderboard,Shows top 5 by hours (nickname only), current member highlighted,P0
+T54,Analytics (Member),Member views attendance calendar,Tap any day → popup with check-in/out times and duration,P0
+T55,Analytics (Member),Member exports attendance CSV,CSV downloaded with columns: Date, Check-in, Check-out, Duration, Library, Seat,P1
+T56,Analytics (Admin),Admin adds expense with receipt photo,Expense appears in expenditure list, Net Profit recalculates,P0
+T57,Analytics (Admin),Admin views financial trend chart,Revenue vs Expenses line chart rendered for selected period,P0
+T58,Analytics (Admin),Admin exports CSV for members,CSV downloaded, contains member list with status, seat, expiry,P0
+T59,Scheduled Closure,Admin sets scheduled closure (Diwali, 2 days),Members notified, streak frozen for those dates,P1
+T60,Scheduled Closure,Member tries to check in during closure,QR scan shows "Library closed today ([reason])", check-in rejected,P1
+T61,Close Today,Admin taps "Close Today",All active members notified, streak frozen, day flagged as closed,P0
+T62,Library Permanent Closure,Admin initiates closure, shows pre-closure check (active members, pending requests),P1
+T63,Library Permanent Closure,Admin types library name to confirm,Library status set to 'closed', members notified, read-only mode for admin,P1
+T64,Subscription (Razorpay),Admin upgrades from Starter to Pro,Razorpay checkout opens, on success plan updated,P0
+T65,Subscription (Razorpay),Admin subscription payment fails,Admin enters grace period (7 days full access, orange banner),P0
+T66,Subscription (Razorpay),Grace period expires without payment,Admin enters read-only mode (cannot approve requests, etc.),P0
+T67,Subscription (Razorpay),Admin re-subscribes from read-only mode,Payment success → full access restored immediately,P0
+T68,Free Trial (Admin),New admin signs up, gets 14-day Pro trial,subscription_plan='trial', subscription_expiry=now+14d,P0
+T69,Free Trial (Admin),Trial expires, admin sees upgrade prompt,Standard grace period starts,P0
+T70,Audit Log,Admin applies discount on membership,Audit log entry created with admin_id, discount amount, reason,P1
+T71,Audit Log,Admin regenerates QR code,Audit log entry created with QR version change,P1
+T72,Multi-shift Seat,Admin assigns same physical seat to different members in different shifts,Seat A assigned to Member1 (Morning), Member2 (Evening) – both valid,P0
+T73,Shift Overlap,Admin creates overlapping shifts (6AM-2PM and 1PM-9PM),Yellow warning shown, admin must confirm,P0
+T74,Date Picker,All date pickers across app,Show calendar grid view (not scroll drum),P0
+T75,Empty State,Admin home with no data,Stats show 0, empty states with helpful text,P0
+T76,Role Conversion,User requests role change via support,Support ticket created, admin reviews and updates role manually,P2
