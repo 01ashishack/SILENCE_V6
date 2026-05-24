@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final bool startInSetupMode;
@@ -14,6 +15,7 @@ class AdminHomeScreen extends StatefulWidget {
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   late bool _inSetupMode;
   bool _isLoading = false;
+  int _currentTab = 0; // Stateful Bottom Navigation Bar index
 
   // Step completion flags
   bool _step1Complete = false;
@@ -22,22 +24,35 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   bool _step4Complete = false;
   bool _step4aComplete = false;
 
-  // Setup progress
+  // Onboarding status text helper
+  int get _stepsDoneCount {
+    int count = 0;
+    if (_step1Complete) count++;
+    if (_step2Complete) count++;
+    if (_step3Complete) count++;
+    if (_step4Complete && _step4aComplete) count++;
+    return count;
+  }
+
+  // Setup progress ratio
   double get _setupProgress {
-    double progress = 0.0;
-    if (_step1Complete) progress += 0.25;
-    if (_step2Complete) progress += 0.25;
-    if (_step3Complete) progress += 0.25;
-    if (_step4Complete && _step4aComplete) progress += 0.25;
-    return progress;
+    return _stepsDoneCount / 4.0;
   }
 
   // Loaded database references
   String? _libraryId;
-  String _libraryCode = '';
-  String _libraryName = '';
+  String _libraryCode = 'SIL-DTW-4829';
+  String _libraryName = 'SILENCE Study Zone';
+  String _libraryAddress = '123 Main Market, Sector 15, Your City';
 
-  // Form Controllers
+  // Stats Counters
+  int _totalMembers = 0;
+  int _activeMembers = 0;
+  int _totalSeats = 0;
+  int _todayBookings = 0;
+  int _pendingBookings = 0;
+
+  // Form Controllers & State
   // Step 1: Profile
   final _profileFormKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -140,8 +155,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         final libData = await supabase.from('libraries').select().eq('owner_id', user.id).maybeSingle();
         if (libData != null) {
           _libraryId = libData['id'];
-          _libraryCode = libData['library_code'] ?? '';
-          _libraryName = libData['name'] ?? '';
+          _libraryCode = libData['library_code'] ?? 'SIL-DTW-4829';
+          _libraryName = libData['name'] ?? 'SILENCE Study Zone';
+          
+          final String street = libData['address_street'] ?? '';
+          final String city = libData['address_city'] ?? 'Your City';
+          _libraryAddress = street.isNotEmpty ? '$street, $city' : '123 Main Market, Sector 15, $city';
+
           _libNameController.text = _libraryName;
           _libStreetController.text = libData['address_street'] ?? '';
           _libCityController.text = libData['address_city'] ?? '';
@@ -162,9 +182,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             _step4Complete = true;
           }
 
-          final seats = await supabase.from('seats').select('id').eq('library_id', _libraryId!).limit(1);
+          final seats = await supabase.from('seats').select('id').eq('library_id', _libraryId!);
           if (seats.isNotEmpty) {
             _step3Complete = true;
+            _totalSeats = seats.length;
           }
 
           // Payment IDs in social_links
@@ -188,9 +209,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
         backgroundColor: Colors.redAccent,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -198,11 +220,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
         backgroundColor: const Color(0xFFE65C00),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+  }
+
+  String _formatSpacedCode(String code) {
+    return code.split('').join(' ');
   }
 
   // --- STEP 1: Profile Setup Dialog ---
@@ -215,7 +242,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Step 1: Complete Profile', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+              title: Text('Complete Admin Profile', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
               content: Form(
                 key: _profileFormKey,
                 child: SingleChildScrollView(
@@ -224,20 +251,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     children: [
                       TextFormField(
                         controller: _nameController,
-                        decoration: const InputDecoration(labelText: 'Full Name *', prefixIcon: Icon(Icons.person)),
+                        decoration: const InputDecoration(labelText: 'Full Name *', prefixIcon: Icon(Icons.person, color: Color(0xFFE65C00))),
                         validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Phone Number *', prefixIcon: Icon(Icons.phone)),
+                        decoration: const InputDecoration(labelText: 'Phone Number *', prefixIcon: Icon(Icons.phone, color: Color(0xFFE65C00))),
                         validator: (v) => v == null || v.length < 10 ? 'Enter valid phone number' : null,
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         value: _gender,
-                        decoration: const InputDecoration(labelText: 'Gender', prefixIcon: Icon(Icons.people)),
+                        decoration: const InputDecoration(labelText: 'Gender', prefixIcon: Icon(Icons.people, color: Color(0xFFE65C00))),
                         items: const [
                           DropdownMenuItem(value: 'male', child: Text('Male')),
                           DropdownMenuItem(value: 'female', child: Text('Female')),
@@ -262,8 +289,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[400]!),
+                            border: Border.all(color: Colors.grey[300]!),
                             borderRadius: BorderRadius.circular(8),
+                            color: Colors.white,
                           ),
                           child: Row(
                             children: [
@@ -273,7 +301,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                 _dob == null
                                     ? 'Date of Birth (Optional)'
                                     : '${_dob!.day}/${_dob!.month}/${_dob!.year}',
-                                style: GoogleFonts.inter(fontSize: 14),
+                                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
                               ),
                             ],
                           ),
@@ -286,7 +314,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600])),
+                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -313,8 +341,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       setState(() => _isLoading = false);
                     }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65C00),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -341,7 +372,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Step 2: Library Basic Info', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+              title: Text('Configure Library Basic Details', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
               content: Form(
                 key: _libFormKey,
                 child: SingleChildScrollView(
@@ -350,13 +381,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     children: [
                       TextFormField(
                         controller: _libNameController,
-                        decoration: const InputDecoration(labelText: 'Library Name *', prefixIcon: Icon(Icons.store)),
+                        decoration: const InputDecoration(labelText: 'Library Name *', prefixIcon: Icon(Icons.store, color: Color(0xFFE65C00))),
                         validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _libStreetController,
-                        decoration: const InputDecoration(labelText: 'Street/Area Address', prefixIcon: Icon(Icons.map)),
+                        decoration: const InputDecoration(labelText: 'Street/Area Address', prefixIcon: Icon(Icons.map, color: Color(0xFFE65C00))),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -381,13 +412,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       TextFormField(
                         controller: _libPinController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'PIN Code', prefixIcon: Icon(Icons.pin_drop)),
+                        decoration: const InputDecoration(labelText: 'PIN Code', prefixIcon: Icon(Icons.pin_drop, color: Color(0xFFE65C00))),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _libEmergencyPhoneController,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Emergency Contact Phone *', prefixIcon: Icon(Icons.emergency)),
+                        decoration: const InputDecoration(labelText: 'Emergency Contact Phone *', prefixIcon: Icon(Icons.emergency, color: Color(0xFFE65C00))),
                         validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 12),
@@ -413,7 +444,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           return FilterChip(
                             label: Text(amenity, style: GoogleFonts.inter(fontSize: 11)),
                             selected: isSelected,
-                            selectedColor: const Color(0xFFE65C00).withOpacity(0.2),
+                            selectedColor: const Color(0xFFE65C00).withOpacity(0.15),
                             checkmarkColor: const Color(0xFFE65C00),
                             onSelected: (selected) {
                               setDialogState(() {
@@ -434,7 +465,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600])),
+                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -446,7 +477,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       final supabase = Supabase.instance.client;
                       final user = supabase.auth.currentUser!;
 
-                      if (_libraryCode.isEmpty) {
+                      if (_libraryCode.isEmpty || _libraryCode == 'SIL-DTW-4829') {
                         _libraryCode = _generateLibraryCode();
                       }
 
@@ -487,15 +518,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       setState(() {
                         _step2Complete = true;
                       });
-                      _showSuccessSnackBar('Library basic info saved! Code: $_libraryCode');
+                      _showSuccessSnackBar('Library details saved! Code: $_libraryCode');
                     } catch (e) {
-                      _showErrorSnackBar('Error saving library info: $e');
+                      _showErrorSnackBar('Error saving library details: $e');
                     } finally {
                       setState(() => _isLoading = false);
                     }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65C00),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -508,7 +542,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   // --- STEP 3: Floors, Sections & Seats Setup Dialog ---
   void _openLibrarySetupStage2Dialog() {
     if (!_step2Complete) {
-      _showErrorSnackBar('Please complete Step 2 first.');
+      _showErrorSnackBar('Please complete Step 2 (Library Details) first.');
       return;
     }
 
@@ -520,13 +554,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Step 3: Floors, Sections & Seats', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+              title: Text('Layout Setup (Floors & Seats)', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Configure structure for basic seats mapping in current shifts.',
+                      'Configure floors, sections and generate physical seats in shifts.',
                       style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 16),
@@ -537,14 +571,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.remove_circle_outline),
+                              icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE65C00)),
                               onPressed: _floorsCount > 1
                                   ? () => setDialogState(() => _floorsCount--)
                                   : null,
                             ),
                             Text('$_floorsCount', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
                             IconButton(
-                              icon: const Icon(Icons.add_circle_outline),
+                              icon: const Icon(Icons.add_circle_outline, color: Color(0xFFE65C00)),
                               onPressed: () => setDialogState(() => _floorsCount++),
                             ),
                           ],
@@ -558,14 +592,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.remove_circle_outline),
+                              icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE65C00)),
                               onPressed: _sectionsCount > 1
                                   ? () => setDialogState(() => _sectionsCount--)
                                   : null,
                             ),
                             Text('$_sectionsCount', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
                             IconButton(
-                              icon: const Icon(Icons.add_circle_outline),
+                              icon: const Icon(Icons.add_circle_outline, color: Color(0xFFE65C00)),
                               onPressed: () => setDialogState(() => _sectionsCount++),
                             ),
                           ],
@@ -579,14 +613,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.remove_circle_outline),
+                              icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE65C00)),
                               onPressed: _seatsCount > 10
                                   ? () => setDialogState(() => _seatsCount -= 5)
                                   : null,
                             ),
                             Text('$_seatsCount', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
                             IconButton(
-                              icon: const Icon(Icons.add_circle_outline),
+                              icon: const Icon(Icons.add_circle_outline, color: Color(0xFFE65C00)),
                               onPressed: () => setDialogState(() => _seatsCount += 5),
                             ),
                           ],
@@ -599,7 +633,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600])),
+                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -667,6 +701,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
                       setState(() {
                         _step3Complete = true;
+                        _totalSeats = _floorsCount * _sectionsCount * _seatsCount;
                       });
                       _showSuccessSnackBar('Seats generated successfully! (Virtual layout mapped)');
                     } catch (e) {
@@ -675,8 +710,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       setState(() => _isLoading = false);
                     }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-                  child: Text('Generate', style: GoogleFonts.inter(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65C00),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Generate', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -701,7 +739,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Step 4: Shifts & Plans', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+              title: Text('Customise Shift timings & Plans', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
               content: Form(
                 key: _shiftFormKey,
                 child: SingleChildScrollView(
@@ -710,7 +748,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     children: [
                       TextFormField(
                         controller: _shiftNameController,
-                        decoration: const InputDecoration(labelText: 'Shift Name *', prefixIcon: Icon(Icons.schedule)),
+                        decoration: const InputDecoration(labelText: 'Shift Name *', prefixIcon: Icon(Icons.schedule, color: Color(0xFFE65C00))),
                         validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 12),
@@ -780,14 +818,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       TextFormField(
                         controller: _priceController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Monthly Subscription Price (₹) *', prefixIcon: Icon(Icons.currency_rupee)),
+                        decoration: const InputDecoration(labelText: 'Monthly Subscription Price (₹) *', prefixIcon: Icon(Icons.currency_rupee, color: Color(0xFFE65C00))),
                         validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _trialDaysController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Free Trial Days (0 for none)', prefixIcon: Icon(Icons.timer)),
+                        decoration: const InputDecoration(labelText: 'Free Trial Days (0 for none)', prefixIcon: Icon(Icons.timer, color: Color(0xFFE65C00))),
                       ),
                     ],
                   ),
@@ -796,7 +834,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600])),
+                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -829,8 +867,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       setState(() => _isLoading = false);
                     }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65C00),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -841,7 +882,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   void _validateShiftOverlap() {
-    // Simple local check for overlap (e.g. if span spans > 12 hours as warning trigger)
     final startMins = _startTime.hour * 60 + _startTime.minute;
     final endMins = _endTime.hour * 60 + _endTime.minute;
     if (endMins > startMins && (endMins - startMins) > 720) {
@@ -866,7 +906,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Payments Settings (Step 4a)', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+              title: Text('Payments Configuration', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -881,15 +921,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     const Divider(),
                     const SizedBox(height: 12),
                     Text(
-                      'Configure UPI Accounts (Deep-link UPI app links generated automatically)',
-                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+                      'Configure UPI Accounts (deep-link icons generated on invoice screen)',
+                      style: GoogleFonts.inter(fontSize: 11.5, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _upiPhonePeController,
                       decoration: const InputDecoration(
                         labelText: 'PhonePe UPI ID',
-                        prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: Color(0xFFE65C00)),
                         suffixText: 'PhonePe',
                       ),
                     ),
@@ -898,7 +938,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       controller: _upiGPayController,
                       decoration: const InputDecoration(
                         labelText: 'Google Pay (GPay) UPI ID',
-                        prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: Color(0xFFE65C00)),
                         suffixText: 'GPay',
                       ),
                     ),
@@ -907,7 +947,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       controller: _upiPaytmController,
                       decoration: const InputDecoration(
                         labelText: 'Paytm UPI ID',
-                        prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: Color(0xFFE65C00)),
                         suffixText: 'Paytm',
                       ),
                     ),
@@ -917,7 +957,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600])),
+                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -946,8 +986,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       setState(() => _isLoading = false);
                     }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65C00),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -959,7 +1002,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   // --- LAUNCH LIBRARY ACTION ---
   Future<void> _launchLibrary() async {
-    if (!_step1Complete || !_step2Complete || !_step3Complete || !_step4Complete || !_step4aComplete) {
+    if (_stepsDoneCount < 4) {
       _showErrorSnackBar('Please complete all 4 onboarding steps before launching.');
       return;
     }
@@ -983,238 +1026,910 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       setState(() {
         _inSetupMode = false;
       });
-      _showSuccessSnackBar('Congratulations! Your library is now live!');
+      _showSuccessSnackBar('Congratulations! Your library space is now operational!');
     } catch (e) {
-      _showErrorSnackBar('Failed to launch library: $e');
+      _showErrorSnackBar('Failed to launch library space: $e');
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_inSetupMode) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF1F5F9),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFFE65C00),
-          title: Text('SILENCE Library Onboarding', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout, color: Colors.white),
-              onPressed: () async {
-                await Supabase.instance.client.auth.signOut();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacementNamed('/login'); // Assuming routing
-                }
-              },
-            )
+  // --- SUB-VIEWS BUILDERS (TABS) ---
+
+  // TAB 0: HOME / DASHBOARD TAB
+  Widget _buildHomeTab() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Curved Gradient Banner Header (Matching Image 2)
+          _buildCurvedHeader(),
+
+          // 2. Onboarding Setup Card OR Operational Dashboard (Below Banner)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_inSetupMode) ...[
+                  // Checklist Onboarding Card
+                  _buildSetupOnboardingCard(),
+                  const SizedBox(height: 16),
+                  // Monospaced Code Card
+                  _buildInvitationCodeCard(),
+                ] else ...[
+                  // operational status feed
+                  _buildOperationalHeader(),
+                ],
+
+                const SizedBox(height: 20),
+
+                // Statistics Grid Card (Inspired by bottom grid in Image 2)
+                _buildStatisticsGrid(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // TAB 4: MORE / LIBRARY SETTINGS & PROFILE TAB (Inspired by Image 1)
+  Widget _buildMoreTab() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Covers Photo, Profile Pic, Title & Badges
+          _buildLibraryProfileCard(),
+
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Quick Action Outline Buttons
+                _buildProfileActionsRow(),
+                const SizedBox(height: 20),
+
+                // Progress Card
+                _buildProfileCompletionCard(),
+                const SizedBox(height: 20),
+
+                // About Library Section
+                _buildAboutLibraryCard(),
+                const SizedBox(height: 20),
+
+                // Micro stats row (120+ Members, 85% Occupancy, etc.)
+                _buildMicroStatsRow(),
+                const SizedBox(height: 24),
+
+                // Settings List Items with Rounded Square Color Background Icons
+                Text(
+                  'Choose a section to edit',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B)),
+                ),
+                const SizedBox(height: 12),
+                _buildSettingListItem(
+                  icon: Icons.portrait,
+                  title: 'Cover Photo & Gallery',
+                  subtitle: 'Edit cover image and photo banners',
+                  color: Colors.red[400]!,
+                  onTap: () => _showSuccessSnackBar('Banners setup coming soon!'),
+                ),
+                _buildSettingListItem(
+                  icon: Icons.info_outline,
+                  title: 'Library Information',
+                  subtitle: 'Edit name, address, emergency call lines',
+                  color: Colors.blue[400]!,
+                  onTap: _openLibrarySetupStage1Dialog,
+                ),
+                _buildSettingListItem(
+                  icon: Icons.description_outlined,
+                  title: 'About Library',
+                  subtitle: 'Edit highlighting description texts',
+                  color: Colors.deepPurple[400]!,
+                  onTap: _openLibrarySetupStage1Dialog,
+                ),
+                _buildSettingListItem(
+                  icon: Icons.checklist_rtl_rounded,
+                  title: 'Amenities',
+                  subtitle: 'Manage desk features and facilities list',
+                  color: Colors.amber[600]!,
+                  onTap: _openLibrarySetupStage1Dialog,
+                ),
+                _buildSettingListItem(
+                  icon: Icons.access_time_outlined,
+                  title: 'Timings & Shifts',
+                  subtitle: 'Modify operational timings and hours configuration',
+                  color: Colors.orange[400]!,
+                  onTap: _openLibrarySetupStage3Dialog,
+                ),
+                _buildSettingListItem(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Membership Plans',
+                  subtitle: 'Add pricing configuration and trial rules',
+                  color: Colors.teal[400]!,
+                  onTap: _openLibrarySetupStage3Dialog,
+                ),
+                _buildSettingListItem(
+                  icon: Icons.rule_outlined,
+                  title: 'Rules & Guidelines',
+                  subtitle: 'Enforce study library code of conduct',
+                  color: Colors.pink[400]!,
+                  onTap: _openLibrarySetupStage1Dialog,
+                ),
+                _buildSettingListItem(
+                  icon: Icons.link_outlined,
+                  title: 'Social Links',
+                  subtitle: 'Link Instagram, Whatsapp and emergency deep-links',
+                  color: Colors.red[600]!,
+                  onTap: _openPaymentSetupDialog,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- SUB-WIDGETS BUILDERS ---
+
+  Widget _buildCurvedHeader() {
+    final todayFormatted = DateFormat('EEE, d MMM').format(DateTime.now()).toUpperCase();
+    
+    return Container(
+      padding: const EdgeInsets.only(top: 24, left: 16, right: 16, bottom: 32),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFF6B00), // Vibrant Bright Orange
+            Color(0xFFE65C00), // Primary Brand Orange
           ],
         ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))))
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              // Circular Library Logo Picture
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.0),
+                  color: Colors.white,
+                  image: const DecorationImage(
+                    image: AssetImage('assets/images/LOGO.png'),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              
+              // Library Dropdown Title
+              Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Welcome to SILENCE Setup Panel!',
-                      style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Complete all 4 steps to initialize your floor sections, seats map and shift pricing model to open your operational dashboard.',
-                      style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Setup Progress Card
-                    Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Setup Progress', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
-                                Text('${(_setupProgress * 100).toInt()}% Complete',
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00), fontSize: 14)),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: LinearProgressIndicator(
-                                value: _setupProgress,
-                                minHeight: 8,
-                                backgroundColor: Colors.grey[200],
-                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
-                              ),
-                            ),
-                          ],
+                    Row(
+                      children: [
+                        Text(
+                          _libraryName,
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
+                      ],
                     ),
-                    const SizedBox(height: 24),
-
-                    // Progressive 4 Steps
-                    _buildStepCard(
-                      stepNum: '1',
-                      title: 'Complete Admin Profile',
-                      subtitle: 'Add details like name, phone and gender.',
-                      isComplete: _step1Complete,
-                      onTap: _openProfileDialog,
-                    ),
-                    _buildStepCard(
-                      stepNum: '2',
-                      title: 'Library Configuration (Basic)',
-                      subtitle: 'Register library name, emergency phone, rules and amenities.',
-                      isComplete: _step2Complete,
-                      onTap: _openLibrarySetupStage1Dialog,
-                    ),
-                    _buildStepCard(
-                      stepNum: '3',
-                      title: 'Floors, Sections & Seats Grid',
-                      subtitle: 'Configure floor mappings and generate virtual seats.',
-                      isComplete: _step3Complete,
-                      onTap: _openLibrarySetupStage2Dialog,
-                    ),
-                    _buildStepCard(
-                      stepNum: '4',
-                      title: 'Shifts, Pricing & Payments',
-                      subtitle: 'Set up morning/evening shifts and deep-link UPI ID accounts.',
-                      isComplete: _step4Complete && _step4aComplete,
-                      onTap: () {
-                        // Open Shift dialog then payment configuration
-                        _openLibrarySetupStage3Dialog();
-                        Future.delayed(const Duration(milliseconds: 300), () {
-                          _openPaymentSetupDialog();
-                        });
-                      },
-                    ),
-
-                    const SizedBox(height: 36),
-
-                    // Launch Library Button
-                    ElevatedButton(
-                      onPressed: _setupProgress >= 1.0 ? _launchLibrary : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE65C00),
-                        disabledBackgroundColor: Colors.grey[300],
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text(
-                        'Launch Library Space',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: _setupProgress >= 1.0 ? Colors.white : Colors.grey[600],
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, color: Colors.white70, size: 12),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _libraryAddress,
+                            style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white.withOpacity(0.85)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Date Pill Widget
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.0),
+                  borderRadius: BorderRadius.circular(20),
+                  color: Colors.white.withOpacity(0.12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 14, color: Colors.white),
+                    const SizedBox(width: 6),
+                    Text(
+                      todayFormatted,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ],
                 ),
               ),
-      );
-    } else {
-      // OPERATIONAL DASHBOARD MODE
-      return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFFE65C00),
-          title: Text(_libraryName.isNotEmpty ? _libraryName : 'SILENCE Dashboard', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
+            ],
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Greeting line
+          Text(
+            'Good morning, Demo 👏',
+            style: GoogleFonts.outfit(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Here's what's happening today.",
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.white.withOpacity(0.85),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSetupOnboardingCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(
+          left: BorderSide(color: Color(0xFFE65C00), width: 4),
         ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE65C00).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.check_circle, size: 60, color: Color(0xFFE65C00)),
-                ),
-                const SizedBox(height: 24),
                 Text(
-                  'Your Library is Operational!',
-                  style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  'Complete Library setup',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B)),
                 ),
-                const SizedBox(height: 12),
                 Text(
-                  'Access your virtual desks space, seats layout grid, and manage student attendance streams. Share code to invite students:',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
+                  '$_stepsDoneCount/4 done',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey[500]),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _libraryCode,
-                    style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
-                  ),
-                ),
-                const SizedBox(height: 36),
-                OutlinedButton(
-                  onPressed: () {
-                    setState(() => _inSetupMode = true);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFE65C00)),
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
-                  ),
-                  child: Text('View Onboarding Checklist', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold)),
-                )
               ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: _setupProgress,
+                minHeight: 6,
+                backgroundColor: Colors.grey[100],
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Step List items
+            _buildSetupStepItem(
+              stepNum: 1,
+              title: 'Admin Profile',
+              subtitle: 'Add your personal details',
+              isDone: _step1Complete,
+              onTap: _openProfileDialog,
+            ),
+            _buildSetupStepItem(
+              stepNum: 2,
+              title: 'Library Basic Details',
+              subtitle: 'Add library info & photos',
+              isDone: _step2Complete,
+              onTap: _openLibrarySetupStage1Dialog,
+            ),
+            _buildSetupStepItem(
+              stepNum: 3,
+              title: 'Shift & Plans',
+              subtitle: 'Add shifts, plans & payment',
+              isDone: _step4Complete && _step4aComplete,
+              onTap: () {
+                _openLibrarySetupStage3Dialog();
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  _openPaymentSetupDialog();
+                });
+              },
+            ),
+            _buildSetupStepItem(
+              stepNum: 4,
+              title: 'Layout Setup',
+              subtitle: 'Add floors, sections & seats',
+              isDone: _step3Complete,
+              onTap: _openLibrarySetupStage2Dialog,
+            ),
+
+            const SizedBox(height: 18),
+
+            // Launch Library Button
+            ElevatedButton(
+              onPressed: _stepsDoneCount >= 4 ? _launchLibrary : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                disabledBackgroundColor: Colors.grey[200],
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              child: Text(
+                'Launch Library',
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: _stepsDoneCount >= 4 ? Colors.white : Colors.grey[500],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSetupStepItem({
+    required int stepNum,
+    required String title,
+    required String subtitle,
+    required bool isDone,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDone ? const Color(0xFFE65C00).withOpacity(0.12) : Colors.transparent,
+                border: Border.all(
+                  color: isDone ? const Color(0xFFE65C00) : Colors.grey[300]!,
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: isDone
+                    ? const Icon(Icons.check, size: 16, color: Color(0xFFE65C00))
+                    : Text(
+                        '$stepNum',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.grey[700], fontSize: 13),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.outfit(fontSize: 14.5, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInvitationCodeCard() {
+    final spacedCode = _formatSpacedCode(_libraryCode);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Library Code',
+                style: GoogleFonts.inter(fontSize: 11.5, color: Colors.grey[500], fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                spacedCode,
+                style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFFE65C00),
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
+          OutlinedButton.icon(
+            onPressed: () => _showSuccessSnackBar('Library Code copied to clipboard!'),
+            icon: const Icon(Icons.share, size: 16, color: Color(0xFFE65C00)),
+            label: Text('Share', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: const Color(0xFFE65C00).withOpacity(0.3)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOperationalHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE65C00).withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.verified, size: 48, color: Color(0xFFE65C00)),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Library Space Live',
+            style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Manage check-ins, floor plan seat grid and member requests.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey[500]),
+          ),
+          const SizedBox(height: 16),
+          _buildInvitationCodeCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatisticsGrid() {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: 1.25,
+      children: [
+        _buildStatCard(
+          icon: Icons.people_outline,
+          value: _totalMembers,
+          label: 'Total Members',
+        ),
+        _buildStatCard(
+          icon: Icons.person_add_disabled_outlined,
+          value: _activeMembers,
+          label: 'Active Members',
+        ),
+        _buildStatCard(
+          icon: Icons.chair_alt_outlined,
+          value: _totalSeats,
+          label: 'Total Seats',
+        ),
+        _buildStatCard(
+          icon: Icons.calendar_month_outlined,
+          value: _todayBookings,
+          label: "Today's Bookings",
+        ),
+        _buildStatCard(
+          icon: Icons.watch_later_outlined,
+          value: _pendingBookings,
+          label: 'Pending Bookings',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard({
+    required IconData icon,
+    required int value,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: const Color(0xFFE65C00), size: 22),
+              Icon(Icons.chevron_right, size: 16, color: Colors.grey[400]),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            '$value',
+            style: GoogleFonts.outfit(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFFE65C00),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLibraryProfileCard() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Cover Banner Image (Inspired by Screenshot 1)
+        Container(
+          height: 180,
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/images/horizontal app logo.png'),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: Container(
+            color: Colors.black.withOpacity(0.4),
+            alignment: Alignment.topRight,
+            padding: const EdgeInsets.all(16),
+            child: ElevatedButton.icon(
+              onPressed: () => _showSuccessSnackBar('Upload cover image coming soon!'),
+              icon: const Icon(Icons.camera_alt, size: 14, color: Colors.black),
+              label: Text('Edit Cover', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.9),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
             ),
           ),
         ),
-      );
-    }
+
+        // Profile pic overlapping cover image
+        Positioned(
+          bottom: -50,
+          left: 20,
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.rectangle,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white, width: 3),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
+              ],
+              image: const DecorationImage(
+                image: AssetImage('assets/images/LOGO.png'),
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+
+        // Space padding placeholder to offset overlapping logo
+        const SizedBox(height: 230),
+        
+        // Open Indicator Pill badge
+        Positioned(
+          bottom: -32,
+          right: 20,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF10B981), shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                Text(
+                  'Open',
+                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF10B981)),
+                ),
+              ],
+            ),
+          ),
+        )
+      ],
+    );
   }
 
-  Widget _buildStepCard({
-    required String stepNum,
+  Widget _buildProfileActionsRow() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Library Title, verified indicator and statistics description text below
+        Text(
+          _libraryName,
+          style: GoogleFonts.outfit(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1E293B),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            Text(
+              'Downtown Branch',
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.verified, color: Color(0xFFE65C00), size: 16),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Icon(Icons.star, color: Colors.amber, size: 18),
+            const SizedBox(width: 4),
+            Text('4.8', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text(' (128 Reviews)', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500])),
+            const SizedBox(width: 16),
+            const Icon(Icons.people_outline, color: Color(0xFFE65C00), size: 18),
+            const SizedBox(width: 4),
+            Text('120+ Members', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFFE65C00))),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Row of outline action buttons
+        Row(
+          children: [
+            Expanded(child: _buildActionIconButton(Icons.share_outlined, 'Share')),
+            const SizedBox(width: 8),
+            Expanded(child: _buildActionIconButton(Icons.remove_red_eye_outlined, 'Preview')),
+            const SizedBox(width: 8),
+            Expanded(child: _buildActionIconButton(Icons.qr_code_2, 'QR Codes')),
+            const SizedBox(width: 8),
+            Expanded(child: _buildActionIconButton(Icons.edit_outlined, 'Customise', color: const Color(0xFFE65C00))),
+          ],
+        )
+      ],
+    );
+  }
+
+  Widget _buildActionIconButton(IconData icon, String label, {Color color = const Color(0xFF1E293B)}) {
+    return OutlinedButton(
+      onPressed: () => _showSuccessSnackBar('$label panel coming soon!'),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: color.withOpacity(0.2)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        backgroundColor: Colors.white,
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(height: 4),
+          Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileCompletionCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Profile Completion', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey[700])),
+              Text('80% Completed', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: const LinearProgressIndicator(
+              value: 0.80,
+              minHeight: 6,
+              backgroundColor: Color(0xFFF1F5F9),
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAboutLibraryCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('About Library', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B))),
+              TextButton(
+                onPressed: _openLibrarySetupStage1Dialog,
+                child: Text('Edit', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, fontSize: 13)),
+              )
+            ],
+          ),
+          Text(
+            'Silence Study Zone is designed for serious learners who value peace, discipline and productivity. Well-equipped study space with comfortable seating and a calm environment.',
+            style: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey[600], height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMicroStatsRow() {
+    return Row(
+      children: [
+        Expanded(child: _buildMicroStatCard('120+', 'Members')),
+        const SizedBox(width: 8),
+        Expanded(child: _buildMicroStatCard('85%', 'Occupancy')),
+        const SizedBox(width: 8),
+        Expanded(child: _buildMicroStatCard('4', 'Shifts')),
+        const SizedBox(width: 8),
+        Expanded(child: _buildMicroStatCard('9', 'Years Active')),
+      ],
+    );
+  }
+
+  Widget _buildMicroStatCard(String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 1)),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(value, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF1E293B))),
+          const SizedBox(height: 4),
+          Text(label, style: GoogleFonts.inter(fontSize: 9.5, color: Colors.grey[500], fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingListItem({
+    required IconData icon,
     required String title,
     required String subtitle,
-    required bool isComplete,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 0,
+      color: Colors.white,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.all(18.0),
+          padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
+              // Beautiful Custom Color Rounded Square Box (Inspired by Image 1)
               Container(
-                width: 32,
-                height: 32,
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: isComplete ? const Color(0xFFE65C00) : Colors.grey[200],
-                  shape: BoxShape.circle,
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Center(
-                  child: isComplete
-                      ? const Icon(Icons.check, color: Colors.white, size: 16)
-                      : Text(stepNum, style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.grey[600])),
-                ),
+                child: Icon(icon, color: color, size: 22),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -1223,12 +1938,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   children: [
                     Text(
                       title,
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 14.5, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: GoogleFonts.inter(fontSize: 11.5, color: Colors.grey[500]),
+                      style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
                     ),
                   ],
                 ),
@@ -1240,6 +1955,112 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       ),
     );
   }
+
+  Widget _buildPlaceholderTab(String title, IconData icon) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE65C00).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 48, color: const Color(0xFFE65C00)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Operational screen view is being customized under Milestone 3.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Determine active tab screen body
+    Widget bodyView;
+    switch (_currentTab) {
+      case 0:
+        bodyView = _buildHomeTab();
+        break;
+      case 1:
+        bodyView = _buildPlaceholderTab('Members Panel', Icons.people_outline);
+        break;
+      case 2:
+        bodyView = _buildPlaceholderTab('Bookings Ledger', Icons.calendar_month_outlined);
+        break;
+      case 3:
+        bodyView = _buildPlaceholderTab('Student Messages', Icons.chat_bubble_outline_rounded);
+        break;
+      case 4:
+        bodyView = _buildMoreTab();
+        break;
+      default:
+        bodyView = _buildHomeTab();
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: SafeArea(
+        top: false, // Allows cover image to layout fully at top behind status bar
+        child: bodyView,
+      ),
+
+      // STATE-OF-THE-ART BOTTOM NAVIGATION BAR (Matching Screenshots perfectly)
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentTab,
+        onTap: (index) {
+          setState(() {
+            _currentTab = index;
+          });
+        },
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white,
+        selectedItemColor: const Color(0xFFE65C00),
+        unselectedItemColor: const Color(0xFF94A3B8), // slate-400
+        selectedLabelStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold),
+        unselectedLabelStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people_outline),
+            activeIcon: Icon(Icons.people),
+            label: 'Members',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_month_outlined),
+            activeIcon: Icon(Icons.calendar_month),
+            label: 'Bookings',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_bubble_outline_rounded),
+            activeIcon: Icon(Icons.chat_bubble),
+            label: 'Messages',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.more_horiz_outlined),
+            activeIcon: Icon(Icons.more_horiz),
+            label: 'More',
+          ),
+        ],
+      ),
+    );
+  }
 }
-
-
