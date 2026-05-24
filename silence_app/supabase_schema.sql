@@ -596,10 +596,10 @@ CREATE POLICY "Member view own transfers" ON transfers
     FOR SELECT USING (member_id = auth.uid());
 
 CREATE POLICY "Admin view transfers" ON transfers
-    FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE from_library_id = library_id AND owner_id = auth.uid()) OR EXISTS (SELECT 1 FROM libraries WHERE to_library_id = library_id AND owner_id = auth.uid()));
+    FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = from_library_id AND owner_id = auth.uid()) OR EXISTS (SELECT 1 FROM libraries WHERE id = to_library_id AND owner_id = auth.uid()));
 
 CREATE POLICY "Admin insert transfer" ON transfers
-    FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE from_library_id = library_id AND owner_id = auth.uid()));
+    FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = from_library_id AND owner_id = auth.uid()));
 
 -- 4.14 Add-ons Policies
 CREATE POLICY "Anyone can view add-ons" ON add_ons
