@@ -41,8 +41,8 @@ class SilenceApp extends StatelessWidget {
           seedColor: const Color(0xFFE65C00),
           primary: const Color(0xFFE65C00),
           secondary: const Color(0xFF0F172A), // Sleek Dark Slate
-          background: const Color(0xFFF8FAFC),
         ),
+        scaffoldBackgroundColor: const Color(0xFFFBF5EE), // premium warm cream
         
         // Custom Typography
         textTheme: GoogleFonts.interTextTheme(
@@ -69,9 +69,13 @@ class SilenceApp extends StatelessWidget {
       routes: {
         '/': (context) => const SplashScreen(),
         '/login': (context) => const AuthScreen(),
+        '/auth': (context) => const AuthScreen(),
         '/role': (context) => const RoleSelectionScreen(),
+        '/role-select': (context) => const RoleSelectionScreen(),
         '/admin': (context) => const AdminHomeScreen(),
+        '/admin/home': (context) => const AdminHomeScreen(),
         '/member': (context) => const MemberHomeScreen(),
+        '/member/home': (context) => const MemberHomeScreen(),
       },
     );
   }

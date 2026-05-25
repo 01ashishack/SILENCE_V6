@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:silence/core/calendar_picker.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final bool startInSetupMode;
@@ -276,9 +277,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       const SizedBox(height: 16),
                       InkWell(
                         onTap: () async {
-                          final selectedDate = await showDatePicker(
-                            context: context,
-                            initialDate: DateTime(2000),
+                          final selectedDate = await showCalendarGridBottomSheet(
+                            context,
+                            initialDate: _dob ?? DateTime(2000),
                             firstDate: DateTime(1950),
                             lastDate: DateTime.now(),
                           );
@@ -426,12 +427,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         controller: _libAboutController,
                         maxLines: 2,
                         decoration: const InputDecoration(labelText: 'About Library (Description)'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _libRulesController,
-                        maxLines: 2,
-                        decoration: const InputDecoration(labelText: 'Library Rules / Guidelines'),
                       ),
                       const SizedBox(height: 16),
                       Text('Select Amenities', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -1057,15 +1052,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   const SizedBox(height: 16),
                   // Monospaced Code Card
                   _buildInvitationCodeCard(),
+                  const SizedBox(height: 20),
+                  // Statistics Grid Card (Inspired by bottom grid in Image 2)
+                  _buildStatisticsGrid(),
                 ] else ...[
-                  // operational status feed
-                  _buildOperationalHeader(),
+                  // S010-B Operational Dashboard
+                  _buildOperationalDashboard(),
                 ],
-
-                const SizedBox(height: 20),
-
-                // Statistics Grid Card (Inspired by bottom grid in Image 2)
-                _buildStatisticsGrid(),
               ],
             ),
           ),
@@ -1519,41 +1512,931 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  Widget _buildOperationalHeader() {
+  // State variables for Operational Mode Dashboard
+  int _carouselIndex = 0;
+  String _selectedShiftFilter = 'All';
+
+  final List<Map<String, String>> _mockAttendance = [
+    {'name': 'Arjun', 'time': '09:15 AM', 'seat': 'G-12', 'status': 'in'},
+    {'name': 'Sana', 'time': '10:02 AM', 'seat': 'A-05', 'status': 'in'},
+    {'name': 'Rohan', 'time': '08:45 AM', 'seat': 'B-21', 'status': 'in'},
+    {'name': 'Ananya', 'time': '11:15 AM', 'seat': 'C-02', 'status': 'in'},
+    {'name': 'Vikram', 'time': '05:30 PM', 'seat': 'G-08', 'status': 'out'},
+    {'name': 'Kabir', 'time': '09:00 AM', 'seat': 'D-15', 'status': 'expired'},
+  ];
+
+  final List<Map<String, dynamic>> _mockActivities = [
+    {'type': 'in', 'desc': 'Arjun checked in – Seat G-12', 'time': '5 min ago'},
+    {'type': 'req', 'desc': 'New join request from Sana', 'time': '2 hours ago'},
+    {'type': 'pay', 'desc': 'Payment of ₹1,500 under review', 'time': '3 hours ago'},
+    {'type': 'out', 'desc': 'Vikram checked out – Seat G-08', 'time': '4 hours ago'},
+  ];
+
+  Widget _buildOperationalDashboard() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 1. Photo Carousel
+        _buildPhotoCarousel(),
+        const SizedBox(height: 16),
+
+        // 2. Library Code Card
+        _buildInvitationCodeCard(),
+        const SizedBox(height: 20),
+
+        // 3. Stats Section (Revenue, 2x2 grid, Live Occupancy)
+        _buildOperationalStatsSection(),
+        const SizedBox(height: 20),
+
+        // 4. Action Required Banner (Conditional)
+        _buildActionRequiredBanner(),
+        const SizedBox(height: 20),
+
+        // 5. Quick Actions Row
+        _buildQuickActionsRow(),
+        const SizedBox(height: 20),
+
+        // 6. QR Codes Row (separate row below Quick Actions)
+        _buildQRCodesRow(),
+        const SizedBox(height: 20),
+
+        // 7. Attendance Strip
+        _buildAttendanceStrip(),
+        const SizedBox(height: 20),
+
+        // 8. Recent Activities Feed
+        _buildRecentActivityFeed(),
+      ],
+    );
+  }
+
+  Widget _buildPhotoCarousel() {
+    final List<String> carouselTitles = [
+      'Silent Reading Zone',
+      'Discussion Lounge',
+      'Personal Locker Section',
+    ];
+    final List<List<Color>> carouselGradients = [
+      [const Color(0xFFFF6B00), const Color(0xFFC44E00)],
+      [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+      [const Color(0xFF10B981), const Color(0xFF047857)],
+    ];
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 160,
+          child: PageView.builder(
+            itemCount: 3,
+            onPageChanged: (index) {
+              setState(() {
+                _carouselIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    colors: carouselGradients[index],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Opacity(
+                        opacity: 0.1,
+                        child: Image.asset(
+                          'assets/images/horizontal app logo.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Downtown Branch',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            carouselTitles[index],
+                            style: GoogleFonts.outfit(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Premium ergonomically designed desking space',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: Colors.white.withOpacity(0.85),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(3, (index) {
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: _carouselIndex == index ? 16 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(3),
+                color: _carouselIndex == index
+                    ? const Color(0xFFE65C00)
+                    : const Color(0xFFE5E7EB),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOperationalStatsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 1. Revenue Card (Full Width)
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '💰 Revenue This Month',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF6B7280),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => setState(() => _currentTab = 2), // Go to Bookings/Analytics
+                    child: const Icon(Icons.chevron_right, size: 20, color: Color(0xFF9CA3AF)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '₹24,500',
+                style: GoogleFonts.outfit(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1A1A2E),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.arrow_upward, size: 14, color: Color(0xFF22C55E)),
+                  const SizedBox(width: 4),
+                  Text(
+                    '+₹1,200 today',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF22C55E),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(width: 4, height: 4, decoration: const BoxDecoration(color: Color(0xFF9CA3AF), shape: BoxShape.circle)),
+                  const SizedBox(width: 12),
+                  Text(
+                    '₹3,200 pending',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFF59E0B),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // 2. 2x2 Stats Grid
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.4,
+          children: [
+            _buildOperationalStatCard(
+              label: 'Active Today',
+              value: '42',
+              subtext: '/ 85 members',
+              icon: Icons.people,
+              iconColor: const Color(0xFF3B82F6),
+            ),
+            _buildOperationalStatCard(
+              label: 'Expired',
+              value: '8',
+              subtext: 'needs renewal',
+              icon: Icons.person_off,
+              iconColor: const Color(0xFFEF4444),
+            ),
+            _buildOperationalStatCard(
+              label: 'New Joinings',
+              value: '12',
+              subtext: 'this month',
+              icon: Icons.person_add,
+              iconColor: const Color(0xFF10B981),
+            ),
+            _buildOperationalStatCard(
+              label: 'Expiring Soon',
+              value: '5',
+              subtext: 'within 7 days',
+              icon: Icons.running_with_errors,
+              iconColor: const Color(0xFFF59E0B),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // 3. Live Occupancy donut (Full Width)
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '🔵 Live Occupancy',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF6B7280),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: CircularProgressIndicator(
+                          value: 0.73,
+                          strokeWidth: 10,
+                          backgroundColor: const Color(0xFFE5E7EB),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                        ),
+                      ),
+                      Text(
+                        '73%',
+                        style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1A1A2E),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(0xFF3B82F6), shape: BoxShape.circle)),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Occupied: 73 seats',
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(0xFFE5E7EB), shape: BoxShape.circle)),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Vacant: 27 seats',
+                              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6B7280)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOperationalStatCard({
+    required String label,
+    required String value,
+    required String subtext,
+    required IconData icon,
+    required Color iconColor,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: iconColor, size: 20),
+              const Icon(Icons.chevron_right, size: 16, color: Color(0xFF9CA3AF)),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1A1A2E),
+                ),
+              ),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF6B7280),
+                ),
+              ),
+              Text(
+                subtext,
+                style: GoogleFonts.inter(
+                  fontSize: 9,
+                  color: const Color(0xFF9CA3AF),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionRequiredBanner() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7), // Light amber
+        borderRadius: BorderRadius.circular(12),
+        border: const Border(
+          left: BorderSide(color: Color(0xFFF59E0B), width: 4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Action Required',
+                style: GoogleFonts.outfit(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFFD97706),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildActionRequiredRow('3 payment proofs pending review'),
+          const Divider(color: Color(0xFFFCD34D), height: 12),
+          _buildActionRequiredRow('2 join requests pending'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionRequiredRow(String text) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          text,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: const Color(0xFF92400E),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const Icon(Icons.arrow_forward, size: 14, color: Color(0xFF92400E)),
+      ],
+    );
+  }
+
+  Widget _buildQuickActionsRow() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Quick Actions',
+          style: GoogleFonts.outfit(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1A1A2E),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildCircularActionButton(
+              icon: Icons.person_add,
+              label: 'Add Member',
+              color: const Color(0xFF3B82F6), // Blue
+              onTap: () => _showSuccessSnackBar('Add Member coming soon in Milestone 3!'),
+            ),
+            _buildCircularActionButton(
+              icon: Icons.campaign,
+              label: 'Announce',
+              color: const Color(0xFF8B5CF6), // Purple
+              onTap: () => _showSuccessSnackBar('Announcement composer coming in Milestone 3!'),
+            ),
+            _buildCircularActionButton(
+              icon: Icons.chat_bubble,
+              label: 'Queries',
+              color: const Color(0xFF06B6D4), // Teal
+              onTap: () => _showSuccessSnackBar('Manage Queries coming in Milestone 3!'),
+            ),
+            _buildCircularActionButton(
+              icon: Icons.power_settings_new,
+              label: 'Close Library',
+              color: const Color(0xFFE65C00), // Orange
+              onTap: () => _showSuccessSnackBar('Close Library action coming soon!'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCircularActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: const Color(0xFF374151),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQRCodesRow() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'QR Codes',
+          style: GoogleFonts.outfit(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1A1A2E),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildQRCard(
+                title: 'Joining QR',
+                description: 'Scan to apply & register',
+                icon: Icons.person_add_alt_1,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildQRCard(
+                title: 'Attendance QR',
+                description: 'Laminate & stick on wall',
+                icon: Icons.qr_code_scanner,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQRCard({
+    required String title,
+    required String description,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
-              color: const Color(0xFFE65C00).withOpacity(0.08),
-              shape: BoxShape.circle,
+              color: const Color(0xFFFFF3ED),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE65C00).withOpacity(0.2)),
             ),
-            child: const Icon(Icons.verified, size: 48, color: Color(0xFFE65C00)),
+            child: Icon(icon, color: const Color(0xFFE65C00), size: 24),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Text(
-            'Library Space Live',
-            style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            title,
+            style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
           ),
-          const SizedBox(height: 6),
           Text(
-            'Manage check-ins, floor plan seat grid and member requests.',
+            description,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey[500]),
+            style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF6B7280)),
           ),
-          const SizedBox(height: 16),
-          _buildInvitationCodeCard(),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 30,
+                  child: OutlinedButton(
+                    onPressed: () => _showSuccessSnackBar('Downloading QR PDF...'),
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: Text('PDF', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: SizedBox(
+                  height: 30,
+                  child: OutlinedButton(
+                    onPressed: () => _showSuccessSnackBar('Sharing QR...'),
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      side: BorderSide(color: const Color(0xFFE65C00).withOpacity(0.3)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: Text('Share', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                  ),
+                ),
+              ),
+            ],
+          )
         ],
       ),
+    );
+  }
+
+  Widget _buildAttendanceStrip() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Today's Attendance",
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1A1A2E),
+              ),
+            ),
+            Text(
+              'Present: 38/85',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Shift filter chips
+        SizedBox(
+          height: 32,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: ['All Shifts', 'Morning', 'Evening', 'Custom'].map((shift) {
+              final isSelected = _selectedShiftFilter == shift;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedShiftFilter = shift;
+                  });
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFE65C00) : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: isSelected
+                        ? null
+                        : Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Text(
+                    shift,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Horizontal Avatars scroll
+        SizedBox(
+          height: 90,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _mockAttendance.length,
+            itemBuilder: (context, index) {
+              final student = _mockAttendance[index];
+              Color ringColor = const Color(0xFFE5E7EB);
+              bool hasOverlay = false;
+
+              if (student['status'] == 'in') {
+                ringColor = const Color(0xFF22C55E); // Green checked in
+              } else if (student['status'] == 'out') {
+                ringColor = const Color(0xFFEF4444); // Red checked out
+              } else if (student['status'] == 'expired') {
+                ringColor = const Color(0xFFEF4444);
+                hasOverlay = true; // Red overlay expired
+              }
+
+              return Container(
+                margin: const EdgeInsets.only(right: 16),
+                child: Column(
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: ringColor, width: 2.5),
+                          ),
+                          child: CircleAvatar(
+                            backgroundColor: const Color(0xFFFFF3ED),
+                            child: Text(
+                              student['name']![0],
+                              style: GoogleFonts.outfit(
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFE65C00),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (hasOverlay)
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFFEF4444).withOpacity(0.4),
+                            ),
+                            child: const Center(
+                              child: Icon(Icons.block, color: Colors.white, size: 20),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      student['name']!,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1A1A2E),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      student['seat']!,
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        color: const Color(0xFFE65C00),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentActivityFeed() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Activities',
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1A1A2E),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => setState(() => _currentTab = 1), // Go to Members
+              child: Text(
+                'View All →',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFFE65C00),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
+            ],
+          ),
+          child: Column(
+            children: _mockActivities.map((act) {
+              Color dotColor = const Color(0xFFE5E7EB);
+              if (act['type'] == 'in') dotColor = const Color(0xFF22C55E);
+              if (act['type'] == 'out') dotColor = const Color(0xFFEF4444);
+              if (act['type'] == 'req') dotColor = const Color(0xFF3B82F6);
+              if (act['type'] == 'pay') dotColor = const Color(0xFFF59E0B);
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: dotColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        act['desc'],
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: const Color(0xFF1A1A2E),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      act['time'],
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: const Color(0xFF9CA3AF),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
     );
   }
 
