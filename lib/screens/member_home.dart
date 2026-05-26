@@ -10,10 +10,14 @@ class MemberHomeScreen extends StatelessWidget {
     final user = Supabase.instance.client.auth.currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFE65C00),
-        title: Text('SILENCE Member Home', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
+      backgroundColor: const Color(0xFFE65C00),
+      body: SafeArea(
+        top: true,
+        child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFE65C00),
+          title: Text('SILENCE Member Home', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
@@ -60,6 +64,8 @@ class MemberHomeScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+      ),
       ),
     );
   }

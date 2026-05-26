@@ -1,9 +1,9 @@
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:silence/core/calendar_picker.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final bool startInSetupMode;
@@ -16,14 +16,14 @@ class AdminHomeScreen extends StatefulWidget {
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   late bool _inSetupMode;
   bool _isLoading = false;
+  bool _initialLoadDone = false;
   int _currentTab = 0; // Stateful Bottom Navigation Bar index
 
-  // Step completion flags
+  // Step completion flags (4 steps: Profile, Basic Info, Layout, Shifts+Payment)
   bool _step1Complete = false;
   bool _step2Complete = false;
   bool _step3Complete = false;
   bool _step4Complete = false;
-  bool _step4aComplete = false;
 
   // Onboarding status text helper
   int get _stepsDoneCount {
@@ -31,7 +31,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     if (_step1Complete) count++;
     if (_step2Complete) count++;
     if (_step3Complete) count++;
-    if (_step4Complete && _step4aComplete) count++;
+    if (_step4Complete) count++;
     return count;
   }
 
@@ -42,9 +42,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   // Loaded database references
   String? _libraryId;
-  String _libraryCode = 'SIL-DTW-4829';
-  String _libraryName = 'SILENCE Study Zone';
-  String _libraryAddress = '123 Main Market, Sector 15, Your City';
+  String _libraryCode = 'SIL-XXXXXX';
+  String _libraryName = 'Your Library';
+  String _libraryAddress = 'Setup your library details to activate';
+  String? _coverPhotoUrl;
 
   // Stats Counters
   int _totalMembers = 0;
@@ -52,6 +53,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _totalSeats = 0;
   int _todayBookings = 0;
   int _pendingBookings = 0;
+
+  // Dynamic metrics (reflecting actual DB state)
+  int _revenueThisMonth = 0;
+  int _revenueToday = 0;
+  int _revenuePending = 0;
+  int _expiredCount = 0;
+  int _newJoiningsThisMonth = 0;
+  int _expiringSoonCount = 0;
+  int _occupiedSeatsCount = 0;
+  int _shiftsCount = 0;
 
   // Form Controllers & State
   // Step 1: Profile
@@ -131,14 +142,32 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     super.dispose();
   }
 
+  String _getAdminName() {
+    final user = Supabase.instance.client.auth.currentUser;
+    final metaName = user?.userMetadata?['full_name'] as String?;
+    if (metaName != null && metaName.trim().isNotEmpty) {
+      return metaName.trim();
+    }
+    if (_nameController.text.trim().isNotEmpty) {
+      return _nameController.text.trim();
+    }
+    return 'Admin';
+  }
+
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
 
+    _step1Complete = false;
+    _step2Complete = false;
+    _step3Complete = false;
+    _step4Complete = false;
+
     if (user != null) {
+      _nameController.text = user.userMetadata?['full_name'] ?? '';
       try {
-        // Load Profile data
+        // 1. Fetch User Profile
         final userData = await supabase.from('users').select().eq('id', user.id).maybeSingle();
         if (userData != null) {
           _nameController.text = userData['full_name'] ?? '';
@@ -147,21 +176,31 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           if (userData['date_of_birth'] != null) {
             _dob = DateTime.parse(userData['date_of_birth']);
           }
-          if (_nameController.text.isNotEmpty && _phoneController.text.isNotEmpty) {
+          final String name = userData['full_name'] ?? '';
+          final String phone = userData['phone'] ?? '';
+          final String photo = userData['photo_url'] ?? '';
+          if (name.isNotEmpty && phone.isNotEmpty && photo.isNotEmpty) {
             _step1Complete = true;
           }
         }
 
-        // Load Library Stage 1
+        // 2. Fetch Library Info
         final libData = await supabase.from('libraries').select().eq('owner_id', user.id).maybeSingle();
         if (libData != null) {
           _libraryId = libData['id'];
-          _libraryCode = libData['library_code'] ?? 'SIL-DTW-4829';
-          _libraryName = libData['name'] ?? 'SILENCE Study Zone';
+          _libraryCode = libData['library_code'] ?? 'SIL-XXXXXX';
+          _libraryName = libData['name'] ?? 'Your Library';
+          _coverPhotoUrl = libData['cover_photo_url'];
+          if (_coverPhotoUrl == null || _coverPhotoUrl!.isEmpty) {
+            final photosArr = libData['photos'] as List?;
+            if (photosArr != null && photosArr.isNotEmpty) {
+              _coverPhotoUrl = photosArr.first.toString();
+            }
+          }
           
           final String street = libData['address_street'] ?? '';
-          final String city = libData['address_city'] ?? 'Your City';
-          _libraryAddress = street.isNotEmpty ? '$street, $city' : '123 Main Market, Sector 15, $city';
+          final String city = libData['address_city'] ?? '';
+          _libraryAddress = street.isNotEmpty ? '$street, $city' : 'Setup your library details to activate';
 
           _libNameController.text = _libraryName;
           _libStreetController.text = libData['address_street'] ?? '';
@@ -175,36 +214,65 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             _selectedAmenities = List<String>.from(libData['amenities']);
           }
 
-          _step2Complete = true;
+          // Step 2 Complete if basic fields are set
+          if (_libraryName.isNotEmpty && city.isNotEmpty && _libEmergencyPhoneController.text.isNotEmpty) {
+            _step2Complete = true;
+          }
 
-          // Check if floors/seats/shifts are configured
-          final shifts = await supabase.from('shifts').select('id').eq('library_id', _libraryId!);
+          final String status = libData['status'] ?? 'setup';
+          _inSetupMode = (status == 'setup');
+
+          // 3. Check Shifts Setup (Step 4)
+          final shifts = await supabase.from('shifts').select('id').eq('library_id', _libraryId!).eq('is_archived', false);
+          _shiftsCount = shifts.length;
           if (shifts.isNotEmpty) {
             _step4Complete = true;
           }
 
+          // 4. Check Layout/Seats Setup (Step 3)
           final seats = await supabase.from('seats').select('id').eq('library_id', _libraryId!);
+          _totalSeats = seats.length;
           if (seats.isNotEmpty) {
             _step3Complete = true;
-            _totalSeats = seats.length;
+            final occupiedSeats = await supabase.from('seats').select('id').eq('library_id', _libraryId!).eq('status', 'occupied');
+            _occupiedSeatsCount = occupiedSeats.length;
           }
 
-          // Payment IDs in social_links
-          final social = libData['social_links'] as Map<String, dynamic>?;
-          if (social != null) {
-            _upiPaytmController.text = social['upi_paytm'] ?? '';
-            _upiPhonePeController.text = social['upi_phonepe'] ?? '';
-            _upiGPayController.text = social['upi_gpay'] ?? '';
-            _cashEnabled = social['cash_enabled'] ?? true;
-            _step4aComplete = true;
+          // Step 4 = Shifts + Payment: complete if shifts exist
+          // (payment is now saved alongside shifts in stage3, shifts check covers step4)
+
+          // Fetch operational stats dynamically from memberships
+          try {
+            final membersRes = await supabase.from('memberships').select('status').eq('library_id', _libraryId!);
+            _totalMembers = membersRes.length;
+            _activeMembers = membersRes.where((m) => m['status'] == 'active').length;
+            _expiredCount = membersRes.where((m) => m['status'] == 'expired').length;
+            
+            final startOfMonth = DateTime(DateTime.now().year, DateTime.now().month, 1).toIso8601String();
+            final newRes = await supabase.from('memberships').select('id').eq('library_id', _libraryId!).gte('created_at', startOfMonth);
+            _newJoiningsThisMonth = newRes.length;
+          } catch (e) {
+            debugPrint('Error loading members stats: $e');
           }
+        } else {
+          _inSetupMode = true;
+          _libraryCode = 'SIL-XXXXXX';
+          _libraryName = 'Your Library';
+          _libraryAddress = 'Setup your library details to activate';
         }
       } catch (e) {
         print('Error loading admin setup data: $e');
       }
+    } else {
+      _inSetupMode = true;
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _initialLoadDone = true;
+      });
+    }
   }
 
   void _showErrorSnackBar(String message) {
@@ -233,766 +301,118 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     return code.split('').join(' ');
   }
 
-  // --- STEP 1: Profile Setup Dialog ---
-  void _openProfileDialog() {
+  // Dialog-based onboarding methods removed in favor of full-screen screens
+
+
+  void _showCongratulationsPopup() {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Complete Admin Profile', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
-              content: Form(
-                key: _profileFormKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(labelText: 'Full Name *', prefixIcon: Icon(Icons.person, color: Color(0xFFE65C00))),
-                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Phone Number *', prefixIcon: Icon(Icons.phone, color: Color(0xFFE65C00))),
-                        validator: (v) => v == null || v.length < 10 ? 'Enter valid phone number' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: _gender,
-                        decoration: const InputDecoration(labelText: 'Gender', prefixIcon: Icon(Icons.people, color: Color(0xFFE65C00))),
-                        items: const [
-                          DropdownMenuItem(value: 'male', child: Text('Male')),
-                          DropdownMenuItem(value: 'female', child: Text('Female')),
-                          DropdownMenuItem(value: 'other', child: Text('Other')),
-                          DropdownMenuItem(value: 'prefer_not_to_say', child: Text('Prefer not to say')),
-                        ],
-                        onChanged: (val) => setDialogState(() => _gender = val!),
-                      ),
-                      const SizedBox(height: 16),
-                      InkWell(
-                        onTap: () async {
-                          final selectedDate = await showCalendarGridBottomSheet(
-                            context,
-                            initialDate: _dob ?? DateTime(2000),
-                            firstDate: DateTime(1950),
-                            lastDate: DateTime.now(),
-                          );
-                          if (selectedDate != null) {
-                            setDialogState(() => _dob = selectedDate);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[300]!),
-                            borderRadius: BorderRadius.circular(8),
-                            color: Colors.white,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.calendar_today, size: 20, color: Color(0xFFE65C00)),
-                              const SizedBox(width: 12),
-                              Text(
-                                _dob == null
-                                    ? 'Date of Birth (Optional)'
-                                    : '${_dob!.day}/${_dob!.month}/${_dob!.year}',
-                                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (!_profileFormKey.currentState!.validate()) return;
-                    Navigator.of(context).pop();
-                    
-                    setState(() => _isLoading = true);
-                    try {
-                      final supabase = Supabase.instance.client;
-                      await supabase.from('users').update({
-                        'full_name': _nameController.text.trim(),
-                        'phone': _phoneController.text.trim(),
-                        'gender': _gender,
-                        'date_of_birth': _dob?.toIso8601String(),
-                      }).eq('id', supabase.auth.currentUser!.id);
-
-                      setState(() {
-                        _step1Complete = true;
-                      });
-                      _showSuccessSnackBar('Profile successfully updated!');
-                    } catch (e) {
-                      _showErrorSnackBar('Error updating profile: $e');
-                    } finally {
-                      setState(() => _isLoading = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
                 ),
               ],
-            );
-          },
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFF3ED),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '🎉',
+                      style: TextStyle(fontSize: 36),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Congratulations!',
+                  style: GoogleFonts.outfit(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFE65C00),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your library is now live.',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'You can now add members, manage seats, and track attendance. Complete additional details like social links, library rules, and branding from the Library Profile section.',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: const Color(0xFF64748B),
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _inSetupMode = false;
+                      });
+                      _loadInitialData();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE65C00),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'Go to Dashboard',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  // --- STEP 2: Library Setup Stage 1 ---
   String _generateLibraryCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final rand = Random();
+    final rand = math.Random();
     final code = List.generate(6, (index) => chars[rand.nextInt(chars.length)]).join();
     return 'SIL-$code';
-  }
-
-  void _openLibrarySetupStage1Dialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Configure Library Basic Details', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
-              content: Form(
-                key: _libFormKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                        controller: _libNameController,
-                        decoration: const InputDecoration(labelText: 'Library Name *', prefixIcon: Icon(Icons.store, color: Color(0xFFE65C00))),
-                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _libStreetController,
-                        decoration: const InputDecoration(labelText: 'Street/Area Address', prefixIcon: Icon(Icons.map, color: Color(0xFFE65C00))),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _libCityController,
-                              decoration: const InputDecoration(labelText: 'City *'),
-                              validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _libStateController,
-                              decoration: const InputDecoration(labelText: 'State'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _libPinController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'PIN Code', prefixIcon: Icon(Icons.pin_drop, color: Color(0xFFE65C00))),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _libEmergencyPhoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Emergency Contact Phone *', prefixIcon: Icon(Icons.emergency, color: Color(0xFFE65C00))),
-                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _libAboutController,
-                        maxLines: 2,
-                        decoration: const InputDecoration(labelText: 'About Library (Description)'),
-                      ),
-                      const SizedBox(height: 16),
-                      Text('Select Amenities', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: _availableAmenities.map((amenity) {
-                          final isSelected = _selectedAmenities.contains(amenity);
-                          return FilterChip(
-                            label: Text(amenity, style: GoogleFonts.inter(fontSize: 11)),
-                            selected: isSelected,
-                            selectedColor: const Color(0xFFE65C00).withOpacity(0.15),
-                            checkmarkColor: const Color(0xFFE65C00),
-                            onSelected: (selected) {
-                              setDialogState(() {
-                                if (selected) {
-                                  _selectedAmenities.add(amenity);
-                                } else {
-                                  _selectedAmenities.remove(amenity);
-                                }
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (!_libFormKey.currentState!.validate()) return;
-                    Navigator.of(context).pop();
-
-                    setState(() => _isLoading = true);
-                    try {
-                      final supabase = Supabase.instance.client;
-                      final user = supabase.auth.currentUser!;
-
-                      if (_libraryCode.isEmpty || _libraryCode == 'SIL-DTW-4829') {
-                        _libraryCode = _generateLibraryCode();
-                      }
-
-                      if (_libraryId == null) {
-                        // Create new library
-                        final newLib = await supabase.from('libraries').insert({
-                          'owner_id': user.id,
-                          'name': _libNameController.text.trim(),
-                          'library_code': _libraryCode,
-                          'address_street': _libStreetController.text.trim(),
-                          'address_city': _libCityController.text.trim(),
-                          'address_state': _libStateController.text.trim(),
-                          'address_pincode': _libPinController.text.trim(),
-                          'rules': _libRulesController.text.trim(),
-                          'about_text': _libAboutController.text.trim(),
-                          'emergency_phone': _libEmergencyPhoneController.text.trim(),
-                          'amenities': _selectedAmenities,
-                          'status': 'setup',
-                        }).select().single();
-                        _libraryId = newLib['id'];
-                        _libraryName = newLib['name'];
-                      } else {
-                        // Update existing library
-                        await supabase.from('libraries').update({
-                          'name': _libNameController.text.trim(),
-                          'address_street': _libStreetController.text.trim(),
-                          'address_city': _libCityController.text.trim(),
-                          'address_state': _libStateController.text.trim(),
-                          'address_pincode': _libPinController.text.trim(),
-                          'rules': _libRulesController.text.trim(),
-                          'about_text': _libAboutController.text.trim(),
-                          'emergency_phone': _libEmergencyPhoneController.text.trim(),
-                          'amenities': _selectedAmenities,
-                        }).eq('id', _libraryId!);
-                        _libraryName = _libNameController.text.trim();
-                      }
-
-                      setState(() {
-                        _step2Complete = true;
-                      });
-                      _showSuccessSnackBar('Library details saved! Code: $_libraryCode');
-                    } catch (e) {
-                      _showErrorSnackBar('Error saving library details: $e');
-                    } finally {
-                      setState(() => _isLoading = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // --- STEP 3: Floors, Sections & Seats Setup Dialog ---
-  void _openLibrarySetupStage2Dialog() {
-    if (!_step2Complete) {
-      _showErrorSnackBar('Please complete Step 2 (Library Details) first.');
-      return;
-    }
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Layout Setup (Floors & Seats)', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Configure floors, sections and generate physical seats in shifts.',
-                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Number of Floors:', style: GoogleFonts.inter(fontSize: 14)),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE65C00)),
-                              onPressed: _floorsCount > 1
-                                  ? () => setDialogState(() => _floorsCount--)
-                                  : null,
-                            ),
-                            Text('$_floorsCount', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline, color: Color(0xFFE65C00)),
-                              onPressed: () => setDialogState(() => _floorsCount++),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Sections per Floor:', style: GoogleFonts.inter(fontSize: 14)),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE65C00)),
-                              onPressed: _sectionsCount > 1
-                                  ? () => setDialogState(() => _sectionsCount--)
-                                  : null,
-                            ),
-                            Text('$_sectionsCount', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline, color: Color(0xFFE65C00)),
-                              onPressed: () => setDialogState(() => _sectionsCount++),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Seats per Section:', style: GoogleFonts.inter(fontSize: 14)),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE65C00)),
-                              onPressed: _seatsCount > 10
-                                  ? () => setDialogState(() => _seatsCount -= 5)
-                                  : null,
-                            ),
-                            Text('$_seatsCount', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline, color: Color(0xFFE65C00)),
-                              onPressed: () => setDialogState(() => _seatsCount += 5),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                    setState(() => _isLoading = true);
-
-                    try {
-                      final supabase = Supabase.instance.client;
-
-                      // Pre-delete floors for clean start (upsert simulation)
-                      await supabase.from('floors').delete().eq('library_id', _libraryId!);
-
-                      // Step 1: Create floors
-                      for (int f = 1; f <= _floorsCount; f++) {
-                        final floorResponse = await supabase.from('floors').insert({
-                          'library_id': _libraryId!,
-                          'name': 'Floor $f',
-                          'order_index': f,
-                        }).select().single();
-
-                        final floorId = floorResponse['id'];
-
-                        // Step 2: Create sections
-                        for (int s = 1; s <= _sectionsCount; s++) {
-                          final sectionResponse = await supabase.from('sections').insert({
-                            'floor_id': floorId,
-                            'name': 'Section $s',
-                            'tag': 'general',
-                          }).select().single();
-
-                          final sectionId = sectionResponse['id'];
-
-                          // Seats will be generated per shift. Since seats require a shift_id,
-                          // we check if a shift exists. If not, we will auto-generate a Default Shift.
-                          var shifts = await supabase.from('shifts').select('id').eq('library_id', _libraryId!);
-                          if (shifts.isEmpty) {
-                            final defaultShift = await supabase.from('shifts').insert({
-                              'library_id': _libraryId!,
-                              'name': 'Full Day Shift',
-                              'start_time': '08:00:00',
-                              'end_time': '20:00:00',
-                              'price_monthly': 1000,
-                            }).select().single();
-                            shifts = [defaultShift];
-                            _step4Complete = true;
-                          }
-
-                          final shiftId = shifts.first['id'];
-
-                          // Step 3: Create seats per section in that shift
-                          final List<Map<String, dynamic>> seatsData = [];
-                          for (int seatNum = 1; seatNum <= _seatsCount; seatNum++) {
-                            seatsData.add({
-                              'library_id': _libraryId!,
-                              'floor_id': floorId,
-                              'section_id': sectionId,
-                              'shift_id': shiftId,
-                              'seat_label': 'F${f}S${s}-$seatNum',
-                              'status': 'vacant',
-                            });
-                          }
-                          await supabase.from('seats').insert(seatsData);
-                        }
-                      }
-
-                      setState(() {
-                        _step3Complete = true;
-                        _totalSeats = _floorsCount * _sectionsCount * _seatsCount;
-                      });
-                      _showSuccessSnackBar('Seats generated successfully! (Virtual layout mapped)');
-                    } catch (e) {
-                      _showErrorSnackBar('Error generating seats: $e');
-                    } finally {
-                      setState(() => _isLoading = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text('Generate', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // --- STEP 4: Shifts & Plans Setup Dialog ---
-  void _openLibrarySetupStage3Dialog() {
-    if (!_step2Complete) {
-      _showErrorSnackBar('Please complete Step 2 first.');
-      return;
-    }
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Customise Shift timings & Plans', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
-              content: Form(
-                key: _shiftFormKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                        controller: _shiftNameController,
-                        decoration: const InputDecoration(labelText: 'Shift Name *', prefixIcon: Icon(Icons.schedule, color: Color(0xFFE65C00))),
-                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () async {
-                                final time = await showTimePicker(context: context, initialTime: _startTime);
-                                if (time != null) {
-                                  setDialogState(() {
-                                    _startTime = time;
-                                    _validateShiftOverlap();
-                                  });
-                                }
-                              },
-                              child: InputDecorator(
-                                decoration: const InputDecoration(labelText: 'Start Time'),
-                                child: Text(_startTime.format(context)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () async {
-                                final time = await showTimePicker(context: context, initialTime: _endTime);
-                                if (time != null) {
-                                  setDialogState(() {
-                                    _endTime = time;
-                                    _validateShiftOverlap();
-                                  });
-                                }
-                              },
-                              child: InputDecorator(
-                                decoration: const InputDecoration(labelText: 'End Time'),
-                                child: Text(_endTime.format(context)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_shiftOverlapWarning) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.amber[50],
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.amber),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.warning, color: Colors.amber, size: 18),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Warning: Selected timings overlap with other shifts.',
-                                  style: GoogleFonts.inter(fontSize: 10, color: Colors.amber[900], fontWeight: FontWeight.w500),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _priceController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Monthly Subscription Price (₹) *', prefixIcon: Icon(Icons.currency_rupee, color: Color(0xFFE65C00))),
-                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _trialDaysController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Free Trial Days (0 for none)', prefixIcon: Icon(Icons.timer, color: Color(0xFFE65C00))),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (!_shiftFormKey.currentState!.validate()) return;
-                    Navigator.of(context).pop();
-                    setState(() => _isLoading = true);
-
-                    try {
-                      final supabase = Supabase.instance.client;
-
-                      final startStr = '${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}:00';
-                      final endStr = '${_endTime.hour.toString().padLeft(2, '0')}:${_endTime.minute.toString().padLeft(2, '0')}:00';
-
-                      await supabase.from('shifts').insert({
-                        'library_id': _libraryId!,
-                        'name': _shiftNameController.text.trim(),
-                        'start_time': startStr,
-                        'end_time': endStr,
-                        'price_monthly': int.parse(_priceController.text),
-                        'trial_days': int.parse(_trialDaysController.text),
-                      });
-
-                      setState(() {
-                        _step4Complete = true;
-                      });
-                      _showSuccessSnackBar('Shift configurations saved!');
-                    } catch (e) {
-                      _showErrorSnackBar('Error saving shifts: $e');
-                    } finally {
-                      setState(() => _isLoading = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _validateShiftOverlap() {
-    final startMins = _startTime.hour * 60 + _startTime.minute;
-    final endMins = _endTime.hour * 60 + _endTime.minute;
-    if (endMins > startMins && (endMins - startMins) > 720) {
-      _shiftOverlapWarning = true;
-    } else {
-      _shiftOverlapWarning = false;
-    }
-  }
-
-  // --- STEP 4a: Payment Settings Setup Dialog ---
-  void _openPaymentSetupDialog() {
-    if (!_step2Complete) {
-      _showErrorSnackBar('Please complete Step 2 first.');
-      return;
-    }
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Payments Configuration', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SwitchListTile(
-                      activeColor: const Color(0xFFE65C00),
-                      title: Text('Accept Cash Payments', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold)),
-                      subtitle: Text('Allow members to pay cash offline directly at library desk.', style: GoogleFonts.inter(fontSize: 11)),
-                      value: _cashEnabled,
-                      onChanged: (val) => setDialogState(() => _cashEnabled = val),
-                    ),
-                    const Divider(),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Configure UPI Accounts (deep-link icons generated on invoice screen)',
-                      style: GoogleFonts.inter(fontSize: 11.5, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _upiPhonePeController,
-                      decoration: const InputDecoration(
-                        labelText: 'PhonePe UPI ID',
-                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: Color(0xFFE65C00)),
-                        suffixText: 'PhonePe',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _upiGPayController,
-                      decoration: const InputDecoration(
-                        labelText: 'Google Pay (GPay) UPI ID',
-                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: Color(0xFFE65C00)),
-                        suffixText: 'GPay',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _upiPaytmController,
-                      decoration: const InputDecoration(
-                        labelText: 'Paytm UPI ID',
-                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: Color(0xFFE65C00)),
-                        suffixText: 'Paytm',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                    setState(() => _isLoading = true);
-
-                    try {
-                      final supabase = Supabase.instance.client;
-
-                      await supabase.from('libraries').update({
-                        'social_links': {
-                          'cash_enabled': _cashEnabled,
-                          'upi_phonepe': _upiPhonePeController.text.trim(),
-                          'upi_gpay': _upiGPayController.text.trim(),
-                          'upi_paytm': _upiPaytmController.text.trim(),
-                        }
-                      }).eq('id', _libraryId!);
-
-                      setState(() {
-                        _step4aComplete = true;
-                      });
-                      _showSuccessSnackBar('Payments settings successfully updated!');
-                    } catch (e) {
-                      _showErrorSnackBar('Error saving payments settings: $e');
-                    } finally {
-                      setState(() => _isLoading = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text('Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   // --- LAUNCH LIBRARY ACTION ---
@@ -1005,10 +425,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     setState(() => _isLoading = true);
     try {
       final supabase = Supabase.instance.client;
+      final uniqueCode = _generateLibraryCode();
 
-      // Update library status to active
+      // Update library status to active AND assign the unique code upon launch
       await supabase.from('libraries').update({
         'status': 'active',
+        'library_code': uniqueCode,
       }).eq('id', _libraryId!);
 
       // Update user subscription state to active Starter plan
@@ -1018,10 +440,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         'subscription_expiry': DateTime.now().add(const Duration(days: 14)).toIso8601String(), // 14-day trial
       }).eq('id', supabase.auth.currentUser!.id);
 
-      setState(() {
-        _inSetupMode = false;
-      });
-      _showSuccessSnackBar('Congratulations! Your library space is now operational!');
+      _showCongratulationsPopup();
     } catch (e) {
       _showErrorSnackBar('Failed to launch library space: $e');
     } finally {
@@ -1029,10 +448,39 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
+  void _continueSetup() {
+    if (!_step1Complete) {
+      Navigator.pushNamed(context, '/admin/profile/complete').then((_) => _loadInitialData());
+    } else if (!_step2Complete) {
+      Navigator.pushNamed(context, '/admin/library/setup/1').then((_) => _loadInitialData());
+    } else if (!_step3Complete) {
+      Navigator.pushNamed(context, '/admin/library/setup/2').then((_) => _loadInitialData());
+    } else if (!_step4Complete) {
+      Navigator.pushNamed(context, '/admin/library/setup/3').then((_) => _loadInitialData());
+    }
+  }
+
   // --- SUB-VIEWS BUILDERS (TABS) ---
 
   // TAB 0: HOME / DASHBOARD TAB
   Widget _buildHomeTab() {
+    if (!_initialLoadDone) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Loading your dashboard...',
+              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF6B7280)),
+            ),
+          ],
+        ),
+      );
+    }
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1053,8 +501,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   // Monospaced Code Card
                   _buildInvitationCodeCard(),
                   const SizedBox(height: 20),
-                  // Statistics Grid Card (Inspired by bottom grid in Image 2)
-                  _buildStatisticsGrid(),
+                  // Stats Grid showing zeros as per spec S010-A
+                  _buildOperationalStatsSection(),
                 ] else ...[
                   // S010-B Operational Dashboard
                   _buildOperationalDashboard(),
@@ -1069,6 +517,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   // TAB 4: MORE / LIBRARY SETTINGS & PROFILE TAB (Inspired by Image 1)
   Widget _buildMoreTab() {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    final String adminEmail = currentUser?.email ?? 'admin@silence.com';
+    final String adminName = _getAdminName();
+    final String adminPhone = _phoneController.text.isNotEmpty ? _phoneController.text : '+91 XXXXX XXXXX';
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1085,6 +538,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 _buildProfileActionsRow(),
                 const SizedBox(height: 20),
 
+                // Admin Account details card
+                _buildAdminDetailsCard(adminName, adminEmail, adminPhone),
+                const SizedBox(height: 20),
+
                 // Progress Card
                 _buildProfileCompletionCard(),
                 const SizedBox(height: 20),
@@ -1093,72 +550,128 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 _buildAboutLibraryCard(),
                 const SizedBox(height: 20),
 
-                // Micro stats row (120+ Members, 85% Occupancy, etc.)
+                // Micro stats row (Members, Occupancy, etc.)
                 _buildMicroStatsRow(),
                 const SizedBox(height: 24),
 
-                // Settings List Items with Rounded Square Color Background Icons
+                // 1. Business Settings Section
                 Text(
-                  'Choose a section to edit',
+                  'Business Settings',
                   style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B)),
                 ),
                 const SizedBox(height: 12),
                 _buildSettingListItem(
-                  icon: Icons.portrait,
-                  title: 'Cover Photo & Gallery',
-                  subtitle: 'Edit cover image and photo banners',
-                  color: Colors.red[400]!,
-                  onTap: () => _showSuccessSnackBar('Banners setup coming soon!'),
-                ),
-                _buildSettingListItem(
                   icon: Icons.info_outline,
                   title: 'Library Information',
-                  subtitle: 'Edit name, address, emergency call lines',
+                  subtitle: 'Edit name, address, and contact details',
                   color: Colors.blue[400]!,
-                  onTap: _openLibrarySetupStage1Dialog,
-                ),
-                _buildSettingListItem(
-                  icon: Icons.description_outlined,
-                  title: 'About Library',
-                  subtitle: 'Edit highlighting description texts',
-                  color: Colors.deepPurple[400]!,
-                  onTap: _openLibrarySetupStage1Dialog,
+                  onTap: () => Navigator.pushNamed(context, '/admin/library/setup/1').then((_) => _loadInitialData()),
                 ),
                 _buildSettingListItem(
                   icon: Icons.checklist_rtl_rounded,
-                  title: 'Amenities',
-                  subtitle: 'Manage desk features and facilities list',
+                  title: 'Amenities & Facilities',
+                  subtitle: 'Manage desk features and library facilities',
                   color: Colors.amber[600]!,
-                  onTap: _openLibrarySetupStage1Dialog,
+                  onTap: () => Navigator.pushNamed(context, '/admin/library/setup/1').then((_) => _loadInitialData()),
                 ),
                 _buildSettingListItem(
                   icon: Icons.access_time_outlined,
-                  title: 'Timings & Shifts',
+                  title: 'Shift Configuration',
                   subtitle: 'Modify operational timings and hours configuration',
                   color: Colors.orange[400]!,
-                  onTap: _openLibrarySetupStage3Dialog,
+                  onTap: () => Navigator.pushNamed(context, '/admin/library/setup/3').then((_) => _loadInitialData()),
                 ),
                 _buildSettingListItem(
                   icon: Icons.receipt_long_outlined,
-                  title: 'Membership Plans',
-                  subtitle: 'Add pricing configuration and trial rules',
+                  title: 'Membership Seat Pricing',
+                  subtitle: 'Add pricing configuration and subscription rules',
                   color: Colors.teal[400]!,
-                  onTap: _openLibrarySetupStage3Dialog,
+                  onTap: () => Navigator.pushNamed(context, '/admin/library/setup/3').then((_) => _loadInitialData()),
                 ),
                 _buildSettingListItem(
                   icon: Icons.rule_outlined,
-                  title: 'Rules & Guidelines',
+                  title: 'Membership Rules & Guidelines',
                   subtitle: 'Enforce study library code of conduct',
                   color: Colors.pink[400]!,
-                  onTap: _openLibrarySetupStage1Dialog,
+                  onTap: () => Navigator.pushNamed(context, '/admin/library/setup/1').then((_) => _loadInitialData()),
+                ),
+
+                const SizedBox(height: 24),
+
+                // 2. Account Settings Section
+                Text(
+                  'Account Settings',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B)),
+                ),
+                const SizedBox(height: 12),
+                _buildSettingListItem(
+                  icon: Icons.stars_outlined,
+                  title: 'Pro Plan Subscription',
+                  subtitle: 'Manage Razorpay subscription details',
+                  color: Colors.purple[400]!,
+                  onTap: () => _showSuccessSnackBar('Subscription management coming soon!'),
                 ),
                 _buildSettingListItem(
-                  icon: Icons.link_outlined,
-                  title: 'Social Links',
-                  subtitle: 'Link Instagram, Whatsapp and emergency deep-links',
-                  color: Colors.red[600]!,
-                  onTap: _openPaymentSetupDialog,
+                  icon: Icons.history_edu_outlined,
+                  title: 'Audit Log & History',
+                  subtitle: 'Secure ledger of admin and check-in actions',
+                  color: Colors.grey[600]!,
+                  onTap: () => _showSuccessSnackBar('Audit logs coming soon!'),
                 ),
+                _buildSettingListItem(
+                  icon: Icons.share_arrival_time_outlined,
+                  title: 'Referral Settings',
+                  subtitle: 'Configure member referral bonuses',
+                  color: Colors.indigo[400]!,
+                  onTap: () => _showSuccessSnackBar('Referral configurations coming soon!'),
+                ),
+
+                const SizedBox(height: 24),
+
+                // 3. Support & Updates Section
+                Text(
+                  'Support & Updates',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B)),
+                ),
+                const SizedBox(height: 12),
+                _buildSettingListItem(
+                  icon: Icons.campaign_outlined,
+                  title: 'Announcements Board',
+                  subtitle: 'Broadcast alerts to student dashboards',
+                  color: Colors.red[400]!,
+                  onTap: () => _showSuccessSnackBar('Announcements feature coming soon!'),
+                ),
+                _buildSettingListItem(
+                  icon: Icons.help_outline_outlined,
+                  title: 'Manage Queries & Support',
+                  subtitle: 'Respond to student issues and requests',
+                  color: Colors.green[400]!,
+                  onTap: () => _showSuccessSnackBar('Support desk coming soon!'),
+                ),
+
+                const SizedBox(height: 32),
+                
+                // Red Logout Button
+                OutlinedButton.icon(
+                  onPressed: _handleLogout,
+                  icon: const Icon(Icons.logout, color: Colors.redAccent, size: 18),
+                  label: Text(
+                    'Logout Account',
+                    style: GoogleFonts.inter(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -1173,7 +686,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     final todayFormatted = DateFormat('EEE, d MMM').format(DateTime.now()).toUpperCase();
     
     return Container(
-      padding: const EdgeInsets.only(top: 24, left: 16, right: 16, bottom: 32),
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16, left: 16, right: 16, bottom: 32),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -1193,7 +706,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         children: [
           Row(
             children: [
-              // Circular Library Logo Picture
               Container(
                 width: 50,
                 height: 50,
@@ -1201,9 +713,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2.0),
                   color: Colors.white,
-                  image: const DecorationImage(
-                    image: AssetImage('assets/images/LOGO.png'),
-                    fit: BoxFit.contain,
+                  image: DecorationImage(
+                    image: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
+                        ? NetworkImage(_coverPhotoUrl!) as ImageProvider
+                        : const AssetImage('assets/images/LOGO.png'),
+                    fit: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty ? BoxFit.cover : BoxFit.contain,
                   ),
                 ),
               ),
@@ -1278,7 +792,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           
           // Greeting line
           Text(
-            'Good morning, Demo 👏',
+            'Good morning, ${_getAdminName()} 👏',
             style: GoogleFonts.outfit(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -1344,59 +858,79 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Step List items
+            // 5 Step List items
             _buildSetupStepItem(
               stepNum: 1,
               title: 'Admin Profile',
               subtitle: 'Add your personal details',
               isDone: _step1Complete,
-              onTap: _openProfileDialog,
+              onTap: () async {
+                final res = await Navigator.pushNamed(context, '/admin/profile/complete');
+                if (res == true || res == null) {
+                  _loadInitialData();
+                }
+              },
             ),
             _buildSetupStepItem(
               stepNum: 2,
-              title: 'Library Basic Details',
-              subtitle: 'Add library info & photos',
+              title: 'Library Basic Info',
+              subtitle: 'Add library details & photos',
               isDone: _step2Complete,
-              onTap: _openLibrarySetupStage1Dialog,
+              onTap: () async {
+                final res = await Navigator.pushNamed(context, '/admin/library/setup/1');
+                if (res == true || res == null) {
+                  _loadInitialData();
+                }
+              },
             ),
             _buildSetupStepItem(
               stepNum: 3,
-              title: 'Shift & Plans',
-              subtitle: 'Add shifts, plans & payment',
-              isDone: _step4Complete && _step4aComplete,
-              onTap: () {
-                _openLibrarySetupStage3Dialog();
-                Future.delayed(const Duration(milliseconds: 300), () {
-                  _openPaymentSetupDialog();
-                });
+              title: 'Layout Setup',
+              subtitle: 'Add floors, sections & seats',
+              isDone: _step3Complete,
+              onTap: () async {
+                final res = await Navigator.pushNamed(context, '/admin/library/setup/2');
+                if (res == true || res == null) {
+                  _loadInitialData();
+                }
               },
             ),
             _buildSetupStepItem(
               stepNum: 4,
-              title: 'Layout Setup',
-              subtitle: 'Add floors, sections & seats',
-              isDone: _step3Complete,
-              onTap: _openLibrarySetupStage2Dialog,
+              title: 'Shifts & Plans + Payment',
+              subtitle: 'Timings, pricing, Cash & UPI setup',
+              isDone: _step4Complete,
+              onTap: () async {
+                final res = await Navigator.pushNamed(context, '/admin/library/setup/3');
+                if (res == true || res == null) {
+                  _loadInitialData();
+                }
+              },
             ),
 
             const SizedBox(height: 18),
 
-            // Launch Library Button
+            // Launch Library Button or Continue Setup Button
             ElevatedButton(
-              onPressed: _stepsDoneCount >= 4 ? _launchLibrary : null,
+              onPressed: () {
+                if (_stepsDoneCount >= 4) {
+                  _launchLibrary();
+                } else {
+                  _continueSetup();
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE65C00),
-                disabledBackgroundColor: Colors.grey[200],
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
               ),
               child: Text(
-                'Launch Library',
+                _stepsDoneCount >= 4 ? 'Launch Library 🚀' : 'Continue Setup →',
                 style: GoogleFonts.inter(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: _stepsDoneCount >= 4 ? Colors.white : Colors.grey[500],
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -1516,21 +1050,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _carouselIndex = 0;
   String _selectedShiftFilter = 'All';
 
-  final List<Map<String, String>> _mockAttendance = [
-    {'name': 'Arjun', 'time': '09:15 AM', 'seat': 'G-12', 'status': 'in'},
-    {'name': 'Sana', 'time': '10:02 AM', 'seat': 'A-05', 'status': 'in'},
-    {'name': 'Rohan', 'time': '08:45 AM', 'seat': 'B-21', 'status': 'in'},
-    {'name': 'Ananya', 'time': '11:15 AM', 'seat': 'C-02', 'status': 'in'},
-    {'name': 'Vikram', 'time': '05:30 PM', 'seat': 'G-08', 'status': 'out'},
-    {'name': 'Kabir', 'time': '09:00 AM', 'seat': 'D-15', 'status': 'expired'},
-  ];
+  final List<Map<String, String>> _mockAttendance = [];
 
-  final List<Map<String, dynamic>> _mockActivities = [
-    {'type': 'in', 'desc': 'Arjun checked in – Seat G-12', 'time': '5 min ago'},
-    {'type': 'req', 'desc': 'New join request from Sana', 'time': '2 hours ago'},
-    {'type': 'pay', 'desc': 'Payment of ₹1,500 under review', 'time': '3 hours ago'},
-    {'type': 'out', 'desc': 'Vikram checked out – Seat G-08', 'time': '4 hours ago'},
-  ];
+  final List<Map<String, dynamic>> _mockActivities = [];
 
   Widget _buildOperationalDashboard() {
     return Column(
@@ -1548,6 +1070,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         _buildOperationalStatsSection(),
         const SizedBox(height: 20),
 
+        // 7. Attendance Strip (Today's Attendance strip moved above Action Required Banner)
+        _buildAttendanceStrip(),
+        const SizedBox(height: 20),
+
         // 4. Action Required Banner (Conditional)
         _buildActionRequiredBanner(),
         const SizedBox(height: 20),
@@ -1558,10 +1084,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
         // 6. QR Codes Row (separate row below Quick Actions)
         _buildQRCodesRow(),
-        const SizedBox(height: 20),
-
-        // 7. Attendance Strip
-        _buildAttendanceStrip(),
         const SizedBox(height: 20),
 
         // 8. Recent Activities Feed
@@ -1692,6 +1214,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   Widget _buildOperationalStatsSection() {
+    final double occupancyRate = _totalSeats == 0 ? 0.0 : (_occupiedSeatsCount / _totalSeats);
+    final int vacantSeatsCount = (_totalSeats - _occupiedSeatsCount) >= 0 ? (_totalSeats - _occupiedSeatsCount) : 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1727,7 +1252,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                '₹24,500',
+                '₹$_revenueThisMonth',
                 style: GoogleFonts.outfit(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -1740,7 +1265,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   const Icon(Icons.arrow_upward, size: 14, color: Color(0xFF22C55E)),
                   const SizedBox(width: 4),
                   Text(
-                    '+₹1,200 today',
+                    '+₹$_revenueToday today',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1751,7 +1276,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   Container(width: 4, height: 4, decoration: const BoxDecoration(color: Color(0xFF9CA3AF), shape: BoxShape.circle)),
                   const SizedBox(width: 12),
                   Text(
-                    '₹3,200 pending',
+                    '₹$_revenuePending pending',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1776,28 +1301,28 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           children: [
             _buildOperationalStatCard(
               label: 'Active Today',
-              value: '42',
-              subtext: '/ 85 members',
+              value: '$_activeMembers',
+              subtext: '/ $_totalMembers members',
               icon: Icons.people,
               iconColor: const Color(0xFF3B82F6),
             ),
             _buildOperationalStatCard(
               label: 'Expired',
-              value: '8',
+              value: '$_expiredCount',
               subtext: 'needs renewal',
               icon: Icons.person_off,
               iconColor: const Color(0xFFEF4444),
             ),
             _buildOperationalStatCard(
               label: 'New Joinings',
-              value: '12',
+              value: '$_newJoiningsThisMonth',
               subtext: 'this month',
               icon: Icons.person_add,
               iconColor: const Color(0xFF10B981),
             ),
             _buildOperationalStatCard(
               label: 'Expiring Soon',
-              value: '5',
+              value: '$_expiringSoonCount',
               subtext: 'within 7 days',
               icon: Icons.running_with_errors,
               iconColor: const Color(0xFFF59E0B),
@@ -1837,14 +1362,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         width: 80,
                         height: 80,
                         child: CircularProgressIndicator(
-                          value: 0.73,
+                          value: occupancyRate,
                           strokeWidth: 10,
                           backgroundColor: const Color(0xFFE5E7EB),
                           valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
                         ),
                       ),
                       Text(
-                        '73%',
+                        "${(occupancyRate * 100).toStringAsFixed(0)}%",
                         style: GoogleFonts.outfit(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -1863,7 +1388,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(0xFF3B82F6), shape: BoxShape.circle)),
                             const SizedBox(width: 8),
                             Text(
-                              'Occupied: 73 seats',
+                              'Occupied: $_occupiedSeatsCount seats',
                               style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
                             ),
                           ],
@@ -1874,7 +1399,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(0xFFE5E7EB), shape: BoxShape.circle)),
                             const SizedBox(width: 8),
                             Text(
-                              'Vacant: 27 seats',
+                              'Vacant: $vacantSeatsCount seats',
                               style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6B7280)),
                             ),
                           ],
@@ -1898,55 +1423,65 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     required IconData icon,
     required Color iconColor,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: iconColor, size: 20),
-              const Icon(Icons.chevron_right, size: 16, color: Color(0xFF9CA3AF)),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: GoogleFonts.outfit(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1A1A2E),
+    final Color finalIconColor = _inSetupMode ? const Color(0xFF9CA3AF) : iconColor;
+    final Color finalValueColor = _inSetupMode ? const Color(0xFF9CA3AF) : const Color(0xFF1A1A2E);
+
+    return GestureDetector(
+      onTap: () {
+        if (_inSetupMode) {
+          _showSuccessSnackBar('Complete setup to activate dashboard stats.');
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(icon, color: finalIconColor, size: 20),
+                const Icon(Icons.chevron_right, size: 16, color: Color(0xFF9CA3AF)),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: GoogleFonts.outfit(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: finalValueColor,
+                  ),
                 ),
-              ),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF6B7280),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF6B7280),
+                  ),
                 ),
-              ),
-              Text(
-                subtext,
-                style: GoogleFonts.inter(
-                  fontSize: 9,
-                  color: const Color(0xFF9CA3AF),
+                Text(
+                  subtext,
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    color: const Color(0xFF9CA3AF),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2218,7 +1753,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               ),
             ),
             Text(
-              'Present: 38/85',
+              'Present: $_activeMembers/$_totalMembers',
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -2267,90 +1802,115 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Horizontal Avatars scroll
-        SizedBox(
-          height: 90,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: _mockAttendance.length,
-            itemBuilder: (context, index) {
-              final student = _mockAttendance[index];
-              Color ringColor = const Color(0xFFE5E7EB);
-              bool hasOverlay = false;
-
-              if (student['status'] == 'in') {
-                ringColor = const Color(0xFF22C55E); // Green checked in
-              } else if (student['status'] == 'out') {
-                ringColor = const Color(0xFFEF4444); // Red checked out
-              } else if (student['status'] == 'expired') {
-                ringColor = const Color(0xFFEF4444);
-                hasOverlay = true; // Red overlay expired
-              }
-
-              return Container(
-                margin: const EdgeInsets.only(right: 16),
-                child: Column(
-                  children: [
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: ringColor, width: 2.5),
-                          ),
-                          child: CircleAvatar(
-                            backgroundColor: const Color(0xFFFFF3ED),
-                            child: Text(
-                              student['name']![0],
-                              style: GoogleFonts.outfit(
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFFE65C00),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (hasOverlay)
-                          Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFFEF4444).withOpacity(0.4),
-                            ),
-                            child: const Center(
-                              child: Icon(Icons.block, color: Colors.white, size: 20),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      student['name']!,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1A1A2E),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      student['seat']!,
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        color: const Color(0xFFE65C00),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+        // Horizontal Avatars scroll or Empty State
+        _mockAttendance.isEmpty
+            ? Container(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-              );
-            },
-          ),
-        ),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.people_outline, color: Colors.grey[400], size: 36),
+                      const SizedBox(height: 8),
+                      Text(
+                        'No attendance recorded today',
+                        style: GoogleFonts.inter(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : SizedBox(
+                height: 90,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _mockAttendance.length,
+                  itemBuilder: (context, index) {
+                    final student = _mockAttendance[index];
+                    Color ringColor = const Color(0xFFE5E7EB);
+                    bool hasOverlay = false;
+
+                    if (student['status'] == 'in') {
+                      ringColor = const Color(0xFF22C55E); // Green checked in
+                    } else if (student['status'] == 'out') {
+                      ringColor = const Color(0xFFEF4444); // Red checked out
+                    } else if (student['status'] == 'expired') {
+                      ringColor = const Color(0xFFEF4444);
+                      hasOverlay = true; // Red overlay expired
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.only(right: 16),
+                      child: Column(
+                        children: [
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: ringColor, width: 2.5),
+                                ),
+                                child: CircleAvatar(
+                                  backgroundColor: const Color(0xFFFFF3ED),
+                                  child: Text(
+                                    student['name']![0],
+                                    style: GoogleFonts.outfit(
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFE65C00),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (hasOverlay)
+                                Container(
+                                  width: 52,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFFEF4444).withOpacity(0.4),
+                                  ),
+                                  child: const Center(
+                                    child: Icon(Icons.block, color: Colors.white, size: 20),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            student['name']!,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1A1A2E),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            student['seat']!,
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              color: const Color(0xFFE65C00),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
       ],
     );
   }
@@ -2385,7 +1945,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ),
         const SizedBox(height: 12),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -2393,96 +1953,75 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
             ],
           ),
-          child: Column(
-            children: _mockActivities.map((act) {
-              Color dotColor = const Color(0xFFE5E7EB);
-              if (act['type'] == 'in') dotColor = const Color(0xFF22C55E);
-              if (act['type'] == 'out') dotColor = const Color(0xFFEF4444);
-              if (act['type'] == 'req') dotColor = const Color(0xFF3B82F6);
-              if (act['type'] == 'pay') dotColor = const Color(0xFFF59E0B);
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: dotColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        act['desc'],
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: const Color(0xFF1A1A2E),
+          child: _mockActivities.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.history_toggle_off, color: Colors.grey[400], size: 36),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No recent activities recorded yet',
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[500],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    Text(
-                      act['time'],
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        color: const Color(0xFF9CA3AF),
+                  ),
+                )
+              : Column(
+                  children: _mockActivities.map((act) {
+                    Color dotColor = const Color(0xFFE5E7EB);
+                    if (act['type'] == 'in') dotColor = const Color(0xFF22C55E);
+                    if (act['type'] == 'out') dotColor = const Color(0xFFEF4444);
+                    if (act['type'] == 'req') dotColor = const Color(0xFF3B82F6);
+                    if (act['type'] == 'pay') dotColor = const Color(0xFFF59E0B);
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: dotColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              act['desc'],
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFF1A1A2E),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            act['time'],
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: const Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                    );
+                  }).toList(),
                 ),
-              );
-            }).toList(),
-          ),
         ),
       ],
     );
   }
 
-  Widget _buildStatisticsGrid() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.25,
-      children: [
-        _buildStatCard(
-          icon: Icons.people_outline,
-          value: _totalMembers,
-          label: 'Total Members',
-        ),
-        _buildStatCard(
-          icon: Icons.person_add_disabled_outlined,
-          value: _activeMembers,
-          label: 'Active Members',
-        ),
-        _buildStatCard(
-          icon: Icons.chair_alt_outlined,
-          value: _totalSeats,
-          label: 'Total Seats',
-        ),
-        _buildStatCard(
-          icon: Icons.calendar_month_outlined,
-          value: _todayBookings,
-          label: "Today's Bookings",
-        ),
-        _buildStatCard(
-          icon: Icons.watch_later_outlined,
-          value: _pendingBookings,
-          label: 'Pending Bookings',
-        ),
-      ],
-    );
-  }
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required int value,
-    required String label,
-  }) {
+  Widget _buildAdminDetailsCard(String name, String email, String phone) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2496,32 +2035,58 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           )
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: const Color(0xFFE65C00), size: 22),
-              Icon(Icons.chevron_right, size: 16, color: Colors.grey[400]),
-            ],
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: const Color(0xFFFFF3ED),
+            child: const Icon(Icons.person_outline, size: 24, color: Color(0xFFE65C00)),
           ),
-          const Spacer(),
-          Text(
-            '$value',
-            style: GoogleFonts.outfit(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFFE65C00),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: GoogleFonts.outfit(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  email,
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  phone,
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3ED),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'Super Admin',
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFFE65C00),
+              ),
             ),
           ),
         ],
@@ -2529,16 +2094,73 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
+  Future<void> _handleLogout() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Logout Account',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to sign out from SILENCE?',
+          style: GoogleFonts.inter(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Logout',
+              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await Supabase.instance.client.auth.signOut();
+        if (mounted) {
+          Navigator.pushNamedAndRemoveUntil(context, '/auth', (route) => false);
+        }
+      } catch (e) {
+        if (mounted) {
+          _showErrorSnackBar('Sign out failed: $e');
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
   Widget _buildLibraryProfileCard() {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        // Cover Banner Image (Inspired by Screenshot 1)
+        // Cover Banner Image – shows library cover photo if available
         Container(
           height: 180,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             image: DecorationImage(
-              image: AssetImage('assets/images/horizontal app logo.png'),
+              image: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
+                  ? NetworkImage(_coverPhotoUrl!) as ImageProvider
+                  : const AssetImage('assets/images/horizontal app logo.png'),
               fit: BoxFit.cover,
             ),
           ),
@@ -2547,7 +2169,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             alignment: Alignment.topRight,
             padding: const EdgeInsets.all(16),
             child: ElevatedButton.icon(
-              onPressed: () => _showSuccessSnackBar('Upload cover image coming soon!'),
+              onPressed: () => Navigator.pushNamed(context, '/admin/library/setup/1').then((_) => _loadInitialData()),
               icon: const Icon(Icons.camera_alt, size: 14, color: Colors.black),
               label: Text('Edit Cover', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
               style: ElevatedButton.styleFrom(
@@ -2628,24 +2250,28 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         Row(
           children: [
             Text(
-              'Downtown Branch',
+              _inSetupMode ? 'New Setup' : 'Active Branch',
               style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.verified, color: Color(0xFFE65C00), size: 16),
+            Icon(
+              _inSetupMode ? Icons.circle_outlined : Icons.verified,
+              color: const Color(0xFFE65C00),
+              size: 16,
+            ),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            const Icon(Icons.star, color: Colors.amber, size: 18),
+            const Icon(Icons.star_border, color: Colors.amber, size: 18),
             const SizedBox(width: 4),
-            Text('4.8', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
-            Text(' (128 Reviews)', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500])),
+            Text('0.0', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text(' (0 Reviews)', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500])),
             const SizedBox(width: 16),
             const Icon(Icons.people_outline, color: Color(0xFFE65C00), size: 18),
             const SizedBox(width: 4),
-            Text('120+ Members', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFFE65C00))),
+            Text('$_totalMembers Members', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFFE65C00))),
           ],
         ),
         const SizedBox(height: 20),
@@ -2738,7 +2364,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             children: [
               Text('About Library', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B))),
               TextButton(
-                onPressed: _openLibrarySetupStage1Dialog,
+                onPressed: () => Navigator.pushNamed(context, '/admin/library/setup/1').then((_) => _loadInitialData()),
                 child: Text('Edit', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, fontSize: 13)),
               )
             ],
@@ -2753,15 +2379,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   Widget _buildMicroStatsRow() {
+    final String occupancyText = _totalSeats == 0 ? '0%' : '${((_occupiedSeatsCount / _totalSeats) * 100).toStringAsFixed(0)}%';
+
     return Row(
       children: [
-        Expanded(child: _buildMicroStatCard('120+', 'Members')),
+        Expanded(child: _buildMicroStatCard('$_totalMembers', 'Members')),
         const SizedBox(width: 8),
-        Expanded(child: _buildMicroStatCard('85%', 'Occupancy')),
+        Expanded(child: _buildMicroStatCard(occupancyText, 'Occupancy')),
         const SizedBox(width: 8),
-        Expanded(child: _buildMicroStatCard('4', 'Shifts')),
+        Expanded(child: _buildMicroStatCard('$_shiftsCount', 'Shifts')),
         const SizedBox(width: 8),
-        Expanded(child: _buildMicroStatCard('9', 'Years Active')),
+        Expanded(child: _buildMicroStatCard(_inSetupMode ? 'Setup' : 'Active', 'Status')),
       ],
     );
   }
@@ -2880,15 +2508,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         bodyView = _buildHomeTab();
         break;
       case 1:
-        bodyView = _buildPlaceholderTab('Members Panel', Icons.people_outline);
+        bodyView = _buildPlaceholderTab('Reservations', Icons.grid_view_outlined);
         break;
       case 2:
-        bodyView = _buildPlaceholderTab('Bookings Ledger', Icons.calendar_month_outlined);
+        bodyView = _buildPlaceholderTab('Analytics', Icons.bar_chart_outlined);
         break;
       case 3:
-        bodyView = _buildPlaceholderTab('Student Messages', Icons.chat_bubble_outline_rounded);
-        break;
-      case 4:
         bodyView = _buildMoreTab();
         break;
       default:
@@ -2896,10 +2521,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: _currentTab == 0 ? const Color(0xFFFF6B00) : const Color(0xFFF8FAFC),
       body: SafeArea(
-        top: false, // Allows cover image to layout fully at top behind status bar
-        child: bodyView,
+        top: _currentTab != 0,
+        child: _currentTab == 0
+            ? Container(
+                color: const Color(0xFFF8FAFC),
+                child: bodyView,
+              )
+            : bodyView,
       ),
 
       // STATE-OF-THE-ART BOTTOM NAVIGATION BAR (Matching Screenshots perfectly)
@@ -2923,24 +2553,19 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            activeIcon: Icon(Icons.people),
-            label: 'Members',
+            icon: Icon(Icons.grid_view_outlined),
+            activeIcon: Icon(Icons.grid_view),
+            label: 'Reservations',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
-            activeIcon: Icon(Icons.calendar_month),
-            label: 'Bookings',
+            icon: Icon(Icons.bar_chart_outlined),
+            activeIcon: Icon(Icons.bar_chart),
+            label: 'Analytics',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            activeIcon: Icon(Icons.chat_bubble),
-            label: 'Messages',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz_outlined),
-            activeIcon: Icon(Icons.more_horiz),
-            label: 'More',
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Profile',
           ),
         ],
       ),

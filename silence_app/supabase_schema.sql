@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS shifts (
     price_3month INTEGER,
     price_6month INTEGER,
     trial_days INTEGER DEFAULT 0,
+    shift_type TEXT DEFAULT 'fixed',
+    hours_per_day INTEGER DEFAULT 4,
     is_archived BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now()
 );

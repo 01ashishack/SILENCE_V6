@@ -439,9 +439,9 @@ State:    After library launch (is_launched = true)
 ├─────────────────────────────┤
 │ [SCROLLABLE — #FBF5EE]      │
 │                             │
-│ ┌── Photo Carousel ───────┐ │  ← horizontal scroll, 160px height
+│ ┌── Photo Carousel ───────┐ │  ← horizontal scroll, 160px height 
 │ │ [photo1][photo2][photo3]│ │    rounded corners 12px
-│ │         ● ○ ○           │ │    pagination dots below
+│ │         ● ○ ○           │ │    pagination dots below (THIS IS NOT FOR LIBRARY PHOTOS )
 │ └─────────────────────────┘ │
 │                             │
 │ ┌── Library Code Card ────┐ │  ← white card
@@ -731,16 +731,23 @@ Role:     Admin
 ```
 ┌─────────────────────────────┐
 │ [ORANGE HEADER]             │
-│ ← Library Setup             │
-│     ●──○──○                 │  ← stage indicator: filled=done, outline=current
+│ ← Library Basic Details             │
 ├─────────────────────────────┤
 │ [SCROLLABLE — #FBF5EE]      │
 │                             │
 │ ┌─── Basic Info ──────────┐ │  ← white card
-│ │  Library Name *         │ │
-│ │  ┌─────────────────┐    │ │
-│ │  │ SILENCE Study   │    │ │
-│ │  └─────────────────┘    │ │
+│ │
+│  ┌────  Cover Photo  ────┐  │
+│  │                       │  │  ← white card
+│  │     [PHOTO CIRCLE]    │  │    96px circle, dashed orange border
+│  │         88px          │  │    if no photo: person icon #9CA3AF
+│  │  📷  Tap to add      │  │    camera icon + text below
+│  │  [Take Photo][Gallery]│  │  ← two small buttons
+│  └───────────────────────┘  │
+ Library Name *             │ │
+│ │  ┌──────────────────┐   │ │
+│ │  │ Your Library Name    │ │
+│ │  └──────────────────┘   │ │
 │ │                         │ │
 │ │  Street Address         │ │
 │ │  ┌─────────────────┐    │ │
@@ -749,7 +756,8 @@ Role:     Admin
 │ │                         │ │
 │ │  City *   State         │ │
 │ │  ┌──────┐ ┌──────────┐  │ │  ← side by side
-│ │  │Indore│ │Madhya P. ▾│  │ │
+│ │  │ your | |  Select  |  | |
+| |  | city │ │State ▾   │  │ │
 │ │  └──────┘ └──────────┘  │ │
 │ │                         │ │
 │ │  PIN Code               │ │
@@ -772,14 +780,8 @@ Role:     Admin
 │ └─────────────────────────┘ │
 │                             │
 │                             │
-│ ┌── Library Code ─────────┐ │  ← shows after first save
-│ │  Your Library Code      │ │
-│ │  SIL-4K9M2P    [Copy]  │ │
-│ │  Share this to invite   │ │
-│ │  members                │ │
-│ └─────────────────────────┘ │
 │                             │
-│  [    Next: Layout →    ]   │  ← orange button
+│  [         Save         ]   │  ← orange button
 └─────────────────────────────┘
 ```
 
@@ -795,36 +797,55 @@ Route:    /admin/library/setup/2
 
 **Layout:**
 ```
-┌─────────────────────────────┐
-│ [ORANGE HEADER]             │
-│ ← Library Setup             │
-│     ●──●──○                 │  ← stage 2 current
-├─────────────────────────────┤
-│ [SCROLLABLE — #FBF5EE]      │
-│                             │
-│ ┌─── Floor Tabs ──────────┐ │  ← horizontal scroll
-│ │ [+] [Ground●] [First○]  │ │    + = add floor (dashed)
-│ │                         │ │    active = orange pill
-│ └─────────────────────────┘ │
-│                             │
-│ ┌─── Sections ────────────┐ │  ← for active floor
-│ │ General Study      ···  │ │    section header row
-│ │ 🧑 Boys  62 seats       │ │    three-dot menu right
-│ │                         │ │
-│ │ ┌──┐┌──┐┌──┐┌──┐┌──┐┌──┐│ │  ← seat grid
-│ │ │G-A│G-A│G-A│G-A│G-A│G-A│ │  │    6 columns
-│ │ │01 │02 │03 │04 │05 │06 │ │  │    green = vacant
-│ │ └──┘└──┘└──┘└──┘└──┘└──┘│ │    blue = occupied
-│ │ [row 2] [row 3] ...     │ │
-│ │               [+ add]   │ │  ← dashed square at end
-│ │                         │ │
-│ │ Girls Section      ···  │ │
-│ │ 🚺 Girls  36 seats      │ │
-│ │ [seat grid...]          │ │
-│ └─────────────────────────┘ │
-│                             │
-│  [    Next: Shifts →    ]   │
-└─────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ [ORANGE HEADER]                                             │
+│ ← Layout Setup                                             │
+├─────────────────────────────────────────────────────────────┤
+│ [SCROLLABLE BODY — #FBF5EE]                                 │
+│                                                             │
+│ ┌─── Floor Tabs (Horizontal Scroll) ─────────────────────┐ │
+│ │                                                         │ │
+│ │ [ + Add Floor ]  [ Ground Floor ● ]  [ First Floor ]   │ │  ← + add floor (dashed orange)
+│ │                      ↑ active = orange pill            │ │    taps to switch floor
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌─── Active Floor: Ground Floor ─────────────────────────┐ │
+│ │                                                         │ │
+│ │ ┌── Floor Actions (Three‑dot menu top‑right) ────────┐ │ │
+│ │ │ • Rename Floor                                      │ │ │  ← always visible for current floor
+│ │ │ • Delete Floor (if no sections/seats)               │ │ │
+│ │ └─────────────────────────────────────────────────────┘ │ │
+│ │                                                         │ │
+│ │ ┌─── Sections (Optional) ─────────────────────────────┐ │ │
+│ │ │                                                      │ │ │
+│ │ │ ┌── Section Card: General Study ─────────────────┐ │ │ │  ← if sections exist
+│ │ │ │ 🧑 Boys  62 seats      [✏️ Rename] [🗑 Delete] │ │ │ │    each section has own edit/delete
+│ │ │ │                                                │ │ │ │
+│ │ │ │ ┌── Seat Grid (6 columns, paginated 30) ────┐ │ │ │ │
+│ │ │ │ │ [G-A-01][G-A-02][G-A-03]...              │ │ │ │ │    green = vacant, blue = occupied
+│ │ │ │ │ [+ Add Seat] (dashed tile at end)          │ │ │ │ │    tap any seat → bottom sheet
+│ │ │ │ └────────────────────────────────────────────┘ │ │ │ │
+│ │ │ └────────────────────────────────────────────────┘ │ │ │
+│ │ │                                                      │ │ │
+│ │ │ ┌── No Sections Yet (Empty State) ────────────────┐ │ │ │  ← when zero sections
+│ │ │ │   📦 No sections added.                         │ │ │ │
+│ │ │ │   [ + Add First Section ] (orange outlined)      │ │ │ │
+│ │ │ └────────────────────────────────────────────────┘ │ │ │
+│ │ └──────────────────────────────────────────────────────┘ │ │
+│ │                                                         │ │
+│ │ ┌─── Seats Directly on Floor (No Section) ──────────┐ │ │
+│ │ │ [ + Add Seat on Floor ] (dashed button)           │ │ │  ← optional: seats without section
+│ │ │ If seats exist:                                   │ │ │
+│ │ │ ┌── Seat Grid (for floor‑level seats) ─────────┐ │ │ │
+│ │ │ │ [FL-01][FL-02][FL-03]...                     │ │ │ │
+│ │ │ └──────────────────────────────────────────────┘ │ │ │
+│ │ └──────────────────────────────────────────────────────┘ │ │
+│ └───────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌─── Global Actions ─────────────────────────────────────┐ │
+│ │ [       Save Layout   ] (orange full‑width button)     │ │  ← saves everything to DB
+│ └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -841,8 +862,7 @@ Route:    /admin/library/setup/3
 ```
 ┌─────────────────────────────┐
 │ [ORANGE HEADER]             │
-│ ← Library Setup             │
-│     ●──●──●                 │
+│ ← Shifts & Pay Method Setup │
 ├─────────────────────────────┤
 │ [SCROLLABLE — #FBF5EE]      │
 │                             │
@@ -868,32 +888,12 @@ Route:    /admin/library/setup/3
 │                             │
 │  [+ Add New Shift]          │  ← dashed border button, full width
 │                             │
-│  [  Save & Finish ✓  ]      │  ← orange solid button
-└─────────────────────────────┘
-```
-
----
-
-# SCREEN-024: Payment Setup
-
-```
-ID:       S024
-Name:     Payment Setup
-Route:    /admin/payment/setup
-```
-
-**Layout:**
-```
-┌─────────────────────────────┐
-│ [ORANGE HEADER]             │
-│ ← Payment Setup             │
-├─────────────────────────────┤
-│ [SCROLLABLE — #FBF5EE]      │
+│ [SCROLLABLE — #FBF5EE]    │
 │                             │
 │ ┌─── Cash Payment ────────┐ │
 │ │  Accept Cash Payments   │ │  ← label left
 │ │  Members pay in person  │ │    desc 12px
-│ │                    [●] │ │  ← toggle right, orange when ON
+│ │                    [●]  │ │  ← toggle right, orange when ON
 │ └─────────────────────────┘ │
 │                             │
 │ ┌─── UPI IDs ─────────────┐ │
@@ -909,13 +909,10 @@ Route:    /admin/payment/setup
 │ │                         │ │
 │ │  💳 Payment App Icons:  │ │  ← auto-detected from UPI handles
 │ │  [PhonePe][GPay][Paytm] │ │    color icons, 32px each
-│ └─────────────────────────┘ │
-│                             │
-│  [     Save & Continue    ] │
+│  [  Save & Finish ✓  ]      │  ← orange solid button
 └─────────────────────────────┘
 ```
 
----
 
 # SCREEN-030: Reservations — Layout Tab
 
