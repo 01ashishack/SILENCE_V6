@@ -50,6 +50,7 @@ All changes below are **additions, deletions, or modifications** relative to the
 | **S024** | Deleted (merged into S023). |
 | **S010** (Admin Home) | Added loading state to prevent flicker; fixed greeting name. |
 | **S025 / S072** | Overhauled seat insertion with dual fields (Prefix, Number), live hyphenated previews, smart pattern auto-filling (LCP for prefix, next incremental integer for numbers), and heavy seat generation warnings. |
+| **S011** (QR Modal) | Created overlay popup modal dialog with tabs for Joining and Attendance QRs, custom orange corner bracket painter framing, clipboard copy button, automatic A4 PDF layout generation, sharing sheets, and confirmation regeneration bottom-sheet. |
 
 ### Part2.md (Announcements, Library Profile, Business Settings, Subscription)
 

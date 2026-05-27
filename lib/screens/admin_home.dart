@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'reservations/reservations_tab.dart';
+import '../widgets/qr_modal.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final bool startInSetupMode;
@@ -47,6 +48,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   String _libraryName = 'Your Library';
   String _libraryAddress = 'Setup your library details to activate';
   String? _coverPhotoUrl;
+  int _qrVersion = 1;
   List<Map<String, dynamic>> _myLibraries = [];
 
   // Stats Counters
@@ -226,6 +228,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         _libraryCode = libData['library_code'] ?? 'SIL-XXXXXX';
         _libraryName = libData['name'] ?? 'Your Library';
         _coverPhotoUrl = libData['cover_photo_url'];
+        _qrVersion = libData['qr_version'] ?? 1;
         if (_coverPhotoUrl == null || _coverPhotoUrl!.isEmpty) {
           final photosArr = libData['photos'] as List?;
           if (photosArr != null && photosArr.isNotEmpty) {
@@ -626,21 +629,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   title: 'Pro Plan Subscription',
                   subtitle: 'Manage Razorpay subscription details',
                   color: Colors.purple[400]!,
-                  onTap: () => _showSuccessSnackBar('Subscription management coming soon!'),
+                  onTap: () => _showSuccessSnackBar('Subscription management will be available in a future update.'),  // TODO: Link to subscription screen
                 ),
                 _buildSettingListItem(
                   icon: Icons.history_edu_outlined,
                   title: 'Audit Log & History',
                   subtitle: 'Secure ledger of admin and check-in actions',
                   color: Colors.grey[600]!,
-                  onTap: () => _showSuccessSnackBar('Audit logs coming soon!'),
+                  onTap: () => _showSuccessSnackBar('Audit logs will be available in a future update.'),  // TODO: Link to audit log screen
                 ),
                 _buildSettingListItem(
                   icon: Icons.share_arrival_time_outlined,
                   title: 'Referral Settings',
                   subtitle: 'Configure member referral bonuses',
                   color: Colors.indigo[400]!,
-                  onTap: () => _showSuccessSnackBar('Referral configurations coming soon!'),
+                  onTap: () => _showSuccessSnackBar('Referral settings will be available in a future update.'),  // TODO: Link to referral screen
                 ),
 
                 const SizedBox(height: 24),
@@ -656,14 +659,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   title: 'Announcements Board',
                   subtitle: 'Broadcast alerts to student dashboards',
                   color: Colors.red[400]!,
-                  onTap: () => _showSuccessSnackBar('Announcements feature coming soon!'),
+                  onTap: _showAnnouncementComposer,
                 ),
                 _buildSettingListItem(
                   icon: Icons.help_outline_outlined,
                   title: 'Manage Queries & Support',
                   subtitle: 'Respond to student issues and requests',
                   color: Colors.green[400]!,
-                  onTap: () => _showSuccessSnackBar('Support desk coming soon!'),
+                  onTap: _showManageQueries,
                 ),
 
                 const SizedBox(height: 32),
@@ -1737,28 +1740,37 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          _buildActionRequiredRow('3 payment proofs pending review'),
+          _buildActionRequiredRow('3 payment proofs pending review', onTap: () {
+            setState(() => _currentTab = 1); // Navigate to Reservations tab → Requests
+          }),
           const Divider(color: Color(0xFFFCD34D), height: 12),
-          _buildActionRequiredRow('2 join requests pending'),
+          _buildActionRequiredRow('2 join requests pending', onTap: () {
+            setState(() => _currentTab = 1); // Navigate to Reservations tab → Requests
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildActionRequiredRow(String text) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          text,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            color: const Color(0xFF92400E),
-            fontWeight: FontWeight.w500,
+  Widget _buildActionRequiredRow(String text, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: const Color(0xFF92400E),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
-        ),
-        const Icon(Icons.arrow_forward, size: 14, color: Color(0xFF92400E)),
-      ],
+          const Icon(Icons.arrow_forward, size: 14, color: Color(0xFF92400E)),
+        ],
+      ),
     );
   }
 
@@ -1782,25 +1794,25 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               icon: Icons.person_add,
               label: 'Add Member',
               color: const Color(0xFF3B82F6), // Blue
-              onTap: () => _showSuccessSnackBar('Add Member coming soon in Milestone 3!'),
+              onTap: _showAddMemberWizard,
             ),
             _buildCircularActionButton(
               icon: Icons.campaign,
               label: 'Announce',
               color: const Color(0xFF8B5CF6), // Purple
-              onTap: () => _showSuccessSnackBar('Announcement composer coming in Milestone 3!'),
+              onTap: _showAnnouncementComposer,
             ),
             _buildCircularActionButton(
               icon: Icons.chat_bubble,
               label: 'Queries',
               color: const Color(0xFF06B6D4), // Teal
-              onTap: () => _showSuccessSnackBar('Manage Queries coming in Milestone 3!'),
+              onTap: _showManageQueries,
             ),
             _buildCircularActionButton(
               icon: Icons.power_settings_new,
               label: 'Close Library',
               color: const Color(0xFFE65C00), // Orange
-              onTap: () => _showSuccessSnackBar('Close Library action coming soon!'),
+              onTap: _showCloseLibrarySheet,
             ),
           ],
         ),
@@ -1849,6 +1861,533 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
+  // ── Add Member Wizard (from Quick Action) ──────────────────────────────────
+  void _showAddMemberWizard() {
+    if (_libraryId == null) {
+      _showErrorSnackBar('Please complete library setup first.');
+      return;
+    }
+    final nameController = TextEditingController();
+    final phoneController = TextEditingController();
+    final emailController = TextEditingController();
+    String planType = 'monthly';
+    String? selectedShiftId;
+    List<Map<String, dynamic>> shifts = [];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            if (shifts.isEmpty) {
+              Supabase.instance.client
+                  .from('shifts')
+                  .select('id, name')
+                  .eq('library_id', _libraryId!)
+                  .eq('is_archived', false)
+                  .then((res) {
+                    setModalState(() {
+                      shifts = List<Map<String, dynamic>>.from(res);
+                      if (shifts.isNotEmpty) selectedShiftId = shifts.first['id'];
+                    });
+                  });
+            }
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20, right: 20, top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Add Member', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                  const SizedBox(height: 16),
+                  TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Full Name', hintText: 'Enter full name')),
+                  const SizedBox(height: 12),
+                  TextField(controller: phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone Number', hintText: '+91 XXXXX XXXXX')),
+                  const SizedBox(height: 12),
+                  TextField(controller: emailController, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email (optional)', hintText: 'name@example.com')),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: planType,
+                    decoration: const InputDecoration(labelText: 'Membership Plan'),
+                    items: const [
+                      DropdownMenuItem(value: 'monthly', child: Text('1 Month Plan')),
+                      DropdownMenuItem(value: '3_month', child: Text('3 Month Plan')),
+                      DropdownMenuItem(value: '6_month', child: Text('6 Month Plan')),
+                    ],
+                    onChanged: (val) { if (val != null) setModalState(() => planType = val); },
+                  ),
+                  const SizedBox(height: 12),
+                  if (shifts.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      value: selectedShiftId,
+                      decoration: const InputDecoration(labelText: 'Select Shift'),
+                      items: shifts.map((s) => DropdownMenuItem<String>(value: s['id'], child: Text(s['name']))).toList(),
+                      onChanged: (val) { if (val != null) setModalState(() => selectedShiftId = val); },
+                    ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (nameController.text.trim().isEmpty || phoneController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name and Phone are required!')));
+                        return;
+                      }
+                      try {
+                        final supabase = Supabase.instance.client;
+                        var userObj = await supabase.from('users').select('id').eq('phone', phoneController.text.trim()).maybeSingle();
+                        String memberUserId;
+                        if (userObj == null) {
+                          final newU = await supabase.from('users').insert({
+                            'full_name': nameController.text.trim(),
+                            'phone': phoneController.text.trim(),
+                            'role': 'member',
+                          }).select('id').single();
+                          memberUserId = newU['id'];
+                        } else {
+                          memberUserId = userObj['id'];
+                        }
+                        final start = DateTime.now();
+                        int durationMonths = 1;
+                        if (planType == '3_month') durationMonths = 3;
+                        if (planType == '6_month') durationMonths = 6;
+                        final end = DateTime(start.year, start.month + durationMonths, start.day);
+                        await supabase.from('memberships').insert({
+                          'member_id': memberUserId,
+                          'library_id': _libraryId!,
+                          'shift_id': selectedShiftId!,
+                          'plan_type': planType,
+                          'start_date': start.toIso8601String().substring(0, 10),
+                          'end_date': end.toIso8601String().substring(0, 10),
+                          'status': 'active',
+                        });
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Member added successfully! ✓')));
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE65C00),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text('Register Member', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ── Announcement Composer Bottom Sheet ─────────────────────────────────────
+  void _showAnnouncementComposer() {
+    if (_libraryId == null) {
+      _showErrorSnackBar('Please complete library setup first.');
+      return;
+    }
+    final msgController = TextEditingController();
+    String priority = 'normal';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20, right: 20, top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(Icons.campaign, color: Color(0xFF8B5CF6), size: 24),
+                      const SizedBox(width: 10),
+                      Text('New Announcement', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Broadcast a message to all members of this library.', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500])),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: msgController,
+                    maxLines: 4,
+                    maxLength: 500,
+                    decoration: InputDecoration(
+                      hintText: 'Write your announcement here...',
+                      hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 2)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Priority', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF374151))),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: ['normal', 'urgent'].map((p) {
+                      final isActive = priority == p;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: ChoiceChip(
+                          label: Text(p == 'normal' ? '📢 Normal' : '🚨 Urgent',
+                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: isActive ? Colors.white : const Color(0xFF6B7280)),
+                          ),
+                          selected: isActive,
+                          onSelected: (val) { if (val) setModalState(() => priority = p); },
+                          selectedColor: p == 'normal' ? const Color(0xFF8B5CF6) : const Color(0xFFEF4444),
+                          backgroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isActive ? Colors.transparent : const Color(0xFFE5E7EB))),
+                          showCheckmark: false,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      if (msgController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please write an announcement message.')));
+                        return;
+                      }
+                      try {
+                        await Supabase.instance.client.from('announcements').insert({
+                          'library_id': _libraryId!,
+                          'message': msgController.text.trim(),
+                          'priority': priority,
+                          'created_by': Supabase.instance.client.auth.currentUser?.id,
+                        });
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                            content: Text('📢 Announcement broadcasted to all members!'),
+                            backgroundColor: Color(0xFF8B5CF6),
+                          ));
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.send, size: 18),
+                    label: Text('Broadcast Now', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B5CF6),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ── Manage Queries Bottom Sheet ─────────────────────────────────────────────
+  void _showManageQueries() {
+    if (_libraryId == null) {
+      _showErrorSnackBar('Please complete library setup first.');
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return FutureBuilder(
+          future: Supabase.instance.client
+              .from('queries')
+              .select('*')
+              .eq('library_id', _libraryId!)
+              .order('created_at', ascending: false)
+              .limit(20),
+          builder: (context, AsyncSnapshot snapshot) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(Icons.chat_bubble, color: Color(0xFF06B6D4), size: 24),
+                      const SizedBox(width: 10),
+                      Text('Member Queries', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('View and respond to member questions and support requests.', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500])),
+                  const SizedBox(height: 20),
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    const Center(child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator(color: Color(0xFF06B6D4)),
+                    ))
+                  else if (snapshot.hasError || snapshot.data == null || (snapshot.data as List).isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        children: [
+                          Icon(Icons.inbox_outlined, size: 48, color: Colors.grey[300]),
+                          const SizedBox(height: 12),
+                          Text('No queries yet', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                          const SizedBox(height: 4),
+                          Text('Member queries will appear here.', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[400])),
+                        ],
+                      ),
+                    )
+                  else
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: (snapshot.data as List).length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final q = (snapshot.data as List)[i];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: const Color(0xFFF0FDFA),
+                              child: Icon(Icons.help_outline, color: q['status'] == 'resolved' ? Colors.green : const Color(0xFF06B6D4), size: 20),
+                            ),
+                            title: Text(q['subject'] ?? 'Query', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                            subtitle: Text(q['message'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500])),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: q['status'] == 'resolved' ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                (q['status'] ?? 'open').toUpperCase(),
+                                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: q['status'] == 'resolved' ? const Color(0xFF16A34A) : const Color(0xFFD97706)),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ── Close Library Bottom Sheet ─────────────────────────────────────────────
+  void _showCloseLibrarySheet() {
+    if (_libraryId == null) {
+      _showErrorSnackBar('Please complete library setup first.');
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.power_settings_new, color: Color(0xFFDC2626), size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Close Library for Today', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+                        Text('Mark the library as closed today', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500])),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFFD1B3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('What happens when you close:', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF92400E))),
+                    const SizedBox(height: 8),
+                    _buildCloseInfoRow('🛡️', 'Streak freeze applied for all members today'),
+                    const SizedBox(height: 4),
+                    _buildCloseInfoRow('🔔', 'All members will be notified via app'),
+                    const SizedBox(height: 4),
+                    _buildCloseInfoRow('📊', 'Today will not count towards attendance'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('Cancel', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          await Supabase.instance.client.from('library_closures').insert({
+                            'library_id': _libraryId!,
+                            'closed_date': DateTime.now().toIso8601String().substring(0, 10),
+                            'reason': 'Closed by admin',
+                          });
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                              content: Text('🔒 Library marked as closed for today. Members notified.'),
+                              backgroundColor: Color(0xFFE65C00),
+                            ));
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.power_settings_new, size: 18),
+                      label: Text('Close Today', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFDC2626),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCloseInfoRow(String emoji, String text) {
+    return Row(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 14)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF92400E)))),
+      ],
+    );
+  }
+
+  void _openQRModal(String qrType) {
+    if (_libraryId == null) {
+      _showErrorSnackBar('Please complete library details setup first.');
+      return;
+    }
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return QRModal(
+          libraryId: _libraryId!,
+          libraryCode: _libraryCode,
+          libraryName: _libraryName,
+          initialQrVersion: _qrVersion,
+          qrType: qrType,
+          onQrVersionChanged: (newVersion) {
+            setState(() {
+              _qrVersion = newVersion;
+            });
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildQRCodesRow() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1869,6 +2408,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 title: 'Joining QR',
                 description: 'Scan to apply & register',
                 icon: Icons.person_add_alt_1,
+                onTap: () => _openQRModal('join'),
               ),
             ),
             const SizedBox(width: 12),
@@ -1877,6 +2417,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 title: 'Attendance QR',
                 description: 'Laminate & stick on wall',
                 icon: Icons.qr_code_scanner,
+                onTap: () => _openQRModal('attendance'),
               ),
             ),
           ],
@@ -1889,73 +2430,77 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     required String title,
     required String description,
     required IconData icon,
+    required VoidCallback onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF3ED),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE65C00).withOpacity(0.2)),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3ED),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE65C00).withOpacity(0.2)),
+              ),
+              child: Icon(icon, color: const Color(0xFFE65C00), size: 24),
             ),
-            child: Icon(icon, color: const Color(0xFFE65C00), size: 24),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
-          ),
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF6B7280)),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 30,
-                  child: OutlinedButton(
-                    onPressed: () => _showSuccessSnackBar('Downloading QR PDF...'),
-                    style: OutlinedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+            ),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 30,
+                    child: OutlinedButton(
+                      onPressed: onTap,
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        side: const BorderSide(color: Color(0xFFE5E7EB)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      child: Text('PDF', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
                     ),
-                    child: Text('PDF', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: SizedBox(
-                  height: 30,
-                  child: OutlinedButton(
-                    onPressed: () => _showSuccessSnackBar('Sharing QR...'),
-                    style: OutlinedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      side: BorderSide(color: const Color(0xFFE65C00).withOpacity(0.3)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: SizedBox(
+                    height: 30,
+                    child: OutlinedButton(
+                      onPressed: onTap,
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        side: BorderSide(color: const Color(0xFFE65C00).withOpacity(0.3)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      child: Text('Share', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                     ),
-                    child: Text('Share', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                   ),
                 ),
-              ),
-            ],
-          )
-        ],
+              ],
+            )
+          ],
+        ),
       ),
     );
   }
@@ -2506,7 +3051,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             const SizedBox(width: 8),
             Expanded(child: _buildActionIconButton(Icons.remove_red_eye_outlined, 'Preview')),
             const SizedBox(width: 8),
-            Expanded(child: _buildActionIconButton(Icons.qr_code_2, 'QR Codes')),
+            Expanded(child: _buildActionIconButton(Icons.qr_code_2, 'QR Codes', onTap: () => _openQRModal('join'))),
             const SizedBox(width: 8),
             Expanded(child: _buildActionIconButton(Icons.edit_outlined, 'Customise', color: const Color(0xFFE65C00))),
           ],
@@ -2515,9 +3060,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  Widget _buildActionIconButton(IconData icon, String label, {Color color = const Color(0xFF1E293B)}) {
+  Widget _buildActionIconButton(IconData icon, String label, {Color color = const Color(0xFF1E293B), VoidCallback? onTap}) {
     return OutlinedButton(
-      onPressed: () => _showSuccessSnackBar('$label panel coming soon!'),
+      onPressed: onTap ?? () => _showSuccessSnackBar('$label panel coming soon!'),
       style: OutlinedButton.styleFrom(
         side: BorderSide(color: color.withOpacity(0.2)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

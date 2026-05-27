@@ -44,6 +44,10 @@ dependencies:
   image_cropper: ^12.2.1
   mobile_scanner: ^7.2.0
   connectivity_plus: ^7.1.1
+  qr_flutter: ^4.1.0
+  pdf: ^3.10.8
+  printing: ^5.11.0
+  share_plus: ^7.2.1
 
 dev_dependencies:
   flutter_test:
