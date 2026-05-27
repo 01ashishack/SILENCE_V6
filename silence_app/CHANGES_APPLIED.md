@@ -5,7 +5,7 @@ Original files:
 - `SILENCE_PRD_v6.1_Final.md`  
 - `18_Screen_by_Screen_Spec_Part1.md`  
 - `18_Screen_by_Screen_Spec_Part2.md`  
-- `18_Screen_by_Screen_Spec_Part3.md`  
+- `18_Screen_by_Screen_Spec_Part3.md` 
 
 All changes below are **additions, deletions, or modifications** relative to the original v6.1 specs.
 
@@ -27,21 +27,29 @@ All changes below are **additions, deletions, or modifications** relative to the
 | **Safe Area** | Wrapped all screens (except home) with `SafeArea(top: true)` to respect status bar. | Avoid overlap with system UI. |
 | **Admin Name Greeting** | Fixed to display `users.full_name` from signup, not “Demo”. | Proper personalization. |
 | **Flicker on App Open** | Added `FutureBuilder` / loading state on Admin Home to avoid showing wrong UI before database check. | Smooth UX. |
+| **Manage Layout Redesign (S022)** | Replaced standard flat listings with a visual collapsible tree view representing Floor -> Section -> Seats. | High interactive value and cleaner structural visibility. |
+| **Tree Action Logic (S022)** | The “+ Add Direct Seat” button is dynamically hidden for any floor that contains at least one section. Only visible if the floor has zero sections. | Strict hierarchy mapping: direct floor-level seats cannot coexist with sections. |
+| **Section Tag Display (S022)** | Completely removed tags (e.g. “General”, “VIP”) from section names in the layout tree representation. Displays purely the section name. | Streamline tree readability. |
+| **Auto-Prefix Generation (S072)** | Redesigned Add Seat sheet from single input to separate **Prefix** (e.g., “S”) and **Number** (e.g., “1”) fields. System auto-concatenates with a hyphen (`$prefix-$number`) and displays a live preview (e.g., “S-1”). | Improves consistency of seat labelling. |
+| **Smart Seat Auto-Fill (S072)** | System automatically analyzes existing seat labels in the floor/section: pre-fills the **Prefix** with the longest common prefix, and sets the **Start Number** to the next available number (highest + 1). | Eliminates redundant manual entry during bulk creation. |
+| **High Count Warning (S072)** | Displays an orange/yellow warning banner: *“⚠️ Generating X seats may take a few seconds. Continue?”* when bulk count is >= 100. | Keeps the UI responsive and warns the user about large inserts. |
+| **Unique Constraint Pre-Checks** | Performs active database checks before generating/inserting seats, showing a toast warning instead of a database crash for duplicate key values. | Protects database state. |
 
 ---
 
 ## 2. Screen Specification Files (`Part1.md`, `Part2.md`, `Part3.md`) Changes
 
-### Part1.md (Auth, Admin Home, Reservations)
+### Part1.md (Auth, Admin Home, Reservations, Layout Setup)
 
 | Screen ID | Change |
 |-----------|--------|
 | **S004-B** | Quick Actions: changed to 4 buttons (Add Member, Announce, Queries, Close Library). QR Codes section moved below. |
 | **S021** | Removed “Library Rules” field. |
-| **S022** | Full rewrite – see above (Layout Setup). |
+| **S022** | Full rewrite — redesigned as visual hierarchical tree view (Floor -> Section -> Seats). Shows "+ Add Direct Seat" only if zero sections exist. Excluded section tag labels in tree rows. |
 | **S023** | Added “Hourly Plan” toggle and “Payment Options” section inside. |
 | **S024** | Deleted (merged into S023). |
 | **S010** (Admin Home) | Added loading state to prevent flicker; fixed greeting name. |
+| **S025 / S072** | Overhauled seat insertion with dual fields (Prefix, Number), live hyphenated previews, smart pattern auto-filling (LCP for prefix, next incremental integer for numbers), and heavy seat generation warnings. |
 
 ### Part2.md (Announcements, Library Profile, Business Settings, Subscription)
 
@@ -51,24 +59,58 @@ All changes below are **additions, deletions, or modifications** relative to the
 | **S043** (Library Profile) | No changes. |
 | **S044–S058** | No changes. |
 
-### Part3.md (Member Screens, QR Scanner, Join Flow)
+### Part3.md (Member Home, QR Scanner, Join Flow Wizard)
 
 | Screen ID | Change |
 |-----------|--------|
-| **S060** (Member Home) | No changes. |
-| **S061** (QR Scanner) | No changes. |
-| **S062** (Join Flow) | No changes. |
-| **S067–S069** | No changes. |
+| **S060** (Member Home) | Redesigned orange curved header and announcement feed layout. Dynamically displays a two-step visual checklist **Profile setup card** (Name + ID Proof) if missing. |
+| **S060 (Timer & Timers)** | Attendance card utilizes a **live ticking timer** for hourly check-in sessions. Includes custom confirm pause/hold requests and two-tap confirmation sheets for leaving the library. |
+| **S061** (QR Scanner) | QR camera overlay styled with modern bracket viewfinders and an animated sweeping orange laser line. Implemented manual block overrides if scan fails 2+ times, and 3-minute anti-spam duplicate scan thresholds. |
+| **S062** (Join Flow Wizard) | Multi-step stack wizard featuring UPI receipt uploads to `silence_assets` bucket, deep-linked payment triggers (PhonePe/GPay), cash at library config, and custom referral code checkings. |
+| **Offline Syncing** | Scans during outage are cached inside local SQLite `offline_scan_queue` table. Automatic listener triggers batch FIFO uploads to Supabase when network connectivity is restored. |
 
 ---
 
 ## 3. Database Schema Changes (`supabase_schema.sql`)
 
-Added to `shifts` table:
-
+### 1. Shift Tables (`shifts`)
+Added to support hourly-rated study models:
 ```sql
 ALTER TABLE shifts 
 ADD COLUMN IF NOT EXISTS shift_type TEXT DEFAULT 'fixed' CHECK (shift_type IN ('fixed', 'hourly'));
 
 ALTER TABLE shifts 
 ADD COLUMN IF NOT EXISTS hours_per_day INTEGER;
+```
+
+### 2. Layout Cascade Deletion
+Configured foreign key constraints to support cascade deletion on database layout removals:
+```sql
+ALTER TABLE sections
+DROP CONSTRAINT IF EXISTS sections_floor_id_fkey,
+ADD CONSTRAINT sections_floor_id_fkey FOREIGN KEY (floor_id) REFERENCES floors(id) ON DELETE CASCADE;
+
+ALTER TABLE seats
+DROP CONSTRAINT IF EXISTS seats_floor_id_fkey,
+ADD CONSTRAINT seats_floor_id_fkey FOREIGN KEY (floor_id) REFERENCES floors(id) ON DELETE CASCADE,
+DROP CONSTRAINT IF EXISTS seats_section_id_fkey,
+ADD CONSTRAINT seats_section_id_fkey FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE;
+```
+
+### 3. SQLite Offline Scan Queue (`offline_scan_queue`)
+Created local table inside mobile storage to queue checkins and checkouts during network outages:
+```sql
+CREATE TABLE IF NOT EXISTS offline_scan_queue (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  member_id TEXT NOT NULL,
+  library_id TEXT NOT NULL,
+  shift_id TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  qr_version INTEGER NOT NULL,
+  device_id TEXT,
+  retry_count INTEGER DEFAULT 0,
+  synced INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+```
