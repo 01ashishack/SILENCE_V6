@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'reservations/reservations_tab.dart';
 import '../widgets/qr_modal.dart';
+import 'admin_analytics_tab.dart';
+import 'admin_profile_tab.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final bool startInSetupMode;
@@ -3290,10 +3292,35 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         );
         break;
       case 2:
-        bodyView = _buildPlaceholderTab('Analytics', Icons.bar_chart_outlined);
+        bodyView = AdminAnalyticsTab(
+          libraryId: _libraryId,
+          libraryName: _libraryName,
+          myLibraries: _myLibraries,
+          onLibraryChanged: (libId) {
+            setState(() {
+              _libraryId = libId;
+            });
+            _loadLibrarySpecificData(libId);
+          },
+        );
         break;
       case 3:
-        bodyView = _buildMoreTab();
+        bodyView = AdminProfileTab(
+          libraryId: _libraryId,
+          libraryName: _libraryName,
+          coverPhotoUrl: _coverPhotoUrl,
+          myLibraries: _myLibraries,
+          onLibraryChanged: (libId) {
+            setState(() {
+              _libraryId = libId;
+            });
+            _loadLibrarySpecificData(libId);
+          },
+          onLogout: _handleLogout,
+          adminName: _getAdminName(),
+          adminEmail: Supabase.instance.client.auth.currentUser?.email ?? 'admin@silence.com',
+          adminPhone: _phoneController.text.isNotEmpty ? _phoneController.text : '+91 XXXXX XXXXX',
+        );
         break;
       default:
         bodyView = _buildHomeTab();

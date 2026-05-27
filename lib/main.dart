@@ -13,7 +13,21 @@ import 'screens/library_setup_stage2.dart';
 import 'screens/library_setup_stage3.dart';
 import 'screens/reservations/member_detail_screen.dart';
 
-
+// Milestone 5 remaining Admin Panel screens imports
+import 'screens/library_profile.dart';
+import 'screens/verified_badge_screen.dart';
+import 'screens/pricing_plans.dart';
+import 'screens/shift_management.dart';
+import 'screens/business_rules.dart';
+import 'screens/branding_assets.dart';
+import 'screens/qr_assets.dart';
+import 'screens/addon_services.dart';
+import 'screens/notification_preferences.dart';
+import 'screens/export_center.dart';
+import 'screens/subscription_screen.dart';
+import 'screens/audit_log_screen.dart';
+import 'screens/referral_settings.dart';
+import 'screens/scheduled_closures.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -89,6 +103,21 @@ class SilenceApp extends StatelessWidget {
         '/admin/library/setup/3': (context) => const LibrarySetupStage3Screen(),
         '/admin/member': (context) => const MemberDetailScreen(),
 
+        // Milestone 5 Admin routes registrations
+        '/admin/library/profile': (context) => const LibraryProfileScreen(),
+        '/admin/verified-badge': (context) => const VerifiedBadgeScreen(),
+        '/admin/settings/shifts': (context) => const ShiftManagementScreen(),
+        '/admin/settings/pricing': (context) => const PricingPlansScreen(),
+        '/admin/settings/business-rules': (context) => const BusinessRulesScreen(),
+        '/admin/settings/branding': (context) => const BrandingAssetsScreen(),
+        '/admin/settings/qr': (context) => const QRAssetsScreen(),
+        '/admin/settings/addons': (context) => const AddonServicesScreen(),
+        '/admin/settings/notifications': (context) => const NotificationPreferencesScreen(),
+        '/admin/exports': (context) => const ExportCenterScreen(),
+        '/admin/subscription': (context) => const SubscriptionScreen(),
+        '/admin/audit-log': (context) => const AuditLogScreen(),
+        '/admin/settings/referrals': (context) => const ReferralSettingsScreen(),
+        '/admin/settings/closures': (context) => const ScheduledClosuresScreen(),
       },
     );
   }
