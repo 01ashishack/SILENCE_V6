@@ -103,7 +103,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           .from('memberships')
           .select('*, libraries(*), shifts(*), seats(*)')
           .eq('member_id', currentUser.id)
-          .order('created_at', descending: true);
+          .order('created_at', ascending: false);
 
       _myMemberships = List<Map<String, dynamic>>.from(membershipsRes);
 
@@ -137,7 +137,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             .from('announcements')
             .select('*, libraries(name)')
             .inFilter('library_id', libraryIds)
-            .order('sent_at', descending: true)
+            .order('sent_at', ascending: false)
             .limit(3);
 
         _announcements = List<Map<String, dynamic>>.from(announcementsRes);
