@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'offline_db.dart';
 
 class OfflineSyncManager {

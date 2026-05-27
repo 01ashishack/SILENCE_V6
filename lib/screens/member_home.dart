@@ -620,7 +620,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       const SizedBox(height: 2),
                       Text(
                         'Session Time: $_liveSessionDuration',
-                        style: GoogleFonts.monospace(fontSize: 13, color: const Color(0xFF166534), fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontFamily: 'monospace', fontSize: 13, color: Color(0xFF166534), fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -1908,7 +1908,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               ListTile(
                 leading: const Icon(Icons.pause_circle_outline, color: Color(0xFFD97706)),
                 title: Text('Request Hold / Pause', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                onPressed: () {
+                onTap: () {
                   Navigator.pop(context);
                   _openHoldRequestSheet(membership);
                 },
@@ -1917,7 +1917,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               ListTile(
                 leading: const Icon(Icons.exit_to_app, color: Colors.redAccent),
                 title: Text('Exit Library', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.redAccent)),
-                onPressed: () {
+                onTap: () {
                   Navigator.pop(context);
                   _openExitLibrarySheetFlow(membership);
                 },

@@ -989,7 +989,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                 const SizedBox(height: 4),
                 SelectableText(
                   'owner@upi\n9876543210@paytm',
-                  style: GoogleFonts.monospace(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.bold),
+                  style: TextStyle(fontFamily: 'monospace', fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.bold),
                 ),
                 const Divider(height: 24),
                 
