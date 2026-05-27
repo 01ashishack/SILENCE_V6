@@ -63,10 +63,11 @@ All changes below are **additions, deletions, or modifications** relative to the
 
 | Screen ID | Change |
 |-----------|--------|
-| **S060** (Member Home) | Redesigned orange curved header and announcement feed layout. Dynamically displays a two-step visual checklist **Profile setup card** (Name + ID Proof) if missing. |
+| **S060** (Member Home) | Redesigned orange curved header and announcement feed layout. Displays a unified visual **Profile setup card** that links to a full-screen edit page. Implemented pixel-perfect notch-safe navigation alignment using dummy symmetric opacity spacers and normal-sized FAB to eliminate overlapping. |
 | **S060 (Timer & Timers)** | Attendance card utilizes a **live ticking timer** for hourly check-in sessions. Includes custom confirm pause/hold requests and two-tap confirmation sheets for leaving the library. |
 | **S061** (QR Scanner) | QR camera overlay styled with modern bracket viewfinders and an animated sweeping orange laser line. Implemented manual block overrides if scan fails 2+ times, and 3-minute anti-spam duplicate scan thresholds. |
 | **S062** (Join Flow Wizard) | Multi-step stack wizard featuring UPI receipt uploads to `silence_assets` bucket, deep-linked payment triggers (PhonePe/GPay), cash at library config, and custom referral code checkings. |
+| **S065** (Profile Edit Screen) | Created unified full-screen member edit profile screen capturing name, phone, dob, address, exam category, profile picture cropping, and Aadhaar/PAN/Voter ID uploads (mapped to unused `fcm_token` column). |
 | **Offline Syncing** | Scans during outage are cached inside local SQLite `offline_scan_queue` table. Automatic listener triggers batch FIFO uploads to Supabase when network connectivity is restored. |
 
 ---
