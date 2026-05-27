@@ -8,6 +8,8 @@ import '../core/offline_db.dart';
 import '../core/offline_sync.dart';
 import 'reservations/qr_scanner_screen.dart';
 import 'reservations/join_flow_screen.dart';
+import 'member_profile_edit.dart';
+
 
 class MemberHomeScreen extends StatefulWidget {
   const MemberHomeScreen({super.key});
@@ -239,13 +241,13 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   : _buildCurrentTabContent(),
           bottomNavigationBar: _buildBottomNav(),
           floatingActionButton: _currentBottomTab == 0
-              ? FloatingActionButton.large(
+              ? FloatingActionButton(
                   onPressed: _openQRScanner,
                   backgroundColor: const Color(0xFFE65C00),
                   foregroundColor: Colors.white,
                   shape: const CircleBorder(),
                   elevation: 6,
-                  child: const Icon(Icons.qr_code_scanner, size: 36),
+                  child: const Icon(Icons.qr_code_scanner, size: 28),
                 )
               : null,
           floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -325,7 +327,10 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   Widget _buildOrangeHeader() {
-    final userName = _userProfile?['full_name'] ?? 'Student';
+    final nickname = _userProfile?['nickname'] as String?;
+    final userName = (nickname != null && nickname.isNotEmpty && nickname != 'N/A')
+        ? nickname
+        : (_userProfile?['full_name'] ?? 'Student');
     
     // Quick unread announcements logic
     final unreadCount = _announcements.where((a) => !_readAnnouncementIds.contains(a['id'])).length;
@@ -497,10 +502,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   Widget _buildProfileSetupCard() {
-    final hasName = _userProfile?['full_name'] != null && (_userProfile!['full_name'] as String).isNotEmpty;
-    final hasPhone = _userProfile?['phone'] != null && (_userProfile!['phone'] as String).isNotEmpty;
-    final hasPhoto = _userProfile?['photo_url'] != null && (_userProfile!['photo_url'] as String).isNotEmpty;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -517,47 +518,49 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Complete Your Profile',
-            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          Row(
+            children: [
+              const Icon(Icons.info_outline, color: Color(0xFFE65C00), size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'Complete Your Profile',
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
-            'Ensure full access to scanner and layout requests.',
-            style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+            'Ensure full access to scanner and layout requests. Provide your photo, contact details, and ID document on a single quick page.',
+            style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600], height: 1.4),
           ),
           const SizedBox(height: 16),
-          // Step 1: Complete details
-          _buildProfileStepRow(
-            title: 'Complete details (Name, Phone)',
-            isDone: hasName && hasPhone,
-          ),
-          const SizedBox(height: 12),
-          // Step 2: Upload ID proof
-          _buildProfileStepRow(
-            title: 'Upload ID proof & profile picture',
-            isDone: hasPhoto,
-          ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  _currentBottomTab = 2; // Jump to Profile
-                });
-              },
-              icon: const Icon(Icons.arrow_forward, size: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _navigateToEditProfile,
+              icon: const Icon(Icons.edit, size: 16),
               label: const Text('Complete Now'),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFE65C00),
-                textStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           )
         ],
       ),
     );
+  }
+
+  void _navigateToEditProfile() async {
+    final success = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MemberProfileEditScreen()),
+    );
+    if (success == true) {
+      _loadInitialData();
+    }
   }
 
   Widget _buildProfileStepRow({required String title, required bool isDone}) {
@@ -1701,15 +1704,38 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       color: Colors.white,
       shape: const CircularNotchedRectangle(),
       notchMargin: 8.0,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: EdgeInsets.zero,
       height: 64,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildNavItem(0, Icons.home, 'Home'),
-          _buildNavItem(1, Icons.bar_chart, 'Analytics'),
-          const SizedBox(width: 40), // Space for floating button
-          _buildNavItem(2, Icons.person, 'Profile'),
+          // Left Side Tabs
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavItem(0, Icons.home, 'Home'),
+                _buildNavItem(1, Icons.bar_chart, 'Analytics'),
+              ],
+            ),
+          ),
+          const SizedBox(width: 72), // Clear space for FAB notch in exact center
+          // Right Side Tabs
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavItem(2, Icons.person, 'Profile'),
+                // Dummy symmetric spacer item using Opacity to balance the Row alignment perfectly!
+                Opacity(
+                  opacity: 0,
+                  child: IgnorePointer(
+                    child: _buildNavItem(99, Icons.home, 'Home'),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1719,20 +1745,24 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final selected = _currentBottomTab == index;
     return InkWell(
       onTap: () => setState(() => _currentBottomTab = index),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: selected ? const Color(0xFFE65C00) : Colors.grey[500]),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 11, 
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              color: selected ? const Color(0xFFE65C00) : Colors.grey[500],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: selected ? const Color(0xFFE65C00) : Colors.grey[500], size: 24),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 11, 
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                color: selected ? const Color(0xFFE65C00) : Colors.grey[500],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2668,107 +2698,14 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  void _openEditProfileModal() {
-    final nameCtrl = TextEditingController(text: _userProfile?['full_name']);
-    final nickCtrl = TextEditingController(text: _userProfile?['nickname']);
-    final phoneCtrl = TextEditingController(text: _userProfile?['phone']);
-    final photoCtrl = TextEditingController(text: _userProfile?['photo_url']);
-    
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-            left: 20, right: 20, top: 20
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Complete Profile Details', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Full Name *'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: nickCtrl,
-                decoration: const InputDecoration(labelText: 'Nickname (for leaderboard)'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: phoneCtrl,
-                decoration: const InputDecoration(labelText: 'Phone Number (+91) *'),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: photoCtrl,
-                decoration: const InputDecoration(labelText: 'ID Proof Photo URL *'),
-                keyboardType: TextInputType.url,
-              ),
-              const SizedBox(height: 16),
-              
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (nameCtrl.text.isEmpty || phoneCtrl.text.isEmpty || photoCtrl.text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please fill all required fields.')),
-                      );
-                      return;
-                    }
-                    
-                    try {
-                      final supabase = Supabase.instance.client;
-                      await supabase.from('users').update({
-                        'full_name': nameCtrl.text.trim(),
-                        'nickname': nickCtrl.text.trim(),
-                        'phone': phoneCtrl.text.trim(),
-                        'photo_url': photoCtrl.text.trim(),
-                        'updated_at': DateTime.now().toIso8601String(),
-                      }).eq('id', _userProfile!['id']);
-                      
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Profile updated successfully! ✓')),
-                        );
-                        _loadInitialData();
-                      }
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to update: $e')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: const Text('Save Details'),
-                ),
-              )
-            ],
-          ),
-        );
-      },
+  void _openEditProfileModal() async {
+    final success = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MemberProfileEditScreen()),
     );
+    if (success == true) {
+      _loadInitialData();
+    }
   }
 
   Widget _buildNotificationsScreen() {
