@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'reservations/reservations_tab.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final bool startInSetupMode;
@@ -46,6 +47,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   String _libraryName = 'Your Library';
   String _libraryAddress = 'Setup your library details to activate';
   String? _coverPhotoUrl;
+  List<Map<String, dynamic>> _myLibraries = [];
 
   // Stats Counters
   int _totalMembers = 0;
@@ -184,76 +186,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           }
         }
 
-        // 2. Fetch Library Info
-        final libData = await supabase.from('libraries').select().eq('owner_id', user.id).maybeSingle();
-        if (libData != null) {
-          _libraryId = libData['id'];
-          _libraryCode = libData['library_code'] ?? 'SIL-XXXXXX';
-          _libraryName = libData['name'] ?? 'Your Library';
-          _coverPhotoUrl = libData['cover_photo_url'];
-          if (_coverPhotoUrl == null || _coverPhotoUrl!.isEmpty) {
-            final photosArr = libData['photos'] as List?;
-            if (photosArr != null && photosArr.isNotEmpty) {
-              _coverPhotoUrl = photosArr.first.toString();
-            }
+        // 2. Fetch All Owned Libraries Info
+        final libsRes = await supabase.from('libraries').select().eq('owner_id', user.id);
+        _myLibraries = List<Map<String, dynamic>>.from(libsRes);
+
+        if (_myLibraries.isNotEmpty) {
+          final bool hasMatch = _libraryId != null && _myLibraries.any((l) => l['id'] == _libraryId);
+          if (!hasMatch) {
+            _libraryId = _myLibraries.first['id'];
           }
-          
-          final String street = libData['address_street'] ?? '';
-          final String city = libData['address_city'] ?? '';
-          _libraryAddress = street.isNotEmpty ? '$street, $city' : 'Setup your library details to activate';
-
-          _libNameController.text = _libraryName;
-          _libStreetController.text = libData['address_street'] ?? '';
-          _libCityController.text = libData['address_city'] ?? '';
-          _libStateController.text = libData['address_state'] ?? '';
-          _libPinController.text = libData['address_pincode'] ?? '';
-          _libRulesController.text = libData['rules'] ?? '';
-          _libAboutController.text = libData['about_text'] ?? '';
-          _libEmergencyPhoneController.text = libData['emergency_phone'] ?? '';
-          if (libData['amenities'] != null) {
-            _selectedAmenities = List<String>.from(libData['amenities']);
-          }
-
-          // Step 2 Complete if basic fields are set
-          if (_libraryName.isNotEmpty && city.isNotEmpty && _libEmergencyPhoneController.text.isNotEmpty) {
-            _step2Complete = true;
-          }
-
-          final String status = libData['status'] ?? 'setup';
-          _inSetupMode = (status == 'setup');
-
-          // 3. Check Shifts Setup (Step 4)
-          final shifts = await supabase.from('shifts').select('id').eq('library_id', _libraryId!).eq('is_archived', false);
-          _shiftsCount = shifts.length;
-          if (shifts.isNotEmpty) {
-            _step4Complete = true;
-          }
-
-          // 4. Check Layout/Seats Setup (Step 3)
-          final seats = await supabase.from('seats').select('id').eq('library_id', _libraryId!);
-          _totalSeats = seats.length;
-          if (seats.isNotEmpty) {
-            _step3Complete = true;
-            final occupiedSeats = await supabase.from('seats').select('id').eq('library_id', _libraryId!).eq('status', 'occupied');
-            _occupiedSeatsCount = occupiedSeats.length;
-          }
-
-          // Step 4 = Shifts + Payment: complete if shifts exist
-          // (payment is now saved alongside shifts in stage3, shifts check covers step4)
-
-          // Fetch operational stats dynamically from memberships
-          try {
-            final membersRes = await supabase.from('memberships').select('status').eq('library_id', _libraryId!);
-            _totalMembers = membersRes.length;
-            _activeMembers = membersRes.where((m) => m['status'] == 'active').length;
-            _expiredCount = membersRes.where((m) => m['status'] == 'expired').length;
-            
-            final startOfMonth = DateTime(DateTime.now().year, DateTime.now().month, 1).toIso8601String();
-            final newRes = await supabase.from('memberships').select('id').eq('library_id', _libraryId!).gte('created_at', startOfMonth);
-            _newJoiningsThisMonth = newRes.length;
-          } catch (e) {
-            debugPrint('Error loading members stats: $e');
-          }
+          await _loadLibrarySpecificData(_libraryId!);
         } else {
           _inSetupMode = true;
           _libraryCode = 'SIL-XXXXXX';
@@ -272,6 +214,81 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         _isLoading = false;
         _initialLoadDone = true;
       });
+    }
+  }
+
+  Future<void> _loadLibrarySpecificData(String libId) async {
+    final supabase = Supabase.instance.client;
+    try {
+      final libData = await supabase.from('libraries').select().eq('id', libId).maybeSingle();
+      if (libData != null) {
+        _libraryId = libData['id'];
+        _libraryCode = libData['library_code'] ?? 'SIL-XXXXXX';
+        _libraryName = libData['name'] ?? 'Your Library';
+        _coverPhotoUrl = libData['cover_photo_url'];
+        if (_coverPhotoUrl == null || _coverPhotoUrl!.isEmpty) {
+          final photosArr = libData['photos'] as List?;
+          if (photosArr != null && photosArr.isNotEmpty) {
+            _coverPhotoUrl = photosArr.first.toString();
+          }
+        }
+        
+        final String street = libData['address_street'] ?? '';
+        final String city = libData['address_city'] ?? '';
+        _libraryAddress = street.isNotEmpty ? '$street, $city' : 'Setup your library details to activate';
+
+        _libNameController.text = _libraryName;
+        _libStreetController.text = libData['address_street'] ?? '';
+        _libCityController.text = libData['address_city'] ?? '';
+        _libStateController.text = libData['address_state'] ?? '';
+        _libPinController.text = libData['address_pincode'] ?? '';
+        _libRulesController.text = libData['rules'] ?? '';
+        _libAboutController.text = libData['about_text'] ?? '';
+        _libEmergencyPhoneController.text = libData['emergency_phone'] ?? '';
+        if (libData['amenities'] != null) {
+          _selectedAmenities = List<String>.from(libData['amenities']);
+        }
+
+        // Step 2 Complete if basic fields are set
+        if (_libraryName.isNotEmpty && city.isNotEmpty && _libEmergencyPhoneController.text.isNotEmpty) {
+          _step2Complete = true;
+        }
+
+        final String status = libData['status'] ?? 'setup';
+        _inSetupMode = (status == 'setup');
+
+        // 3. Check Shifts Setup (Step 4)
+        final shifts = await supabase.from('shifts').select('id').eq('library_id', libId).eq('is_archived', false);
+        _shiftsCount = shifts.length;
+        if (shifts.isNotEmpty) {
+          _step4Complete = true;
+        }
+
+        // 4. Check Layout/Seats Setup (Step 3)
+        final seats = await supabase.from('seats').select('id').eq('library_id', libId);
+        _totalSeats = seats.length;
+        if (seats.isNotEmpty) {
+          _step3Complete = true;
+          final occupiedSeats = await supabase.from('seats').select('id').eq('library_id', libId).eq('status', 'occupied');
+          _occupiedSeatsCount = occupiedSeats.length;
+        }
+
+        // Fetch operational stats dynamically from memberships
+        try {
+          final membersRes = await supabase.from('memberships').select('status').eq('library_id', libId);
+          _totalMembers = membersRes.length;
+          _activeMembers = membersRes.where((m) => m['status'] == 'active').length;
+          _expiredCount = membersRes.where((m) => m['status'] == 'expired').length;
+          
+          final startOfMonth = DateTime(DateTime.now().year, DateTime.now().month, 1).toIso8601String();
+          final newRes = await supabase.from('memberships').select('id').eq('library_id', libId).gte('created_at', startOfMonth);
+          _newJoiningsThisMonth = newRes.length;
+        } catch (e) {
+          debugPrint('Error loading members stats: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading library specific data: $e');
     }
   }
 
@@ -682,6 +699,172 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   // --- SUB-WIDGETS BUILDERS ---
 
+  void _showLibrarySwitcherPopup(BuildContext context) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Library Switcher',
+      barrierColor: Colors.black.withOpacity(0.15),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, anim1, anim2) {
+        return Align(
+          alignment: const Alignment(-0.85, -0.72),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: 280,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.12),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  ..._myLibraries.map((lib) {
+                    final bool isSelected = lib['id'].toString().toLowerCase() == _libraryId.toString().toLowerCase();
+                    final String? city = lib['address_city'];
+                    final String? coverUrl = lib['cover_photo_url'];
+                    final List<dynamic> photos = lib['photos'] ?? [];
+                    String? itemCover;
+                    if (coverUrl != null && coverUrl.isNotEmpty) {
+                      itemCover = coverUrl;
+                    } else if (photos.isNotEmpty) {
+                      itemCover = photos.first.toString();
+                    }
+
+                    return InkWell(
+                      onTap: () async {
+                        Navigator.pop(context);
+                        setState(() {
+                          _libraryId = lib['id'];
+                          _isLoading = true;
+                        });
+                        await _loadLibrarySpecificData(lib['id']);
+                        if (mounted) {
+                          setState(() {
+                            _isLoading = false;
+                          });
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFFF1F5F9),
+                              ),
+                              child: itemCover != null && itemCover.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Image.network(
+                                        itemCover,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => const Icon(
+                                          Icons.business_rounded,
+                                          color: Color(0xFFE65C00),
+                                          size: 20,
+                                        ),
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.business_rounded,
+                                      color: Color(0xFFE65C00),
+                                      size: 20,
+                                    ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    lib['name'] ?? 'Library',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    city ?? 'Location',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(
+                                  Icons.check,
+                                  color: Color(0xFFE65C00),
+                                  size: 20,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/admin/library/setup/1').then((_) {
+                        _loadInitialData();
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.add, color: Color(0xFFE65C00), size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            '+ Add Library',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFFE65C00),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        return FadeTransition(
+          opacity: anim1,
+          child: child,
+        );
+      },
+    );
+  }
+
   Widget _buildCurvedHeader() {
     final todayFormatted = DateFormat('EEE, d MMM').format(DateTime.now()).toUpperCase();
     
@@ -713,52 +896,92 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2.0),
                   color: Colors.white,
-                  image: DecorationImage(
-                    image: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
-                        ? NetworkImage(_coverPhotoUrl!) as ImageProvider
-                        : const AssetImage('assets/images/LOGO.png'),
-                    fit: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty ? BoxFit.cover : BoxFit.contain,
-                  ),
                 ),
+                child: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(25),
+                        child: Image.network(
+                          _coverPhotoUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const Icon(
+                            Icons.business_rounded,
+                            color: Color(0xFFE65C00),
+                            size: 26,
+                          ),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.business_rounded,
+                        color: Color(0xFFE65C00),
+                        size: 26,
+                      ),
               ),
               const SizedBox(width: 12),
               
-              // Library Dropdown Title
+              // Library Dropdown Title with switcher
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          _libraryName,
-                          style: GoogleFonts.outfit(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                child: _myLibraries.isEmpty
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _libraryName,
+                            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on, color: Colors.white70, size: 12),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            _libraryAddress,
-                            style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white.withOpacity(0.85)),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on, color: Colors.white70, size: 12),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  _libraryAddress,
+                                  style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white.withOpacity(0.85)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
+                        ],
+                      )
+                    : InkWell(
+                        onTap: () => _showLibrarySwitcherPopup(context),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  _libraryName,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on, color: Colors.white70, size: 12),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    _libraryAddress,
+                                    style: GoogleFonts.inter(fontSize: 10.5, color: Colors.white.withOpacity(0.85)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
               ),
               
               // Date Pill Widget
@@ -2508,7 +2731,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         bodyView = _buildHomeTab();
         break;
       case 1:
-        bodyView = _buildPlaceholderTab('Reservations', Icons.grid_view_outlined);
+        bodyView = ReservationsTab(
+          libraryId: _libraryId,
+          libraryName: _libraryName,
+          libraryCover: _coverPhotoUrl,
+          myLibraries: _myLibraries,
+          onLibraryChanged: (libId) {
+            setState(() {
+              _libraryId = libId;
+            });
+            _loadLibrarySpecificData(libId);
+          },
+        );
         break;
       case 2:
         bodyView = _buildPlaceholderTab('Analytics', Icons.bar_chart_outlined);
@@ -2521,12 +2755,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
 
     return Scaffold(
-      backgroundColor: _currentTab == 0 ? const Color(0xFFFF6B00) : const Color(0xFFF8FAFC),
+      backgroundColor: (_currentTab == 0 || _currentTab == 1)
+          ? const Color(0xFFE65C00)
+          : const Color(0xFFF8FAFC),
       body: SafeArea(
-        top: _currentTab != 0,
-        child: _currentTab == 0
+        top: _currentTab != 0 && _currentTab != 1,
+        child: (_currentTab == 0 || _currentTab == 1)
             ? Container(
-                color: const Color(0xFFF8FAFC),
+                color: const Color(0xFFFBF5EE),
                 child: bodyView,
               )
             : bodyView,

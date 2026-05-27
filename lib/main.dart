@@ -11,6 +11,8 @@ import 'screens/admin_profile_complete.dart';
 import 'screens/library_setup_stage1.dart';
 import 'screens/library_setup_stage2.dart';
 import 'screens/library_setup_stage3.dart';
+import 'screens/reservations/member_detail_screen.dart';
+
 
 
 void main() async {
@@ -85,6 +87,8 @@ class SilenceApp extends StatelessWidget {
         '/admin/library/setup/1': (context) => const LibrarySetupStage1Screen(),
         '/admin/library/setup/2': (context) => const LibrarySetupStage2Screen(),
         '/admin/library/setup/3': (context) => const LibrarySetupStage3Screen(),
+        '/admin/member': (context) => const MemberDetailScreen(),
+
       },
     );
   }
