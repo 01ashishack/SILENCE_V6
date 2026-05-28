@@ -45,6 +45,11 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
     final user = _supabase.auth.currentUser;
     if (user != null) {
       try {
+        final Object? args = ModalRoute.of(context)?.settings.arguments;
+        if (args is String) {
+          _libId = args;
+        }
+
         // Fetch library ID from args if not provided
         if (_libId == null) {
           final res = await _supabase.from('libraries').select().eq('owner_id', user.id).maybeSingle();
