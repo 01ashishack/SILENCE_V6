@@ -1,51 +1,50 @@
-Screen ID,Screen Name,Role,Description,Navigated From,Stack/Modal/Tab
-S001,Splash Screen,Both,Initial loading screen with logo,App launch,Stack
-S002,Auth Screen,Both,Login/Signup tabs,After splash,Stack
-S003,Role Selection,Both,Choose Library Owner or Student,After signup,Stack
-S004,Admin Home,Admin,Operational dashboard with stats and actions,After role selection or app open,Tab (Home)
-S005,Reservations Layout,Admin,Seat grid with shift/floor selector,Tab (Reservations) → Layout sub-tab,Tab sub-tab
-S006,Reservations Members,Admin,Member list with filters and search,Tab (Reservations) → Members sub-tab,Tab sub-tab
-S007,Reservations Requests,Admin,Join/seat/hold requests,Tab (Reservations) → Requests sub-tab,Tab sub-tab
-S008,Reservations Archive,Admin,Exited members history,Tab (Reservations) → Archive sub-tab,Tab sub-tab
-S009,Analytics,Admin,Revenue/expense/occupancy charts,Tab (Analytics),Tab
-S010,Admin Profile,Admin,Settings, library management, subscription,Tab (Profile),Tab
-S011,Member Home,Member,Membership cards, announcements, scan button,Tab (Home),Tab
-S012,Member Analytics,Member,Streak, leaderboard, badges, charts,Tab (Analytics),Tab
-S013,Member Profile,Member,Personal info, referral, joined libraries,Tab (Profile),Tab
-S014,Library Setup Stage 1,Admin,Basic info and photos,Setup card or first launch,Modal (mandatory)
-S015,Library Setup Stage 2,Admin,Floors, sections, seats,From Stage 1 Next,Stack
-S016,Library Setup Stage 3,Admin,Shifts and plans,From Stage 2 Next,Stack
-S017,Payment Setup,Admin,Cash/UPI configuration,After Stage 3 or from Business Settings,Stack
-S018,Complete Profile,Admin,Personal details (name, phone, gender, DOB),From setup card or Profile edit,Stack
-S019,Member Detail,Admin,Full member overview with tabs,From Members list tap,Stack
-S020,Seat Actions Bottom Sheet,Admin,Occupied/vacant seat actions,From Layout tab seat tap,Bottom sheet
-S021,Generate Seats Bottom Sheet,Admin,Bulk or single seat creation,From Layout → Manage Layout,Bottom sheet
-S022,QR Modal,Admin,View/share/regenerate QR codes,From Home QR cards or quick actions,Modal
-S023,Announcement Composer,Admin,Create and send announcements,From Home quick action or Announcements history,Bottom sheet
-S024,Announcement History,Admin,List of past announcements,From Profile → Announcements,Stack
-S025,Manage Queries,Admin,Member support messages,From Profile → Manage Queries,Stack
-S026,Renewal Screen,Both,Membership renewal,From member card or member detail or notification,Stack
-S027,Add-on Management,Admin,Configure locker/premium services,From Business Settings → Add-on Services,Stack
-S028,Referral Settings,Admin,Enable rewards, set free days,From Profile → Account → Referral Settings,Stack
-S029,Audit Log,Admin,View admin action history,From Profile → Account → Audit Log,Stack
-S030,Scheduled Closures,Admin,Set date ranges for library closure,From Business Settings → Membership Rules,Stack
-S031,Subscription Screen,Admin,View/upgrade/downgrade plan,From Profile → Subscription,Stack
-S032,Library Profile,Admin,Public profile and settings,From Your Libraries card,Stack
-S033,Customise Library Profile,Admin,Edit cover, about, amenities, social links,From Library Profile → Customise,Stack
-S034,Ratings & Reviews,Admin,View member reviews and reply,From Library Profile,Stack
-S035,Transfer Member,Admin,Move member to another library (same admin),From Member Detail → three-dot menu,Stack
-S036,Join Flow Step 0-5,Member,Multi-step application,From Explore → Apply or QR scan,Stack
-S037,Explore Tab,Member,Library discovery and search,From Member Home → Explore,Tab sub-tab
-S038,Library Detail (Member),Member,Library profile with social and emergency contact,From Explore tap card,Stack
-S039,QR Scanner,Member,Full-screen camera for check-in/out,From floating scan button,Stack
-S040,Notications Screen,Both,List of push notifications,From bell icon,Stack
-S041,Edit Session Duration,Admin,Manual edit of check-in/out times,From Member Detail → Attendance → tap session,Modal
-S042,Add Manual Entry,Admin,Manual check-in for member,From Member Detail → Attendance → + button,Modal
-S043,Business Settings Grid,Admin,List of configurable settings,From Profile → Business Settings,Stack
-S044,Shift Config (canonical),Admin,Edit shifts (same as Stage 3),From Business Settings → Shift Config,Stack
-S045,Membership Rules,Admin,Set grace periods, hold limits, discounts,From Business Settings → Membership Rules,Stack
-S046,Branding & Assets,Admin,Upload logo, cover photos, printable assets,From Business Settings → Branding,Stack
-S047,Exports & Reports,Admin,Download CSVs,From Profile → Exports,Stack
-S048,Help & Support,Both,FAQ, contact form,From Profile → Help & Support,Stack
-S049,About & Legal,Both,Terms, privacy policy, version,From Profile → About & Legal,Stack
-S050,Refer a Friend (Member),Member,Share referral code,From Member Profile → Refer a Friend,Stack
+Screen Name,File Path,Role,Description,Navigated From,Stack/Modal/Tab
+SilenceApp,lib\main.dart,Both,,,
+_CalendarDialogPicker,lib\core\calendar_picker.dart,Both,,,
+AddonServicesScreen,lib\screens\addon_services.dart,Both,,,
+AdminAnalyticsTab,lib\screens\admin_analytics_tab.dart,Admin,,,
+AdminHomeScreen,lib\screens\admin_home.dart,Admin,,,
+AdminProfileCompleteScreen,lib\screens\admin_profile_complete.dart,Admin,,,
+AdminProfileTab,lib\screens\admin_profile_tab.dart,Admin,,,
+AnnouncementsHistoryScreen,lib\screens\announcements_history_screen.dart,Both,,,
+AuditLogScreen,lib\screens\audit_log_screen.dart,Both,,,
+AuthScreen,lib\screens\auth_screen.dart,Both,,,
+BrandingAssetsScreen,lib\screens\branding_assets.dart,Both,,,
+BusinessRulesScreen,lib\screens\business_rules.dart,Both,,,
+ExportCenterScreen,lib\screens\export_center.dart,Both,,,
+LibraryProfileScreen,lib\screens\library_profile.dart,Both,,,
+LibrarySetupStage1Screen,lib\screens\library_setup_stage1.dart,Both,,,
+LibrarySetupStage2Screen,lib\screens\library_setup_stage2.dart,Both,,,
+LibrarySetupStage3Screen,lib\screens\library_setup_stage3.dart,Both,,,
+MemberAnalyticsTab,lib\screens\member_analytics_tab.dart,Member,,,
+MemberHomeScreen,lib\screens\member_home.dart,Member,,,
+MemberProfileEditScreen,lib\screens\member_profile_edit.dart,Member,,,
+NotificationPreferencesScreen,lib\screens\notification_preferences.dart,Both,,,
+PaymentSetupScreen,lib\screens\payment_setup.dart,Both,,,
+PricingPlansScreen,lib\screens\pricing_plans.dart,Both,,,
+QRAssetsScreen,lib\screens\qr_assets.dart,Both,,,
+ReferralSettingsScreen,lib\screens\referral_settings.dart,Both,,,
+RoleSelectionScreen,lib\screens\role_selection_screen.dart,Both,,,
+ScheduledClosuresScreen,lib\screens\scheduled_closures.dart,Both,,,
+ShiftManagementScreen,lib\screens\shift_management.dart,Both,,,
+SplashScreen,lib\screens\splash_screen.dart,Both,,,
+SubscriptionScreen,lib\screens\subscription_screen.dart,Both,,,
+VerifiedBadgeScreen,lib\screens\verified_badge_screen.dart,Both,,,
+AddMemberModeSelection,lib\screens\admin\add_member_mode_selection.dart,Admin,,,
+AddMemberStep1,lib\screens\admin\add_member_step1.dart,Admin,,,
+AddMemberStep2,lib\screens\admin\add_member_step2.dart,Admin,,,
+AddMemberStep3,lib\screens\admin\add_member_step3.dart,Admin,,,
+AddMemberStep4,lib\screens\admin\add_member_step4.dart,Admin,,,
+AddMemberStep5,lib\screens\admin\add_member_step5.dart,Admin,,,
+AddMemberWizard,lib\screens\admin\add_member_wizard.dart,Admin,,,
+ArchiveSubTab,lib\screens\reservations\archive_sub_tab.dart,Both,,,
+JoinFlowScreen,lib\screens\reservations\join_flow_screen.dart,Both,,,
+LayoutSubTab,lib\screens\reservations\layout_sub_tab.dart,Both,,,
+MembersSubTab,lib\screens\reservations\members_sub_tab.dart,Member,,,
+MemberDetailScreen,lib\screens\reservations\member_detail_screen.dart,Member,,,
+QRScannerScreen,lib\screens\reservations\qr_scanner_screen.dart,Both,,,
+RequestsSubTab,lib\screens\reservations\requests_sub_tab.dart,Both,,,
+ReservationsTab,lib\screens\reservations\reservations_tab.dart,Both,,,
+QRModal,lib\widgets\qr_modal.dart,Both,,,
+SeatGenerationInlineWidget,lib\widgets\seat_generation_inline_widget.dart,Both,,,
+VacantSeatGrid,lib\widgets\vacant_seat_grid.dart,Both,,,

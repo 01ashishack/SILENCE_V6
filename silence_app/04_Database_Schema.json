@@ -1,514 +1,357 @@
 {
-  "version": "1.0",
-  "description": "SILENCE database schema for Supabase (PostgreSQL). All tables, columns, relationships, indexes, and RLS annotations.",
+  "version": "2.0",
+  "description": "SILENCE database schema – actual Supabase public schema as of May 2026",
   "tables": [
     {
-      "name": "users",
-      "description": "All app users (admins and members).",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "email", "type": "text", "unique": true, "nullable": false },
-        { "name": "phone", "type": "text", "unique": true },
-        { "name": "full_name", "type": "text", "nullable": false },
-        { "name": "nickname", "type": "text", "comment": "For leaderboard display" },
-        { "name": "role", "type": "text", "check": "role IN ('admin', 'member')", "nullable": false },
-        { "name": "gender", "type": "text", "check": "gender IN ('male', 'female', 'other', 'prefer_not_to_say')" },
-        { "name": "date_of_birth", "type": "date" },
-        { "name": "photo_url", "type": "text" },
-        { "name": "exam_category", "type": "text", "comment": "UPSC, NEET, JEE, SSC, Other" },
-        { "name": "address", "type": "text" },
-        { "name": "phone_verified", "type": "boolean", "default": false },
-        { "name": "email_verified", "type": "boolean", "default": false },
-        { "name": "language_code", "type": "text", "default": "'en'", "comment": "en, hi (V2)" },
-        { "name": "fcm_token", "type": "text", "comment": "Firebase push token" },
-        { "name": "subscription_plan", "type": "text", "check": "subscription_plan IN ('starter', 'basic', 'pro', 'trial')", "comment": "Only for admin users" },
-        { "name": "subscription_status", "type": "text", "check": "subscription_status IN ('active', 'grace', 'readonly', 'locked', 'cancelled')", "default": "'active'" },
-        { "name": "subscription_expiry", "type": "timestamptz" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" },
-        { "name": "updated_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "indexes": [
-        { "name": "idx_users_email", "columns": ["email"] },
-        { "name": "idx_users_phone", "columns": ["phone"] },
-        { "name": "idx_users_role", "columns": ["role"] }
-      ],
-      "rls_policies": [
-        { "action": "SELECT", "using": "auth.uid() = id OR (role = 'admin' AND EXISTS (SELECT 1 FROM libraries WHERE owner_id = auth.uid()))" },
-        { "action": "UPDATE", "using": "auth.uid() = id" }
-      ]
-    },
-    {
-      "name": "libraries",
-      "description": "Library spaces owned by admins.",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "owner_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "name", "type": "text", "nullable": false },
-        { "name": "library_code", "type": "text", "unique": true, "nullable": false, "comment": "Format: SIL-XXXXXX" },
-        { "name": "address_street", "type": "text" },
-        { "name": "address_city", "type": "text", "nullable": false },
-        { "name": "address_state", "type": "text" },
-        { "name": "address_pincode", "type": "text" },
-        { "name": "photos", "type": "text[]", "default": "{}", "comment": "Array of storage URLs" },
-        { "name": "amenities", "type": "text[]", "default": "{}" },
-        { "name": "rules", "type": "text" },
-        { "name": "about_text", "type": "text" },
-        { "name": "emergency_phone", "type": "text", "comment": "Public contact for members" },
-        { "name": "social_links", "type": "jsonb", "default": "{}", "comment": "Instagram, YouTube, Facebook, WhatsApp, Website" },
-        { "name": "status", "type": "text", "default": "'setup'", "check": "status IN ('setup', 'active', 'closed')" },
-        { "name": "verified", "type": "boolean", "default": false },
-        { "name": "verified_at", "type": "timestamptz" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "indexes": [
-        { "name": "idx_libraries_owner", "columns": ["owner_id"] },
-        { "name": "idx_libraries_code", "columns": ["library_code"] },
-        { "name": "idx_libraries_city", "columns": ["address_city"] }
-      ],
-      "rls_policies": [
-        { "action": "SELECT", "using": "true", "comment": "Anyone can view active libraries" },
-        { "action": "INSERT", "using": "auth.uid() = owner_id" },
-        { "action": "UPDATE", "using": "auth.uid() = owner_id" },
-        { "action": "DELETE", "using": "auth.uid() = owner_id AND status = 'setup'" }
-      ]
-    },
-    {
-      "name": "shifts",
-      "description": "Time slots per library (morning, evening, etc.).",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "name", "type": "text", "nullable": false },
-        { "name": "start_time", "type": "time", "nullable": false },
-        { "name": "end_time", "type": "time", "nullable": false },
-        { "name": "price_monthly", "type": "integer", "nullable": false },
-        { "name": "price_3month", "type": "integer" },
-        { "name": "price_6month", "type": "integer" },
-        { "name": "trial_days", "type": "integer", "default": 0 },
-        { "name": "is_archived", "type": "boolean", "default": false },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "indexes": [
-        { "name": "idx_shifts_library", "columns": ["library_id"] }
-      ],
-      "rls_policies": [
-        { "action": "ALL", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" }
-      ]
-    },
-    {
-      "name": "floors",
-      "description": "Floors within a library.",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "name", "type": "text", "nullable": false },
-        { "name": "order_index", "type": "integer", "default": 0 }
-      ],
-      "rls_policies": [
-        { "action": "ALL", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" }
-      ]
-    },
-    {
-      "name": "sections",
-      "description": "Sections within a floor (e.g., 'Girls', 'Premium').",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "floor_id", "type": "uuid", "references": "floors(id)", "nullable": false },
-        { "name": "name", "type": "text", "nullable": false },
-        { "name": "tag", "type": "text", "check": "tag IN ('boys', 'girls', 'general', 'premium')" }
-      ],
-      "rls_policies": [
-        { "action": "ALL", "using": "EXISTS (SELECT 1 FROM floors JOIN libraries ON floors.library_id = libraries.id WHERE floors.id = floor_id AND libraries.owner_id = auth.uid())" }
-      ]
-    },
-    {
-      "name": "seats",
-      "description": "Physical seats, per shift (multi-shift model).",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "floor_id", "type": "uuid", "references": "floors(id)" },
-        { "name": "section_id", "type": "uuid", "references": "sections(id)" },
-        { "name": "shift_id", "type": "uuid", "references": "shifts(id)", "nullable": false, "comment": "Seat exists per shift" },
-        { "name": "seat_label", "type": "text", "nullable": false },
-        { "name": "status", "type": "text", "default": "'vacant'", "check": "status IN ('vacant', 'occupied', 'hold', 'maintenance')" },
-        { "name": "occupied_by_member_id", "type": "uuid", "references": "users(id)" },
-        { "name": "maintenance_reason", "type": "text" },
-        { "name": "maintenance_until", "type": "date" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" },
-        { "name": "updated_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "uniqueConstraints": [
-        { "name": "unique_seat_per_library_shift", "columns": ["library_id", "seat_label", "shift_id"] }
-      ],
-      "indexes": [
-        { "name": "idx_seats_library_shift", "columns": ["library_id", "shift_id"] },
-        { "name": "idx_seats_label", "columns": ["library_id", "seat_label"] }
-      ],
-      "rls_policies": [
-        { "action": "SELECT", "using": "true" },
-        { "action": "UPDATE", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" }
-      ]
-    },
-    {
-      "name": "memberships",
-      "description": "Member's association with a library (active or historical).",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "shift_id", "type": "uuid", "references": "shifts(id)", "nullable": false },
-        { "name": "seat_id", "type": "uuid", "references": "seats(id)" },
-        { "name": "plan_type", "type": "text", "check": "plan_type IN ('monthly', '3_month', '6_month')", "nullable": false },
-        { "name": "start_date", "type": "date", "nullable": false },
-        { "name": "end_date", "type": "date", "nullable": false },
-        { "name": "status", "type": "text", "default": "'pending'", "check": "status IN ('pending', 'active', 'trial', 'hold', 'expired', 'transferred', 'exited')" },
-        { "name": "trial_used", "type": "boolean", "default": false },
-        { "name": "discount_amount", "type": "integer", "default": 0 },
-        { "name": "discount_reason", "type": "text" },
-        { "name": "join_request_submitted_at", "type": "timestamptz", "default": "now()" },
-        { "name": "approved_at", "type": "timestamptz" },
-        { "name": "hold_until", "type": "date" },
-        { "name": "exited_at", "type": "timestamptz" },
-        { "name": "transferred_from", "type": "uuid", "references": "memberships(id)" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "indexes": [
-        { "name": "idx_memberships_member", "columns": ["member_id", "status"] },
-        { "name": "idx_memberships_library", "columns": ["library_id", "status"] },
-        { "name": "idx_memberships_expiry", "columns": ["end_date"] }
-      ],
-      "rls_policies": [
-        { "action": "SELECT", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()) OR member_id = auth.uid()" },
-        { "action": "INSERT", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()) OR member_id = auth.uid()" },
-        { "action": "UPDATE", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" }
-      ]
-    },
-    {
-      "name": "attendance",
-      "description": "Individual check-in/out sessions.",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "membership_id", "type": "uuid", "references": "memberships(id)", "nullable": false },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "shift_id", "type": "uuid", "references": "shifts(id)", "nullable": false },
-        { "name": "check_in_time", "type": "timestamptz", "nullable": false },
-        { "name": "check_out_time", "type": "timestamptz" },
-        { "name": "duration_minutes", "type": "integer" },
-        { "name": "session_type", "type": "text", "default": "'normal'", "check": "session_type IN ('normal', 'manual', 'auto_checkout', 'incomplete', 'admin_edited')" },
-        { "name": "edited_by_admin_id", "type": "uuid", "references": "users(id)" },
-        { "name": "edit_reason", "type": "text" },
-        { "name": "qr_version", "type": "integer" },
-        { "name": "offline_synced", "type": "boolean", "default": false },
-        { "name": "device_id", "type": "text" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "indexes": [
-        { "name": "idx_attendance_member", "columns": ["member_id", "check_in_time"] },
-        { "name": "idx_attendance_library_date", "columns": ["library_id", "check_in_time"] }
-      ],
-      "rls_policies": [
-        { "action": "SELECT", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()) OR member_id = auth.uid()" },
-        { "action": "INSERT", "using": "member_id = auth.uid() OR EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" },
-        { "action": "UPDATE", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" }
-      ]
-    },
-    {
-      "name": "payments",
-      "description": "Payment records (cash/UPI, confirmed by admin).",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "membership_id", "type": "uuid", "references": "memberships(id)", "nullable": false },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "amount", "type": "integer", "nullable": false },
-        { "name": "original_amount", "type": "integer", "comment": "Before discount" },
-        { "name": "discount_amount", "type": "integer", "default": 0 },
-        { "name": "discount_reason", "type": "text" },
-        { "name": "method", "type": "text", "check": "method IN ('cash', 'upi')", "nullable": false },
-        { "name": "status", "type": "text", "default": "'pending'", "check": "status IN ('pending', 'confirmed', 'rejected', 'disputed', 'written_off')" },
-        { "name": "payment_date", "type": "timestamptz", "nullable": false },
-        { "name": "confirmed_by_admin_id", "type": "uuid", "references": "users(id)" },
-        { "name": "proof_url", "type": "text", "comment": "Receipt photo or UPI screenshot" },
-        { "name": "upi_sender_name", "type": "text" },
-        { "name": "ref_id", "type": "text", "comment": "Last 6 chars of payment_id or custom" },
-        { "name": "notes", "type": "text" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "indexes": [
-        { "name": "idx_payments_membership", "columns": ["membership_id"] },
-        { "name": "idx_payments_member", "columns": ["member_id"] }
-      ],
-      "rls_policies": [
-        { "action": "SELECT", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()) OR member_id = auth.uid()" },
-        { "action": "INSERT", "using": "member_id = auth.uid() OR EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" },
-        { "action": "UPDATE", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" }
-      ]
-    },
-    {
-      "name": "join_requests",
-      "description": "Member join requests awaiting admin approval.",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "shift_id", "type": "uuid", "references": "shifts(id)", "nullable": false },
-        { "name": "plan_type", "type": "text", "nullable": false },
-        { "name": "payment_method", "type": "text" },
-        { "name": "payment_proof_url", "type": "text" },
-        { "name": "upi_sender_name", "type": "text" },
-        { "name": "discount_amount", "type": "integer", "default": 0 },
-        { "name": "discount_reason", "type": "text" },
-        { "name": "requested_seat_id", "type": "uuid", "references": "seats(id)" },
-        { "name": "status", "type": "text", "default": "'pending'", "check": "status IN ('pending', 'approved', 'rejected', 'expired')" },
-        { "name": "rejection_reason", "type": "text" },
-        { "name": "existing_member_join_date", "type": "date", "comment": "If user claimed existing member" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" },
-        { "name": "expires_at", "type": "timestamptz", "default": "now() + interval '7 days'" }
-      ],
-      "indexes": [
-        { "name": "idx_join_requests_library_status", "columns": ["library_id", "status"] }
-      ],
-      "rls_policies": [
-        { "action": "SELECT", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()) OR member_id = auth.uid()" },
-        { "action": "INSERT", "using": "member_id = auth.uid()" },
-        { "action": "UPDATE", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" }
-      ]
-    },
-    {
-      "name": "seat_change_requests",
-      "description": "Member requests to change seat.",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "membership_id", "type": "uuid", "references": "memberships(id)", "nullable": false },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "current_seat_id", "type": "uuid", "references": "seats(id)" },
-        { "name": "preferred_section", "type": "text" },
-        { "name": "reason", "type": "text", "nullable": false },
-        { "name": "status", "type": "text", "default": "'pending'", "check": "status IN ('pending', 'approved', 'rejected', 'cancelled')" },
-        { "name": "new_seat_id", "type": "uuid", "references": "seats(id)" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "rls_policies": [
-        { "action": "SELECT", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()) OR member_id = auth.uid()" }
-      ]
-    },
-    {
-      "name": "hold_requests",
-      "description": "Member requests to pause membership.",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "membership_id", "type": "uuid", "references": "memberships(id)", "nullable": false },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "start_date", "type": "date", "nullable": false },
-        { "name": "end_date", "type": "date", "nullable": false },
-        { "name": "reason", "type": "text", "nullable": false },
-        { "name": "status", "type": "text", "default": "'pending'", "check": "status IN ('pending', 'approved', 'rejected', 'cancelled')" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "rls_policies": [
-        { "action": "SELECT", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()) OR member_id = auth.uid()" }
-      ]
-    },
-    {
-      "name": "transfers",
-      "description": "Member transfers between libraries (same admin).",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "from_membership_id", "type": "uuid", "references": "memberships(id)" },
-        { "name": "to_membership_id", "type": "uuid", "references": "memberships(id)" },
-        { "name": "from_library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "to_library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "transfer_date", "type": "timestamptz", "nullable": false },
-        { "name": "initiated_by_admin_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ]
-    },
-    {
       "name": "add_ons",
-      "description": "Library add-on services (lockers, premium seats).",
       "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
         { "name": "name", "type": "text", "nullable": false },
         { "name": "price", "type": "integer", "nullable": false },
-        { "name": "price_type", "type": "text", "check": "price_type IN ('one_time', 'monthly')", "nullable": false },
-        { "name": "refundable_deposit", "type": "integer", "default": 0 },
-        { "name": "max_available", "type": "integer" },
-        { "name": "active", "type": "boolean", "default": true },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "rls_policies": [
-        { "action": "ALL", "using": "EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid())" }
-      ]
-    },
-    {
-      "name": "member_add_ons",
-      "description": "Add-ons purchased by a member for a membership.",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "membership_id", "type": "uuid", "references": "memberships(id)", "nullable": false },
-        { "name": "add_on_id", "type": "uuid", "references": "add_ons(id)", "nullable": false },
-        { "name": "deposit_paid", "type": "integer", "default": 0 },
-        { "name": "deposit_refunded", "type": "boolean", "default": false },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ]
-    },
-    {
-      "name": "referrals",
-      "description": "Member referral tracking.",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "referrer_member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "referred_member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "referral_code_used", "type": "text" },
-        { "name": "status", "type": "text", "default": "'pending'", "check": "status IN ('pending', 'credited', 'cancelled')" },
-        { "name": "reward_days", "type": "integer" },
-        { "name": "credited_at", "type": "timestamptz" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "indexes": [
-        { "name": "idx_referrals_referrer", "columns": ["referrer_member_id"] }
-      ]
-    },
-    {
-      "name": "badges",
-      "description": "Badges earned by members (system-wide).",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "badge_type", "type": "text", "check": "badge_type IN ('7_day_streak', '30_day_streak', 'early_bird', 'night_owl', 'top_of_week', '100_days_club', 'consistent')", "nullable": false },
-        { "name": "earned_at", "type": "timestamptz", "default": "now()" },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)" }
-      ],
-      "uniqueConstraints": [
-        { "name": "unique_badge_per_member", "columns": ["member_id", "badge_type"] }
-      ]
-    },
-    {
-      "name": "announcements",
-      "description": "Admin announcements sent to members.",
-      "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
-        { "name": "admin_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "title", "type": "text" },
-        { "name": "message", "type": "text", "nullable": false },
-        { "name": "recipient_filter", "type": "jsonb", "comment": "Stores filter criteria used" },
-        { "name": "sent_at", "type": "timestamptz", "default": "now()" }
+        { "name": "price_type", "type": "text", "nullable": false, "check": "price_type IN ('one_time','monthly')" },
+        { "name": "refundable_deposit", "type": "integer", "nullable": true },
+        { "name": "max_available", "type": "integer", "nullable": true },
+        { "name": "active", "type": "boolean", "nullable": true, "default": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
       ]
     },
     {
       "name": "announcement_reads",
-      "description": "Tracks which members have read an announcement.",
       "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "announcement_id", "type": "uuid", "references": "announcements(id)", "nullable": false },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "read_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "uniqueConstraints": [
-        { "name": "unique_announcement_read", "columns": ["announcement_id", "member_id"] }
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "announcement_id", "type": "uuid", "nullable": false, "foreign_key": "announcements.id" },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "read_at", "type": "timestamptz", "nullable": true, "default": "now()" }
       ]
     },
     {
-      "name": "queries",
-      "description": "Member support queries to admin.",
+      "name": "announcements",
       "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "member_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "admin_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "title", "type": "text", "nullable": true },
         { "name": "message", "type": "text", "nullable": false },
-        { "name": "status", "type": "text", "default": "'open'", "check": "status IN ('open', 'replied', 'closed')" },
-        { "name": "admin_reply", "type": "text" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" },
-        { "name": "replied_at", "type": "timestamptz" }
+        { "name": "recipient_filter", "type": "jsonb", "nullable": true },
+        { "name": "sent_at", "type": "timestamptz", "nullable": true, "default": "now()" }
       ]
     },
     {
-      "name": "notifications",
-      "description": "Push notification log (for debugging).",
+      "name": "attendance",
       "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "user_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "title", "type": "text" },
-        { "name": "body", "type": "text" },
-        { "name": "data", "type": "jsonb" },
-        { "name": "sent_at", "type": "timestamptz", "default": "now()" },
-        { "name": "read_at", "type": "timestamptz" }
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "membership_id", "type": "uuid", "nullable": false, "foreign_key": "memberships.id" },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "shift_id", "type": "uuid", "nullable": false, "foreign_key": "shifts.id" },
+        { "name": "check_in_time", "type": "timestamptz", "nullable": false },
+        { "name": "check_out_time", "type": "timestamptz", "nullable": true },
+        { "name": "duration_minutes", "type": "integer", "nullable": true },
+        { "name": "session_type", "type": "text", "nullable": true, "check": "session_type IN ('normal','manual','auto_checkout','incomplete','admin_edited')" },
+        { "name": "edited_by_admin_id", "type": "uuid", "nullable": true, "foreign_key": "users.id" },
+        { "name": "edit_reason", "type": "text", "nullable": true },
+        { "name": "qr_version", "type": "integer", "nullable": true },
+        { "name": "offline_synced", "type": "boolean", "nullable": true, "default": false },
+        { "name": "device_id", "type": "text", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
       ]
     },
     {
       "name": "audit_log",
-      "description": "Admin action audit trail.",
       "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "admin_id", "type": "uuid", "references": "users(id)", "nullable": false },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)" },
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "admin_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "library_id", "type": "uuid", "nullable": true, "foreign_key": "libraries.id" },
         { "name": "action", "type": "text", "nullable": false },
-        { "name": "details", "type": "jsonb" },
-        { "name": "previous_value", "type": "text" },
-        { "name": "new_value", "type": "text" },
-        { "name": "ip_address", "type": "inet" },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
-      ],
-      "indexes": [
-        { "name": "idx_audit_library", "columns": ["library_id", "created_at"] }
+        { "name": "details", "type": "jsonb", "nullable": true },
+        { "name": "previous_value", "type": "text", "nullable": true },
+        { "name": "new_value", "type": "text", "nullable": true },
+        { "name": "ip_address", "type": "inet", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
+      ]
+    },
+    {
+      "name": "badges",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "badge_type", "type": "text", "nullable": false, "check": "badge_type IN ('7_day_streak','30_day_streak','early_bird','night_owl','top_of_week','100_days_club','consistent')" },
+        { "name": "earned_at", "type": "timestamptz", "nullable": true, "default": "now()" },
+        { "name": "library_id", "type": "uuid", "nullable": true, "foreign_key": "libraries.id" }
+      ]
+    },
+    {
+      "name": "floors",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "name", "type": "text", "nullable": false },
+        { "name": "order_index", "type": "integer", "nullable": true, "default": 0 }
+      ]
+    },
+    {
+      "name": "hold_requests",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "membership_id", "type": "uuid", "nullable": false, "foreign_key": "memberships.id" },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "start_date", "type": "date", "nullable": false },
+        { "name": "end_date", "type": "date", "nullable": false },
+        { "name": "reason", "type": "text", "nullable": false },
+        { "name": "status", "type": "text", "nullable": true, "default": "'pending'", "check": "status IN ('pending','approved','rejected','cancelled')" },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
+      ]
+    },
+    {
+      "name": "join_requests",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "shift_id", "type": "uuid", "nullable": false, "foreign_key": "shifts.id" },
+        { "name": "plan_type", "type": "text", "nullable": false, "check": "plan_type IN ('monthly','3_month','6_month')" },
+        { "name": "payment_method", "type": "text", "nullable": true, "check": "payment_method IN ('cash','upi')" },
+        { "name": "payment_proof_url", "type": "text", "nullable": true },
+        { "name": "upi_sender_name", "type": "text", "nullable": true },
+        { "name": "discount_amount", "type": "integer", "nullable": true, "default": 0 },
+        { "name": "discount_reason", "type": "text", "nullable": true },
+        { "name": "requested_seat_id", "type": "uuid", "nullable": true, "foreign_key": "seats.id" },
+        { "name": "status", "type": "text", "nullable": true, "default": "'pending'", "check": "status IN ('pending','approved','rejected','expired')" },
+        { "name": "rejection_reason", "type": "text", "nullable": true },
+        { "name": "existing_member_join_date", "type": "date", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" },
+        { "name": "expires_at", "type": "timestamptz", "nullable": true, "default": "now() + interval '7 days'" }
+      ]
+    },
+    {
+      "name": "libraries",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "owner_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "name", "type": "text", "nullable": false },
+        { "name": "library_code", "type": "text", "nullable": false, "unique": true },
+        { "name": "address_street", "type": "text", "nullable": true },
+        { "name": "address_city", "type": "text", "nullable": false },
+        { "name": "address_state", "type": "text", "nullable": true },
+        { "name": "address_pincode", "type": "text", "nullable": true },
+        { "name": "photos", "type": "text[]", "nullable": true, "default": "{}" },
+        { "name": "amenities", "type": "text[]", "nullable": true, "default": "{}" },
+        { "name": "rules", "type": "text", "nullable": true },
+        { "name": "about_text", "type": "text", "nullable": true },
+        { "name": "emergency_phone", "type": "text", "nullable": true },
+        { "name": "social_links", "type": "jsonb", "nullable": true, "default": "{}" },
+        { "name": "status", "type": "text", "nullable": true, "default": "'setup'", "check": "status IN ('setup','active','closed')" },
+        { "name": "verified", "type": "boolean", "nullable": true, "default": false },
+        { "name": "verified_at", "type": "timestamptz", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
+      ]
+    },
+    {
+      "name": "member_add_ons",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "membership_id", "type": "uuid", "nullable": false, "foreign_key": "memberships.id" },
+        { "name": "add_on_id", "type": "uuid", "nullable": false, "foreign_key": "add_ons.id" },
+        { "name": "deposit_paid", "type": "integer", "nullable": true, "default": 0 },
+        { "name": "deposit_refunded", "type": "boolean", "nullable": true, "default": false },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
+      ]
+    },
+    {
+      "name": "memberships",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "shift_id", "type": "uuid", "nullable": false, "foreign_key": "shifts.id" },
+        { "name": "seat_id", "type": "uuid", "nullable": true, "foreign_key": "seats.id" },
+        { "name": "plan_type", "type": "text", "nullable": false, "check": "plan_type IN ('monthly','3_month','6_month')" },
+        { "name": "start_date", "type": "date", "nullable": false },
+        { "name": "end_date", "type": "date", "nullable": false },
+        { "name": "status", "type": "text", "nullable": true, "default": "'pending'", "check": "status IN ('pending','active','trial','hold','expired','transferred','exited')" },
+        { "name": "trial_used", "type": "boolean", "nullable": true, "default": false },
+        { "name": "discount_amount", "type": "integer", "nullable": true, "default": 0 },
+        { "name": "discount_reason", "type": "text", "nullable": true },
+        { "name": "join_request_submitted_at", "type": "timestamptz", "nullable": true },
+        { "name": "approved_at", "type": "timestamptz", "nullable": true },
+        { "name": "hold_until", "type": "date", "nullable": true },
+        { "name": "exited_at", "type": "timestamptz", "nullable": true },
+        { "name": "transferred_from", "type": "uuid", "nullable": true, "foreign_key": "memberships.id" },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
+      ]
+    },
+    {
+      "name": "notifications",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "user_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "title", "type": "text", "nullable": true },
+        { "name": "body", "type": "text", "nullable": true },
+        { "name": "data", "type": "jsonb", "nullable": true },
+        { "name": "sent_at", "type": "timestamptz", "nullable": true, "default": "now()" },
+        { "name": "read_at", "type": "timestamptz", "nullable": true }
+      ]
+    },
+    {
+      "name": "payments",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "membership_id", "type": "uuid", "nullable": false, "foreign_key": "memberships.id" },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "amount", "type": "integer", "nullable": false },
+        { "name": "original_amount", "type": "integer", "nullable": true },
+        { "name": "discount_amount", "type": "integer", "nullable": true, "default": 0 },
+        { "name": "discount_reason", "type": "text", "nullable": true },
+        { "name": "method", "type": "text", "nullable": false, "check": "method IN ('cash','upi')" },
+        { "name": "status", "type": "text", "nullable": true, "default": "'pending'", "check": "status IN ('pending','confirmed','rejected','disputed','written_off')" },
+        { "name": "payment_date", "type": "timestamptz", "nullable": false },
+        { "name": "confirmed_by_admin_id", "type": "uuid", "nullable": true, "foreign_key": "users.id" },
+        { "name": "proof_url", "type": "text", "nullable": true },
+        { "name": "upi_sender_name", "type": "text", "nullable": true },
+        { "name": "ref_id", "type": "text", "nullable": true },
+        { "name": "notes", "type": "text", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
+      ]
+    },
+    {
+      "name": "queries",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "message", "type": "text", "nullable": false },
+        { "name": "status", "type": "text", "nullable": true, "default": "'open'", "check": "status IN ('open','replied','closed')" },
+        { "name": "admin_reply", "type": "text", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" },
+        { "name": "replied_at", "type": "timestamptz", "nullable": true }
+      ]
+    },
+    {
+      "name": "referrals",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "referrer_member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "referred_member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "referral_code_used", "type": "text", "nullable": true },
+        { "name": "status", "type": "text", "nullable": true, "default": "'pending'", "check": "status IN ('pending','credited','cancelled')" },
+        { "name": "reward_days", "type": "integer", "nullable": true },
+        { "name": "credited_at", "type": "timestamptz", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
       ]
     },
     {
       "name": "scheduled_closures",
-      "description": "Library closures (single day or range).",
       "columns": [
-        { "name": "id", "type": "uuid", "primary": true, "default": "gen_random_uuid()" },
-        { "name": "library_id", "type": "uuid", "references": "libraries(id)", "nullable": false },
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
         { "name": "start_date", "type": "date", "nullable": false },
         { "name": "end_date", "type": "date", "nullable": false },
-        { "name": "reason", "type": "text" },
-        { "name": "notify_members", "type": "boolean", "default": true },
-        { "name": "created_at", "type": "timestamptz", "default": "now()" }
+        { "name": "reason", "type": "text", "nullable": true },
+        { "name": "notify_members", "type": "boolean", "nullable": true, "default": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
       ]
     },
     {
-      "name": "offline_queue",
-      "description": "Client-side offline scan queue (stored in IndexedDB, not in Supabase). For reference only.",
-      "skip_supabase": true,
-      "client_side": true,
+      "name": "seat_change_requests",
       "columns": [
-        { "name": "id", "type": "string", "comment": "local UUID" },
-        { "name": "type", "type": "text", "comment": "checkin / checkout" },
-        { "name": "library_id", "type": "string" },
-        { "name": "member_id", "type": "string" },
-        { "name": "shift_id", "type": "string" },
-        { "name": "qr_version", "type": "integer" },
-        { "name": "timestamp", "type": "string", "comment": "ISO" },
-        { "name": "device_id", "type": "string" },
-        { "name": "synced", "type": "boolean", "default": false },
-        { "name": "retry_count", "type": "integer", "default": 0 }
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "membership_id", "type": "uuid", "nullable": false, "foreign_key": "memberships.id" },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "current_seat_id", "type": "uuid", "nullable": true, "foreign_key": "seats.id" },
+        { "name": "preferred_section", "type": "text", "nullable": true },
+        { "name": "reason", "type": "text", "nullable": false },
+        { "name": "status", "type": "text", "nullable": true, "default": "'pending'", "check": "status IN ('pending','approved','rejected','cancelled')" },
+        { "name": "new_seat_id", "type": "uuid", "nullable": true, "foreign_key": "seats.id" },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
       ]
     },
     {
-      "name": "read_cache",
-      "description": "Client-side read cache (IndexedDB). For reference only.",
-      "skip_supabase": true,
-      "client_side": true,
-      "tables": [
-        { "name": "cached_members", "max_rows": 200 },
-        { "name": "cached_attendance_today", "comment": "Today's check-ins for admin" },
-        { "name": "cached_seat_grid", "comment": "Per shift snapshot" }
+      "name": "seats",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "floor_id", "type": "uuid", "nullable": true, "foreign_key": "floors.id" },
+        { "name": "section_id", "type": "uuid", "nullable": true, "foreign_key": "sections.id" },
+        { "name": "shift_id", "type": "uuid", "nullable": false, "foreign_key": "shifts.id" },
+        { "name": "seat_label", "type": "text", "nullable": false },
+        { "name": "status", "type": "text", "nullable": true, "default": "'vacant'", "check": "status IN ('vacant','occupied','hold','maintenance')" },
+        { "name": "occupied_by_member_id", "type": "uuid", "nullable": true, "foreign_key": "users.id" },
+        { "name": "maintenance_reason", "type": "text", "nullable": true },
+        { "name": "maintenance_until", "type": "date", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" },
+        { "name": "updated_at", "type": "timestamptz", "nullable": true, "default": "now()" }
+      ]
+    },
+    {
+      "name": "sections",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "floor_id", "type": "uuid", "nullable": false, "foreign_key": "floors.id" },
+        { "name": "name", "type": "text", "nullable": false },
+        { "name": "tag", "type": "text", "nullable": true, "check": "tag IN ('boys','girls','general','premium')" }
+      ]
+    },
+    {
+      "name": "shifts",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "name", "type": "text", "nullable": false },
+        { "name": "start_time", "type": "time", "nullable": false },
+        { "name": "end_time", "type": "time", "nullable": false },
+        { "name": "price_monthly", "type": "integer", "nullable": false },
+        { "name": "price_3month", "type": "integer", "nullable": true },
+        { "name": "price_6month", "type": "integer", "nullable": true },
+        { "name": "trial_days", "type": "integer", "nullable": true, "default": 0 },
+        { "name": "is_archived", "type": "boolean", "nullable": true, "default": false },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" },
+        { "name": "shift_type", "type": "text", "nullable": true, "default": "'fixed'", "check": "shift_type IN ('fixed','hourly')" },
+        { "name": "hours_per_day", "type": "integer", "nullable": true }
+      ]
+    },
+    {
+      "name": "transfers",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "member_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "from_membership_id", "type": "uuid", "nullable": true, "foreign_key": "memberships.id" },
+        { "name": "to_membership_id", "type": "uuid", "nullable": true, "foreign_key": "memberships.id" },
+        { "name": "from_library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "to_library_id", "type": "uuid", "nullable": false, "foreign_key": "libraries.id" },
+        { "name": "transfer_date", "type": "timestamptz", "nullable": false },
+        { "name": "initiated_by_admin_id", "type": "uuid", "nullable": false, "foreign_key": "users.id" },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" }
+      ]
+    },
+    {
+      "name": "users",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false, "primary": true },
+        { "name": "email", "type": "text", "nullable": false, "unique": true },
+        { "name": "phone", "type": "text", "nullable": true },
+        { "name": "full_name", "type": "text", "nullable": false },
+        { "name": "nickname", "type": "text", "nullable": true },
+        { "name": "role", "type": "text", "nullable": false, "check": "role IN ('admin','member')" },
+        { "name": "gender", "type": "text", "nullable": true },
+        { "name": "date_of_birth", "type": "date", "nullable": true },
+        { "name": "photo_url", "type": "text", "nullable": true },
+        { "name": "exam_category", "type": "text", "nullable": true },
+        { "name": "address", "type": "text", "nullable": true },
+        { "name": "phone_verified", "type": "boolean", "nullable": true, "default": false },
+        { "name": "email_verified", "type": "boolean", "nullable": true, "default": false },
+        { "name": "language_code", "type": "text", "nullable": true, "default": "'en'" },
+        { "name": "fcm_token", "type": "text", "nullable": true },
+        { "name": "subscription_plan", "type": "text", "nullable": true, "check": "subscription_plan IN ('starter','basic','pro','trial')" },
+        { "name": "subscription_status", "type": "text", "nullable": true, "default": "'active'", "check": "subscription_status IN ('active','grace','readonly','locked','cancelled')" },
+        { "name": "subscription_expiry", "type": "timestamptz", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": true, "default": "now()" },
+        { "name": "updated_at", "type": "timestamptz", "nullable": true, "default": "now()" }
       ]
     }
-  ],
-  "notes": [
-    "All timestamps use timestamptz (UTC).",
-    "All monetary values are in Indian rupees (integer paise not needed; store as integer rupees).",
-    "All text fields are Unicode (UTF-8).",
-    "RLS policies assume Supabase Auth with JWT. Use auth.uid() to get current user ID.",
-    "The offline_queue and read_cache are client-only (IndexedDB) – not stored in Supabase."
   ]
 }
