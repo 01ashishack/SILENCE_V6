@@ -13,6 +13,17 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   bool _isLoading = false;
   String? _selectedRole;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null && mounted) {
+        Navigator.of(context).pushReplacementNamed('/auth');
+      }
+    });
+  }
+
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -40,7 +51,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       // Save selection to DB users table (Using upsert to satisfy non-null role constraint)
       await supabase.from('users').upsert({
         'id': user.id,
-        'email': user.email!,
+        'email': user.email,
         'role': _selectedRole,
         'full_name': user.userMetadata?['full_name'] ?? 'Admin User',
         'nickname': (user.userMetadata?['full_name'] as String?)?.split(' ').first ?? 'Admin',
@@ -82,20 +93,13 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 Center(
                   child: Column(
                     children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3ED),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE65C00), width: 1.5),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Image.asset(
+                          'assets/images/horizontal app logo.png',
+                          height: 54,
+                          fit: BoxFit.contain,
                         ),
-                        child: const Icon(Icons.book_outlined, size: 30, color: Color(0xFFE65C00)),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Silence',
-                        style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w800, color: const Color(0xFF1A1A2E)),
                       ),
                       const SizedBox(height: 20),
                       Text(

@@ -1,9 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../core/image_optimizer.dart';
+import '../../core/calendar_picker.dart';
+
 
 class JoinFlowScreen extends StatefulWidget {
   final String libraryId;
@@ -187,14 +191,18 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
     try {
       final supabase = Supabase.instance.client;
-      final fileExtension = _proofImageFile!.path.split('.').last;
-      final fileName = 'proof_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+      final fileName = 'proof_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final path = 'payment_proofs/${supabase.auth.currentUser!.id}/$fileName';
 
-      await supabase.storage.from('silence_assets').upload(
+      final bytes = await ImageOptimizer.compressImage(_proofImageFile!.path);
+      await supabase.storage.from('silence_assets').uploadBinary(
             path,
-            _proofImageFile!,
-            fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
+            Uint8List.fromList(bytes),
+            fileOptions: const FileOptions(
+              contentType: 'image/jpeg',
+              cacheControl: '3600',
+              upsert: true,
+            ),
           );
 
       final String publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
@@ -202,9 +210,11 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       return true;
     } catch (e) {
       debugPrint('Error uploading proof photo: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to upload screenshot: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload screenshot: $e')),
+        );
+      }
       return false;
     } finally {
       setState(() {
@@ -215,17 +225,18 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
   // Calculate pricing summaries
   double _calculateSelectedPlanPrice() {
-    if (_selectedShift == null) return 0;
+    final shift = _selectedShift;
+    if (shift == null) return 0;
     if (_selectedPlan == 'trial') return 0;
 
     switch (_selectedPlan) {
       case '3_month':
-        return (_selectedShift!['price_3month'] as int? ?? (_selectedShift!['price_monthly'] * 3)).toDouble();
+        return (shift['price_3month'] as int? ?? ((shift['price_monthly'] as int? ?? 0) * 3)).toDouble();
       case '6_month':
-        return (_selectedShift!['price_6month'] as int? ?? (_selectedShift!['price_monthly'] * 6)).toDouble();
+        return (shift['price_6month'] as int? ?? ((shift['price_monthly'] as int? ?? 0) * 6)).toDouble();
       case 'monthly':
       default:
-        return (_selectedShift!['price_monthly'] as int? ?? 1200).toDouble();
+        return (shift['price_monthly'] as int? ?? 1200).toDouble();
     }
   }
 
@@ -251,7 +262,10 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
     try {
       final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser!;
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User session expired. Please login again.');
+      }
 
       // 1. If inline profile was updated, commit to Supabase profile
       final nameStr = _fullNameCtrl.text.trim();
@@ -275,11 +289,16 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         }
       }
 
+      final shift = _selectedShift;
+      if (shift == null) {
+        throw Exception('Please select a shift to proceed.');
+      }
+
       // 3. Construct join request
       final requestPayload = {
         'member_id': user.id,
         'library_id': widget.libraryId,
-        'shift_id': _selectedShift!['id'],
+        'shift_id': shift['id'],
         'plan_type': _selectedPlan,
         'payment_method': _selectedPlan == 'trial' ? 'none' : _paymentMethod,
         'payment_proof_url': _proofUrl,
@@ -326,9 +345,11 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
     } catch (e) {
       debugPrint('Error submitting join request: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to submit application: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit application: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isSubmitting = false;
@@ -628,8 +649,8 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                 const SizedBox(height: 6),
                 InkWell(
                   onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
+                    final picked = await showCalendarGridBottomSheet(
+                      context,
                       initialDate: DateTime.now().subtract(const Duration(days: 30)),
                       firstDate: DateTime(2020),
                       lastDate: DateTime.now(),
@@ -700,6 +721,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
   // STEP 2: SHIFT & PLAN SELECT
   Widget _buildStep2ShiftPlan() {
+    final shift = _selectedShift;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -717,7 +739,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
           )
         else
           ..._shifts.map((s) {
-            final isSelected = _selectedShift?['id'] == s['id'];
+            final isSelected = shift?['id'] == s['id'];
             return InkWell(
               onTap: () {
                 setState(() {
@@ -769,7 +791,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         const SizedBox(height: 10),
 
         // Free Trial option
-        if (_selectedShift != null && (_selectedShift!['trial_days'] as int? ?? 0) > 0 && _trialEligible) ...[
+        if (shift != null && (shift['trial_days'] as int? ?? 0) > 0 && _trialEligible) ...[
           InkWell(
             onTap: () => setState(() => _selectedPlan = 'trial'),
             child: Container(
@@ -794,7 +816,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('🆓 Free Trial', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFF7C3AED), fontSize: 13)),
-                        Text('${_selectedShift!['trial_days']} days trial period', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
+                        Text('${shift['trial_days']} days trial period', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                       ],
                     ),
                   ),
@@ -809,11 +831,11 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         ],
 
         // Plan types
-        _buildPlanPill('monthly', 'Monthly Plan', '₹${_selectedShift != null ? _selectedShift!['price_monthly'] : 0}'),
+        _buildPlanPill('monthly', 'Monthly Plan', '₹${shift != null ? (shift['price_monthly'] ?? 0) : 0}'),
         const SizedBox(height: 8),
-        _buildPlanPill('3_month', '3-Month Plan', '₹${_selectedShift != null ? (_selectedShift!['price_3month'] ?? (_selectedShift!['price_monthly'] * 3)) : 0}'),
+        _buildPlanPill('3_month', '3-Month Plan', '₹${shift != null ? (shift['price_3month'] ?? ((shift['price_monthly'] as int? ?? 0) * 3)) : 0}'),
         const SizedBox(height: 8),
-        _buildPlanPill('6_month', '6-Month Plan', '₹${_selectedShift != null ? (_selectedShift!['price_6month'] ?? (_selectedShift!['price_monthly'] * 6)) : 0}'),
+        _buildPlanPill('6_month', '6-Month Plan', '₹${shift != null ? (shift['price_6month'] ?? ((shift['price_monthly'] as int? ?? 0) * 6)) : 0}'),
       ],
     );
   }

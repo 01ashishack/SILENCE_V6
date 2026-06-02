@@ -1,11 +1,13 @@
 import 'dart:math';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image_cropper/image_cropper.dart';
+import '../core/image_optimizer.dart';
 
 
 class LibrarySetupStage1Screen extends StatefulWidget {
@@ -365,6 +367,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
       // Crop Image to landscape 16:9
       CroppedFile? croppedFile;
+      bool cropSuccessOrCancel = false;
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
@@ -376,42 +379,43 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
               toolbarWidgetColor: Colors.white,
               initAspectRatio: CropAspectRatioPreset.ratio16x9,
               lockAspectRatio: true,
+              cropStyle: CropStyle.rectangle,
             ),
             IOSUiSettings(
               title: 'Crop Cover Photo',
               aspectRatioLockEnabled: true,
               resetAspectRatioEnabled: false,
+              cropStyle: CropStyle.rectangle,
             ),
           ],
         );
+        cropSuccessOrCancel = true;
       } catch (e) {
-        _showErrorSnackBar('Error cropping image: $e');
-        return;
+        debugPrint('Crop failed, falling back to original: $e');
       }
 
-      if (croppedFile == null) return;
+      if (cropSuccessOrCancel && croppedFile == null) return;
       if (!mounted) return;
+
+      final String finalPath = croppedFile?.path ?? image.path;
 
       // 3. Show preview dialog
       if (!mounted) return;
-      final bool confirmed = await _showPreviewConfirmationDialog(context, XFile(croppedFile.path), 'Confirm Cover Photo Upload');
+      final bool confirmed = await _showPreviewConfirmationDialog(context, XFile(finalPath), 'Confirm Cover Photo Upload');
       if (!confirmed) return;
 
       // 4. Upload
       final libId = await _ensureLibraryId();
-      final bytes = await File(croppedFile.path).readAsBytes();
+      final bytes = await ImageOptimizer.compressImage(finalPath);
       final path = 'library_photos/$libId/cover.jpg';
       
       final supabase = Supabase.instance.client;
 
-      // Auto-create bucket if missing
-      try {
-        await supabase.storage.createBucket('silence_assets', const BucketOptions(public: true));
-      } catch (_) {}
+      // Upload cover directly to pre-provisioned assets bucket
 
       await supabase.storage.from('silence_assets').uploadBinary(
         path,
-        bytes,
+        Uint8List.fromList(bytes),
         fileOptions: const FileOptions(
           contentType: 'image/jpeg',
           cacheControl: '3600', 
@@ -484,6 +488,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
       // Crop Image to landscape 16:9
       CroppedFile? croppedFile;
+      bool cropSuccessOrCancel = false;
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
@@ -495,44 +500,45 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
               toolbarWidgetColor: Colors.white,
               initAspectRatio: CropAspectRatioPreset.ratio16x9,
               lockAspectRatio: true,
+              cropStyle: CropStyle.rectangle,
             ),
             IOSUiSettings(
               title: 'Crop Photo',
               aspectRatioLockEnabled: true,
               resetAspectRatioEnabled: false,
+              cropStyle: CropStyle.rectangle,
             ),
           ],
         );
+        cropSuccessOrCancel = true;
       } catch (e) {
-        _showErrorSnackBar('Error cropping image: $e');
-        return;
+        debugPrint('Crop failed, falling back to original: $e');
       }
 
-      if (croppedFile == null) return;
+      if (cropSuccessOrCancel && croppedFile == null) return;
       if (!mounted) return;
+
+      final String finalPath = croppedFile?.path ?? image.path;
 
       // 3. Show preview dialog
       if (!mounted) return;
-      final bool confirmed = await _showPreviewConfirmationDialog(context, XFile(croppedFile.path), 'Confirm Gallery Photo Upload');
+      final bool confirmed = await _showPreviewConfirmationDialog(context, XFile(finalPath), 'Confirm Gallery Photo Upload');
       if (!confirmed) return;
 
       // 4. Upload
       final libId = await _ensureLibraryId();
-      final bytes = await File(croppedFile.path).readAsBytes();
+      final bytes = await ImageOptimizer.compressImage(finalPath);
 
       final index = _uploadedPhotos.length + 1;
       final path = 'library_photos/$libId/gallery_$index.jpg';
       
       final supabase = Supabase.instance.client;
 
-      // Auto-create bucket if missing
-      try {
-        await supabase.storage.createBucket('silence_assets', const BucketOptions(public: true));
-      } catch (_) {}
+      // Upload gallery photo directly to pre-provisioned assets bucket
 
       await supabase.storage.from('silence_assets').uploadBinary(
         path,
-        bytes,
+        Uint8List.fromList(bytes),
         fileOptions: const FileOptions(
           contentType: 'image/jpeg',
           cacheControl: '3600', 
@@ -681,85 +687,57 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           
-                          // COVER PHOTO UPLOAD ZONE (Dashed border 96px circle as per spec)
+                          // COVER PHOTO UPLOAD ZONE (Matching premium circular profile photo card style)
                           Center(
                             child: Column(
                               children: [
-                                Text(
-                                  'Cover Photo',
-                                  style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280)),
-                                ),
-                                const SizedBox(height: 10),
-                                
-                                // Circle cover photo frame representation
                                 Stack(
-                                  alignment: Alignment.center,
                                   children: [
-                                    Container(
-                                      width: 96,
-                                      height: 96,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: const Color(0xFFFFF3ED),
-                                        border: Border.all(
-                                          color: const Color(0xFFE65C00),
-                                          width: 1.5,
-                                        ),
-                                        image: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
-                                            ? DecorationImage(
-                                                image: NetworkImage(_coverPhotoUrl!),
-                                                fit: BoxFit.cover,
-                                              )
-                                            : null,
-                                      ),
+                                    CircleAvatar(
+                                      radius: 48,
+                                      backgroundColor: const Color(0xFFFFF7F0),
+                                      backgroundImage: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
+                                          ? NetworkImage(_coverPhotoUrl!)
+                                          : null,
                                       child: _coverPhotoUrl == null || _coverPhotoUrl!.isEmpty
-                                          ? const Center(
-                                              child: Column(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Icon(Icons.camera_alt, size: 24, color: Color(0xFF94A3B8)),
-                                                  SizedBox(height: 4),
-                                                  Text(
-                                                    'Tap to add',
-                                                    style: TextStyle(fontSize: 9, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold),
-                                                  ),
-                                                ],
-                                              ),
-                                            )
+                                          ? const Icon(Icons.camera_alt, size: 36, color: Color(0xFFE65C00))
                                           : null,
                                     ),
-                                    if (_isUploadingCover)
-                                      Container(
-                                        width: 96,
-                                        height: 96,
-                                        decoration: const BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: Colors.black26,
-                                        ),
-                                        child: const Center(
-                                          child: CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                            strokeWidth: 2,
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: GestureDetector(
+                                        onTap: _isUploadingCover ? null : _uploadCoverPhoto,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFE65C00),
+                                            shape: BoxShape.circle,
                                           ),
+                                          child: _isUploadingCover
+                                              ? const SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                  ),
+                                                )
+                                              : const Icon(Icons.camera_alt, size: 16, color: Colors.white),
                                         ),
                                       ),
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    ElevatedButton.icon(
-                                      onPressed: _isUploadingCover ? null : _uploadCoverPhoto,
-                                      icon: const Icon(Icons.camera_alt, size: 12, color: Colors.white),
-                                      label: const Text('Upload Cover', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFE65C00),
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  'Cover Photo',
+                                  style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Tap camera icon to upload cover photo',
+                                  style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280)),
                                 ),
                               ],
                             ),
@@ -1151,50 +1129,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Unique Library Code Card (Only shows if library exists/generated)
-                    if (_libraryCode.isNotEmpty) ...[
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Your Library Code',
-                                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF9CA3AF)),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    _libraryCode.split('').join(' '),
-                                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00), letterSpacing: 1.0),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => _showSuccessSnackBar('Library Code copied!'),
-                              icon: const Icon(Icons.copy, size: 14, color: Color(0xFFE65C00)),
-                              label: Text('Copy', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                              style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: const Color(0xFFE65C00).withOpacity(0.3)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                    ],
+
 
                     // Save Button
                     ElevatedButton(

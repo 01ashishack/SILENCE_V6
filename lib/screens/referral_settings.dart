@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/admin_settings_service.dart';
 
 class ReferralSettingsScreen extends StatefulWidget {
   const ReferralSettingsScreen({super.key});
@@ -11,6 +11,7 @@ class ReferralSettingsScreen extends StatefulWidget {
 
 class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
   bool _isLoading = false;
+  String? _libId;
   
   // Program status state
   bool _isEnabled = true;
@@ -37,21 +38,30 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
 
   Future<void> _loadReferralRules() async {
     setState(() => _isLoading = true);
-    final prefs = await SharedPreferences.getInstance();
+    _libId = await AdminSettingsService.firstOwnedLibraryId();
+    final settings = await AdminSettingsService.load(
+      scope: 'referral_settings',
+      libraryId: _libId,
+    );
     setState(() {
-      _isEnabled = prefs.getBool('referral_enabled') ?? true;
-      _referrerDaysCtrl.text = prefs.getString('referral_referrer_days') ?? '5';
-      _refereeDaysCtrl.text = prefs.getString('referral_referee_days') ?? '3';
+      _isEnabled = settings['enabled'] as bool? ?? true;
+      _referrerDaysCtrl.text = settings['referrer_days']?.toString() ?? '5';
+      _refereeDaysCtrl.text = settings['referee_days']?.toString() ?? '3';
       _isLoading = false;
     });
   }
 
   Future<void> _saveReferralRules() async {
     setState(() => _isLoading = true);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('referral_enabled', _isEnabled);
-    await prefs.setString('referral_referrer_days', _referrerDaysCtrl.text);
-    await prefs.setString('referral_referee_days', _refereeDaysCtrl.text);
+    await AdminSettingsService.save(
+      scope: 'referral_settings',
+      libraryId: _libId,
+      value: {
+        'enabled': _isEnabled,
+        'referrer_days': int.tryParse(_referrerDaysCtrl.text.trim()) ?? 5,
+        'referee_days': int.tryParse(_refereeDaysCtrl.text.trim()) ?? 3,
+      },
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Referral configurations saved! ✓'), backgroundColor: Color(0xFFE65C00)),

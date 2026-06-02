@@ -269,6 +269,132 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   }
 
   // ── Show Seat Picker Modal for Approving (S034 Flow) ──────────────────────
+  Future<void> _logAudit({
+    required String title,
+    required String details,
+    required String category,
+  }) async {
+    final admin = supabase.auth.currentUser;
+    try {
+      await supabase.from('audit_log').insert({
+        'performer_name': admin?.email ?? 'Admin',
+        'category': category,
+        'action_title': title,
+        'action_details': details,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Audit log insert failed: $e');
+    }
+  }
+
+  Future<void> _notifyMember({
+    required String memberId,
+    required String title,
+    required String message,
+  }) async {
+    try {
+      await supabase.from('notifications').insert({
+        'member_id': memberId,
+        'title': title,
+        'message': message,
+        'type': 'seat_change',
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Notification insert failed: $e');
+    }
+  }
+
+  Future<void> _approveSeatChangeRequest(Map<String, dynamic> request) async {
+    final requestId = request['id']?.toString();
+    final membershipId = request['membership_id']?.toString();
+    final memberId =
+        request['member_id']?['id']?.toString() ?? request['member_id']?.toString();
+    final oldSeatId = request['current_seat_id']?.toString();
+    final newSeatId = request['new_seat_id']?.toString();
+    final newSeatLabel =
+        request['new_seat']?['seat_label']?.toString() ?? 'the new seat';
+
+    if (requestId == null ||
+        membershipId == null ||
+        memberId == null ||
+        newSeatId == null ||
+        newSeatId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot approve: this request has no selected target seat.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      setState(() => _isLoading = true);
+
+      final newSeat = await supabase
+          .from('seats')
+          .select('status, occupied_by_member_id, seat_label')
+          .eq('id', newSeatId)
+          .single();
+
+      final occupiedBy = newSeat['occupied_by_member_id'];
+      if (newSeat['status'] != 'vacant' &&
+          occupiedBy != null &&
+          occupiedBy.toString() != memberId) {
+        throw 'Target seat is no longer vacant. Please choose another seat.';
+      }
+
+      await supabase.from('memberships').update({
+        'seat_id': newSeatId,
+      }).eq('id', membershipId);
+
+      if (oldSeatId != null && oldSeatId.isNotEmpty) {
+        await supabase.from('seats').update({
+          'status': 'vacant',
+          'occupied_by_member_id': null,
+        }).eq('id', oldSeatId);
+      }
+
+      await supabase.from('seats').update({
+        'status': 'occupied',
+        'occupied_by_member_id': memberId,
+      }).eq('id', newSeatId);
+
+      await supabase.from('seat_change_requests').update({
+        'status': 'approved',
+        'approved_at': DateTime.now().toIso8601String(),
+      }).eq('id', requestId);
+
+      await _logAudit(
+        title: 'Seat Change Approved',
+        details: 'Approved seat change for member $memberId to $newSeatLabel.',
+        category: 'members',
+      );
+      await _notifyMember(
+        memberId: memberId,
+        title: 'Seat change approved',
+        message: 'Your seat change request was approved. New seat: $newSeatLabel.',
+      );
+
+      await _fetchRequests();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Seat change approved. Assigned $newSeatLabel.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Seat change approval failed: $e')),
+      );
+    }
+  }
+
   Future<void> _showSeatPickerBottomSheet(Map<String, dynamic> request) async {
     setState(() => _isLoading = true);
     final String shiftId = request['shift_id'];
@@ -718,11 +844,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                     title: Text(r['member_id']?['full_name'] ?? 'Member'),
                                     subtitle: Text('Change from ${r['current_seat']?['seat_label']} to Preferred section: ${r['preferred_section']}'),
                                     trailing: ElevatedButton(
-                                      onPressed: () async {
-                                        // Approve change directly for demonstration
-                                        await supabase.from('seat_change_requests').update({'status': 'approved'}).eq('id', r['id']);
-                                        _fetchRequests();
-                                      },
+                                      onPressed: () => _approveSeatChangeRequest(r),
                                       child: const Text('Approve'),
                                     ),
                                   ),

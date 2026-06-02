@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import '../core/calendar_picker.dart';
 
 class ClosureItem {
   final String id;
@@ -138,8 +139,8 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen> with 
                   ),
                   TextButton.icon(
                     onPressed: () async {
-                      final DateTime? picked = await showDatePicker(
-                        context: context,
+                      final DateTime? picked = await showCalendarGridBottomSheet(
+                        context,
                         initialDate: selectedDate,
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 365)),

@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS users (
     email_verified BOOLEAN DEFAULT false,
     language_code TEXT DEFAULT 'en',
     fcm_token TEXT,
+    id_proof_url TEXT,
     subscription_plan TEXT CHECK (subscription_plan IN ('starter', 'basic', 'pro', 'trial')),
     subscription_status TEXT DEFAULT 'active' CHECK (subscription_status IN ('active', 'grace', 'readonly', 'locked', 'cancelled')),
     subscription_expiry TIMESTAMPTZ,

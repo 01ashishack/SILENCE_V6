@@ -53,10 +53,24 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
   String? _libId;
   List<PlanItem> _plans = [];
 
+  bool _isInit = true;
+
   @override
   void initState() {
     super.initState();
-    _fetchPlans();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isInit) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is String && args.isNotEmpty) {
+        _libId = args;
+      }
+      _fetchPlans();
+      _isInit = false;
+    }
   }
 
   Future<void> _fetchPlans() async {
@@ -64,29 +78,14 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
     final user = _supabase.auth.currentUser;
     if (user != null) {
       try {
-        _libId = widget.libraryId;
+        if (_libId == null) {
+          _libId = widget.libraryId;
+        }
         if (_libId == null) {
           final libRes = await _supabase.from('libraries').select('id').eq('owner_id', user.id).maybeSingle();
           if (libRes != null) {
             _libId = libRes['id'];
           }
-        }
-
-        final prefs = await SharedPreferences.getInstance();
-        final plansStr = prefs.getString('pricing_plans_${_libId ?? "default"}');
-
-        if (plansStr != null) {
-          // Parse cached plans
-          final list = List<Map<String, dynamic>>.from(
-            (plansStr.split(';;').map((e) => Map<String, dynamic>.from(
-              Map<String, dynamic>.from(
-                // decoding JSON manually or parsing string safely
-                Map<String, dynamic>.from(
-                  // simple split parsing for robust operation
-                )
-              )
-            )))
-          );
         }
 
         // Setup canonical plans if cache is empty

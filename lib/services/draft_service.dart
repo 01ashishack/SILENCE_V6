@@ -22,11 +22,15 @@ class DraftService {
   /// Get all drafts for a library
   Future<List<MemberDraft>> getDrafts(String libraryId) async {
     try {
-      final response = await _supabase
+      var query = _supabase
           .from('draft_members')
-          .select('id, admin_id, library_id, draft_data, created_at, updated_at')
-          .eq('library_id', libraryId)
-          .order('updated_at', ascending: false);
+          .select('id, admin_id, library_id, draft_data, created_at, updated_at');
+      
+      if (libraryId != 'all') {
+        query = query.eq('library_id', libraryId);
+      }
+      
+      final response = await query.order('updated_at', ascending: false);
 
       final List<dynamic> data = response as List<dynamic>;
       final remoteDrafts = data.map((json) => MemberDraft.fromJson(json as Map<String, dynamic>)).toList();
@@ -69,6 +73,18 @@ class DraftService {
     }
     await _saveDraftsToLocalCache(draft.libraryId, localDrafts);
 
+    // Also update in local cache for 'all'
+    if (draft.libraryId != 'all') {
+      final allDrafts = await _getDraftsFromLocalCache('all');
+      final allIndex = allDrafts.indexWhere((d) => d.id == draftId);
+      if (allIndex >= 0) {
+        allDrafts[allIndex] = draftToSave;
+      } else {
+        allDrafts.insert(0, draftToSave);
+      }
+      await _saveDraftsToLocalCache('all', allDrafts);
+    }
+
     try {
       if (isNew) {
         await _supabase.from('draft_members').insert({
@@ -99,6 +115,13 @@ class DraftService {
     final localDrafts = await _getDraftsFromLocalCache(libraryId);
     localDrafts.removeWhere((d) => d.id == draftId);
     await _saveDraftsToLocalCache(libraryId, localDrafts);
+
+    // Also delete from local cache for 'all'
+    if (libraryId != 'all') {
+      final allDrafts = await _getDraftsFromLocalCache('all');
+      allDrafts.removeWhere((d) => d.id == draftId);
+      await _saveDraftsToLocalCache('all', allDrafts);
+    }
 
     try {
       await _supabase.from('draft_members').delete().eq('id', draftId);

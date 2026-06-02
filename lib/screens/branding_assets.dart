@@ -1,6 +1,13 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/admin_settings_service.dart';
+import '../core/image_optimizer.dart';
 
 class BrandingAssetsScreen extends StatefulWidget {
   const BrandingAssetsScreen({super.key});
@@ -11,6 +18,7 @@ class BrandingAssetsScreen extends StatefulWidget {
 
 class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
   bool _isLoading = false;
+  String? _libId;
   String? _logoUrl;
   Color _selectedAccent = const Color(0xFFE65C00);
 
@@ -31,19 +39,262 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
 
   Future<void> _loadBrandingSettings() async {
     setState(() => _isLoading = true);
-    final prefs = await SharedPreferences.getInstance();
-    _logoUrl = prefs.getString('branding_logo_url');
-    final colorVal = prefs.getInt('branding_accent_color');
+    _libId = await AdminSettingsService.firstOwnedLibraryId();
+    final settings = await AdminSettingsService.load(
+      scope: 'branding',
+      libraryId: _libId,
+    );
+    _logoUrl = settings['logo_url']?.toString();
+    final colorVal = settings['accent_color'];
     if (colorVal != null) {
-      _selectedAccent = Color(colorVal);
+      _selectedAccent = Color(colorVal is int ? colorVal : int.parse(colorVal.toString()));
     }
     setState(() => _isLoading = false);
   }
 
+  Future<ImageSource?> _showImageSourceBottomSheet(BuildContext context, String title) async {
+    return await showModalBottomSheet<ImageSource?>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+                child: Text(
+                  title,
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Color(0xFFE65C00)),
+                title: Text('Camera (Take Photo)', style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+                onTap: () => Navigator.of(context).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Color(0xFFE65C00)),
+                title: Text('Gallery (Choose Photo)', style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+                onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool> _requestCameraPermission() async {
+    final status = await Permission.camera.status;
+    if (status.isGranted) return true;
+    final result = await Permission.camera.request();
+    return result.isGranted;
+  }
+
+  Future<bool> _requestGalleryPermission() async {
+    if (Platform.isAndroid) {
+      final statusPhotos = await Permission.photos.status;
+      if (statusPhotos.isGranted) return true;
+      
+      final resultPhotos = await Permission.photos.request();
+      if (resultPhotos.isGranted) return true;
+
+      final statusStorage = await Permission.storage.status;
+      if (statusStorage.isGranted) return true;
+      final resultStorage = await Permission.storage.request();
+      return resultStorage.isGranted;
+    } else {
+      final status = await Permission.photos.status;
+      if (status.isGranted) return true;
+      final result = await Permission.photos.request();
+      return result.isGranted;
+    }
+  }
+
+  Future<bool> _showPreviewConfirmationDialog(BuildContext context, XFile image, String title) async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            title,
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+            textAlign: TextAlign.center,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Do you want to upload this logo?',
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF4B5563)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: Image.file(
+                    File(image.path),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(color: const Color(0xFF9CA3AF), fontWeight: FontWeight.bold),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(
+                'Upload',
+                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
+  Future<void> _uploadLogo() async {
+    if (_libId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot upload logo: No library associated with this account yet.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final ImageSource? source = await _showImageSourceBottomSheet(context, 'Choose Logo Photo Source');
+    if (source == null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      bool hasPermission = false;
+      if (source == ImageSource.camera) {
+        hasPermission = await _requestCameraPermission();
+      } else {
+        hasPermission = await _requestGalleryPermission();
+      }
+
+      if (!hasPermission) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permission denied. Please grant permission in settings.'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+      if (!mounted) return;
+
+      CroppedFile? croppedFile;
+      bool cropSuccessOrCancel = false;
+      try {
+        croppedFile = await ImageCropper().cropImage(
+          sourcePath: image.path,
+          aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: 'Crop Brand Logo',
+              toolbarColor: const Color(0xFFE65C00),
+              toolbarWidgetColor: Colors.white,
+              initAspectRatio: CropAspectRatioPreset.square,
+              lockAspectRatio: true,
+            ),
+            IOSUiSettings(
+              title: 'Crop Brand Logo',
+              aspectRatioLockEnabled: true,
+              resetAspectRatioEnabled: false,
+            ),
+          ],
+        );
+        cropSuccessOrCancel = true;
+      } catch (e) {
+        debugPrint('Crop failed, falling back to original: $e');
+      }
+
+      if (cropSuccessOrCancel && croppedFile == null) return;
+      if (!mounted) return;
+
+      final String finalPath = croppedFile?.path ?? image.path;
+
+      final bool confirmed = await _showPreviewConfirmationDialog(context, XFile(finalPath), 'Confirm Logo Upload');
+      if (!confirmed) return;
+
+      final bytes = await ImageOptimizer.compressImage(finalPath);
+      final path = 'library_photos/$_libId/logo.jpg';
+      
+      final supabase = Supabase.instance.client;
+
+      // Upload branding logo directly to pre-provisioned assets bucket
+
+      await supabase.storage.from('silence_assets').uploadBinary(
+        path,
+        Uint8List.fromList(bytes),
+        fileOptions: const FileOptions(
+          contentType: 'image/jpeg',
+          cacheControl: '3600', 
+          upsert: true,
+        ),
+      );
+
+      final publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
+      
+      setState(() {
+        _logoUrl = publicUrl;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Logo uploaded successfully! ✓'), backgroundColor: Color(0xFFE65C00)),
+      );
+    } catch (e) {
+      debugPrint('Logo upload failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Logo upload failed: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Future<void> _saveBrandingSettings() async {
     setState(() => _isLoading = true);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('branding_accent_color', _selectedAccent.value);
+    await AdminSettingsService.save(
+      scope: 'branding',
+      libraryId: _libId,
+      value: {
+        'logo_url': _logoUrl,
+        'accent_color': _selectedAccent.value,
+      },
+    );
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Branding assets updated successfully! ✓'), backgroundColor: Color(0xFFE65C00)),
@@ -98,36 +349,39 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                             ),
                             const SizedBox(height: 16),
                             Center(
-                              child: Stack(
-                                children: [
-                                  Container(
-                                    width: 80,
-                                    height: 80,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF3ED),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: _selectedAccent, width: 1.5),
-                                      image: _logoUrl != null
-                                          ? DecorationImage(image: NetworkImage(_logoUrl!), fit: BoxFit.cover)
+                              child: GestureDetector(
+                                onTap: _uploadLogo,
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      width: 80,
+                                      height: 80,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF3ED),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: _selectedAccent, width: 1.5),
+                                        image: _logoUrl != null
+                                            ? DecorationImage(image: NetworkImage(_logoUrl!), fit: BoxFit.cover)
+                                            : null,
+                                      ),
+                                      child: _logoUrl == null
+                                          ? Center(child: Icon(Icons.palette_outlined, size: 28, color: _selectedAccent))
                                           : null,
                                     ),
-                                    child: _logoUrl == null
-                                        ? Center(child: Icon(Icons.palette_outlined, size: 28, color: _selectedAccent))
-                                        : null,
-                                  ),
-                                  Positioned(
-                                    bottom: 0,
-                                    right: 0,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: _selectedAccent,
-                                        shape: BoxShape.circle,
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: _selectedAccent,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.add_photo_alternate, size: 14, color: Colors.white),
                                       ),
-                                      child: const Icon(Icons.add_photo_alternate, size: 14, color: Colors.white),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(height: 8),

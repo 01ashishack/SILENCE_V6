@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 class LayoutSubTab extends StatefulWidget {
   final String libraryId;
@@ -42,6 +43,14 @@ class LayoutSubTabState extends State<LayoutSubTab> {
   RealtimeChannel? _seatsChannel;
   RealtimeChannel? _floorsChannel;
   RealtimeChannel? _sectionsChannel;
+  void refresh() {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+      _loadSelectors();
+    }
+  }
 
   @override
   void initState() {
@@ -192,35 +201,52 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
     try {
       print('=== LayoutSubTab _fetchSeatsAndSections START ===');
-      print('Querying sections for floor_id: $_selectedFloorId');
-      // 1. Fetch Sections for selected Floor
-      final sectionsRes = await supabase
+      final floorIds = _floorsList.map((f) => f['id'].toString()).toList();
+
+      // 1. Fetch Sections
+      var sectionsQuery = supabase
           .from('sections')
-          .select('id, name, tag')
-          .eq('floor_id', _selectedFloorId!);
+          .select('id, name, tag');
+      if (_selectedFloorId == 'all') {
+        if (floorIds.isNotEmpty) {
+          sectionsQuery = sectionsQuery.inFilter('floor_id', floorIds);
+        } else {
+          sectionsQuery = sectionsQuery.eq('id', 'non_existent_id');
+        }
+      } else {
+        sectionsQuery = sectionsQuery.eq('floor_id', _selectedFloorId!);
+      }
+      final sectionsRes = await sectionsQuery;
       print('Sections fetched: ${sectionsRes.length}');
 
-      print('Querying seats for floor_id: $_selectedFloorId, shift_id: $_selectedShiftId');
       // 2. Fetch Seats for selected Floor and Shift
-      final seatsRes = await supabase
+      var seatsQuery = supabase
           .from('seats')
           .select('*, occupied_by_member_id(id, full_name, photo_url)')
-          .eq('library_id', widget.libraryId)
-          .eq('floor_id', _selectedFloorId!)
-          .eq('shift_id', _selectedShiftId!);
+          .eq('library_id', widget.libraryId);
+      
+      if (_selectedFloorId != 'all') {
+        seatsQuery = seatsQuery.eq('floor_id', _selectedFloorId!);
+      }
+      if (_selectedShiftId != 'all') {
+        seatsQuery = seatsQuery.eq('shift_id', _selectedShiftId!);
+      }
+      final seatsRes = await seatsQuery;
       print('Seats fetched: ${seatsRes.length}');
 
       // 3. Fetch active/trial memberships to determine expiry and payment status
-      final membershipsRes = await supabase
+      var membershipsQuery = supabase
           .from('memberships')
           .select('*, member_id(full_name)')
           .eq('library_id', widget.libraryId)
-          .eq('shift_id', _selectedShiftId!)
           .inFilter('status', ['active', 'trial', 'hold', 'expired']);
+      if (_selectedShiftId != 'all') {
+        membershipsQuery = membershipsQuery.eq('shift_id', _selectedShiftId!);
+      }
+      final membershipsRes = await membershipsQuery;
       print('Memberships fetched: ${membershipsRes.length}');
 
       // 4. Fetch dynamic Overview Metrics for selected Library & Shift
-      final floorIds = _floorsList.map((f) => f['id']).toList();
       List<dynamic> allSections = [];
       if (floorIds.isNotEmpty) {
         allSections = await supabase
@@ -230,12 +256,15 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       }
       print('All sections across all floors count: ${allSections.length}');
 
-      final allShiftSeats = await supabase
+      var allShiftSeatsQuery = supabase
           .from('seats')
           .select('id, status')
-          .eq('library_id', widget.libraryId)
-          .eq('shift_id', _selectedShiftId!);
-      print('All seats across all shifts count: ${allShiftSeats.length}');
+          .eq('library_id', widget.libraryId);
+      if (_selectedShiftId != 'all') {
+        allShiftSeatsQuery = allShiftSeatsQuery.eq('shift_id', _selectedShiftId!);
+      }
+      final allShiftSeats = await allShiftSeatsQuery;
+      print('All seats count: ${allShiftSeats.length}');
 
       if (mounted) {
         setState(() {
@@ -362,21 +391,104 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     }
   }
 
-  Future<void> _deleteSeat(String seatId, String label) async {
-    final confirm = await showDialog<bool>(
+  Future<bool?> _showCustomConfirmDialog({
+    required BuildContext context,
+    required String title,
+    required String content,
+    required String confirmLabel,
+    required String cancelLabel,
+    required IconData icon,
+  }) {
+    return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete Seat', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to delete seat $label permanently?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: const Color(0xFFE65C00), size: 40),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  content,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: const Color(0xFF64748B),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        ),
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text(
+                          cancelLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE65C00),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 0,
+                        ),
+                        onPressed: () => Navigator.pop(context, true),
+                        child: Text(
+                          confirmLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteSeat(String seatId, String label) async {
+    final confirm = await _showCustomConfirmDialog(
+      context: context,
+      title: 'Delete Seat',
+      content: 'Are you sure you want to delete seat $label permanently?',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      icon: Icons.delete_outline,
     ) ?? false;
 
     if (!confirm) return;
@@ -581,15 +693,21 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
 
   void showManageLayoutBottomSheet() {
+    String resolvedShiftId = _selectedShiftId ?? '';
+    if (resolvedShiftId == 'all' || resolvedShiftId.isEmpty) {
+      if (_shiftsList.isNotEmpty) {
+        resolvedShiftId = _shiftsList.first['id']?.toString() ?? '';
+      }
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
-        return _ManageLayoutTreeSheet(
+        return ManageLayoutTreeSheet(
           libraryId: widget.libraryId,
-          selectedShiftId: _selectedShiftId!,
+          selectedShiftId: resolvedShiftId,
           onRefreshParent: () {
             _loadSelectors();
           },
@@ -854,15 +972,23 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
   String _formatTimeHM(String? timeStr) {
     if (timeStr == null || timeStr.isEmpty) return '';
-    final parts = timeStr.split(':');
-    if (parts.length >= 2) {
-      return '${parts[0]}:${parts[1]}';
-    }
+    try {
+      final parts = timeStr.split(':');
+      if (parts.isNotEmpty) {
+        final hour = int.tryParse(parts[0]) ?? 0;
+        final minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+        final tod = TimeOfDay(hour: hour, minute: minute);
+        final now = DateTime.now();
+        final dt = DateTime(now.year, now.month, now.day, tod.hour, tod.minute);
+        return DateFormat('h:mm a').format(dt); // e.g. "6:00 AM"
+      }
+    } catch (_) {}
     return timeStr;
   }
 
   String _getShiftTimingText() {
     if (_selectedShiftId == null) return '';
+    if (_selectedShiftId == 'all') return 'All Shifts';
     try {
       final shift = _shiftsList.firstWhere((s) => s['id'] == _selectedShiftId);
       final start = shift['start_time'];
@@ -872,6 +998,115 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       }
     } catch (_) {}
     return '';
+  }
+
+  void _showSelectorBottomSheet({
+    required String label,
+    required String? selectedId,
+    required List<dynamic> items,
+    required bool isFloor,
+    required ValueChanged<String> onChanged,
+  }) {
+    final displayItems = [
+      {'id': 'all', 'name': isFloor ? 'All Floors' : 'All Shifts'},
+      ...items,
+    ];
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.15),
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          elevation: 8,
+          shadowColor: Colors.black.withValues(alpha: 0.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            constraints: const BoxConstraints(maxWidth: 300, maxHeight: 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Select ${isFloor ? 'Floor' : 'Shift'}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E293B),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: displayItems.map((item) {
+                      final String id = item['id'].toString();
+                      final bool isSelected = id == selectedId;
+                      
+                      String subtitleText = '';
+                      if (!isFloor && id != 'all') {
+                        final start = item['start_time'];
+                        final end = item['end_time'];
+                        if (start != null && end != null) {
+                          subtitleText = 'Timings: ${_formatTimeHM(start)} – ${_formatTimeHM(end)}';
+                        }
+                      }
+
+                      return ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                        leading: Icon(
+                          isFloor ? Icons.layers_rounded : Icons.access_time_rounded,
+                          color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF94A3B8),
+                          size: 16,
+                        ),
+                        title: Text(
+                          item['name'] ?? '',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
+                          ),
+                        ),
+                        subtitle: subtitleText.isNotEmpty
+                            ? Text(
+                                subtitleText,
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              )
+                            : null,
+                        trailing: isSelected
+                            ? const Icon(Icons.check, color: Color(0xFFE65C00), size: 14)
+                            : null,
+                        onTap: () {
+                          Navigator.pop(context);
+                          onChanged(id);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildCustomPopupSelector({
@@ -889,134 +1124,75 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         break;
       }
     }
-    final String selectedName = selectedItem != null ? (selectedItem['name'] ?? '') : 'Select ${isFloor ? 'Floor' : 'Shift'}';
+    final String selectedName = selectedId == 'all'
+        ? (isFloor ? 'All Floors' : 'All Shifts')
+        : (selectedItem != null ? (selectedItem['name'] ?? '') : 'Select ${isFloor ? 'Floor' : 'Shift'}');
 
-    return Theme(
-      data: Theme.of(context).copyWith(
-        cardTheme: CardThemeData(
-          color: Colors.white,
-          surfaceTintColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          elevation: 8,
-        ),
+    return GestureDetector(
+      onTap: () => _showSelectorBottomSheet(
+        label: label,
+        selectedId: selectedId,
+        items: items,
+        isFloor: isFloor,
+        onChanged: onChanged,
       ),
-      child: PopupMenuButton<String>(
-        onSelected: onChanged,
-        offset: const Offset(0, 52),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        elevation: 8,
-        color: Colors.white,
-        surfaceTintColor: Colors.white,
-        tooltip: 'Select ${isFloor ? 'Floor' : 'Shift'}',
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isFloor ? Icons.layers_rounded : Icons.access_time_rounded,
-                color: const Color(0xFFE65C00),
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      label,
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF64748B),
-                        letterSpacing: 0.5,
-                      ),
+        child: Row(
+          children: [
+            Icon(
+              isFloor ? Icons.layers_rounded : Icons.access_time_rounded,
+              color: const Color(0xFFE65C00),
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF64748B),
+                      letterSpacing: 0.5,
                     ),
-                    Text(
-                      selectedName,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    selectedName,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
                     ),
-                  ],
-                ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-              const Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: Color(0xFF64748B),
-                size: 18,
-              ),
-            ],
-          ),
+            ),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Color(0xFF64748B),
+              size: 18,
+            ),
+          ],
         ),
-        itemBuilder: (BuildContext context) {
-          return items.map((item) {
-            final String id = item['id'].toString();
-            final bool isSelected = id == selectedId;
-            return PopupMenuItem<String>(
-              value: id,
-              height: 44,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: isSelected
-                    ? BoxDecoration(
-                        color: const Color(0xFFFFF7ED),
-                        borderRadius: BorderRadius.circular(8),
-                      )
-                    : null,
-                child: Row(
-                  children: [
-                    Icon(
-                      isFloor ? Icons.layers_rounded : Icons.access_time_rounded,
-                      color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF94A3B8),
-                      size: 16,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        item['name'] ?? '',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isSelected)
-                      const Icon(
-                        Icons.check_rounded,
-                        color: Color(0xFFE65C00),
-                        size: 16,
-                      ),
-                  ],
-                ),
-              ),
-            );
-          }).toList();
-        },
       ),
     );
   }
@@ -1039,14 +1215,46 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               Icon(Icons.layers_clear_outlined, size: 64, color: Colors.grey[400]),
               const SizedBox(height: 16),
               Text(
-                'Complete Library Setup First',
+                'No floors configured yet',
                 style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
               ),
               const SizedBox(height: 8),
               Text(
-                'Please configure floors and shifts to begin managing seat reservations.',
+                'Use Manage Layout to create your first floor and then configure shifts.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.white,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    builder: (_) => ManageLayoutTreeSheet(
+                      libraryId: widget.libraryId,
+                      selectedShiftId: null,
+                      onRefreshParent: () {
+                        _loadSelectors();
+                      },
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.dashboard_customize_outlined, size: 20),
+                label: Text(
+                  'Manage Layout',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65C00),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
               ),
             ],
           ),
@@ -1064,39 +1272,44 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               Icon(Icons.layers_clear_outlined, size: 64, color: Colors.grey[400]),
               const SizedBox(height: 16),
               Text(
-                'No Floors Configured',
+                'No floors configured yet',
                 style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
               ),
               const SizedBox(height: 8),
               Text(
-                'No floors configured. Use Manage Layout to add floors.',
+                'Use Manage Layout to create your first floor.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () {
-                  showAddFloorBottomSheet(
+                  showModalBottomSheet(
                     context: context,
-                    libraryId: widget.libraryId,
-                    floorCount: 0,
-                    onCompleted: () {
-                      _loadSelectors();
-                    },
+                    isScrollControlled: true,
+                    backgroundColor: Colors.white,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    builder: (_) => ManageLayoutTreeSheet(
+                      libraryId: widget.libraryId,
+                      selectedShiftId: null,
+                      onRefreshParent: () {
+                        _loadSelectors();
+                      },
+                    ),
                   );
                 },
-                icon: const Icon(Icons.add_rounded, size: 20),
+                icon: const Icon(Icons.dashboard_customize_outlined, size: 20),
                 label: Text(
-                  'Add Floor',
+                  'Manage Layout',
                   style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE65C00),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 2,
                 ),
               ),
@@ -1116,14 +1329,30 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               Icon(Icons.schedule_outlined, size: 64, color: Colors.grey[400]),
               const SizedBox(height: 16),
               Text(
-                'No Shifts Configured',
+                'No shifts configured yet',
                 style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
               ),
               const SizedBox(height: 8),
               Text(
-                'Please configure shifts to begin managing seat reservations.',
+                'Use Manage Shifts to configure your first shift.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/admin/settings/shifts'),
+                icon: const Icon(Icons.access_time_outlined, size: 20),
+                label: Text(
+                  'Manage Shifts',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65C00),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
               ),
             ],
           ),
@@ -1143,9 +1372,9 @@ class LayoutSubTabState extends State<LayoutSubTab> {
             children: [
               Row(
                 children: [
-                  // Floor Selector Dropdown (flex 5)
+                  // Floor Selector Dropdown (flex 4)
                   Expanded(
-                    flex: 5,
+                    flex: 4,
                     child: _buildCustomPopupSelector(
                       label: 'FLOOR',
                       selectedId: _selectedFloorId,
@@ -1160,11 +1389,11 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                       },
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
 
-                  // Shift Selector Dropdown (flex 7)
+                  // Shift Selector Dropdown (flex 5)
                   Expanded(
-                    flex: 7,
+                    flex: 5,
                     child: _buildCustomPopupSelector(
                       label: 'SHIFT',
                       selectedId: _selectedShiftId,
@@ -1179,7 +1408,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                       },
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
 
                   // Search toggle action button
                   _buildIconActionButton(
@@ -1192,6 +1421,13 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                         }
                       });
                     },
+                  ),
+                  const SizedBox(width: 6),
+
+                  // Edit Icon (pencil) to open Manage Layout
+                  _buildIconActionButton(
+                    icon: Icons.edit_outlined,
+                    onTap: showManageLayoutBottomSheet,
                   ),
                 ],
               ),
@@ -2158,22 +2394,22 @@ void showEditSectionBottomSheet({
 }
 
 // ── S071 Overhauled Manage Layout Tree Sheet ─────────────────────────────────
-class _ManageLayoutTreeSheet extends StatefulWidget {
+class ManageLayoutTreeSheet extends StatefulWidget {
   final String libraryId;
-  final String selectedShiftId;
+  final String? selectedShiftId;
   final VoidCallback onRefreshParent;
 
-  const _ManageLayoutTreeSheet({
+  const ManageLayoutTreeSheet({
     required this.libraryId,
     required this.selectedShiftId,
     required this.onRefreshParent,
   });
 
   @override
-  State<_ManageLayoutTreeSheet> createState() => _ManageLayoutTreeSheetState();
+  State<ManageLayoutTreeSheet> createState() => _ManageLayoutTreeSheetState();
 }
 
-class _ManageLayoutTreeSheetState extends State<_ManageLayoutTreeSheet> {
+class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
   List<Map<String, dynamic>> _floors = [];
@@ -2210,12 +2446,14 @@ class _ManageLayoutTreeSheetState extends State<_ManageLayoutTreeSheet> {
             .inFilter('floor_id', floorIds)
             .order('name');
 
-        seatsRes = await supabase
-            .from('seats')
-            .select('*')
-            .inFilter('floor_id', floorIds)
-            .eq('shift_id', widget.selectedShiftId)
-            .order('seat_label');
+        if (widget.selectedShiftId != null) {
+          seatsRes = await supabase
+              .from('seats')
+              .select('*')
+              .inFilter('floor_id', floorIds)
+              .eq('shift_id', widget.selectedShiftId!)
+              .order('seat_label');
+        }
       }
 
       if (mounted) {
@@ -2340,22 +2578,105 @@ class _ManageLayoutTreeSheetState extends State<_ManageLayoutTreeSheet> {
     );
   }
 
+  Future<bool?> _showCustomConfirmDialog({
+    required BuildContext context,
+    required String title,
+    required String content,
+    required String confirmLabel,
+    required String cancelLabel,
+    required IconData icon,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: const Color(0xFFE65C00), size: 40),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  content,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: const Color(0xFF64748B),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        ),
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text(
+                          cancelLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE65C00),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 0,
+                        ),
+                        onPressed: () => Navigator.pop(context, true),
+                        child: Text(
+                          confirmLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // ── Cascade Deletions ──
   Future<void> _deleteFloor(String floorId, String name) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await _showCustomConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete Floor', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
-        content: Text('Delete floor "$name" and all its sections and seats? This cannot be undone.', style: GoogleFonts.inter()),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      title: 'Delete Floor',
+      content: 'Delete floor "$name" and all its sections and seats? This cannot be undone.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      icon: Icons.delete_outline,
     ) ?? false;
 
     if (!confirm) return;
@@ -2380,20 +2701,13 @@ class _ManageLayoutTreeSheetState extends State<_ManageLayoutTreeSheet> {
   }
 
   Future<void> _deleteSection(String sectionId, String name) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await _showCustomConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete Section', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
-        content: Text('Delete section "$name" and all its seats? This cannot be undone.', style: GoogleFonts.inter()),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      title: 'Delete Section',
+      content: 'Delete section "$name" and all its seats? This cannot be undone.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      icon: Icons.delete_outline,
     ) ?? false;
 
     if (!confirm) return;
@@ -2416,20 +2730,13 @@ class _ManageLayoutTreeSheetState extends State<_ManageLayoutTreeSheet> {
   }
 
   Future<void> _deleteSeat(String seatId, String label) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await _showCustomConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete Seat', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
-        content: Text('Delete seat "$label"? This cannot be undone.', style: GoogleFonts.inter()),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      title: 'Delete Seat',
+      content: 'Delete seat "$label"? This cannot be undone.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      icon: Icons.delete_outline,
     ) ?? false;
 
     if (!confirm) return;
@@ -2451,6 +2758,15 @@ class _ManageLayoutTreeSheetState extends State<_ManageLayoutTreeSheet> {
   }
 
   void _showAddSeatBottomSheet({required String floorId, required String? sectionId}) {
+    if (widget.selectedShiftId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please configure shifts first before adding seats.'),
+          backgroundColor: Color(0xFFEF4444),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2461,7 +2777,7 @@ class _ManageLayoutTreeSheetState extends State<_ManageLayoutTreeSheet> {
           libraryId: widget.libraryId,
           floorId: floorId,
           sectionId: sectionId,
-          selectedShiftId: widget.selectedShiftId,
+          selectedShiftId: widget.selectedShiftId!,
           existingSeats: _seats,
           onComplete: () {
             _fetchTreeData();

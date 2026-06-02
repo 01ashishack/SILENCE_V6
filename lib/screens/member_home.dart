@@ -2,13 +2,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
-import '../core/offline_db.dart';
 import '../core/offline_sync.dart';
+import '../core/cache_service.dart';
 import 'reservations/qr_scanner_screen.dart';
 import 'reservations/join_flow_screen.dart';
 import 'member_profile_edit.dart';
+import 'member_analytics_tab.dart';
+import 'package:flutter/services.dart';
+import '../core/calendar_picker.dart';
+
+
 
 
 class MemberHomeScreen extends StatefulWidget {
@@ -36,6 +41,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   List<Map<String, dynamic>> _exploreLibraries = [];
   List<Map<String, dynamic>> _filteredLibraries = [];
   final TextEditingController _searchController = TextEditingController();
+  Timer? _debounceTimer;
   
   // Attendance Live Ticker
   Timer? _attendanceTimer;
@@ -44,8 +50,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
+    _loadCachedLibraries();
     _loadInitialData();
-    _searchController.addListener(_filterLibraries);
+    _searchController.addListener(_onSearchChanged);
     
     // Start listening for internet status to sync offline scans
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -55,10 +62,32 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _attendanceTimer?.cancel();
     _searchController.dispose();
     OfflineSyncManager.instance.stopListening();
     super.dispose();
+  }
+
+  Future<void> _loadCachedLibraries() async {
+    try {
+      final cached = await CacheService.instance.readCache('explore_libraries_list');
+      if (cached != null && cached is List) {
+        if (mounted) {
+          setState(() {
+            _exploreLibraries = List<Map<String, dynamic>>.from(cached);
+            _filteredLibraries = List.from(_exploreLibraries);
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _onSearchChanged() {
+    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _filterLibraries();
+    });
   }
 
   Future<void> _loadInitialData() async {
@@ -120,8 +149,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           .maybeSingle();
 
       _activeAttendance = attendanceRes;
-      if (_activeAttendance != null) {
-        final checkInStr = _activeAttendance!['check_in_time'] as String;
+      final checkInStr = _activeAttendance?['check_in_time'] as String?;
+      if (checkInStr != null) {
         _startAttendanceTicker(DateTime.parse(checkInStr));
       } else {
         _attendanceTimer?.cancel();
@@ -161,11 +190,12 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       // 5. Load Explore Libraries (All active libraries)
       final exploreRes = await supabase
           .from('libraries')
-          .select('*, shifts(*)')
+          .select('id, name, address_city, verified, photos, amenities, library_code, status, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
           .eq('status', 'active');
 
       _exploreLibraries = List<Map<String, dynamic>>.from(exploreRes);
       _filteredLibraries = List.from(_exploreLibraries);
+      CacheService.instance.writeCache('explore_libraries_list', exploreRes);
 
     } catch (e) {
       debugPrint('Error loading member home data: $e');
@@ -219,11 +249,17 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   bool _isProfileIncomplete() {
-    if (_userProfile == null) return true;
-    final name = _userProfile!['full_name'] as String?;
-    final phone = _userProfile!['phone'] as String?;
-    final photo = _userProfile!['photo_url'] as String?;
-    return name == null || name.isEmpty || phone == null || phone.isEmpty || photo == null || photo.isEmpty;
+    final name = _userProfile?['full_name'] as String?;
+    final phone = _userProfile?['phone'] as String?;
+    final photo = _userProfile?['photo_url'] as String?;
+    final dob = _userProfile?['date_of_birth'] as String?;
+    final address = _userProfile?['address'] as String?;
+    
+    return name == null || name.isEmpty || 
+           phone == null || phone.isEmpty || 
+           photo == null || photo.isEmpty ||
+           dob == null || dob.isEmpty ||
+           address == null || address.isEmpty;
   }
 
   @override
@@ -292,15 +328,14 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   Widget _buildCurrentTabContent() {
-    switch (_currentBottomTab) {
-      case 1:
-        return _buildAnalyticsTab();
-      case 2:
-        return _buildProfileTab();
-      case 0:
-      default:
-        return _buildHomeTab();
-    }
+    return IndexedStack(
+      index: _currentBottomTab,
+      children: [
+        _buildHomeTab(),
+        _buildAnalyticsTab(),
+        _buildProfileTab(),
+      ],
+    );
   }
 
   // ==========================================
@@ -587,7 +622,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   Widget _buildTodayAttendanceCard() {
-    final checkedIn = _activeAttendance != null;
+    final attendance = _activeAttendance;
+    final checkedIn = attendance != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -617,7 +653,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Checked In • ${_formatTimeString(_activeAttendance!['check_in_time'])}',
+                        'Checked In • ${_formatTimeString(attendance['check_in_time'])}',
                         style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF15803D)),
                       ),
                       const SizedBox(height: 2),
@@ -759,7 +795,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           statusLabel = 'Expired';
           break;
         case 'hold':
-          borderColor = const Color(0xFFD97706); // orange-amber
+          borderColor = const Color(0xFFEAB308); // yellow
           statusLabel = 'Hold';
           break;
         case 'trial':
@@ -1154,12 +1190,23 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             ClipRRect(
               borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
               child: photos.isNotEmpty
-                  ? Image.network(
-                      photos.first,
+                  ? CachedNetworkImage(
+                      imageUrl: photos.first.toString(),
                       height: 140,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => _buildPlaceholderPhoto(),
+                      memCacheWidth: 200,
+                      placeholder: (context, url) => Container(
+                        height: 140,
+                        color: const Color(0xFFFFF3ED),
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => _buildPlaceholderPhoto(),
                     )
                   : _buildPlaceholderPhoto(),
             ),
@@ -1376,191 +1423,20 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   // ==========================================
-  // TAB 1: ANALYTICS TAB (S063 Placeholder)
+  // TAB 1: ANALYTICS TAB
   // ==========================================
   Widget _buildAnalyticsTab() {
-    return Column(
-      children: [
-        // Premium Header
-        Container(
-          width: double.infinity,
-          color: const Color(0xFFE65C00),
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Center(
-            child: Text(
-              'Analytics',
-              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-          ),
-        ),
-        
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                // Summary grid cards
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.4,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  children: [
-                    _buildStatCard('Days Present', '12', '↑ +12%', const Color(0xFF22C55E)),
-                    _buildStatCard('Days Absent', '3', '↓ -8%', const Color(0xFFEF4444)),
-                    _buildStatCard('Total Study Hours', '48h', '↑ +5h', const Color(0xFFE65C00)),
-                    _buildStatCard('Attendance Rate', '80%', '↑ +3%', const Color(0xFF22C55E)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Streak card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE65C00),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text('🔥', style: TextStyle(fontSize: 36)),
-                      const SizedBox(height: 8),
-                      Text(
-                        '12',
-                        style: GoogleFonts.outfit(fontSize: 48, fontWeight: FontWeight.w800, color: Colors.white, height: 1),
-                      ),
-                      Text(
-                        'Day Streak',
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Best: 28 days',
-                        style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withOpacity(0.8)),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Badges placeholder
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  width: double.infinity,
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Earned Badges', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildBadgeWidget('🔥', '7d Streak', true),
-                          _buildBadgeWidget('💯', '30d Streak', true),
-                          _buildBadgeWidget('⏰', 'Early Bird', true),
-                          _buildBadgeWidget('🦉', 'Night Owl', false),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Chart Placeholder
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  width: double.infinity,
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Study Hours Chart', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 20),
-                      Container(
-                        height: 120,
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            _buildChartBar(30, 'Mon'),
-                            _buildChartBar(60, 'Tue'),
-                            _buildChartBar(45, 'Wed'),
-                            _buildChartBar(80, 'Thu'),
-                            _buildChartBar(50, 'Fri'),
-                            _buildChartBar(90, 'Sat', isToday: true),
-                            _buildChartBar(10, 'Sun'),
-                          ],
-                        ),
-                      )
-                    ],
-                  ),
-                )
-              ],
-            ),
-          ),
-        )
-      ],
-    );
-  }
-
-  Widget _buildStatCard(String title, String val, String trend, Color trendColor) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(title, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
-          const SizedBox(height: 4),
-          Text(val, style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-          const SizedBox(height: 4),
-          Text(trend, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: trendColor)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBadgeWidget(String emoji, String name, bool earned) {
-    return Opacity(
-      opacity: earned ? 1.0 : 0.35,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: earned ? const Color(0xFFFFF3ED) : Colors.grey[200],
-              shape: BoxShape.circle,
-            ),
-            child: Text(emoji, style: const TextStyle(fontSize: 24)),
-          ),
-          const SizedBox(height: 4),
-          Text(name, style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[700])),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChartBar(double heightPct, String label, {bool isToday = false}) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Container(
-          height: heightPct,
-          width: 14,
-          decoration: BoxDecoration(
-            color: isToday ? const Color(0xFF0F172A) : const Color(0xFFE65C00),
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(label, style: GoogleFonts.inter(fontSize: 9, color: Colors.grey[500])),
-      ],
+    String? activeLibId;
+    if (_myMemberships.isNotEmpty) {
+      activeLibId = _myMemberships.first['library_id'];
+    } else if (_exploreLibraries.isNotEmpty) {
+      activeLibId = _exploreLibraries.first['id'];
+    }
+    
+    return MemberAnalyticsTab(
+      userProfile: _userProfile,
+      activeLibraryId: activeLibId,
+      memberLibraries: _myMemberships,
     );
   }
 
@@ -1650,11 +1526,14 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       _buildProfileItem(Icons.phone, 'Phone', phone),
                       const Divider(height: 1, indent: 56),
                       _buildProfileItem(Icons.email, 'Email', email),
-                      const Divider(height: 1, indent: 56),
-                      _buildProfileItem(Icons.badge, 'Referral Monospace', 'REF-A3K9-7XP'),
                     ],
                   ),
                 ),
+                const SizedBox(height: 24),
+
+                // Refer a Friend Section
+                _buildReferralSection(),
+                
                 const SizedBox(height: 24),
 
                 // Logout
@@ -1691,13 +1570,98 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   Widget _buildProfileItem(IconData icon, String title, String val) {
     return ListTile(
       leading: Icon(icon, color: const Color(0xFFE65C00)),
-      title: Text(title, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500])),
-      subtitle: Text(val, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+      title: Text(title, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
+      subtitle: Text(val, style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.bold)),
     );
   }
 
-  // ==========================================
-  // SHARED BOTTOM NAV & TRIGGERS
+  Widget _buildReferralSection() {
+    final uid = _userProfile?['id']?.toString() ?? 'XXXX';
+    final shortUid = uid.length >= 4 ? uid.substring(0, 4).toUpperCase() : 'XXXX';
+    final refCode = 'REF-$shortUid';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF59E0B), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.group_add, color: Color(0xFFB45309)),
+              const SizedBox(width: 8),
+              Text('Refer a Friend', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFB45309))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Invite your friends to study here and earn free extension days when they join!',
+            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF92400E)),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFCD34D)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(refCode, style: GoogleFonts.spaceMono(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFB45309), letterSpacing: 2)),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.copy, color: Color(0xFFB45309), size: 20),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: refCode));
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Referral code copied!')));
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      icon: const Icon(Icons.share, color: Color(0xFFB45309), size: 20),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opening Share Dialog...')));
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          FutureBuilder<List<dynamic>>(
+            future: Supabase.instance.client.from('referrals').select().eq('referrer_member_id', uid),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
+              final list = snapshot.data ?? [];
+              final pending = list.where((r) => r['status'] == 'pending').length;
+              final credited = list.where((r) => r['status'] == 'credited').length;
+              if (list.isEmpty) return const SizedBox.shrink();
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Total Referred: ${list.length}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFB45309))),
+                  Text('Pending: $pending | Earned: $credited', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF92400E))),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   // ==========================================
   Widget _buildBottomNav() {
     return BottomAppBar(
@@ -1901,9 +1865,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             );
                           }
                         } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Failed to submit: $e')),
-                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to submit: $e')),
+                            );
+                          }
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -2027,8 +1993,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             const SizedBox(height: 6),
                             InkWell(
                               onTap: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
+                                final picked = await showCalendarGridBottomSheet(
+                                  context,
                                   initialDate: holdStart,
                                   firstDate: DateTime.now().add(const Duration(days: 1)),
                                   lastDate: DateTime.now().add(const Duration(days: 30)),
@@ -2066,8 +2032,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             const SizedBox(height: 6),
                             InkWell(
                               onTap: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
+                                final picked = await showCalendarGridBottomSheet(
+                                  context,
                                   initialDate: holdEnd,
                                   firstDate: holdStart.add(const Duration(days: 1)),
                                   lastDate: holdStart.add(const Duration(days: 30)),
@@ -2153,9 +2119,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                                 );
                               }
                             } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
+                              }
                             }
                           },
                           style: ElevatedButton.styleFrom(
@@ -2407,9 +2375,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             _loadInitialData();
                           }
                         } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error: $e')),
-                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e')),
+                            );
+                          }
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -2575,9 +2545,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         ).then((_) => _loadInitialData());
                       }
                     } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error finding library: $e')),
-                      );
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error finding library: $e')),
+                        );
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(

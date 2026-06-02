@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -22,14 +21,15 @@ class _SplashScreenState extends State<SplashScreen> {
     
     final supabase = Supabase.instance.client;
     final session = supabase.auth.currentSession;
+    final user = supabase.auth.currentUser;
 
     if (!mounted) return;
 
-    if (session == null) {
+    if (session == null || user == null) {
       // 2. No session -> navigate to Auth (S002)
       Navigator.of(context).pushReplacementNamed('/auth');
     } else {
-      final userId = session.user.id;
+      final userId = user.id;
       try {
         // Fetch user metadata
         final userData = await supabase
@@ -70,7 +70,12 @@ class _SplashScreenState extends State<SplashScreen> {
       } catch (e) {
         debugPrint('Error checking user session in splash: $e');
         if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/role-select');
+          final navigator = Navigator.of(context);
+          // Clean up stale or invalid session state and route to /auth
+          try {
+            await supabase.auth.signOut();
+          } catch (_) {}
+          navigator.pushReplacementNamed('/auth');
         }
       }
     }
@@ -79,50 +84,16 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE), // warm cream background
+      backgroundColor: const Color(0xFFE65C00), // Premium orange background
       body: SafeArea(
         child: Stack(
           children: [
             // Center Brand Content
             Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo Placeholder / Brand Icon
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3ED),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE65C00), width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.book_outlined,
-                      size: 40,
-                      color: Color(0xFFE65C00),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Silence',
-                    style: GoogleFonts.outfit(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1A1A2E),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'LIBRARY MANAGEMENT & QR',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF6B7280),
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ],
+              child: Image.asset(
+                'assets/images/WHITE_WITH_TAGLINE.png',
+                width: 250,
+                fit: BoxFit.contain,
               ),
             ),
             // Bottom Loading Indicator
@@ -131,12 +102,12 @@ class _SplashScreenState extends State<SplashScreen> {
               left: 0,
               right: 0,
               child: Center(
-                child: Container(
+                child: SizedBox(
                   width: 24,
                   height: 24,
                   child: const CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 ),
               ),

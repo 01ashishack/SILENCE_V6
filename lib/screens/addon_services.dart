@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/admin_settings_service.dart';
 
 class AddonItem {
   final String id;
@@ -31,6 +31,7 @@ class AddonServicesScreen extends StatefulWidget {
 
 class _AddonServicesScreenState extends State<AddonServicesScreen> {
   bool _isLoading = false;
+  String? _libId;
   List<AddonItem> _addons = [];
 
   @override
@@ -41,7 +42,11 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
 
   Future<void> _loadAddons() async {
     setState(() => _isLoading = true);
-    final prefs = await SharedPreferences.getInstance();
+    _libId = await AdminSettingsService.firstOwnedLibraryId();
+    final settings = await AdminSettingsService.load(
+      scope: 'addon_services',
+      libraryId: _libId,
+    );
     
     // Set standard default items
     _addons = [
@@ -74,23 +79,36 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
       ),
     ];
 
-    // Read stored settings if available
+    final storedAddons = settings['items'];
     for (final item in _addons) {
-      final rate = prefs.getDouble('addon_rate_${item.id}');
-      final deposit = prefs.getDouble('addon_deposit_${item.id}');
-      final total = prefs.getInt('addon_total_${item.id}');
-      if (rate != null) item.monthlyRate = rate;
-      if (deposit != null) item.securityDeposit = deposit;
-      if (total != null) item.totalInventory = total;
+      final stored = storedAddons is Map ? storedAddons[item.id] : null;
+      final rate = stored is Map ? stored['monthly_rate'] : null;
+      final deposit = stored is Map ? stored['security_deposit'] : null;
+      final total = stored is Map ? stored['total_inventory'] : null;
+      if (rate is num) item.monthlyRate = rate.toDouble();
+      if (deposit is num) item.securityDeposit = deposit.toDouble();
+      if (total is num) item.totalInventory = total.toInt();
     }
     setState(() => _isLoading = false);
   }
 
   Future<void> _saveAddonSettings(AddonItem item) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('addon_rate_${item.id}', item.monthlyRate);
-    await prefs.setDouble('addon_deposit_${item.id}', item.securityDeposit);
-    await prefs.setInt('addon_total_${item.id}', item.totalInventory);
+    await AdminSettingsService.save(
+      scope: 'addon_services',
+      libraryId: _libId,
+      value: {
+        'items': {
+          for (final addon in _addons)
+            addon.id: {
+              'name': addon.name,
+              'monthly_rate': addon.monthlyRate,
+              'security_deposit': addon.securityDeposit,
+              'total_inventory': addon.totalInventory,
+              'allocated_count': addon.allocatedCount,
+            },
+        },
+      },
+    );
   }
 
   void _showEditAddonSheet(AddonItem item) {

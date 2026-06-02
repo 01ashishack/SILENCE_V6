@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/admin_settings_service.dart';
 
 class NotificationPreferencesScreen extends StatefulWidget {
   const NotificationPreferencesScreen({super.key});
@@ -11,6 +11,7 @@ class NotificationPreferencesScreen extends StatefulWidget {
 
 class _NotificationPreferencesScreenState extends State<NotificationPreferencesScreen> {
   bool _isLoading = false;
+  String? _libId;
 
   // Preferences local state
   bool _announcePush = true;
@@ -27,20 +28,33 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
 
   Future<void> _loadPreferences() async {
     setState(() => _isLoading = true);
-    final prefs = await SharedPreferences.getInstance();
+    _libId = await AdminSettingsService.firstOwnedLibraryId();
+    final settings = await AdminSettingsService.load(
+      scope: 'notification_preferences',
+      libraryId: _libId,
+    );
     setState(() {
-      _announcePush = prefs.getBool('notif_announce_push') ?? true;
-      _remindersPush = prefs.getBool('notif_reminders_push') ?? true;
-      _checkinPush = prefs.getBool('notif_checkin_push') ?? false;
-      _expiryPush = prefs.getBool('notif_expiry_push') ?? true;
-      _weeklyEmail = prefs.getBool('notif_weekly_email') ?? false;
+      _announcePush = settings['announce_push'] as bool? ?? true;
+      _remindersPush = settings['reminders_push'] as bool? ?? true;
+      _checkinPush = settings['checkin_push'] as bool? ?? false;
+      _expiryPush = settings['expiry_push'] as bool? ?? true;
+      _weeklyEmail = settings['weekly_email'] as bool? ?? false;
       _isLoading = false;
     });
   }
 
-  Future<void> _savePreference(String key, bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(key, value);
+  Future<void> _savePreferences() async {
+    await AdminSettingsService.save(
+      scope: 'notification_preferences',
+      libraryId: _libId,
+      value: {
+        'announce_push': _announcePush,
+        'reminders_push': _remindersPush,
+        'checkin_push': _checkinPush,
+        'expiry_push': _expiryPush,
+        'weekly_email': _weeklyEmail,
+      },
+    );
   }
 
   @override
@@ -95,7 +109,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                               _announcePush,
                               (val) {
                                 setState(() => _announcePush = val);
-                                _savePreference('notif_announce_push', val);
+                                _savePreferences();
                               },
                             ),
                             const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -105,7 +119,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                               _remindersPush,
                               (val) {
                                 setState(() => _remindersPush = val);
-                                _savePreference('notif_reminders_push', val);
+                                _savePreferences();
                               },
                             ),
                             const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -115,7 +129,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                               _checkinPush,
                               (val) {
                                 setState(() => _checkinPush = val);
-                                _savePreference('notif_checkin_push', val);
+                                _savePreferences();
                               },
                             ),
                             const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -125,7 +139,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                               _expiryPush,
                               (val) {
                                 setState(() => _expiryPush = val);
-                                _savePreference('notif_expiry_push', val);
+                                _savePreferences();
                               },
                             ),
                             const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -135,7 +149,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                               _weeklyEmail,
                               (val) {
                                 setState(() => _weeklyEmail = val);
-                                _savePreference('notif_weekly_email', val);
+                                _savePreferences();
                               },
                             ),
                           ],

@@ -104,7 +104,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                 border: Border.all(color: const Color(0xFFE5E7EB)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.01),
+                    color: Colors.black.withValues(alpha: 0.01),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -263,7 +263,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.blue[800], size: 20),
+                    Icon(Icons.info, color: Colors.blue[800], size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -287,35 +287,82 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
               Row(
                 children: [
                   Expanded(
-                    child: RadioListTile<String>(
-                      title: Text('Cash', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
-                      value: 'cash',
-                      groupValue: widget.memberData.paymentMethod,
-                      activeColor: const Color(0xFFE65C00),
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            widget.memberData.paymentMethod = val;
-                          });
-                        }
-                      },
+                    child: InkWell(
+                      onTap: () => setState(() => widget.memberData.paymentMethod = 'cash'),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: widget.memberData.paymentMethod == 'cash' ? const Color(0xFFFFF7ED) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: widget.memberData.paymentMethod == 'cash' ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
+                            width: widget.memberData.paymentMethod == 'cash' ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 20,
+                              height: 20,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: widget.memberData.paymentMethod == 'cash' ? const Color(0xFFE65C00) : Colors.transparent,
+                                border: Border.all(
+                                  color: widget.memberData.paymentMethod == 'cash' ? const Color(0xFFE65C00) : const Color(0xFFCBD5E1),
+                                  width: 2,
+                                ),
+                              ),
+                              child: widget.memberData.paymentMethod == 'cash'
+                                  ? const Icon(Icons.check, size: 12, color: Colors.white)
+                                  : null,
+                            ),
+                            Text('Cash', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: RadioListTile<String>(
-                      title: Text('UPI', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
-                      value: 'upi',
-                      groupValue: widget.memberData.paymentMethod,
-                      activeColor: const Color(0xFFE65C00),
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            widget.memberData.paymentMethod = val;
-                          });
-                        }
-                      },
+                    child: InkWell(
+                      onTap: () => setState(() => widget.memberData.paymentMethod = 'upi'),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: widget.memberData.paymentMethod == 'upi' ? const Color(0xFFFFF7ED) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: widget.memberData.paymentMethod == 'upi' ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
+                            width: widget.memberData.paymentMethod == 'upi' ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 20,
+                              height: 20,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: widget.memberData.paymentMethod == 'upi' ? const Color(0xFFE65C00) : Colors.transparent,
+                                border: Border.all(
+                                  color: widget.memberData.paymentMethod == 'upi' ? const Color(0xFFE65C00) : const Color(0xFFCBD5E1),
+                                  width: 2,
+                                ),
+                              ),
+                              child: widget.memberData.paymentMethod == 'upi'
+                                  ? const Icon(Icons.check, size: 12, color: Colors.white)
+                                  : null,
+                            ),
+                            Text('UPI', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -330,7 +377,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.send_to_mobile_outlined, color: Colors.green[800], size: 20),
+                    Icon(Icons.send_to_mobile, color: Colors.green[800], size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(

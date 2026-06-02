@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../core/image_optimizer.dart';
 import 'package:silence/core/calendar_picker.dart';
 
 class AdminProfileCompleteScreen extends StatefulWidget {
@@ -181,6 +184,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
 
       // 4. Crop Image to strict 1:1 square
       CroppedFile? croppedFile;
+      bool cropSuccessOrCancel = false;
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
@@ -192,24 +196,28 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
               toolbarWidgetColor: Colors.white,
               initAspectRatio: CropAspectRatioPreset.square,
               lockAspectRatio: true,
+              cropStyle: CropStyle.circle,
             ),
             IOSUiSettings(
               title: 'Crop Profile Photo',
               aspectRatioLockEnabled: true,
               resetAspectRatioEnabled: false,
+              cropStyle: CropStyle.circle,
             ),
           ],
         );
+        cropSuccessOrCancel = true;
       } catch (e) {
-        if (mounted) _showErrorSnackBar('Error cropping image: $e');
-        return;
+        debugPrint('Crop failed, falling back to original: $e');
       }
 
-      if (croppedFile == null) return;
+      if (cropSuccessOrCancel && croppedFile == null) return;
       if (!mounted) return;
 
+      final String finalPath = croppedFile?.path ?? image.path;
+
       // 5. Show confirmation/preview dialog
-      final bool confirmed = await _showPreviewConfirmationDialog(context, XFile(croppedFile.path));
+      final bool confirmed = await _showPreviewConfirmationDialog(context, XFile(finalPath));
       if (!confirmed) return;
       if (!mounted) return;
 
@@ -223,17 +231,14 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
           return;
         }
 
-        final bytes = await File(croppedFile.path).readAsBytes();
+        final bytes = await ImageOptimizer.compressImage(finalPath);
         final path = 'admin_profiles/${user.id}/profile.jpg';
 
-        // Auto-create bucket if missing
-        try {
-          await supabase.storage.createBucket('silence_assets', const BucketOptions(public: true));
-        } catch (_) {}
+        // Upload photo directly to pre-provisioned assets bucket
 
         await supabase.storage.from('silence_assets').uploadBinary(
           path,
-          bytes,
+          Uint8List.fromList(bytes),
           fileOptions: const FileOptions(
             contentType: 'image/jpeg',
             cacheControl: '3600',
@@ -267,7 +272,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
     return await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: Colors.white,
         title: Text(
           'Confirm Profile Photo',
           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
@@ -331,7 +336,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
       // Update database profile record
       await supabase.from('users').upsert({
         'id': user.id,
-        'email': user.email!,
+        'email': user.email,
         'full_name': name,
         'nickname': name.split(' ').first,
         'phone': phone,
@@ -375,73 +380,78 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
           body: _isLoading
               ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))))
               : Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Photo Card
-                      Container(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            // Profile Image Upload Zone
-                            Center(
-                              child: Stack(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 48,
-                                    backgroundColor: const Color(0xFFFFF7F0),
-                                    backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? NetworkImage(_photoUrl!) : null,
-                                    child: _photoUrl == null || _photoUrl!.isEmpty
-                                        ? const Icon(Icons.person, size: 48, color: Color(0xFFE65C00))
-                                        : null,
-                                  ),
-                                  Positioned(
-                                    bottom: 0,
-                                    right: 0,
-                                    child: GestureDetector(
-                                      onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFFE65C00),
-                                          shape: BoxShape.circle,
+                  key: _formKey,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Photo Card
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              // Profile Image Upload Zone
+                              Center(
+                                child: Stack(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 48,
+                                      backgroundColor: const Color(0xFFFFF7F0),
+                                      backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200) : null,
+                                      child: _photoUrl == null || _photoUrl!.isEmpty
+                                          ? const Icon(Icons.person, size: 48, color: Color(0xFFE65C00))
+                                          : null,
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: GestureDetector(
+                                        onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFE65C00),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: _isUploadingPhoto
+                                              ? const SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                                                )
+                                              : const Icon(Icons.camera_alt, size: 16, color: Colors.white),
                                         ),
-                                        child: _isUploadingPhoto
-                                            ? const SizedBox(
-                                                width: 16,
-                                                height: 16,
-                                                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
-                                              )
-                                            : const Icon(Icons.camera_alt, size: 16, color: Colors.white),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Profile Photo',
-                              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Tap camera icon to upload profile picture',
-                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280)),
-                            ),
-                          ],
+                              const SizedBox(height: 12),
+                              Text(
+                                'Profile Photo',
+                                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tap camera icon to upload profile picture',
+                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '“Use your real photo for verification purposes.”',
+                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFE65C00), fontWeight: FontWeight.w600, fontStyle: FontStyle.italic),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 16),
 
                       // Inputs Card

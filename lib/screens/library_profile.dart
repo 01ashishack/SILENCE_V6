@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../core/image_optimizer.dart';
 
 class LibraryProfileScreen extends StatefulWidget {
   final String? libraryId;
@@ -17,21 +20,23 @@ class LibraryProfileScreen extends StatefulWidget {
 class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  bool _libraryNotFound = false;
   String? _libId;
   Map<String, dynamic>? _libraryData;
 
-  // Editable fields local state
-  String _name = 'Downtown Study Space';
-  String _about = 'Premium, distraction-free study space with high-speed Wi-Fi, ergonomic seating, and power backup at every desk. Perfect for competitive exams preparation and remote working professionals.';
-  String _emergencyPhone = '+91 98765 43210';
-  List<String> _selectedAmenities = ['Air Conditioning (AC)', 'High-Speed Wi-Fi', 'Personal Lockers', 'RO Drinking Water'];
+  // Editable fields local state — start empty, populated from DB
+  String _name = '';
+  String _about = '';
+  String _emergencyPhone = '';
+  List<String> _selectedAmenities = [];
   List<String> _galleryUrls = [];
   String? _coverUrl;
-  
-  // Rating values
-  double _rating = 4.8;
-  int _reviewsCount = 42;
-  Map<int, int> _ratingBreakdown = {5: 32, 4: 8, 3: 2, 2: 0, 1: 0};
+
+  // Live dynamic stats — sourced from Supabase
+  int _liveMemberCount = 0;
+  int _liveSeatCount = 0;
+  int _liveShiftCount = 0;
+  String _liveOperationAge = '—';
 
   @override
   void initState() {
@@ -41,54 +46,124 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
   }
 
   Future<void> _fetchLibraryDetails() async {
-    setState(() => _isLoading = true);
+    setState(() { _isLoading = true; _libraryNotFound = false; });
     final user = _supabase.auth.currentUser;
-    if (user != null) {
-      try {
-        final Object? args = ModalRoute.of(context)?.settings.arguments;
-        if (args is String) {
-          _libId = args;
-        }
-
-        // Fetch library ID from args if not provided
-        if (_libId == null) {
-          final res = await _supabase.from('libraries').select().eq('owner_id', user.id).maybeSingle();
-          if (res != null) {
-            _libId = res['id'];
-            _libraryData = res;
-          }
-        } else {
-          final res = await _supabase.from('libraries').select().eq('id', _libId!).maybeSingle();
-          if (res != null) {
-            _libraryData = res;
-          }
-        }
-
-        if (_libraryData != null) {
-          _name = _libraryData!['name'] ?? _name;
-          _emergencyPhone = _libraryData!['emergency_phone'] ?? _emergencyPhone;
-          _coverUrl = _libraryData!['cover_photo_url'];
-          
-          if (_libraryData!['amenities'] != null) {
-            _selectedAmenities = List<String>.from(_libraryData!['amenities']);
-          }
-          
-          final photos = _libraryData!['photos'] as List?;
-          if (photos != null && photos.isNotEmpty) {
-            if (_coverUrl == null) _coverUrl = photos.first;
-            _galleryUrls = List<String>.from(photos);
-          }
-        }
-
-        // Fetch local settings details as fallback
-        final prefs = await SharedPreferences.getInstance();
-        _about = prefs.getString('lib_profile_about_${_libId ?? "default"}') ?? _about;
-        _emergencyPhone = prefs.getString('lib_profile_phone_${_libId ?? "default"}') ?? _emergencyPhone;
-      } catch (e) {
-        debugPrint('Error loading library profile: $e');
-      }
+    if (user == null) {
+      if (mounted) setState(() { _isLoading = false; _libraryNotFound = true; });
+      return;
     }
-    setState(() => _isLoading = false);
+    try {
+      final Object? args = ModalRoute.of(context)?.settings.arguments;
+      if (args is String) {
+        _libId = args;
+      }
+
+      // Fetch library — must belong to this admin
+      if (_libId == null) {
+        final res = await _supabase
+            .from('libraries')
+            .select()
+            .eq('owner_id', user.id)
+            .maybeSingle();
+        if (res != null) {
+          _libId = res['id'];
+          _libraryData = res;
+        }
+      } else {
+        final res = await _supabase
+            .from('libraries')
+            .select()
+            .eq('id', _libId!)
+            .eq('owner_id', user.id) // Ownership validation
+            .maybeSingle();
+        _libraryData = res;
+      }
+
+      if (_libraryData == null) {
+        // Library doesn't exist or doesn't belong to this user
+        if (mounted) setState(() { _isLoading = false; _libraryNotFound = true; });
+        return;
+      }
+
+      _name = _libraryData!['name'] ?? '';
+      _emergencyPhone = _libraryData!['emergency_phone'] ?? '';
+      _coverUrl = _libraryData!['cover_photo_url'];
+
+      if (_libraryData!['amenities'] != null) {
+        _selectedAmenities = List<String>.from(_libraryData!['amenities']);
+      }
+
+      final photos = _libraryData!['photos'] as List?;
+      if (photos != null && photos.isNotEmpty) {
+        if (_coverUrl == null) _coverUrl = photos.first as String?;
+        _galleryUrls = List<String>.from(photos);
+      }
+
+      // Fetch local preferences (persisted edits only — no seed values)
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      final savedAbout = prefs.getString('lib_profile_about_${_libId ?? "default"}');
+      if (savedAbout != null && savedAbout.isNotEmpty) _about = savedAbout;
+      // If no DB description loaded, use about from DB column if available
+      if (_about.isEmpty) _about = (_libraryData!['about_text'] ?? '') as String;
+      final savedPhone = prefs.getString('lib_profile_phone_${_libId ?? "default"}');
+      if (savedPhone != null && savedPhone.isNotEmpty) _emergencyPhone = savedPhone;
+
+      // Fetch live stats concurrently
+      await _fetchLiveStats();
+
+    } catch (e) {
+      debugPrint('Error loading library profile: $e');
+    }
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchLiveStats() async {
+    if (_libId == null) return;
+    try {
+      // Member count
+      final membershipsRes = await _supabase
+          .from('memberships')
+          .select('id')
+          .eq('library_id', _libId!);
+      _liveMemberCount = membershipsRes.length;
+
+      // Seat count
+      final seatsRes = await _supabase
+          .from('seats')
+          .select('id')
+          .eq('library_id', _libId!);
+      _liveSeatCount = seatsRes.length;
+
+      // Shifts count
+      final shiftsRes = await _supabase
+          .from('shifts')
+          .select('id')
+          .eq('library_id', _libId!);
+      _liveShiftCount = shiftsRes.length;
+
+      // Operation age from library created_at
+      final createdAt = _libraryData!['created_at'];
+      if (createdAt != null) {
+        final created = DateTime.tryParse(createdAt.toString());
+        if (created != null) {
+          final diff = DateTime.now().difference(created);
+          final months = diff.inDays ~/ 30;
+          if (months >= 12) {
+            final yrs = months ~/ 12;
+            _liveOperationAge = '$yrs yr${yrs > 1 ? "s" : ""}';
+          } else if (months > 0) {
+            _liveOperationAge = '$months mo';
+          } else {
+            _liveOperationAge = '< 1 mo';
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching live library stats: $e');
+    }
   }
 
   Future<void> _updateAbout(String newAbout) async {
@@ -127,16 +202,15 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final bytes = await File(image.path).readAsBytes();
+      final bytes = await ImageOptimizer.compressImage(image.path);
       final path = 'library_photos/${_libId ?? "temp"}/cover_${DateTime.now().millisecondsSinceEpoch}.jpg';
       
-      // Upload to supabase storage bucket
-      try {
-        await _supabase.storage.createBucket('silence_assets', const BucketOptions(public: true));
-      } catch (_) {}
+      // Upload directly to pre-provisioned assets bucket
 
-      await _supabase.storage.from('silence_assets').uploadBinary(path, bytes, 
+      await _supabase.storage.from('silence_assets').uploadBinary(path, Uint8List.fromList(bytes), 
         fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
+
+      if (!mounted) return;
 
       final publicUrl = _supabase.storage.from('silence_assets').getPublicUrl(path);
       setState(() => _coverUrl = publicUrl);
@@ -152,11 +226,15 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
       );
     } catch (e) {
       debugPrint('Upload error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error uploading cover: $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading cover: $e'), backgroundColor: Colors.red),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -295,9 +373,11 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
             ),
             centerTitle: true,
           ),
-          body: _isLoading 
+          body: _isLoading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00)))
-              : SingleChildScrollView(
+              : _libraryNotFound
+                  ? _buildLibraryNotFoundState()
+                  : SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -311,7 +391,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFE2E8F0),
                               image: _coverUrl != null 
-                                  ? DecorationImage(image: NetworkImage(_coverUrl!), fit: BoxFit.cover)
+                                  ? DecorationImage(image: CachedNetworkImageProvider(_coverUrl!, maxWidth: 200), fit: BoxFit.cover)
                                   : null,
                             ),
                             child: _coverUrl == null 
@@ -382,22 +462,6 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                                             ],
                                           ],
                                         ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.star, size: 14, color: Colors.amber),
-                                            const SizedBox(width: 2),
-                                            Text(
-                                              '$_rating',
-                                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              '($_reviewsCount reviews)',
-                                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
-                                            ),
-                                          ],
-                                        ),
                                         const SizedBox(height: 6),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -406,7 +470,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                                             borderRadius: BorderRadius.circular(10),
                                           ),
                                           child: Text(
-                                            '120 Members',
+                                            '$_liveMemberCount Member${_liveMemberCount != 1 ? 's' : ''}',
                                             style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
                                           ),
                                         ),
@@ -551,10 +615,10 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                                 children: [
-                                  _buildStatColumn('120', 'Members'),
-                                  _buildStatColumn('86%', 'Occupancy'),
-                                  _buildStatColumn('3', 'Shifts'),
-                                  _buildStatColumn('2 yrs', 'Operation'),
+                                  _buildStatColumn('$_liveMemberCount', 'Members'),
+                                  _buildStatColumn('$_liveSeatCount', 'Seats'),
+                                  _buildStatColumn('$_liveShiftCount', 'Shifts'),
+                                  _buildStatColumn(_liveOperationAge, 'Operation'),
                                 ],
                               ),
                             ),
@@ -630,83 +694,39 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // 9. Ratings & Reviews breakdown
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Text(
-                                    'Ratings & Reviews Breakdown',
-                                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      Column(
-                                        children: [
-                                          Text(
-                                            '$_rating',
-                                            style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: List.generate(5, (index) => Icon(
-                                              index < _rating.floor() ? Icons.star : Icons.star_half,
-                                              size: 14, color: Colors.amber,
-                                            )),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            '$_reviewsCount reviews',
-                                            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(width: 24),
-                                      Expanded(
-                                        child: Column(
-                                          children: [5, 4, 3, 2, 1].map((stars) {
-                                            final count = _ratingBreakdown[stars] ?? 0;
-                                            final pct = _reviewsCount > 0 ? count / _reviewsCount : 0.0;
-                                            return Padding(
-                                              padding: const EdgeInsets.symmetric(vertical: 2.0),
-                                              child: Row(
-                                                children: [
-                                                  Text('$stars★', style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF475569))),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: ClipRRect(
-                                                      borderRadius: BorderRadius.circular(3),
-                                                      child: LinearProgressIndicator(
-                                                        value: pct,
-                                                        backgroundColor: const Color(0xFFF1F5F9),
-                                                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
-                                                        minHeight: 6,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  SizedBox(
-                                                    width: 20,
-                                                    child: Text('$count', style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B), fontWeight: FontWeight.bold)),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }).toList(),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
+                             // 9. Amenities Quick Summary
+                             if (_selectedAmenities.isNotEmpty)
+                             Container(
+                               padding: const EdgeInsets.all(16),
+                               decoration: BoxDecoration(
+                                 color: Colors.white,
+                                 borderRadius: BorderRadius.circular(16),
+                                 border: Border.all(color: const Color(0xFFE2E8F0)),
+                               ),
+                               child: Column(
+                                 crossAxisAlignment: CrossAxisAlignment.stretch,
+                                 children: [
+                                   Text(
+                                     'Amenities',
+                                     style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                   ),
+                                   const SizedBox(height: 12),
+                                   Wrap(
+                                     spacing: 8,
+                                     runSpacing: 8,
+                                     children: _selectedAmenities.map((a) => Container(
+                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                       decoration: BoxDecoration(
+                                         color: const Color(0xFFFFF3ED),
+                                         borderRadius: BorderRadius.circular(20),
+                                         border: Border.all(color: const Color(0xFFFFD0B8)),
+                                       ),
+                                       child: Text(a, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFE65C00), fontWeight: FontWeight.w500)),
+                                     )).toList(),
+                                   ),
+                                 ],
+                               ),
+                             ),
                           ],
                         ),
                       ),
@@ -766,6 +786,50 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
       ),
       trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildLibraryNotFoundState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3ED),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.store_mall_directory_outlined, size: 48, color: Color(0xFFE65C00)),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Library not found',
+              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This library has not been configured yet or does not belong to your account.',
+              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              onPressed: () => Navigator.pushNamed(context, '/admin/library/setup/1'),
+              icon: const Icon(Icons.add_business_outlined, color: Colors.white, size: 18),
+              label: Text('Set Up Library', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

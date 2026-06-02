@@ -7,6 +7,8 @@ import '../../models/member_draft.dart';
 import '../../models/member_data.dart';
 import '../../services/draft_service.dart';
 import '../../core/image_optimizer.dart';
+import '../../core/cache_service.dart';
+import 'add_member_mode_selection.dart';
 import 'add_member_step1.dart';
 import 'add_member_step2.dart';
 import 'add_member_step3.dart';
@@ -27,30 +29,91 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
   bool _isLoading = false;
   bool _initialized = false;
 
-  late String _libraryId;
+  String _libraryId = '';
   String? _libraryName;
   String? _draftId;
 
+  List<Map<String, dynamic>> _ownedLibraries = [];
+  bool _showLibrarySelection = false;
+
   // Single Model instance containing all step data
   final MemberData _memberData = MemberData();
+  final _step1FormKey = GlobalKey<FormState>();
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialized) {
-      final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-      _libraryId = args['libraryId'] as String;
-      _draftId = args['draftId'] as String?;
+      _initWizard();
+    }
+  }
 
-      _fetchLibraryName();
+  Future<void> _initWizard() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('No active admin session found.');
+      }
 
-      if (_draftId != null) {
-        _loadDraft(_draftId!);
+      // Query all owned libraries
+      final res = await _supabase
+          .from('libraries')
+          .select('id, name')
+          .eq('owner_id', user.id);
+      
+      _ownedLibraries = List<Map<String, dynamic>>.from(res);
+
+      final Object? routeArgs = ModalRoute.of(context)?.settings.arguments;
+      String? parsedLibId;
+      if (routeArgs is Map<String, dynamic>) {
+        parsedLibId = routeArgs['libraryId'] as String?;
+        _draftId = routeArgs['draftId'] as String?;
+      } else if (routeArgs is String) {
+        parsedLibId = routeArgs;
+      }
+
+      final String passedLibId = parsedLibId ?? '';
+      
+      if (passedLibId.isNotEmpty && passedLibId != 'all') {
+        // A specific library was passed, skip library selection
+        _libraryId = passedLibId;
+        _showLibrarySelection = false;
       } else {
-        // Show mode selection bottom sheet
-        WidgetsBinding.instance.addPostFrameCallback((_) => _showModeSelectionSheet());
+        // No specific library passed
+        if (_ownedLibraries.length == 1) {
+          // Admin owns only 1 library, auto-select it and skip library selection step
+          _libraryId = _ownedLibraries.first['id'] as String;
+          _showLibrarySelection = false;
+        } else if (_ownedLibraries.length > 1) {
+          // Multiple libraries owned, show library selection step!
+          _showLibrarySelection = true;
+          _libraryId = '';
+        } else {
+          // No libraries owned
+          _showLibrarySelection = false;
+          _libraryId = '';
+        }
+      }
+
+      if (_libraryId.isNotEmpty) {
+        await _fetchLibraryName();
+        if (_draftId != null) {
+          await _loadDraft(_draftId!);
+        } else {
+          _currentStep = 0;
+        }
+      } else {
+        _currentStep = 0;
       }
       _initialized = true;
+    } catch (e) {
+      debugPrint('Error initializing wizard: $e');
+      if (mounted) {
+        _showErrorSnackBar('Initialization failed: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -77,11 +140,25 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     setState(() => _isLoading = true);
     try {
       final drafts = await DraftService.instance.getDrafts(_libraryId);
+      if (!mounted) return;
       final draft = drafts.firstWhere((d) => d.id == draftId);
       final data = draft.draftData;
 
       setState(() {
         _memberData.fromJson(data);
+        final savedStep = data['currentStep'] as int?;
+        if (savedStep != null && savedStep >= 0 && savedStep < 5) {
+          int targetPage = savedStep + 1; // Shifting because Step 0 is Mode Selection
+          if (_showLibrarySelection) {
+            targetPage = savedStep + 2; // Shifting because Step 0 is Library Selection
+          }
+          _currentStep = targetPage;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_pageController.hasClients) {
+              _pageController.jumpToPage(targetPage);
+            }
+          });
+        }
       });
     } catch (e) {
       debugPrint('Error loading draft: $e');
@@ -93,125 +170,21 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     }
   }
 
-  void _showModeSelectionSheet() {
-    showModalBottomSheet(
-      context: context,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, result) {
-          if (didPop) return;
-          Navigator.pop(context); // Close the wizard if selector dismissed
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Choose Registration Mode',
-                style: GoogleFonts.outfit(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Select standard mode or pre-existing member mode to configure registration options.',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: const Color(0xFF64748B),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.grey[200]!),
-                ),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF0FDF4),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.person_add_alt_1, color: Colors.green),
-                ),
-                title: Text(
-                  'New Member',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF1E293B)),
-                ),
-                subtitle: Text(
-                  'Standard flow (trial days allowed, digital payment requests allowed).',
-                  style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
-                ),
-                onTap: () {
-                  setState(() {
-                    _memberData.mode = 'new';
-                    _memberData.paymentFlow = 'paid';
-                  });
-                  Navigator.pop(ctx);
-                },
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.grey[200]!),
-                ),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFEFF6FF),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.history, color: Colors.blue),
-                ),
-                title: Text(
-                  'Existing Member',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF1E293B)),
-                ),
-                subtitle: Text(
-                  'Already studying at the library. Past joining date required. No trials, immediate cash/UPI payment.',
-                  style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
-                ),
-                onTap: () {
-                  setState(() {
-                    _memberData.mode = 'existing';
-                    _memberData.paymentFlow = 'paid';
-                  });
-                  Navigator.pop(ctx);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _saveAsDraft() async {
     setState(() => _isLoading = true);
     try {
       final admin = _supabase.auth.currentUser;
       if (admin == null) throw Exception('No active admin session found.');
 
+      final draftData = _memberData.toJson();
+      // Shifting back so drafts are saved in 0..4 index format for compatibility
+      draftData['currentStep'] = (_currentStep - 1).clamp(0, 4);
+
       final draft = MemberDraft(
         id: _draftId,
         adminId: admin.id,
         libraryId: _libraryId,
-        draftData: _memberData.toJson(),
+        draftData: draftData,
       );
 
       await DraftService.instance.saveDraft(draft);
@@ -235,6 +208,8 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         title: Text('Exit Wizard?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
         content: Text(
           'Do you want to save this member registration as a draft to resume later?',
@@ -268,36 +243,27 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
   }
 
   bool _validateStep() {
-    if (_currentStep == 0) {
-      if (_memberData.name.isEmpty) {
-        _showErrorSnackBar('Full Name is required.');
-        return false;
+    int adjustedStep = _currentStep;
+    if (_showLibrarySelection) {
+      if (_currentStep == 0) {
+        if (_libraryId.isEmpty) {
+          _showErrorSnackBar('Please select a library first.');
+          return false;
+        }
+        return true;
       }
-      if (_memberData.phone.length != 10) {
-        _showErrorSnackBar('Contact number must be exactly 10 digits.');
-        return false;
-      }
-      if (_memberData.dob == null) {
-        _showErrorSnackBar('Date of birth is required.');
-        return false;
-      }
-      if (_memberData.gender == null) {
-        _showErrorSnackBar('Gender is required.');
-        return false;
-      }
-      if (_memberData.address.isEmpty) {
-        _showErrorSnackBar('Correspondence address is required.');
-        return false;
-      }
-      if (_memberData.preparingFor == null) {
-        _showErrorSnackBar('Preparing For field is required.');
+      adjustedStep = _currentStep - 1;
+    }
+
+    if (adjustedStep == 1) {
+      if (_step1FormKey.currentState?.validate() == false) {
         return false;
       }
       if (_memberData.idProof1File == null && _memberData.idProof2File == null) {
         _showErrorSnackBar('At least one ID proof document is required.');
         return false;
       }
-    } else if (_currentStep == 1) {
+    } else if (adjustedStep == 2) {
       if (_memberData.selectedShiftId == null) {
         _showErrorSnackBar('Please configure and select a shift.');
         return false;
@@ -306,7 +272,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         _showErrorSnackBar('Plan start date is required for existing members.');
         return false;
       }
-    } else if (_currentStep == 2) {
+    } else if (adjustedStep == 3) {
       if (_memberData.selectedSeatId == null) {
         _showErrorSnackBar('Please allot a seat to proceed.');
         return false;
@@ -348,10 +314,6 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last.split('\\').last}';
     final path = 'library_members/$_libraryId/$subFolder/$fileName';
 
-    try {
-      await _supabase.storage.createBucket('silence_assets', const BucketOptions(public: true));
-    } catch (_) {}
-
     await _supabase.storage.from('silence_assets').uploadBinary(
       path,
       Uint8List.fromList(bytes),
@@ -368,11 +330,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     final bytes = await ImageOptimizer.compressImage(file.path);
     final path = 'member_profiles/$memberId/profile.jpg';
 
-    try {
-      await _supabase.storage.createBucket('silence_private', const BucketOptions(public: false));
-    } catch (_) {}
-
-    await _supabase.storage.from('silence_private').uploadBinary(
+    await _supabase.storage.from('silence_assets').uploadBinary(
       path,
       Uint8List.fromList(bytes),
       fileOptions: const FileOptions(
@@ -381,17 +339,17 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       ),
     );
 
-    return _supabase.storage.from('silence_private').getPublicUrl(path);
+    return _supabase.storage.from('silence_assets').getPublicUrl(path);
   }
 
   Future<void> _finalizeRegistration() async {
     setState(() => _isLoading = true);
     try {
-      // 1. Look up or insert user
+      // 1. Look up or insert user by phone or email
       var userObj = await _supabase
           .from('users')
           .select('id')
-          .eq('phone', _memberData.phone)
+          .or('phone.eq.${_memberData.phone},email.eq.${_memberData.email}')
           .maybeSingle();
 
       String memberUserId;
@@ -410,6 +368,41 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         memberUserId = newU['id'] as String;
       } else {
         memberUserId = userObj['id'] as String;
+
+        // Prevent duplicate active memberships
+        final activeMemberships = await _supabase
+            .from('memberships')
+            .select('id')
+            .eq('member_id', memberUserId)
+            .eq('library_id', _libraryId)
+            .inFilter('status', ['active', 'trial', 'hold']);
+
+        if (activeMemberships.isNotEmpty) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: Colors.white,
+                surfaceTintColor: Colors.transparent,
+                title: Text('Active Membership Found', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
+                content: Text(
+                  'This member already has an active membership in this library. Please renew or exit the existing membership before adding a new one.',
+                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('OK', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                  ),
+                ],
+              ),
+            );
+          }
+          return;
+        }
+
         await _supabase.from('users').update({
           'full_name': _memberData.name,
           'email': _memberData.email.isEmpty ? null : _memberData.email,
@@ -439,7 +432,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
 
       if (docUrl != null) {
         await _supabase.from('users').update({
-          'fcm_token': docUrl,
+          'id_proof_url': docUrl,
         }).eq('id', memberUserId);
       }
 
@@ -502,7 +495,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
 
   @override
   Widget build(BuildContext context) {
-    if (_memberData.mode == null) {
+    if (_isLoading && !_initialized) {
       return Scaffold(
         backgroundColor: const Color(0xFFFBF5EE),
         appBar: AppBar(
@@ -517,13 +510,102 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       );
     }
 
-    final currentProgress = (_currentStep + 1) / 5.0;
+    final List<Widget> steps = [];
+    if (_showLibrarySelection) {
+      steps.add(_buildLibrarySelectionStep());
+    }
+    steps.addAll([
+      AddMemberModeSelection(
+        selectedMode: _memberData.mode,
+        onModeSelected: (mode) {
+          setState(() {
+            _memberData.mode = mode;
+            _memberData.paymentFlow = 'paid';
+          });
+        },
+        onContinue: () {
+          _pageController.nextPage(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        },
+      ),
+      AddMemberStep1(
+        formKey: _step1FormKey,
+        memberData: _memberData,
+        libraryId: _libraryId,
+        currentDraftId: _draftId,
+        onDraftSelected: (draftId) {
+          _draftId = draftId;
+          _loadDraft(draftId);
+        },
+        onAutofillDetails: (user) {
+          setState(() {});
+        },
+      ),
+      AddMemberStep2(
+        libraryId: _libraryId,
+        memberData: _memberData,
+        onTotalAmountChanged: (val) {
+          setState(() {
+            _memberData.totalBasePrice = val;
+          });
+        },
+      ),
+      AddMemberStep3(
+        libraryId: _libraryId,
+        memberData: _memberData,
+        onSeatSelected: (seatId, label, floorId, sectionId, floorName, sectionName) {
+          setState(() {
+            _memberData.selectedSeatId = seatId;
+            _memberData.selectedSeatLabel = label;
+            _memberData.selectedFloorId = floorId;
+            _memberData.selectedFloorName = floorName;
+            _memberData.selectedSectionId = sectionId;
+            _memberData.selectedSectionName = sectionName;
+          });
+        },
+      ),
+    ]);
+
+    if (_memberData.mode != 'existing') {
+      steps.add(AddMemberStep4(
+        memberData: _memberData,
+      ));
+    }
+
+    steps.add(AddMemberStep5(
+      memberData: _memberData,
+      libraryName: _libraryName ?? 'Silence Library',
+      onEditStep: (step) {
+        int targetPage = step + 1; // standard Mode Selection is step + 1
+        if (_memberData.mode == 'existing' && step >= 4) {
+          targetPage = step; // Adjust since AddMemberStep4 is omitted
+        }
+        if (_showLibrarySelection) {
+          targetPage += 1;
+        }
+        _pageController.animateToPage(
+          targetPage,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      },
+      onSaveDraft: _saveAsDraft,
+      onConfirmRegister: _finalizeRegistration,
+    ));
+
+    final currentProgress = (_currentStep + 1) / steps.length;
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        _showExitDraftPrompt();
+        if (_currentStep == 0) {
+          Navigator.pop(context);
+        } else {
+          _showExitDraftPrompt();
+        }
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFFBF5EE),
@@ -537,7 +619,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
                 style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
               ),
               Text(
-                'Step ${_currentStep + 1} of 5: ${_getStepTitle()}',
+                'Step ${_currentStep + 1} of ${steps.length}: ${_getStepTitle(steps)}',
                 style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
               ),
             ],
@@ -545,10 +627,11 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
           foregroundColor: Colors.white,
           elevation: 0,
           actions: [
-            TextButton(
-              onPressed: _saveAsDraft,
-              child: const Text('Save Draft', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
+            if (_currentStep > 0)
+              TextButton(
+                onPressed: _saveAsDraft,
+                child: const Text('Save Draft', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
           ],
         ),
         body: Stack(
@@ -571,54 +654,10 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
                         _currentStep = page;
                       });
                     },
-                    children: [
-                      AddMemberStep1(
-                        memberData: _memberData,
-                        onAutofillDetails: (user) {
-                          setState(() {});
-                        },
-                      ),
-                      AddMemberStep2(
-                        libraryId: _libraryId,
-                        memberData: _memberData,
-                        onTotalAmountChanged: (val) {
-                          setState(() {
-                            _memberData.totalBasePrice = val;
-                          });
-                        },
-                      ),
-                      AddMemberStep3(
-                        libraryId: _libraryId,
-                        memberData: _memberData,
-                        onSeatSelected: (seatId, label, floorId, sectionId, floorName, sectionName) {
-                          setState(() {
-                            _memberData.selectedSeatId = seatId;
-                            _memberData.selectedSeatLabel = label;
-                            _memberData.selectedFloorId = floorId;
-                            _memberData.selectedFloorName = floorName;
-                            _memberData.selectedSectionId = sectionId;
-                            _memberData.selectedSectionName = sectionName;
-                          });
-                        },
-                      ),
-                      AddMemberStep4(
-                        memberData: _memberData,
-                      ),
-                      AddMemberStep5(
-                        memberData: _memberData,
-                        libraryName: _libraryName ?? 'Silence Library',
-                        onEditStep: (step) {
-                          _pageController.animateToPage(
-                            step,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                      ),
-                    ],
+                    children: steps,
                   ),
                 ),
-                _buildFooter(),
+                if (_currentStep > 0 && !(_showLibrarySelection && _currentStep == 0)) _buildFooter(steps),
               ],
             ),
             if (_isLoading)
@@ -634,78 +673,220 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     );
   }
 
-  String _getStepTitle() {
-    switch (_currentStep) {
-      case 0:
-        return 'Personal Details';
-      case 1:
-        return 'Plan Configuration';
-      case 2:
-        return 'Seat Assignment';
-      case 3:
-        return 'Payment Details';
-      case 4:
-        return 'Review & Confirm';
-      default:
-        return '';
+  String _getStepTitle(List<Widget> steps) {
+    if (_currentStep < 0 || _currentStep >= steps.length) return '';
+    final widget = steps[_currentStep];
+    if (widget is AddMemberModeSelection) {
+      return 'Choose Mode';
+    } else if (widget is AddMemberStep1) {
+      return 'Personal Details';
+    } else if (widget is AddMemberStep2) {
+      return 'Plan Configuration';
+    } else if (widget is AddMemberStep3) {
+      return 'Seat Assignment';
+    } else if (widget is AddMemberStep4) {
+      return 'Payment Details';
+    } else if (widget is AddMemberStep5) {
+      return 'Review & Confirm';
+    } else {
+      return 'Select Library';
     }
   }
 
-  Widget _buildFooter() {
-    final isLastStep = _currentStep == 4;
+  Widget _buildFooter(List<Widget> steps) {
+    final isLastStep = _currentStep == steps.length - 1;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          if (_currentStep > 0)
-            OutlinedButton(
-              onPressed: () {
-                _pageController.previousPage(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-              },
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFCBD5E1)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                'Back',
-                style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
-              ),
-            )
-          else
-            const SizedBox.shrink(),
-          ElevatedButton(
+          OutlinedButton(
             onPressed: () {
-              if (_validateStep()) {
-                if (isLastStep) {
-                  _finalizeRegistration();
-                } else {
+              _pageController.previousPage(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            },
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFFE5E7EB)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text(
+              'Back',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFF6B7280)),
+            ),
+          ),
+          if (!isLastStep)
+            ElevatedButton(
+              onPressed: () {
+                if (_validateStep()) {
                   _pageController.nextPage(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
                   );
                 }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE65C00),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: Text(
+                'Continue',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+              ),
             ),
-            child: Text(
-              isLastStep ? 'Confirm & Register' : 'Continue',
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLibrarySelectionStep() {
+    return Container(
+      color: const Color(0xFFFBF5EE),
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 40, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE65C00).withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.storefront,
+                      size: 36,
+                      color: Color(0xFFE65C00),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Select Library branch',
+                    style: GoogleFonts.outfit(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1A1A2E),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please select the library branch where the member wants to register.',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: const Color(0xFF6B7280),
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 36),
+                  
+                  // Library cards
+                  ..._ownedLibraries.map((lib) {
+                    final isSelected = _libraryId == lib['id'];
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          _libraryId = lib['id'] as String;
+                          _libraryName = lib['name'] as String?;
+                        });
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
+                            width: isSelected ? 2 : 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: isSelected ? 0.06 : 0.02),
+                              blurRadius: isSelected ? 12 : 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                              color: isSelected ? const Color(0xFFE65C00) : Colors.grey[400],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                lib['name'] ?? 'Silence Library',
+                                style: GoogleFonts.outfit(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+          
+          // Next Button
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _libraryId.isNotEmpty
+                    ? () {
+                        _pageController.nextPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65C00),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFFE5E7EB),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  'Continue',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: _libraryId.isNotEmpty ? Colors.white : const Color(0xFF9CA3AF),
+                  ),
+                ),
+              ),
             ),
           ),
         ],

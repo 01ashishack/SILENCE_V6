@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -66,14 +67,36 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           }
         }
 
-        // Set standard mock invoices
-        _invoices = [
-          InvoiceItem(id: 'INV-2026-904', date: '12 May 2026', amount: 799, status: 'Paid'),
-          InvoiceItem(id: 'INV-2026-788', date: '12 Apr 2026', amount: 799, status: 'Paid'),
-          InvoiceItem(id: 'INV-2026-612', date: '12 Mar 2026', amount: 799, status: 'Paid'),
-        ];
-        if (_currentPlan == 'Free Trial') {
-          _invoices.clear();
+        // Fetch real invoice history from payments table
+        try {
+          final paymentsRes = await _supabase
+              .from('payments')
+              .select('id, amount, payment_date, type, method')
+              .eq('member_id', user.id)
+              .order('payment_date', ascending: false)
+              .limit(10);
+          _invoices = (paymentsRes as List).map<InvoiceItem>((p) {
+            final rawDate = p['payment_date'] as String?;
+            String formattedDate = 'N/A';
+            if (rawDate != null) {
+              try {
+                formattedDate = DateFormat('dd MMM yyyy').format(DateTime.parse(rawDate).toLocal());
+              } catch (_) {
+                formattedDate = rawDate.split('T').first;
+              }
+            }
+            final amt = (p['amount'] as num? ?? 0).toDouble();
+            final shortId = 'INV-${(p['id'] as String? ?? '').substring(0, 8).toUpperCase()}';
+            final method = (p['method'] as String? ?? 'upi').toUpperCase();
+            return InvoiceItem(
+              id: shortId,
+              date: formattedDate,
+              amount: amt,
+              status: method,
+            );
+          }).toList();
+        } catch (_) {
+          _invoices = [];
         }
       } catch (e) {
         debugPrint('Error loading subscription stats: $e');

@@ -31,7 +31,7 @@ class AdminProfileTab extends StatefulWidget {
   State<AdminProfileTab> createState() => _AdminProfileTabState();
 }
 
-class _AdminProfileTabState extends State<AdminProfileTab> {
+class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
 
@@ -56,8 +56,8 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
         'name': lib['name'] ?? 'Study Center',
         'address_city': lib['address_city'] ?? 'City',
         'cover_photo_url': coverPhotoUrl,
-        'member_count': 120, // default fallback
-        'occupancy_pct': 85,  // default fallback
+        'member_count': 0, // starts at 0; loaded dynamically below
+        'occupancy_pct': 0, // starts at 0; loaded dynamically below
       };
     }));
 
@@ -139,7 +139,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
   }
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -620,7 +624,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
   Widget _buildGridItem(BuildContext context, IconData icon, String label, String routeName) {
     return InkWell(
       onTap: () {
-        Navigator.pushNamed(context, routeName).then((_) {
+        Navigator.pushNamed(
+          context,
+          routeName,
+          arguments: widget.libraryId,
+        ).then((_) {
           _loadProfileData();
         });
       },
@@ -693,7 +701,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
       ),
       trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
       onTap: () {
-        Navigator.pushNamed(context, routeName).then((_) {
+        Navigator.pushNamed(
+          context,
+          routeName,
+          arguments: widget.libraryId,
+        ).then((_) {
           _loadProfileData();
         });
       },

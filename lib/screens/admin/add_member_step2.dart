@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/calendar_picker.dart';
 import '../../models/member_data.dart';
+import '../../core/cache_service.dart';
 
 class AddMemberStep2 extends StatefulWidget {
   final String libraryId;
@@ -49,6 +51,13 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
     if (_trialDaysController.text != widget.memberData.trialDays.toString()) {
       _trialDaysController.text = widget.memberData.trialDays.toString();
     }
+    debugPrint('=== didUpdateWidget Triggered ===');
+    debugPrint('old widget.libraryId: "${oldWidget.libraryId}"');
+    debugPrint('new widget.libraryId: "${widget.libraryId}"');
+    if (widget.libraryId != oldWidget.libraryId && widget.libraryId.isNotEmpty) {
+      _isLoading = true;
+      _fetchShiftsAndAddons();
+    }
   }
 
   @override
@@ -57,24 +66,98 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
     super.dispose();
   }
 
+  String _formatTimeHM(String? timeStr) {
+    if (timeStr == null || timeStr.isEmpty) return '';
+    try {
+      final parts = timeStr.split(':');
+      if (parts.isNotEmpty) {
+        final hour = int.tryParse(parts[0]) ?? 0;
+        final minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+        final tod = TimeOfDay(hour: hour, minute: minute);
+        final now = DateTime.now();
+        final dt = DateTime(now.year, now.month, now.day, tod.hour, tod.minute);
+        return DateFormat('h:mm a').format(dt); // e.g. "6:00 AM"
+      }
+    } catch (_) {}
+    return timeStr;
+  }
+
+  Future<String> _getLibraryId() async {
+    if (widget.libraryId.isNotEmpty && widget.libraryId != 'all') {
+      return widget.libraryId;
+    }
+    
+    // Check local cache
+    try {
+      final cached = await CacheService.instance.readCache('admin_owned_libraries');
+      if (cached != null && cached is List && cached.isNotEmpty) {
+        final libId = cached.first['id'] as String?;
+        if (libId != null && libId.isNotEmpty) {
+          debugPrint('=== AddMemberStep2 resolved libraryId from cache: $libId ===');
+          return libId;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error reading cached libraries: $e');
+    }
+
+    // Query Supabase
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user != null) {
+        final res = await _supabase
+            .from('libraries')
+            .select('id')
+            .eq('owner_id', user.id)
+            .maybeSingle();
+        if (res != null) {
+          final libId = res['id'] as String?;
+          if (libId != null && libId.isNotEmpty) {
+            debugPrint('=== AddMemberStep2 resolved libraryId from DB: $libId ===');
+            return libId;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching libraries from Supabase: $e');
+    }
+
+    return '';
+  }
+
   Future<void> _fetchShiftsAndAddons() async {
     try {
-      final shiftsRes = await _supabase
+      debugPrint('=== DIAGNOSTIC START ===');
+      debugPrint('widget.libraryId passed to step: "${widget.libraryId}"');
+      
+      final libraryId = await _getLibraryId();
+      debugPrint('FETCH START');
+      debugPrint('libraryId = $libraryId');
+      
+      if (libraryId.isEmpty) {
+        debugPrint('Warning: resolved activeLibraryId is empty. Target line for _shifts = [] triggered at: Empty Library ID check.');
+        if (mounted) {
+          setState(() {
+            _shifts = [];
+            _addOns = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      // 1. Fetch shifts first and update immediately
+      final shifts = await _supabase
           .from('shifts')
           .select('id, name, start_time, end_time, price_monthly, price_3month, price_6month, trial_days')
-          .eq('library_id', widget.libraryId)
+          .eq('library_id', libraryId)
           .eq('is_archived', false);
 
-      final addonsRes = await _supabase
-          .from('add_ons')
-          .select('id, name, price, deposit')
-          .eq('library_id', widget.libraryId)
-          .eq('active', true);
+      debugPrint('Supabase rows returned = ${shifts.length}');
 
       if (mounted) {
         setState(() {
-          _shifts = List<Map<String, dynamic>>.from(shiftsRes);
-          _addOns = List<Map<String, dynamic>>.from(addonsRes);
+          _shifts = List<Map<String, dynamic>>.from(shifts);
           _isLoading = false;
 
           // Default shift selection if none is set or selected shift doesn't exist anymore
@@ -91,8 +174,28 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
         });
         _calculateTotal();
       }
+
+      // 2. Fetch add-ons independently and handle failure without breaking shifts rendering
+      try {
+        final addonsRes = await _supabase
+            .from('add_ons')
+            .select('id, name, price, refundable_deposit')
+            .eq('library_id', libraryId)
+            .eq('active', true);
+
+        if (mounted) {
+          setState(() {
+            _addOns = List<Map<String, dynamic>>.from(addonsRes);
+          });
+          _calculateTotal();
+        }
+      } catch (addonsError) {
+        debugPrint('Resilient loading: Failed to load add-ons, but shifts are rendered. Error: $addonsError');
+      }
+
+      debugPrint('=== DIAGNOSTIC END ===');
     } catch (e) {
-      debugPrint('Error loading shifts/addons: $e');
+      debugPrint('Caught exception during shift loading: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -133,7 +236,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
     for (final addOn in _addOns) {
       if (widget.memberData.selectedAddonIds.contains(addOn['id'])) {
         final price = (addOn['price'] as num?)?.toInt() ?? 0;
-        final deposit = (addOn['deposit'] as num?)?.toInt() ?? 0;
+        final deposit = (addOn['refundable_deposit'] as num?)?.toInt() ?? 0;
         total += price + deposit;
       }
     }
@@ -169,7 +272,13 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
     super.build(context);
     final theme = Theme.of(context);
 
+    debugPrint('BUILD START');
+    debugPrint('libraryId = ${widget.libraryId}');
+    debugPrint('_isLoading = $_isLoading');
+    debugPrint('_shifts.length = ${_shifts.length}');
+
     if (_isLoading) {
+      debugPrint('build enters: Loading branch');
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24.0),
@@ -181,17 +290,70 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
     }
 
     if (_shifts.isEmpty) {
+      debugPrint('build enters: Empty state branch');
+      final isLibEmpty = widget.libraryId.isEmpty || widget.libraryId == 'all';
       return Center(
-        child: Padding(
+        child: Container(
+          margin: const EdgeInsets.all(24.0),
           padding: const EdgeInsets.all(24.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.warning_amber_rounded, size: 48, color: Colors.grey[400]),
-              const SizedBox(height: 12),
+              const Icon(Icons.warning_amber_rounded, size: 48, color: Color(0xFFE65C00)),
+              const SizedBox(height: 16),
               Text(
-                'No active shifts configured for this library.',
-                style: GoogleFonts.inter(color: Colors.grey[600]),
+                isLibEmpty
+                    ? 'Library ID not found. Please select a library.'
+                    : 'No shifts configured for this library.',
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1A1A2E),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isLibEmpty
+                    ? 'Go back to Admin Home and choose a valid library.'
+                    : 'Please add shifts in Library Setup.',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF6B7280),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _isLoading = true;
+                  });
+                  _fetchShiftsAndAddons();
+                },
+                icon: const Icon(Icons.refresh, size: 16, color: Colors.white),
+                label: Text(
+                  'Refresh Shifts',
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65C00),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
               ),
             ],
           ),
@@ -201,6 +363,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
 
     final start = _calculatedPlanStart;
     final expiry = _calculatedExpiry;
+    debugPrint('build enters: Main content branch');
 
     return Theme(
       data: theme.copyWith(
@@ -243,11 +406,11 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
               itemBuilder: (context, index) {
                 final s = _shifts[index];
                 final isSelected = widget.memberData.selectedShiftId == s['id'];
-                final price = (s['price_monthly'] as num?)?.toInt() ?? 1500;
+                 final price = (s['price_monthly'] as num?)?.toInt() ?? 1500;
                 final startT = s['start_time'] ?? '08:00';
                 final endT = s['end_time'] ?? '16:00';
-                final cleanStart = startT.length > 5 ? startT.substring(0, 5) : startT;
-                final cleanEnd = endT.length > 5 ? endT.substring(0, 5) : endT;
+                final formattedStart = _formatTimeHM(startT);
+                final formattedEnd = _formatTimeHM(endT);
 
                 return InkWell(
                   onTap: () {
@@ -269,7 +432,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.02),
+                          color: Colors.black.withValues(alpha: 0.02),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -295,7 +458,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                                 Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '$cleanStart - $cleanEnd',
+                                  '$formattedStart – $formattedEnd',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     color: const Color(0xFF64748B),
@@ -409,7 +572,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                 child: InputDecorator(
                   decoration: InputDecoration(
                     labelText: widget.memberData.mode == 'existing' ? 'Plan Start Date *' : 'Custom Plan Start Date *',
-                    suffixIcon: const Icon(Icons.calendar_today_outlined, size: 20, color: Color(0xFF64748B)),
+                    suffixIcon: const Icon(Icons.calendar_today, size: 20, color: Color(0xFF64748B)),
                   ),
                   child: Text(
                     '${start.day}/${start.month}/${start.year}',
@@ -433,7 +596,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.info_outline, color: Color(0xFFE65C00), size: 18),
+                      const Icon(Icons.info, color: Color(0xFFE65C00), size: 18),
                       const SizedBox(width: 8),
                       Text(
                         'Membership Schedule',
@@ -469,7 +632,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                   final addonId = addOn['id'] as String;
                   final isSelected = widget.memberData.selectedAddonIds.contains(addonId);
                   final price = (addOn['price'] as num?)?.toInt() ?? 0;
-                  final deposit = (addOn['deposit'] as num?)?.toInt() ?? 0;
+                  final deposit = (addOn['refundable_deposit'] as num?)?.toInt() ?? 0;
 
                   return InkWell(
                     onTap: () {
@@ -495,7 +658,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.02),
+                            color: Colors.black.withValues(alpha: 0.02),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -534,7 +697,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Price: ₹$price' + (deposit > 0 ? ' • Deposit: ₹$deposit' : ''),
+                                  'Price: ₹$price${deposit > 0 ? ' • Deposit: ₹$deposit' : ''}',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     color: const Color(0xFF64748B),
@@ -577,7 +740,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                 border: Border.all(color: const Color(0xFFE5E7EB)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),

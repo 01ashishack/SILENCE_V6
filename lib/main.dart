@@ -28,6 +28,9 @@ import 'screens/subscription_screen.dart';
 import 'screens/audit_log_screen.dart';
 import 'screens/referral_settings.dart';
 import 'screens/scheduled_closures.dart';
+import 'screens/announcements_history_screen.dart';
+
+import 'screens/admin/add_member_wizard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,6 +67,16 @@ class SilenceApp extends StatelessWidget {
           secondary: const Color(0xFF0F172A), // Sleek Dark Slate
         ),
         scaffoldBackgroundColor: const Color(0xFFFBF5EE), // premium warm cream
+        
+        // Dialog and Bottom Sheet themes set to crisp white
+        dialogTheme: const DialogThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+        ),
         
         // Custom Typography
         textTheme: GoogleFonts.interTextTheme(
@@ -114,10 +127,12 @@ class SilenceApp extends StatelessWidget {
         '/admin/settings/addons': (context) => const AddonServicesScreen(),
         '/admin/settings/notifications': (context) => const NotificationPreferencesScreen(),
         '/admin/exports': (context) => const ExportCenterScreen(),
+        '/admin/announcements': (context) => const AnnouncementsHistoryScreen(),
         '/admin/subscription': (context) => const SubscriptionScreen(),
         '/admin/audit-log': (context) => const AuditLogScreen(),
         '/admin/settings/referrals': (context) => const ReferralSettingsScreen(),
         '/admin/settings/closures': (context) => const ScheduledClosuresScreen(),
+        '/admin/member/add': (context) => const AddMemberWizard(),
       },
     );
   }

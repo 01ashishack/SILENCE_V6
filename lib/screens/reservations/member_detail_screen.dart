@@ -42,9 +42,16 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_memberId == null) {
-      final args = ModalRoute.of(context)!.settings.arguments;
+      final route = ModalRoute.of(context);
+      final args = route?.settings.arguments;
       if (args is String) {
         _memberId = args;
+        _fetchMemberData();
+      } else if (args is Map<String, dynamic> && args.containsKey('memberId')) {
+        _memberId = args['memberId'] as String?;
+        _fetchMemberData();
+      } else if (args is Map<String, dynamic> && args.containsKey('id')) {
+        _memberId = args['id'] as String?;
         _fetchMemberData();
       } else {
         setState(() {
@@ -153,14 +160,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 await supabase.from('users').update({
                   'full_name': nameController.text.trim(),
                   'phone': phoneController.text.trim(),
-                }).eq('id', _memberId!);
+                }).eq('id', _memberId ?? '');
 
                 _fetchMemberData();
-                if (context.mounted) {
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Member profile updated successfully! ✓')));
                 }
               } catch (e) {
-                if (context.mounted) {
+                if (mounted) {
                   setState(() => _isLoading = false);
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
                 }
@@ -187,8 +194,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       }).eq('id', mId);
 
       // Refresh local membership details cache to update UI state
-      if (_membershipData != null && _membershipData!['member_id'] != null) {
-        _membershipData!['member_id']!['nickname'] = _notesController.text.trim();
+      if (_membershipData != null && _membershipData!['member_id'] is Map<String, dynamic>) {
+        (_membershipData!['member_id'] as Map<String, dynamic>)['nickname'] = _notesController.text.trim();
       }
 
       if (mounted) {

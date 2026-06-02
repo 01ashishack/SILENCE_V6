@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'layout_sub_tab.dart';
 import 'members_sub_tab.dart';
 import 'requests_sub_tab.dart';
@@ -14,6 +15,8 @@ class ReservationsTab extends StatefulWidget {
   final List<Map<String, dynamic>> myLibraries;
   final Function(String) onLibraryChanged;
 
+  final int initialSubTab;
+
   const ReservationsTab({
     super.key,
     required this.libraryId,
@@ -21,13 +24,14 @@ class ReservationsTab extends StatefulWidget {
     required this.libraryCover,
     required this.myLibraries,
     required this.onLibraryChanged,
+    this.initialSubTab = 0,
   });
 
   @override
   State<ReservationsTab> createState() => _ReservationsTabState();
 }
 
-class _ReservationsTabState extends State<ReservationsTab> {
+class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAliveClientMixin {
   int _activeSubTab = 0; // 0: Layout, 1: Members, 2: Requests, 3: Archive
 
   final List<String> _subTabNames = [
@@ -50,6 +54,7 @@ class _ReservationsTabState extends State<ReservationsTab> {
   @override
   void initState() {
     super.initState();
+    _activeSubTab = widget.initialSubTab;
     _selectedLibraryId = widget.libraryId;
     _selectedLibraryName = widget.libraryName;
     _selectedLibraryCover = widget.libraryCover;
@@ -59,6 +64,11 @@ class _ReservationsTabState extends State<ReservationsTab> {
   @override
   void didUpdateWidget(covariant ReservationsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialSubTab != widget.initialSubTab) {
+      setState(() {
+        _activeSubTab = widget.initialSubTab;
+      });
+    }
     if (oldWidget.libraryId != widget.libraryId ||
         oldWidget.libraryName != widget.libraryName ||
         oldWidget.libraryCover != widget.libraryCover ||
@@ -68,6 +78,10 @@ class _ReservationsTabState extends State<ReservationsTab> {
         _selectedLibraryName = widget.libraryName;
         _selectedLibraryCover = widget.libraryCover;
         _myLibraries = widget.myLibraries;
+      });
+      // Trigger a refresh on LayoutSubTab state
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _layoutSubTabKey.currentState?.refresh();
       });
     }
   }
@@ -145,11 +159,18 @@ class _ReservationsTabState extends State<ReservationsTab> {
                               child: itemCover != null && itemCover.isNotEmpty
                                   ? ClipRRect(
                                       borderRadius: BorderRadius.circular(20),
-                                      child: Image.network(
-                                        itemCover,
+                                      child: CachedNetworkImage(
+                                        imageUrl: itemCover,
                                         fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
+                                        memCacheWidth: 200,
+                                        placeholder: (context, url) => const Center(
+                                          child: CircularProgressIndicator(
+                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                                            strokeWidth: 1.5,
+                                          ),
+                                        ),
+                                        errorWidget:
+                                            (context, url, error) =>
                                                 const Icon(
                                                   Icons.business_rounded,
                                                   color: Color(0xFFE65C00),
@@ -245,8 +266,29 @@ class _ReservationsTabState extends State<ReservationsTab> {
     );
   }
 
+  String _getLibraryAddress() {
+    final selectedLib = _myLibraries.firstWhere(
+      (lib) => lib['id']?.toString().toLowerCase() == _selectedLibraryId?.toString().toLowerCase(),
+      orElse: () => <String, dynamic>{},
+    );
+    final String city = selectedLib['address_city'] ?? '';
+    final String state = selectedLib['address_state'] ?? '';
+    if (city.isNotEmpty && state.isNotEmpty) {
+      return '$city, $state';
+    } else if (city.isNotEmpty) {
+      return city;
+    } else if (state.isNotEmpty) {
+      return state;
+    }
+    return 'Library Address';
+  }
+
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_selectedLibraryId == null || _selectedLibraryId!.isEmpty || _selectedLibraryId == 'null') {
       return Scaffold(
         backgroundColor: const Color(0xFFFBF5EE),
@@ -288,39 +330,33 @@ class _ReservationsTabState extends State<ReservationsTab> {
       );
     }
 
-    final todayFormatted = DateFormat(
-      'EEE, d MMM',
-    ).format(DateTime.now()).toUpperCase();
+    final todayFormatted = DateFormat('EEE dd/MM').format(DateTime.now()).toUpperCase();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: const Color(
-          0xFFE65C00,
-        ), // Matching top status bar perfectly
-        body: Column(
+      child: Container(
+        color: const Color(0xFFFBF5EE),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 1. Orange Curved Header (Matching Admin Home & Screenshots exactly)
             Container(
               padding: EdgeInsets.only(
-                top: MediaQuery.of(context).padding.top + 12,
-                bottom: 24,
+                top: MediaQuery.of(context).padding.top + 16,
+                bottom: 32,
                 left: 16,
                 right: 16,
               ),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFFFF6B00), // Vibrant Bright Orange
-                    Color(0xFFE65C00), // Primary Brand Orange
+                    Color(0xFFFF6B00),
+                    Color(0xFFE65C00),
                   ],
                 ),
                 borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
                 ),
               ),
               child: Row(
@@ -347,11 +383,18 @@ class _ReservationsTabState extends State<ReservationsTab> {
                                   _selectedLibraryCover!.isNotEmpty
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(25),
-                                  child: Image.network(
-                                    _selectedLibraryCover!,
+                                  child: CachedNetworkImage(
+                                    imageUrl: _selectedLibraryCover!,
                                     fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
+                                    memCacheWidth: 200,
+                                    placeholder: (context, url) => const Center(
+                                      child: CircularProgressIndicator(
+                                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    errorWidget:
+                                        (context, url, error) =>
                                             const Icon(
                                               Icons.business_rounded,
                                               color: Color(0xFFE65C00),
@@ -369,26 +412,39 @@ class _ReservationsTabState extends State<ReservationsTab> {
                         Expanded(
                           child: InkWell(
                             onTap: () => _showLibrarySwitcherPopup(context),
-                            child: Row(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Flexible(
-                                  child: Text(
-                                    _selectedLibraryName,
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        _selectedLibraryName,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.keyboard_arrow_down,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.keyboard_arrow_down,
-                                  color: Colors.white,
-                                  size: 20,
+                                Text(
+                                  _getLibraryAddress(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10.5,
+                                    color: Colors.white.withOpacity(0.85),
+                                  ),
                                 ),
                               ],
                             ),
@@ -399,85 +455,39 @@ class _ReservationsTabState extends State<ReservationsTab> {
                   ),
                   const SizedBox(width: 8),
 
-                  // Header Right Side Actions
-                  _activeSubTab == 0
-                      ? ElevatedButton.icon(
-                          onPressed: () {
-                            // Trigger S071 Bottom Sheet on the active LayoutSubTab State
-                            _layoutSubTabKey.currentState
-                                ?.showManageLayoutBottomSheet();
-                          },
-                          icon: const Icon(
-                            Icons.settings,
-                            size: 14,
-                            color: Color(0xFFE65C00),
-                          ),
-                          label: Text(
-                            'Manage Layout',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFFE65C00),
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFFE65C00),
-                            elevation: 0,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                          ),
-                        )
-                      : Row(
-                          children: [
-                            // Date Pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.5),
-                                  width: 1.0,
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                                color: Colors.white.withOpacity(0.12),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.calendar_today_outlined,
-                                    size: 12,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    todayFormatted,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            // Bell Icon
-                            Icon(
-                              Icons.notifications_none_rounded,
-                              color: Colors.white.withOpacity(0.9),
-                              size: 20,
-                            ),
-                          ],
+                  // Header Right Side Actions (Date Pill only)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.5),
+                        width: 1.0,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.white.withOpacity(0.12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 12,
+                          color: Colors.white,
                         ),
+                        const SizedBox(width: 4),
+                        Text(
+                          todayFormatted,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -496,6 +506,9 @@ class _ReservationsTabState extends State<ReservationsTab> {
                         setState(() {
                           _activeSubTab = index;
                         });
+                        if (index == 0) {
+                          _layoutSubTabKey.currentState?.refresh();
+                        }
                       },
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -547,6 +560,7 @@ class _ReservationsTabState extends State<ReservationsTab> {
                       libraryId: _selectedLibraryId!,
                     ), // Members Sub-tab
                     RequestsSubTab(
+                      key: ValueKey('requests_tab_${_activeSubTab == 2}_$_selectedLibraryId'),
                       libraryId: _selectedLibraryId!,
                     ), // Requests Sub-tab
                     ArchiveSubTab(

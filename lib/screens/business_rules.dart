@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/admin_settings_service.dart';
 
 class BusinessRulesScreen extends StatefulWidget {
   final String? libraryId;
@@ -43,12 +43,15 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
           }
         }
 
-        final prefs = await SharedPreferences.getInstance();
-        _discountController.text = prefs.getString('rules_discount_${_libId ?? "default"}') ?? '15';
-        _graceDaysController.text = prefs.getString('rules_grace_${_libId ?? "default"}') ?? '3';
-        _holdDurationController.text = prefs.getString('rules_hold_duration_${_libId ?? "default"}') ?? '15';
-        _holdCountController.text = prefs.getString('rules_hold_count_${_libId ?? "default"}') ?? '2';
-        _allowExpiredCheckIn = prefs.getBool('rules_allow_expired_checkin_${_libId ?? "default"}') ?? false;
+        final storedRules = await AdminSettingsService.load(
+          scope: 'business_rules',
+          libraryId: _libId,
+        );
+        _discountController.text = storedRules['max_discount']?.toString() ?? '15';
+        _graceDaysController.text = storedRules['grace_days']?.toString() ?? '3';
+        _holdDurationController.text = storedRules['max_hold_days']?.toString() ?? '15';
+        _holdCountController.text = storedRules['max_holds']?.toString() ?? '2';
+        _allowExpiredCheckIn = storedRules['allow_expired_checkin'] as bool? ?? false;
 
         // Optionally fetch from supabase libraries metadata/rules field if it exists
         if (_libId != null) {
@@ -74,22 +77,21 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('rules_discount_${_libId ?? "default"}', _discountController.text);
-      await prefs.setString('rules_grace_${_libId ?? "default"}', _graceDaysController.text);
-      await prefs.setString('rules_hold_duration_${_libId ?? "default"}', _holdDurationController.text);
-      await prefs.setString('rules_hold_count_${_libId ?? "default"}', _holdCountController.text);
-      await prefs.setBool('rules_allow_expired_checkin_${_libId ?? "default"}', _allowExpiredCheckIn);
+      final rulesMap = {
+        'max_discount': int.tryParse(_discountController.text) ?? 15,
+        'grace_days': int.tryParse(_graceDaysController.text) ?? 3,
+        'max_hold_days': int.tryParse(_holdDurationController.text) ?? 15,
+        'max_holds': int.tryParse(_holdCountController.text) ?? 2,
+        'allow_expired_checkin': _allowExpiredCheckIn,
+      };
+
+      await AdminSettingsService.save(
+        scope: 'business_rules',
+        libraryId: _libId,
+        value: rulesMap,
+      );
 
       if (_libId != null) {
-        final rulesMap = {
-          'max_discount': int.tryParse(_discountController.text) ?? 15,
-          'grace_days': int.tryParse(_graceDaysController.text) ?? 3,
-          'max_hold_days': int.tryParse(_holdDurationController.text) ?? 15,
-          'max_holds': int.tryParse(_holdCountController.text) ?? 2,
-          'allow_expired_checkin': _allowExpiredCheckIn,
-        };
-
         try {
           await _supabase.from('libraries').update({
             'rules_metadata': rulesMap,

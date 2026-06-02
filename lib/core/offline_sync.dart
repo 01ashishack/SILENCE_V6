@@ -61,13 +61,12 @@ class OfflineSyncManager {
 
         try {
           if (type == 'checkin') {
-            // Find user's active membership for this library & shift
+            // Find user's active membership for this library
             final activeMembership = await supabase
                 .from('memberships')
-                .select('id')
+                .select('id, shift_id')
                 .eq('member_id', memberId)
                 .eq('library_id', libraryId)
-                .eq('shift_id', shiftId)
                 .inFilter('status', ['active', 'trial'])
                 .maybeSingle();
 
@@ -78,13 +77,14 @@ class OfflineSyncManager {
             }
 
             final membershipId = activeMembership['id'];
+            final realShiftId = activeMembership['shift_id'];
 
             // Insert check-in record
             await supabase.from('attendance').insert({
               'membership_id': membershipId,
               'member_id': memberId,
               'library_id': libraryId,
-              'shift_id': shiftId,
+              'shift_id': realShiftId,
               'check_in_time': timestamp,
               'check_out_time': null,
               'session_type': 'normal',
@@ -104,7 +104,6 @@ class OfflineSyncManager {
                 .select('id, check_in_time')
                 .eq('member_id', memberId)
                 .eq('library_id', libraryId)
-                .eq('shift_id', shiftId)
                 .isFilter('check_out_time', null)
                 .order('check_in_time', ascending: false)
                 .limit(1)

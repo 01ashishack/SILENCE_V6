@@ -67,18 +67,39 @@ class _VacantSeatGridState extends State<VacantSeatGrid> {
           .select('id, name')
           .eq('library_id', widget.libraryId);
 
-      // 2. Fetch Sections
-      final sectionsRes = await _supabase
-          .from('sections')
-          .select('id, name, floor_id')
+      final floorIds = floorsRes.map((f) => f['id']).toList();
+      List<dynamic> sectionsRes = [];
+      List<dynamic> seatsRes = [];
+
+      if (floorIds.isNotEmpty) {
+        // 2. Fetch Sections belonging to these floors
+        sectionsRes = await _supabase
+            .from('sections')
+            .select('id, name, floor_id')
+            .inFilter('floor_id', floorIds);
+
+        // 3. Fetch Seats for shift
+        seatsRes = await _supabase
+            .from('seats')
+            .select('id, floor_id, section_id, seat_label, status')
+            .eq('library_id', widget.libraryId)
+            .eq('shift_id', widget.shiftId);
+      }
+
+      // 4. Fetch Shifts to count them for debug logs
+      final shiftsRes = await _supabase
+          .from('shifts')
+          .select('id')
           .eq('library_id', widget.libraryId);
 
-      // 3. Fetch Seats for shift
-      final seatsRes = await _supabase
-          .from('seats')
-          .select('id, floor_id, section_id, seat_label, status')
-          .eq('library_id', widget.libraryId)
-          .eq('shift_id', widget.shiftId);
+      // 5. Output detailed debug logs
+      debugPrint('=== VacantSeatGrid Layout Loading Audit ===');
+      debugPrint('- selected libraryId: "${widget.libraryId}"');
+      debugPrint('- floors count: ${floorsRes.length}');
+      debugPrint('- sections count: ${sectionsRes.length}');
+      debugPrint('- seats count: ${seatsRes.length}');
+      debugPrint('- shifts count: ${shiftsRes.length}');
+      debugPrint('============================================');
 
       if (mounted) {
         setState(() {
@@ -215,28 +236,30 @@ class _VacantSeatGridState extends State<VacantSeatGrid> {
                 },
               ),
             ),
-            const SizedBox(width: 12),
-            // Section Dropdown
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                value: _selectedSectionId,
-                decoration: const InputDecoration(
-                  labelText: 'Section',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            if (floorSections.isNotEmpty) ...[
+              const SizedBox(width: 12),
+              // Section Dropdown
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedSectionId,
+                  decoration: const InputDecoration(
+                    labelText: 'Section',
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  items: floorSections.map((s) {
+                    return DropdownMenuItem<String>(
+                      value: s['id'],
+                      child: Text(s['name'] ?? 'Section'),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedSectionId = val;
+                    });
+                  },
                 ),
-                items: floorSections.map((s) {
-                  return DropdownMenuItem<String>(
-                    value: s['id'],
-                    child: Text(s['name'] ?? 'Section'),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    _selectedSectionId = val;
-                  });
-                },
               ),
-            ),
+            ],
           ],
         ),
         const SizedBox(height: 16),
@@ -316,7 +339,7 @@ class _VacantSeatGridState extends State<VacantSeatGrid> {
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
+                                    color: Colors.black.withValues(alpha: 0.05),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),

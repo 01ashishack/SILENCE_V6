@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 class MemberData {
+  String tempId = DateTime.now().millisecondsSinceEpoch.toString();
   String? mode; // 'new' or 'existing'
   String name = '';
   String fatherName = '';
@@ -45,6 +46,7 @@ class MemberData {
 
   Map<String, dynamic> toJson() {
     return {
+      'tempId': tempId,
       'mode': mode,
       'name': name,
       'fatherName': fatherName,
@@ -83,6 +85,7 @@ class MemberData {
   }
 
   void fromJson(Map<String, dynamic> data) {
+    tempId = data['tempId'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString();
     mode = data['mode'] as String?;
     name = data['name'] as String? ?? '';
     fatherName = data['fatherName'] as String? ?? '';

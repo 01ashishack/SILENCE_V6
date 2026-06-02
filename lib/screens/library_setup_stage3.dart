@@ -99,13 +99,19 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
           if ((shiftData as List).isNotEmpty) {
             _shifts.clear();
             for (final s in shiftData) {
-              final sp = (s['start_time'] as String).split(':');
-              final ep = (s['end_time'] as String).split(':');
+              final startStr = s['start_time'] as String? ?? '08:00';
+              final endStr = s['end_time'] as String? ?? '17:00';
+              final sp = startStr.split(':');
+              final ep = endStr.split(':');
+              final startHour = sp.isNotEmpty ? (int.tryParse(sp[0]) ?? 8) : 8;
+              final startMinute = sp.length > 1 ? (int.tryParse(sp[1]) ?? 0) : 0;
+              final endHour = ep.isNotEmpty ? (int.tryParse(ep[0]) ?? 17) : 17;
+              final endMinute = ep.length > 1 ? (int.tryParse(ep[1]) ?? 0) : 0;
               _shifts.add(_ShiftModel(
                 id: s['id'],
                 name: s['name'] ?? '',
-                startTime: TimeOfDay(hour: int.parse(sp[0]), minute: int.parse(sp[1])),
-                endTime: TimeOfDay(hour: int.parse(ep[0]), minute: int.parse(ep[1])),
+                startTime: TimeOfDay(hour: startHour.clamp(0, 23), minute: startMinute.clamp(0, 59)),
+                endTime: TimeOfDay(hour: endHour.clamp(0, 23), minute: endMinute.clamp(0, 59)),
                 priceMonthly: s['price_monthly'] ?? 0,
                 price3Month: s['price_3month'],
                 price6Month: s['price_6month'],
@@ -132,15 +138,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
       }
     }
 
-    if (_shifts.isEmpty) {
-      _shifts.add(_ShiftModel(
-        name: 'Morning Shift',
-        startTime: const TimeOfDay(hour: 6, minute: 0),
-        endTime: const TimeOfDay(hour: 14, minute: 0),
-        priceMonthly: 700,
-        trialDays: 0,
-      ));
-    }
+    // Do not pre-populate default shift so shifts start empty when no DB data exists.
 
     setState(() => _isLoading = false);
   }
@@ -160,7 +158,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-      backgroundColor: _orange,
+      backgroundColor: Colors.green,
       behavior: SnackBarBehavior.floating,
     ));
   }
@@ -170,10 +168,10 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
   void _addNewShift() {
     setState(() {
       _shifts.add(_ShiftModel(
-        name: 'Shift ${_shifts.length + 1}',
-        startTime: const TimeOfDay(hour: 14, minute: 0),
-        endTime: const TimeOfDay(hour: 22, minute: 0),
-        priceMonthly: 700,
+        name: '',
+        startTime: const TimeOfDay(hour: 9, minute: 0),
+        endTime: const TimeOfDay(hour: 17, minute: 0),
+        priceMonthly: 0,
         trialDays: 0,
       ));
     });
@@ -318,13 +316,23 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                   _buildSectionHeader('Shifts & Pricing Plans'),
                   const SizedBox(height: 12),
 
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _shifts.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 16),
-                    itemBuilder: (_, index) => _buildShiftCard(index),
-                  ),
+                  _shifts.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Text(
+                              'No shifts added yet. Add at least one shift to continue.',
+                              style: GoogleFonts.inter(color: _grey, fontSize: 13, fontStyle: FontStyle.italic),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _shifts.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 16),
+                          itemBuilder: (_, index) => _buildShiftCard(index),
+                        ),
                   const SizedBox(height: 16),
 
                   // Add shift button
@@ -393,11 +401,17 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
   Widget _buildShiftCard(int index) {
     final shift = _shifts[index];
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
@@ -419,7 +433,10 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
           initialValue: shift.name,
           onChanged: (v) => shift.name = v,
           style: GoogleFonts.inter(fontSize: 15, color: _dark),
-          decoration: const InputDecoration(hintText: 'Morning Shift'),
+          decoration: InputDecoration(
+            hintText: 'e.g. Morning Shift',
+            hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+          ),
         ),
         const SizedBox(height: 16),
 
@@ -591,6 +608,8 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
         prefixText: '₹ ',
         labelText: label,
         labelStyle: const TextStyle(fontSize: 11),
+        hintText: 'e.g. 700',
+        hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
       ),
     );
   }
@@ -599,11 +618,17 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
 
   Widget _buildCashToggleCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -631,11 +656,17 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('UPI IDs', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: _dark)),
@@ -650,7 +681,8 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
               controller: _upiInputCtrl,
               style: GoogleFonts.inter(fontSize: 14, color: _dark),
               decoration: InputDecoration(
-                hintText: 'yourname@paytm',
+                hintText: 'e.g. yourname@paytm',
+                hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 focusedBorder: OutlineInputBorder(

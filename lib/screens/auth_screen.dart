@@ -241,29 +241,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               const SizedBox(height: 16),
               // Silence Logo & Heading decoration
               Center(
-                child: Column(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF3ED),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE65C00), width: 1.5),
-                      ),
-                      child: const Icon(Icons.book_outlined, size: 30, color: Color(0xFFE65C00)),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Silence',
-                      style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w800, color: const Color(0xFF1A1A2E)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '── LIBRARY MANAGEMENT ──',
-                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00), letterSpacing: 1.5),
-                    ),
-                  ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Image.asset(
+                    'assets/images/horizontal app logo.png',
+                    height: 54,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               const SizedBox(height: 32),
@@ -463,6 +447,23 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             _buildSocialDivider(),
             const SizedBox(height: 12),
             _buildSocialRow(),
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton.icon(
+                onPressed: () {
+                  _tabController.animateTo(0);
+                },
+                icon: const Icon(Icons.arrow_back, color: Color(0xFF6B7280), size: 16),
+                label: Text(
+                  'Back to Login',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF6B7280),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

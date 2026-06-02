@@ -34,7 +34,7 @@ class _AddMemberStep3State extends State<AddMemberStep3> with AutomaticKeepAlive
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.warning_amber_rounded, size: 48, color: Colors.grey[400]),
+              Icon(Icons.warning, size: 48, color: Colors.grey[400]),
               const SizedBox(height: 12),
               Text(
                 'Please select a shift in Step 2 first.',
@@ -48,6 +48,7 @@ class _AddMemberStep3State extends State<AddMemberStep3> with AutomaticKeepAlive
     }
 
     return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -232,6 +232,32 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       final libName = membershipRes['libraries']?['name'] ?? 'SILENCE Zone';
       final seatLabel = seat.isNotEmpty ? (seat['seat_label'] ?? 'G-A-01') : 'Seat pending';
 
+      // 1.5. Defensive Seat Occupancy Verification
+      final seatId = seat['id'] ?? membershipRes['seat_id'];
+      if (seatId != null) {
+        try {
+          final seatCheck = await supabase
+              .from('seats')
+              .select('status, occupied_by_member_id')
+              .eq('id', seatId)
+              .maybeSingle();
+
+          if (seatCheck != null) {
+            final String? seatStatus = seatCheck['status'] as String?;
+            final String? occupiedBy = seatCheck['occupied_by_member_id'] as String?;
+            if (seatStatus == 'occupied' && occupiedBy != user.id) {
+              _handleFailure(
+                'Seat Occupied',
+                'Your assigned seat ($seatLabel) is currently occupied by another member. Contact admin.',
+              );
+              return;
+            }
+          }
+        } catch (e) {
+          debugPrint('Error verifying seat status: $e');
+        }
+      }
+
       // 2. Check if currently checked in (active session today)
       final activeSession = await supabase
           .from('attendance')

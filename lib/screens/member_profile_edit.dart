@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../core/image_optimizer.dart';
 import 'package:silence/core/calendar_picker.dart';
 
 class MemberProfileEditScreen extends StatefulWidget {
@@ -72,9 +75,9 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           if (userData['photo_url'] != null) {
             _photoUrl = userData['photo_url'];
           }
-          // Note: fcm_token is used to store the ID Document URL
-          if (userData['fcm_token'] != null) {
-            _idDocumentUrl = userData['fcm_token'];
+          // Retrieve document URL from id_proof_url column
+          if (userData['id_proof_url'] != null) {
+            _idDocumentUrl = userData['id_proof_url'];
           }
           if (userData['exam_category'] != null && _examCategories.contains(userData['exam_category'])) {
             _examCategory = userData['exam_category'];
@@ -194,6 +197,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       if (!mounted) return;
 
       CroppedFile? croppedFile;
+      bool cropSuccessOrCancel = false;
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
@@ -205,21 +209,25 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               toolbarWidgetColor: Colors.white,
               initAspectRatio: isIdDoc ? CropAspectRatioPreset.original : CropAspectRatioPreset.square,
               lockAspectRatio: !isIdDoc,
+              cropStyle: isIdDoc ? CropStyle.rectangle : CropStyle.circle,
             ),
             IOSUiSettings(
               title: isIdDoc ? 'Crop ID Document' : 'Crop Profile Photo',
               aspectRatioLockEnabled: !isIdDoc,
               resetAspectRatioEnabled: isIdDoc,
+              cropStyle: isIdDoc ? CropStyle.rectangle : CropStyle.circle,
             ),
           ],
         );
+        cropSuccessOrCancel = true;
       } catch (e) {
-        if (mounted) _showErrorSnackBar('Error cropping image: $e');
-        return;
+        debugPrint('Crop failed, falling back to original: $e');
       }
 
-      if (croppedFile == null) return;
+      if (cropSuccessOrCancel && croppedFile == null) return;
       if (!mounted) return;
+
+      final String finalPath = croppedFile?.path ?? image.path;
 
       setState(() {
         if (isIdDoc) {
@@ -237,17 +245,15 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           return;
         }
 
-        final bytes = await File(croppedFile.path).readAsBytes();
+        final bytes = await ImageOptimizer.compressImage(finalPath);
         final fileName = isIdDoc ? 'id_document.jpg' : 'profile.jpg';
         final path = 'member_profiles/${user.id}/$fileName';
 
-        try {
-          await supabase.storage.createBucket('silence_assets', const BucketOptions(public: true));
-        } catch (_) {}
+        // Upload directly to pre-provisioned assets bucket
 
         await supabase.storage.from('silence_assets').uploadBinary(
           path,
-          bytes,
+          Uint8List.fromList(bytes),
           fileOptions: const FileOptions(
             contentType: 'image/jpeg',
             cacheControl: '3600',
@@ -312,7 +318,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
 
       await supabase.from('users').upsert({
         'id': user.id,
-        'email': user.email!,
+        'email': user.email,
         'full_name': name,
         'nickname': name.split(' ').first,
         'phone': phone,
@@ -321,7 +327,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         'address': address,
         'exam_category': _examCategory,
         'photo_url': _photoUrl,
-        'fcm_token': _idDocumentUrl, // Store ID Document URL in unused fcm_token column
+        'id_proof_url': _idDocumentUrl, // Store ID Document URL in dedicated id_proof_url column
         'role': 'member',
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'id');
@@ -384,7 +390,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                                     CircleAvatar(
                                       radius: 48,
                                       backgroundColor: const Color(0xFFFFF7F0),
-                                      backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? NetworkImage(_photoUrl!) : null,
+                                      backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200) : null,
                                       child: _photoUrl == null || _photoUrl!.isEmpty
                                           ? const Icon(Icons.person, size: 48, color: Color(0xFFE65C00))
                                           : null,
@@ -669,11 +675,15 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                                               children: [
                                                 ClipRRect(
                                                   borderRadius: BorderRadius.circular(12),
-                                                  child: Image.network(
-                                                    _idDocumentUrl!,
+                                                  child: CachedNetworkImage(
+                                                    imageUrl: _idDocumentUrl!,
                                                     fit: BoxFit.cover,
                                                     width: double.infinity,
                                                     height: double.infinity,
+                                                    memCacheWidth: 200,
+                                                    placeholder: (context, url) => const Center(
+                                                      child: CircularProgressIndicator(color: Color(0xFFE65C00)),
+                                                    ),
                                                   ),
                                                 ),
                                                 Positioned(
