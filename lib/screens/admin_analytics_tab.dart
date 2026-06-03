@@ -1,13 +1,17 @@
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/csv_exporter.dart';
 import '../utils/pdf_exporter.dart';
+import '../core/calendar_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'reservations/member_detail_screen.dart';
 
 class AdminAnalyticsTab extends StatefulWidget {
   final String? libraryId;
@@ -27,1115 +31,1369 @@ class AdminAnalyticsTab extends StatefulWidget {
   State<AdminAnalyticsTab> createState() => _AdminAnalyticsTabState();
 }
 
-class _AdminAnalyticsTabState extends State<AdminAnalyticsTab> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
+  late TabController _tabController;
+
   bool _isLoading = false;
-  bool _isExporting = false;
-  bool _hasError = false;
 
-  // --- Global Filter States ---
-  String _dateFilter = 'today'; // 'today', '7d', 'month', 'custom'
-  DateTimeRange _selectedDateRange = DateTimeRange(
-    start: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
-    end: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59),
-  );
+  // Active Library State
   String? _filterLibraryId;
-  String? _selectedFloorId;   // null = 'All Floors'
-  String? _selectedSectionId; // null = 'All Sections'
-  String? _selectedShiftId;   // null = 'All Shifts'
-
-  // Metadata arrays
-  List<Map<String, dynamic>> _floors = [];
-  List<Map<String, dynamic>> _sections = [];
-  List<Map<String, dynamic>> _shifts = [];
-
-  // Selected Library Details
-  String _libraryAddress = 'Smart Silence Venue';
+  String _libraryAddress = 'Library Address';
   String? _libraryCoverUrl;
 
-  // --- Live Supabase Records ---
+  // Dropdown data sources
+  List<Map<String, dynamic>> _floors = [];
+  List<Map<String, dynamic>> _shifts = [];
+
+  // Tab-independent Floor & Shift filters
+  String _revFloorId = 'all';
+  String _revShiftId = 'all';
+
+  String _attFloorId = 'all';
+  String _attShiftId = 'all';
+
+  String _spFloorId = 'all';
+  String _spShiftId = 'all';
+
+  // Tab-independent Date filters
+  // Attendance: weekday pills or custom range
+  DateTime _attDate = DateTime.now();
+  DateTimeRange? _attCustomRange;
+  bool _isAttCustomSelected = false;
+
+  // Revenue: preset pills or custom range
+  String _revDateFilter = 'today';
+  DateTimeRange? _revCustomRange;
+
+  // Shifts & Plans: preset pills or custom range
+  String _spDateFilter = 'today';
+  DateTimeRange? _spCustomRange;
+
+  // Calculated Metrics (Revenue Tab)
+  double _totalRevenue = 0.0;
+  double _revenueChangePct = 0.0;
+  double _totalExpenses = 0.0;
+  double _netProfit = 0.0;
+  double _totalPendingDues = 0.0;
+  double _expiredDues = 0.0;
+  double _expiring7DaysDues = 0.0;
+
+  int _expiringThisWeekCount = 0;
+  double _expiringThisWeekRevenue = 0.0;
+  int _expiringThisMonthCount = 0;
+  double _expiringThisMonthRevenue = 0.0;
+
+  List<Map<String, dynamic>> _recentConfirmedPayments = [];
+  List<Map<String, dynamic>> _allExpenses = [];
+
+  double _cashRevenue = 0.0;
+  double _upiRevenue = 0.0;
+  double _addonRevenue = 0.0;
+
+  List<double> _trendValues = [];
+  List<String> _trendLabels = [];
+  int? _hoverTrendIndex;
+
+  List<double> _shiftCompareRevenue = [];
+  List<String> _shiftCompareLabels = [];
+  List<double> _planCompareRevenue = [];
+  List<String> _planCompareLabels = [];
+
+  // Local caching of raw results for subqueries
   List<Map<String, dynamic>> _rawPayments = [];
-  List<Map<String, dynamic>> _rawDues = [];
   List<Map<String, dynamic>> _rawExpenditures = [];
   List<Map<String, dynamic>> _rawMemberships = [];
   List<Map<String, dynamic>> _rawAttendance = [];
   List<Map<String, dynamic>> _rawSeats = [];
+  List<Map<String, dynamic>> _rawTrendMemberships = [];
+
+  // Attendance state
+  String _attendanceTableToggle = 'date_wise';
+  int _holdCount = 0;
+  int _checkedInCount = 0;
+  int _checkedOutCount = 0;
+  int _absentCount = 0;
+  List<Map<String, dynamic>> _attendanceLogs = [];
+  List<double> _leaderboardValues = [];
+  List<String> _leaderboardLabels = [];
+  List<Map<String, dynamic>> _leastActiveMembers = [];
+  List<double> _attendanceTrendValues = [];
+  List<String> _attendanceTrendLabels = [];
+  List<double> _peakHoursValues = [];
+  List<String> _peakHoursLabels = [];
+
+  // Shifts & Plans state
+  List<double> _shiftOccupancyValues = [];
+  List<String> _shiftOccupancyLabels = [];
+  List<double> _planDistValues = [];
+  List<String> _planDistLabels = [];
+  List<double> _revPerShiftValues = [];
+  List<String> _revPerShiftLabels = [];
+  List<List<double>> _popularityTrendValues = [];
+  List<String> _popularityTrendMonths = [];
 
-  // --- In-Memory Filtered Calculations ---
-  List<Map<String, dynamic>> _filteredMemberships = [];
-  List<Map<String, dynamic>> _filteredAttendance = [];
-  List<Map<String, dynamic>> _filteredSeats = [];
-  List<Map<String, dynamic>> _filteredPayments = [];
-  List<Map<String, dynamic>> _filteredDues = [];
-  List<Map<String, dynamic>> _filteredExpenditures = [];
-
-  // Dashboard calculations
-  int _kpiTotalMembers = 0;
-  int _kpiActiveMembers = 0;
-  int _kpiExpiredMembers = 0;
-  int _kpiExpiringSoon = 0;
-  int _kpiNewJoiningsToday = 0;
-  int _kpiNewJoiningsMonth = 0;
-  int _kpiRenewalsMonth = 0;
-  int _kpiLeftMembers = 0;
-
-  double _kpiOccupancyRate = 0.0;
-  int _kpiOccupiedSeats = 0;
-  int _kpiVacantSeats = 0;
-  int _kpiReservedSeats = 0;
-  int _kpiCapacity = 0;
-
-  int _kpiRevenueMonth = 0;
-  int _kpiRevenuePending = 0;
-  int _kpiRevenueToday = 0;
-  int _kpiRevenueWeek = 0;
-  int _kpiTotalCollections = 0;
-  double _kpiRevenueGrowth = 0.0;
-  double _collectionRate = 100.0;
-
-  int _kpiAttendanceToday = 0;
-  int _kpiCheckinsToday = 0;
-  int _kpiCheckoutsToday = 0;
-  double _kpiAvgAttendance = 0.0;
-  double _kpiAttendanceRate = 0.0;
-  int _kpiQRScansToday = 0;
-  int _kpiFailedScans = 0;
-  int _kpiDuplicateScans = 0;
-
-  // Expenditures Math
-  double _monthlyExpenses = 0.0;
-  double _netProfit = 0.0;
-  double _expenseRatio = 0.0;
-  String _highestExpenseCategory = 'Rent';
-
-  // Trends & Distributions
-  List<double> _joinsTrend = [];
-  List<double> _renewalsTrend = [];
-  List<double> _revenueTrend = [];
-  List<double> _expensesTrend = [];
-  List<String> _trendLabels = [];
-
-  double _cashRatio = 0.0;
-  double _upiRatio = 0.0;
-  double _addonsRatio = 0.0;
-
-  int _maleMembers = 0;
-  int _femaleMembers = 0;
-
-  // Lists
-  List<Map<String, dynamic>> _pendingPaymentsRoster = [];
-  List<Map<String, dynamic>> _lowAttendanceMembers = [];
-  List<Map<String, dynamic>> _mostRegularMembers = [];
-  List<Map<String, dynamic>> _recentlyJoinedMembers = [];
-  List<Map<String, dynamic>> _deadSeatsList = [];
-
-  // Traffic Heatmap
-  List<List<int>> _trafficHeatmap = List.generate(7, (_) => List.filled(8, 0));
-
-  @override
-  void initState() {
-    super.initState();
-    _filterLibraryId = widget.libraryId;
-    _setDateRangePreset('today');
-    _loadAllData();
-  }
-
-  void _setDateRangePreset(String filter) {
-    final now = DateTime.now();
-    setState(() {
-      _dateFilter = filter;
-      if (filter == 'today') {
-        _selectedDateRange = DateTimeRange(
-          start: DateTime(now.year, now.month, now.day),
-          end: DateTime(now.year, now.month, now.day, 23, 59, 59),
-        );
-      } else if (filter == '7d') {
-        _selectedDateRange = DateTimeRange(
-          start: DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6)),
-          end: DateTime(now.year, now.month, now.day, 23, 59, 59),
-        );
-      } else if (filter == 'month') {
-        _selectedDateRange = DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
-          end: DateTime(now.year, now.month, now.day, 23, 59, 59),
-        );
-      }
-    });
-  }
-
-  // --- DATABASE DATA LOADS ---
-  Future<void> _loadAllData() async {
-    if (_filterLibraryId == null) return;
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-    });
-
-    try {
-      final startIso = _selectedDateRange.start.toIso8601String();
-      final endIso = _selectedDateRange.end.toIso8601String();
-
-      // 1. Fetch library details
-      final libRes = await _supabase.from('libraries').select().eq('id', _filterLibraryId!).maybeSingle();
-      if (libRes != null) {
-        final street = libRes['street'] ?? '';
-        final city = libRes['address_city'] ?? libRes['city'] ?? '';
-        _libraryAddress = street.isNotEmpty ? '$street, $city' : 'Smart Silence Center';
-        final String? coverUrl = libRes['cover_photo_url'];
-        final List<dynamic> photos = libRes['photos'] ?? [];
-        _libraryCoverUrl = (coverUrl != null && coverUrl.isNotEmpty) ? coverUrl : (photos.isNotEmpty ? photos.first.toString() : null);
-      }
-
-      // 2. Fetch layout filters
-      final floorsRes = await _supabase.from('floors').select().eq('library_id', _filterLibraryId!).order('order_index');
-      _floors = List<Map<String, dynamic>>.from(floorsRes);
-
-      final floorIds = _floors.map((f) => f['id'].toString()).toSet();
-      if (floorIds.isNotEmpty) {
-        final sectionsRes = await _supabase.from('sections').select();
-        final List<Map<String, dynamic>> allSections = List<Map<String, dynamic>>.from(sectionsRes);
-        _sections = allSections.where((sec) => floorIds.contains(sec['floor_id']?.toString())).toList();
-      } else {
-        _sections = [];
-      }
-
-      final shiftsRes = await _supabase.from('shifts').select().eq('library_id', _filterLibraryId!).eq('is_archived', false);
-      _shifts = List<Map<String, dynamic>>.from(shiftsRes);
-
-      // 3. Fetch analytics metrics from Supabase
-      final paymentsRes = await _supabase.from('payments').select('*, member_id(full_name, phone, email)').eq('library_id', _filterLibraryId!).eq('status', 'confirmed');
-      _rawPayments = List<Map<String, dynamic>>.from(paymentsRes);
-
-      final duesRes = await _supabase.from('payments').select('*, member_id(full_name, phone, email)').eq('library_id', _filterLibraryId!).eq('status', 'pending');
-      _rawDues = List<Map<String, dynamic>>.from(duesRes);
-
-      final expRes = await _supabase.from('expenditures').select().eq('library_id', _filterLibraryId!).order('expense_date', ascending: false);
-      _rawExpenditures = List<Map<String, dynamic>>.from(expRes);
-
-      final seatsRes = await _supabase.from('seats').select('*, shifts(name)').eq('library_id', _filterLibraryId!);
-      _rawSeats = List<Map<String, dynamic>>.from(seatsRes);
-
-      final membershipsRes = await _supabase.from('memberships').select('*, member_id(full_name, phone, email, gender, created_at), seats(seat_label, floor_id, section_id, status), shifts(name)').eq('library_id', _filterLibraryId!);
-      _rawMemberships = List<Map<String, dynamic>>.from(membershipsRes);
-
-      final attRes = await _supabase.from('attendance').select('*, member_id(full_name, photo_url, phone), memberships(seat_id, seats(seat_label, floor_id, section_id), shifts(name))').eq('library_id', _filterLibraryId!).order('check_in_time', ascending: false);
-      _rawAttendance = List<Map<String, dynamic>>.from(attRes);
-
-      _applyFilters();
-    } catch (e) {
-      debugPrint('Analytics load error: $e');
-      setState(() => _hasError = true);
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  // --- IN-MEMORY GLOBAL CHIP FILTERING ---
-  void _applyFilters() {
-    final startIso = _selectedDateRange.start.toIso8601String();
-    final endIso = _selectedDateRange.end.toIso8601String();
-
-    // Reset heatmap grid
-    _trafficHeatmap = List.generate(7, (_) => List.filled(8, 0));
-
-    // A. Filters seats
-    _filteredSeats = _rawSeats.where((seat) {
-      if (_selectedFloorId != null && seat['floor_id'] != _selectedFloorId) return false;
-      if (_selectedSectionId != null && seat['section_id'] != _selectedSectionId) return false;
-      if (_selectedShiftId != null && seat['shift_id'] != _selectedShiftId) return false;
-      return true;
-    }).toList();
-
-    // B. Filters memberships
-    _filteredMemberships = _rawMemberships.where((m) {
-      final seat = m['seats'] is Map ? m['seats'] as Map : {};
-      if (_selectedFloorId != null && seat['floor_id'] != _selectedFloorId) return false;
-      if (_selectedSectionId != null && seat['section_id'] != _selectedSectionId) return false;
-      if (_selectedShiftId != null && m['shift_id'] != _selectedShiftId) return false;
-      return true;
-    }).toList();
-
-    // C. Filters attendance
-    _filteredAttendance = _rawAttendance.where((a) {
-      final checkinStr = a['check_in_time'] as String?;
-      if (checkinStr == null) return false;
-      if (checkinStr.compareTo(startIso) < 0 || checkinStr.compareTo(endIso) > 0) return false;
-
-      final mship = a['memberships'] is Map ? a['memberships'] as Map : {};
-      final seat = mship['seats'] is Map ? mship['seats'] as Map : {};
-      if (_selectedFloorId != null && seat['floor_id'] != _selectedFloorId) return false;
-      if (_selectedSectionId != null && seat['section_id'] != _selectedSectionId) return false;
-      if (_selectedShiftId != null && mship['shift_id'] != _selectedShiftId) return false;
-      return true;
-    }).toList();
-
-    // D. Filters Payments & Dues
-    _filteredPayments = _rawPayments.where((p) {
-      final pDate = p['payment_date'] as String?;
-      if (pDate == null) return false;
-      if (pDate.compareTo(startIso) < 0 || pDate.compareTo(endIso) > 0) return false;
-      if (_selectedShiftId != null && p['shift_id'] != _selectedShiftId) return false;
-      return true;
-    }).toList();
-
-    _filteredDues = _rawDues.where((d) {
-      if (_selectedShiftId != null && d['shift_id'] != _selectedShiftId) return false;
-      return true;
-    }).toList();
-
-    _filteredExpenditures = _rawExpenditures.where((e) {
-      final eDate = e['expense_date'] as String?;
-      if (eDate == null) return false;
-      return eDate.compareTo(startIso) >= 0 && eDate.compareTo(endIso) <= 0;
-    }).toList();
-
-    // --- RE-CALCULATE METRICS ---
-    final now = DateTime.now();
-    final todayStr = DateFormat('yyyy-MM-dd').format(now);
-    final oneWeekFromNow = now.add(const Duration(days: 7));
-    final currentMonthStr = DateFormat('yyyy-MM').format(now);
-
-    // 1. Members distributions
-    _kpiTotalMembers = _filteredMemberships.length;
-    int activeCount = 0;
-    int expiredCount = 0;
-    int expiringSoonCount = 0;
-    int joinedTodayCount = 0;
-    int joinedMonthCount = 0;
-    int renewalsMonthCount = 0;
-    int leftCount = 0;
-    int maleCount = 0;
-    int femaleCount = 0;
-
-    for (var m in _filteredMemberships) {
-      final status = (m['status'] as String? ?? '').toLowerCase();
-      final endStr = m['end_date'] as String?;
-      final startStr = m['start_date'] as String?;
-      final createdAtStr = m['member_id']?['created_at'] as String?;
-      final gender = (m['member_id']?['gender'] as String? ?? 'Boys').toLowerCase();
-
-      if (status == 'active' || status == 'trial') {
-        activeCount++;
-      } else {
-        expiredCount++;
-      }
-
-      if (endStr != null) {
-        final end = DateTime.parse(endStr);
-        if (end.isAfter(now) && end.isBefore(oneWeekFromNow)) expiringSoonCount++;
-        if (end.isBefore(now)) leftCount++;
-      }
-
-      if (createdAtStr != null && createdAtStr.startsWith(todayStr)) joinedTodayCount++;
-      if (startStr != null && startStr.startsWith(currentMonthStr)) joinedMonthCount++;
-      if (status == 'active' && m['renewed_at'] != null) renewalsMonthCount++;
-
-      if (gender == 'girls' || gender == 'female') {
-        femaleCount++;
-      } else {
-        maleCount++;
-      }
-    }
-
-    _kpiActiveMembers = activeCount;
-    _kpiExpiredMembers = expiredCount;
-    _kpiExpiringSoon = expiringSoonCount;
-    _kpiNewJoiningsToday = joinedTodayCount;
-    _kpiNewJoiningsMonth = joinedMonthCount;
-    _kpiRenewalsMonth = renewalsMonthCount;
-    _kpiLeftMembers = leftCount;
-    _maleMembers = maleCount;
-    _femaleMembers = femaleCount;
-
-    // 2. Seats and Occupancy
-    _kpiCapacity = _filteredSeats.length;
-    int occupiedSeatsCount = 0;
-    int vacantSeatsCount = 0;
-    int reservedSeatsCount = 0;
-
-    for (var s in _filteredSeats) {
-      final status = (s['status'] as String? ?? '').toLowerCase();
-      if (status == 'occupied') {
-        occupiedSeatsCount++;
-      } else if (status == 'reserved') {
-        reservedSeatsCount++;
-      } else {
-        vacantSeatsCount++;
-      }
-    }
-    _kpiOccupiedSeats = occupiedSeatsCount;
-    _kpiVacantSeats = vacantSeatsCount;
-    _kpiReservedSeats = reservedSeatsCount;
-    _kpiOccupancyRate = _kpiCapacity > 0 ? (occupiedSeatsCount / _kpiCapacity) : 0.0;
-
-    // 3. Attendance Analytics Math
-    int checkins = 0;
-    int checkouts = 0;
-    int scans = 0;
-    final Set<String> uniqueDays = {};
-
-    for (var a in _filteredAttendance) {
-      final checkinStr = a['check_in_time'] as String?;
-      final checkoutStr = a['check_out_time'] as String?;
-      if (checkinStr != null) {
-        scans++;
-        final checkinTime = DateTime.parse(checkinStr).toLocal();
-        uniqueDays.add(DateFormat('yyyy-MM-dd').format(checkinTime));
-
-        if (checkinStr.startsWith(todayStr)) {
-          checkins++;
-          if (checkoutStr != null) checkouts++;
-        }
-
-        // Process traffic heatmap
-        final hour = checkinTime.hour;
-        final weekday = checkinTime.weekday - 1;
-        if (hour >= 8 && hour <= 22 && weekday >= 0 && weekday <= 6) {
-          final hourIndex = ((hour - 8) / 2).floor().clamp(0, 7);
-          _trafficHeatmap[weekday][hourIndex]++;
-        }
-      }
-    }
-
-    _kpiAttendanceToday = checkins;
-    _kpiCheckinsToday = checkins;
-    _kpiCheckoutsToday = checkouts;
-    _kpiQRScansToday = scans;
-    _kpiFailedScans = (scans * 0.01).ceil();
-    _kpiDuplicateScans = (scans * 0.03).ceil();
-
-    final totalDays = uniqueDays.isEmpty ? 1 : uniqueDays.length;
-    _kpiAvgAttendance = _filteredAttendance.length / totalDays;
-    _kpiAttendanceRate = _kpiActiveMembers > 0 ? (checkins / _kpiActiveMembers) * 100 : 0.0;
-
-    // 4. Financials Math
-    int revSum = 0;
-    int revToday = 0;
-    int revWeek = 0;
-    int cashSum = 0;
-    int upiSum = 0;
-    int addonsSum = 0;
-
-    final weekAgo = now.subtract(const Duration(days: 7));
-
-    for (var p in _filteredPayments) {
-      final amt = p['amount'] as int? ?? 0;
-      revSum += amt;
-
-      final pDateStr = p['payment_date'] as String?;
-      if (pDateStr != null) {
-        final pDate = DateTime.parse(pDateStr);
-        if (pDateStr.startsWith(todayStr)) revToday += amt;
-        if (pDate.isAfter(weekAgo)) revWeek += amt;
-      }
-
-      final method = (p['method'] as String? ?? 'upi').toLowerCase();
-      final type = (p['type'] as String? ?? 'subscription').toLowerCase();
-      if (type == 'addon' || type == 'service') {
-        addonsSum += amt;
-      } else if (method == 'cash') {
-        cashSum += amt;
-      } else {
-        upiSum += amt;
-      }
-    }
-
-    _kpiRevenueMonth = revSum;
-    _kpiRevenueToday = revToday;
-    _kpiRevenueWeek = revWeek;
-
-    final totalP = cashSum + upiSum + addonsSum;
-    if (totalP > 0) {
-      _cashRatio = cashSum / totalP;
-      _upiRatio = upiSum / totalP;
-      _addonsRatio = addonsSum / totalP;
-    } else {
-      _cashRatio = 0.35;
-      _upiRatio = 0.55;
-      _addonsRatio = 0.10;
-    }
-
-    int pendingDuesSum = 0;
-    final List<Map<String, dynamic>> dueRoster = [];
-    for (var d in _filteredDues) {
-      final amt = d['amount'] as int? ?? 0;
-      pendingDuesSum += amt;
-      final m = d['member_id'] is Map ? d['member_id'] as Map : {};
-      dueRoster.add({
-        'id': d['id'],
-        'member_name': m['full_name'] ?? 'Guest Member',
-        'due_amount': amt,
-        'phone': m['phone'] ?? 'N/A',
-        'overdue_days': d['payment_date'] != null ? DateTime.now().difference(DateTime.parse(d['payment_date'])).inDays : 0,
-      });
-    }
-
-    _kpiRevenuePending = pendingDuesSum;
-    _kpiTotalCollections = revSum;
-    _collectionRate = (revSum + pendingDuesSum) > 0 ? (revSum / (revSum + pendingDuesSum)) * 100 : 100.0;
-    _pendingPaymentsRoster = dueRoster..sort((a, b) => b['overdue_days'].compareTo(a['overdue_days']));
-
-    // 5. Expenditures Math
-    double expSum = 0.0;
-    Map<String, double> categoryExp = {};
-    for (var e in _filteredExpenditures) {
-      final amt = (e['amount'] as num? ?? 0).toDouble();
-      expSum += amt;
-      final cat = e['category'] ?? 'Miscellaneous';
-      categoryExp[cat] = (categoryExp[cat] ?? 0) + amt;
-    }
-    _monthlyExpenses = expSum;
-    _netProfit = revSum - expSum;
-    _expenseRatio = revSum > 0 ? (expSum / revSum) * 100 : 0.0;
-
-    if (categoryExp.isNotEmpty) {
-      final sortedCats = categoryExp.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      _highestExpenseCategory = sortedCats.first.key;
-    } else {
-      _highestExpenseCategory = 'None';
-    }
-
-    // 6. Member Lists
-    final Map<String, int> checkinCounts = {};
-    for (var a in _filteredAttendance) {
-      final mId = a['member_id']?['id']?.toString() ?? a['member_id']?.toString() ?? '';
-      if (mId.isNotEmpty) {
-        checkinCounts[mId] = (checkinCounts[mId] ?? 0) + 1;
-      }
-    }
-
-    final List<Map<String, dynamic>> lowAtt = [];
-    for (var m in _filteredMemberships) {
-      final mId = m['member_id']?['id']?.toString() ?? m['member_id']?.toString() ?? '';
-      final name = m['member_id']?['full_name'] ?? 'N/A';
-      final phone = m['member_id']?['phone'] ?? 'N/A';
-      final count = checkinCounts[mId] ?? 0;
-
-      if (m['status'] == 'active' && count < 3) {
-        lowAtt.add({'name': name, 'phone': phone, 'attendance_count': count});
-      }
-    }
-    _lowAttendanceMembers = lowAtt.take(5).toList();
-
-    final List<Map<String, dynamic>> regular = [];
-    for (var m in _filteredMemberships) {
-      final name = m['member_id']?['full_name'] ?? 'N/A';
-      final phone = m['member_id']?['phone'] ?? 'N/A';
-      final count = checkinCounts[m['member_id']?['id']?.toString() ?? ''] ?? 0;
-      if (m['status'] == 'active') {
-        regular.add({'name': name, 'phone': phone, 'attendance_count': count});
-      }
-    }
-    _mostRegularMembers = (regular..sort((a, b) => b['attendance_count'].compareTo(a['attendance_count']))).take(5).toList();
-
-    _recentlyJoinedMembers = _filteredMemberships.map((m) => {
-      'name': m['member_id']?['full_name'] ?? 'N/A',
-      'joined_date': m['created_at'] != null ? DateFormat('dd MMM').format(DateTime.parse(m['created_at'])) : 'N/A',
-    }).toList().take(5).toList();
-
-    // Dead seats detection
-    final List<Map<String, dynamic>> deadSeats = [];
-    for (var seat in _filteredSeats) {
-      final label = seat['seat_label'] ?? 'N/A';
-      int visits = 0;
-      for (var a in _filteredAttendance) {
-        final mship = a['memberships'] is Map ? a['memberships'] as Map : {};
-        final s = mship['seats'] is Map ? mship['seats'] as Map : {};
-        if (s['seat_label'] == label) visits++;
-      }
-      if (seat['status'] != 'occupied' && visits == 0) {
-        deadSeats.add({'label': label, 'visits': 0, 'floor': seat['floor_id'] != null ? 'Floor' : 'Main'});
-      }
-    }
-    _deadSeatsList = deadSeats.take(5).toList();
-
-    // Plot curves data — dynamically aggregated from live DB records by day-of-week
-    final List<double> joinsPerDay = List.filled(7, 0);
-    final List<double> renewalsPerDay = List.filled(7, 0);
-    final List<double> revenuePerDay = List.filled(7, 0);
-    final List<double> expensesPerDay = List.filled(7, 0);
-
-    // Joins: group memberships.created_at by weekday (Mon=0 .. Sun=6)
-    for (var m in _filteredMemberships) {
-      final createdStr = m['created_at'] as String?;
-      if (createdStr != null) {
-        try {
-          final d = DateTime.parse(createdStr).toLocal();
-          final idx = (d.weekday - 1).clamp(0, 6); // weekday: Mon=1..Sun=7 → 0..6
-          joinsPerDay[idx]++;
-        } catch (_) {}
-      }
-    }
-
-    // Renewals: group memberships.renewed_at by weekday
-    for (var m in _filteredMemberships) {
-      final renewedStr = m['renewed_at'] as String?;
-      if (renewedStr != null) {
-        try {
-          final d = DateTime.parse(renewedStr).toLocal();
-          final idx = (d.weekday - 1).clamp(0, 6);
-          renewalsPerDay[idx]++;
-        } catch (_) {}
-      }
-    }
-
-    // Revenue: group payments.payment_date by weekday
-    for (var p in _filteredPayments) {
-      final pDateStr = p['payment_date'] as String?;
-      if (pDateStr != null) {
-        try {
-          final d = DateTime.parse(pDateStr).toLocal();
-          final idx = (d.weekday - 1).clamp(0, 6);
-          revenuePerDay[idx] += (p['amount'] as num? ?? 0).toDouble();
-        } catch (_) {}
-      }
-    }
-
-    // Expenses: group expenditures.expense_date by weekday
-    for (var e in _filteredExpenditures) {
-      final eDateStr = e['expense_date'] as String?;
-      if (eDateStr != null) {
-        try {
-          final d = DateTime.parse(eDateStr).toLocal();
-          final idx = (d.weekday - 1).clamp(0, 6);
-          expensesPerDay[idx] += (e['amount'] as num? ?? 0).toDouble();
-        } catch (_) {}
-      }
-    }
-
-    // Normalize revenue/expenses to 0–100 scale for chart rendering parity with joins/renewals
-    final double maxRev = revenuePerDay.reduce((a, b) => a > b ? a : b);
-    final double maxExp = expensesPerDay.reduce((a, b) => a > b ? a : b);
-    final List<double> revNorm = maxRev > 0 ? revenuePerDay.map((v) => (v / maxRev) * 75).toList() : List.filled(7, 0);
-    final List<double> expNorm = maxExp > 0 ? expensesPerDay.map((v) => (v / maxExp) * 40).toList() : List.filled(7, 0);
-
-    _joinsTrend = joinsPerDay;
-    _renewalsTrend = renewalsPerDay;
-    _revenueTrend = revNorm;
-    _expensesTrend = expNorm;
-    _trendLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  }
-
-  // --- ACTIONS & DIALOGS ---
-  void _openAddExpenditureBottomSheet() {
-    final noteController = TextEditingController();
-    final amountController = TextEditingController();
-    String category = 'Electricity';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) {
-        return StatefulBuilder(builder: (c, setSheetState) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 24, right: 24, top: 24),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Record New Expense', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: category,
-                    decoration: InputDecoration(labelText: 'Expense Category', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                    items: ['Rent', 'Electricity', 'Internet', 'Maintenance', 'Salary', 'Supplies', 'Generator/Diesel', 'Cleaning', 'Security', 'Taxes', 'Miscellaneous']
-                        .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
-                        .toList(),
-                    onChanged: (val) => setSheetState(() => category = val ?? 'Rent'),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: amountController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: 'Amount (₹)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: noteController,
-                    decoration: InputDecoration(labelText: 'Add notes (e.g. bill number)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final amt = int.tryParse(amountController.text) ?? 0;
-                      if (amt <= 0) return;
-                      await _supabase.from('expenditures').insert({
-                        'library_id': _filterLibraryId,
-                        'category': category,
-                        'amount': amt,
-                        'notes': noteController.text,
-                        'expense_date': DateTime.now().toIso8601String(),
-                      });
-                      Navigator.pop(ctx);
-                      _loadAllData();
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14)),
-                    child: Text('Confirm Entry', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-          );
-        });
-      },
-    );
-  }
-
-  Future<void> _deleteExpense(dynamic id) async {
-    try {
-      await _supabase.from('expenditures').delete().eq('id', id);
-      _loadAllData();
-    } catch (e) {
-      debugPrint('Delete expense error: $e');
-    }
-  }
-
-  void _showCustomDateRangeBottomSheet() {
-    DateTime start = _selectedDateRange.start;
-    DateTime end = _selectedDateRange.end;
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) {
-        return StatefulBuilder(builder: (c, setSheetState) {
-          return Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Select Custom Range', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Start: ${DateFormat('dd MMM yyyy').format(start)}', style: GoogleFonts.inter(fontSize: 12)),
-                    Text('End: ${DateFormat('dd MMM yyyy').format(end)}', style: GoogleFonts.inter(fontSize: 12)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                CalendarDatePicker(
-                  initialDate: start,
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime.now(),
-                  onDateChanged: (val) {
-                    setSheetState(() {
-                      start = val;
-                      if (end.isBefore(start)) end = start.add(const Duration(days: 1));
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _selectedDateRange = DateTimeRange(start: start, end: end);
-                      _dateFilter = 'custom';
-                    });
-                    Navigator.pop(ctx);
-                    _loadAllData();
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  child: Text('Apply Dates', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-                )
-              ],
-            ),
-          );
-        });
-      },
-    );
-  }
-
-  void _showLibrarySwitcherPopup(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Switch Library Center', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-                const SizedBox(height: 12),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: widget.myLibraries.length,
-                  itemBuilder: (context, index) {
-                    final lib = widget.myLibraries[index];
-                    final lId = lib['id']?.toString();
-                    final isSel = lId == _filterLibraryId;
-
-                    return ListTile(
-                      onTap: () {
-                        setState(() {
-                          _filterLibraryId = lId;
-                          _selectedFloorId = null;
-                          _selectedSectionId = null;
-                          _selectedShiftId = null;
-                        });
-                        widget.onLibraryChanged(lId ?? '');
-                        Navigator.pop(ctx);
-                        _loadAllData();
-                      },
-                      leading: CircleAvatar(backgroundColor: const Color(0xFFFFF7ED), child: Icon(Icons.store, color: isSel ? const Color(0xFFE65C00) : Colors.grey)),
-                      title: Text(lib['name'] ?? 'Smart Library', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
-                      subtitle: Text(lib['city'] ?? 'Silence Venue', style: GoogleFonts.inter(fontSize: 10)),
-                      trailing: isSel ? const Icon(Icons.check_circle, color: Color(0xFFE65C00)) : null,
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showDuesRosterDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Dues / Defaulters Roster', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-                const SizedBox(height: 12),
-                _pendingPaymentsRoster.isEmpty
-                    ? const Center(child: Text('No pending fees outstanding.'))
-                    : Flexible(
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: _pendingPaymentsRoster.length,
-                          itemBuilder: (context, idx) {
-                            final row = _pendingPaymentsRoster[idx];
-                            return ListTile(
-                              title: Text(row['member_name'], style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12)),
-                              subtitle: Text('${row['overdue_days']} days overdue', style: GoogleFonts.inter(fontSize: 9, color: Colors.red)),
-                              trailing: Text('₹${row['due_amount']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
-                            );
-                          },
-                        ),
-                      ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // --- EXPORTS HANDLERS ---
-  Future<void> _exportData(String type, String format) async {
-    setState(() => _isExporting = true);
-    try {
-      final libraryName = widget.libraryName;
-      final dateRangeStr = '${DateFormat('dd MMM yyyy').format(_selectedDateRange.start)} - ${DateFormat('dd MMM yyyy').format(_selectedDateRange.end)}';
-
-      if (format == 'csv') {
-        if (type == 'members') {
-          final members = _filteredMemberships.map((row) {
-            final member = row['member_id'] is Map ? row['member_id'] as Map : {};
-            return {
-              'full_name': member['full_name'] ?? 'N/A',
-              'email': member['email'] ?? 'N/A',
-              'phone': member['phone'] ?? 'N/A',
-              'created_at': row['created_at'],
-              'expiry_date': row['end_date'],
-              'status': row['status'] ?? 'expired',
-            };
-          }).toList();
-          await CsvExporter.exportMembers(libraryName: libraryName, members: members);
-        } else if (type == 'attendance') {
-          final logs = _filteredAttendance.map((row) {
-            final member = row['member_id'] is Map ? row['member_id'] as Map : {};
-            final membership = row['memberships'] is Map ? row['memberships'] as Map : {};
-            final shift = membership['shifts'] is Map ? membership['shifts'] as Map : {};
-            return {
-              'member_name': member['full_name'] ?? 'N/A',
-              'check_in_time': row['check_in_time'],
-              'check_out_time': row['check_out_time'],
-              'shift_name': shift['name'] ?? 'N/A',
-            };
-          }).toList();
-          await CsvExporter.exportAttendance(libraryName: libraryName, logs: logs);
-        } else if (type == 'payments') {
-          final payments = _filteredPayments.map((row) {
-            final member = row['member_id'] is Map ? row['member_id'] as Map : {};
-            return {
-              'id': row['id'],
-              'member_name': member['full_name'] ?? 'N/A',
-              'payment_date': row['payment_date'],
-              'amount': row['amount'] ?? 0,
-              'method': row['method'] ?? 'cash',
-              'status': row['status'] ?? 'pending',
-            };
-          }).toList();
-          await CsvExporter.exportPayments(libraryName: libraryName, payments: payments);
-        } else if (type == 'revenue') {
-          final summary = _filteredPayments.map((row) => {'date': row['payment_date'], 'amount': row['amount']}).toList();
-          await CsvExporter.exportRevenueSummary(libraryName: libraryName, summary: summary);
-        } else if (type == 'occupancy') {
-          final reports = _filteredSeats.map((row) => {'seat_label': row['seat_label'], 'status': row['status']}).toList();
-          await CsvExporter.exportOccupancy(libraryName: libraryName, reports: reports);
-        } else if (type == 'dues') {
-          final dues = _filteredDues.map((row) {
-            final member = row['member_id'] is Map ? row['member_id'] as Map : {};
-            return {
-              'member_name': member['full_name'] ?? 'N/A',
-              'email': member['email'] ?? 'N/A',
-              'phone': member['phone'] ?? 'N/A',
-              'amount': row['amount'] ?? 0,
-              'due_date': row['payment_date'],
-            };
-          }).toList();
-          await CsvExporter.exportDues(libraryName: libraryName, dues: dues);
-        }
-      } else {
-        // PDF format
-        if (type == 'members') {
-          final members = _filteredMemberships.map((row) {
-            final member = row['member_id'] is Map ? row['member_id'] as Map : {};
-            return {
-              'full_name': member['full_name'] ?? 'N/A',
-              'email': member['email'] ?? 'N/A',
-              'phone': member['phone'] ?? 'N/A',
-              'created_at': row['created_at'],
-              'expiry_date': row['end_date'],
-              'status': row['status'] ?? 'expired',
-            };
-          }).toList();
-          await PdfExporter.exportMembers(libraryName: libraryName, libraryAddress: _libraryAddress, members: members);
-        } else if (type == 'attendance') {
-          final logs = _filteredAttendance.map((row) {
-            final member = row['member_id'] is Map ? row['member_id'] as Map : {};
-            final membership = row['memberships'] is Map ? row['memberships'] as Map : {};
-            final shift = membership['shifts'] is Map ? membership['shifts'] as Map : {};
-            return {
-              'member_name': member['full_name'] ?? 'N/A',
-              'check_in_time': row['check_in_time'],
-              'check_out_time': row['check_out_time'],
-              'shift_name': shift['name'] ?? 'N/A',
-            };
-          }).toList();
-          await PdfExporter.exportAttendance(libraryName: libraryName, libraryAddress: _libraryAddress, dateRange: dateRangeStr, logs: logs);
-        } else if (type == 'payments') {
-          final payments = _filteredPayments.map((row) {
-            final member = row['member_id'] is Map ? row['member_id'] as Map : {};
-            return {
-              'id': row['id'],
-              'member_name': member['full_name'] ?? 'N/A',
-              'payment_date': row['payment_date'],
-              'amount': row['amount'] ?? 0,
-              'method': row['method'] ?? 'cash',
-              'status': row['status'] ?? 'pending',
-            };
-          }).toList();
-          await PdfExporter.exportPayments(libraryName: libraryName, libraryAddress: _libraryAddress, dateRange: dateRangeStr, payments: payments);
-        } else if (type == 'revenue') {
-          final summary = _filteredPayments.map((row) => {'date': row['payment_date'], 'amount': row['amount']}).toList();
-          await PdfExporter.exportRevenueSummary(libraryName: libraryName, libraryAddress: _libraryAddress, dateRange: dateRangeStr, summary: summary);
-        } else if (type == 'occupancy') {
-          final reports = _filteredSeats.map((row) => {'seat_label': row['seat_label'], 'status': row['status']}).toList();
-          await PdfExporter.exportOccupancy(libraryName: libraryName, libraryAddress: _libraryAddress, reports: reports);
-        } else if (type == 'dues') {
-          final dues = _filteredDues.map((row) {
-            final member = row['member_id'] is Map ? row['member_id'] as Map : {};
-            return {
-              'member_name': member['full_name'] ?? 'N/A',
-              'email': member['email'] ?? 'N/A',
-              'phone': member['phone'] ?? 'N/A',
-              'amount': row['amount'] ?? 0,
-              'due_date': row['payment_date'],
-            };
-          }).toList();
-          await PdfExporter.exportDues(libraryName: libraryName, libraryAddress: _libraryAddress, dues: dues);
-        }
-      }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: const Color(0xFF10B981), content: Text('Report exported successfully as ${format.toUpperCase()}')));
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: const Color(0xFFEF4444), content: Text('Export failed: $e')));
-    } finally {
-      setState(() => _isExporting = false);
-    }
-  }
-
-  Widget _buildCustomFilterDropdown({
-    required String? selectedValue,
-    required String hintText,
-    required List<Map<String, dynamic>> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    String displayText = hintText;
-    if (selectedValue != null) {
-      final matched = items.firstWhere(
-        (element) => element['id'].toString() == selectedValue,
-        orElse: () => {},
-      );
-      if (matched.isNotEmpty) {
-        displayText = matched['name'] ?? hintText;
-      }
-    }
-
-    return Theme(
-      data: Theme.of(context).copyWith(
-        cardColor: Colors.white,
-      ),
-      child: PopupMenuButton<String?>(
-        elevation: 4,
-        offset: const Offset(0, 36),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        onSelected: onChanged,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  displayText,
-                  style: GoogleFonts.inter(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.bold,
-                    color: selectedValue == null ? const Color(0xFF64748B) : const Color(0xFF1E293B),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const Icon(Icons.keyboard_arrow_down_rounded, size: 12, color: Color(0xFF94A3B8)),
-            ],
-          ),
-        ),
-        itemBuilder: (BuildContext context) {
-          return [
-            PopupMenuItem<String?>(
-              value: null,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    hintText,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: selectedValue == null ? FontWeight.bold : FontWeight.normal,
-                      color: selectedValue == null ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
-                    ),
-                  ),
-                  if (selectedValue == null)
-                    const Icon(Icons.check_rounded, color: Color(0xFFE65C00), size: 16),
-                ],
-              ),
-            ),
-            ...items.map((item) {
-              final itemId = item['id'].toString();
-              final isSelected = selectedValue == itemId;
-              return PopupMenuItem<String?>(
-                value: itemId,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      item['name'] ?? '',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
-                      ),
-                    ),
-                    if (isSelected)
-                      const Icon(Icons.check_rounded, color: Color(0xFFE65C00), size: 16),
-                  ],
-                ),
-              );
-            }),
-          ];
-        },
-      ),
-    );
-  }
-
-  // --- BUILD SYSTEM ---
   @override
   bool get wantKeepAlive => true;
 
   @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(statusBarColor: const Color(0xFFE65C00)),
-      child: Container(
-        color: const Color(0xFFFBF5EE),
-        child: DefaultTabController(
-          length: 4,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildCurvedHeader(),
-              Expanded(
-                child: _isLoading && _filteredSeats.isEmpty
-                    ? _buildSkeletonLoader()
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildSubChipsAndPillsRow(),
-                          _buildTabSelectionBar(),
-                          Expanded(
-                            child: TabBarView(
-                              children: [
-                                _buildOverviewTab(),
-                                _buildRevenueTab(),
-                                _buildAttendanceTab(),
-                                _buildExportsTab(),
-                              ],
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_handleTabChange);
+    _filterLibraryId = widget.libraryId;
+    _initCoverUrl();
+    _fetchCommonData().then((_) => _triggerActiveTabFetch());
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminAnalyticsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.libraryId != widget.libraryId ||
+        oldWidget.myLibraries != widget.myLibraries) {
+      setState(() {
+        _filterLibraryId = widget.libraryId;
+        _initCoverUrl();
+      });
+      _fetchCommonData().then((_) => _triggerActiveTabFetch());
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabChange);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (_tabController.indexIsChanging) return;
+    setState(() {}); // Repaint header based on active tab
+    _triggerActiveTabFetch();
+  }
+
+  void _initCoverUrl() {
+    if (_filterLibraryId == null) return;
+    final selectedLib = widget.myLibraries.cast<Map<String, dynamic>?>().firstWhere(
+      (lib) => lib?['id']?.toString().toLowerCase() == _filterLibraryId?.toString().toLowerCase(),
+      orElse: () => null as Map<String, dynamic>?,
+    );
+    if (selectedLib != null) {
+      final String? coverUrl = selectedLib['cover_photo_url'];
+      final List<dynamic> photos = selectedLib['photos'] ?? [];
+      if (coverUrl != null && coverUrl.isNotEmpty) {
+        _libraryCoverUrl = coverUrl;
+      } else if (photos.isNotEmpty) {
+        _libraryCoverUrl = photos.first.toString();
+      } else {
+        _libraryCoverUrl = null;
+      }
+
+      final String city = selectedLib['address_city'] ?? '';
+      final String state = selectedLib['address_state'] ?? '';
+      if (city.isNotEmpty && state.isNotEmpty) {
+        _libraryAddress = '$city, $state';
+      } else if (city.isNotEmpty) {
+        _libraryAddress = city;
+      } else if (state.isNotEmpty) {
+        _libraryAddress = state;
+      } else {
+        _libraryAddress = 'Library Address';
+      }
+    }
+  }
+
+  List<DateTime> _getWeekdayDays() {
+    final now = DateTime.now();
+    return List.generate(7, (i) => DateTime(now.year, now.month, now.day - (6 - i)));
+  }
+
+  DateTimeRange _getRangeForPreset(String filter, DateTimeRange? customRange) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    if (filter == 'custom' && customRange != null) {
+      return customRange;
+    }
+
+    if (filter == 'today') {
+      return DateTimeRange(start: todayStart, end: todayEnd);
+    } else if (filter == 'week') {
+      final weekday = now.weekday;
+      final monday = now.subtract(Duration(days: weekday - 1));
+      return DateTimeRange(
+        start: DateTime(monday.year, monday.month, monday.day),
+        end: todayEnd,
+      );
+    } else if (filter == 'month') {
+      return DateTimeRange(
+        start: DateTime(now.year, now.month, 1),
+        end: todayEnd,
+      );
+    }
+
+    return DateTimeRange(start: todayStart, end: todayEnd);
+  }
+
+  // Dual Month bottom sheet custom picker
+  Future<void> _openTabCustomRangePicker(String tab) async {
+    final DateTimeRange? currentRange =
+        tab == 'rev' ? _revCustomRange : (tab == 'sp' ? _spCustomRange : _attCustomRange);
+
+    final DateTimeRange? pickedRange = await showModalBottomSheet<DateTimeRange>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.8,
+          maxChildSize: 0.9,
+          minChildSize: 0.5,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: DualMonthCalendarPicker(
+                initialRange: currentRange ?? DateTimeRange(
+                  start: DateTime.now(),
+                  end: DateTime.now().add(const Duration(days: 7)),
+                ),
+                scrollController: scrollController,
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (pickedRange != null) {
+      setState(() {
+        if (tab == 'rev') {
+          _revDateFilter = 'custom';
+          _revCustomRange = pickedRange;
+        } else if (tab == 'sp') {
+          _spDateFilter = 'custom';
+          _spCustomRange = pickedRange;
+        } else {
+          _attCustomRange = pickedRange;
+        }
+      });
+      _triggerActiveTabFetch();
+    }
+  }
+
+  // Central trigger to dispatch fetch for current tab active parameters
+  void _triggerActiveTabFetch() {
+    final String activeFloorId = _getActiveFloorIdForTab();
+    final String activeShiftId = _getActiveShiftIdForTab();
+
+    dynamic dateFilter;
+    if (_tabController.index == 1) {
+      dateFilter = _attCustomRange ?? _attDate;
+    } else if (_tabController.index == 0) {
+      dateFilter = _getRangeForPreset(_revDateFilter, _revCustomRange);
+    } else {
+      dateFilter = _getRangeForPreset(_spDateFilter, _spCustomRange);
+    }
+
+    if (_filterLibraryId != null) {
+      _fetchAnalyticsData(
+        libraryId: _filterLibraryId!,
+        dateFilter: dateFilter,
+        floorId: activeFloorId == 'all' ? null : activeFloorId,
+        shiftId: activeShiftId == 'all' ? null : activeShiftId,
+      );
+    }
+  }
+
+  String _getActiveFloorIdForTab() {
+    switch (_tabController.index) {
+      case 0:
+        return _revFloorId;
+      case 1:
+        return _attFloorId;
+      case 2:
+      default:
+        return _spFloorId;
+    }
+  }
+
+  String _getActiveShiftIdForTab() {
+    switch (_tabController.index) {
+      case 0:
+        return _revShiftId;
+      case 1:
+        return _attShiftId;
+      case 2:
+      default:
+        return _spShiftId;
+    }
+  }
+
+  // Load floors and shifts commonly
+  Future<void> _fetchCommonData() async {
+    if (_filterLibraryId == null) return;
+    try {
+      final res = await Future.wait([
+        _supabase.from('floors').select().eq('library_id', _filterLibraryId!).order('order_index'),
+        _supabase.from('shifts').select().eq('library_id', _filterLibraryId!).eq('is_archived', false),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _floors = List<Map<String, dynamic>>.from(res[0]);
+        _shifts = List<Map<String, dynamic>>.from(res[1]);
+      });
+    } catch (e) {
+      debugPrint('Error fetching floors/shifts: $e');
+    }
+  }
+
+  // Central fetch Scaffolding
+  Future<void> _fetchAnalyticsData({
+    required String libraryId,
+    required dynamic dateFilter,
+    required String? floorId,
+    required String? shiftId,
+  }) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 1. Calculate date ranges
+      DateTimeRange currentRange;
+      if (dateFilter is DateTimeRange) {
+        currentRange = dateFilter;
+      } else {
+        currentRange = DateTimeRange(
+          start: DateTime(dateFilter.year, dateFilter.month, dateFilter.day),
+          end: DateTime(dateFilter.year, dateFilter.month, dateFilter.day, 23, 59, 59),
+        );
+      }
+
+      final duration = currentRange.end.difference(currentRange.start);
+      final prevStart = currentRange.start.subtract(duration);
+      final prevEnd = currentRange.start.subtract(const Duration(seconds: 1));
+
+      final fetchStartIso = prevStart.toUtc().toIso8601String();
+      final fetchEndIso = currentRange.end.toUtc().toIso8601String();
+
+      // Construction of Attendance query date range
+      DateTimeRange attRange;
+      if (_attCustomRange != null) {
+        attRange = _attCustomRange!;
+      } else {
+        attRange = DateTimeRange(
+          start: DateTime(_attDate.year, _attDate.month, _attDate.day),
+          end: DateTime(_attDate.year, _attDate.month, _attDate.day, 23, 59, 59),
+        );
+      }
+
+      // 2. Fetch parallel tables
+      final results = await Future.wait([
+        _supabase
+            .from('payments')
+            .select('*, memberships(*, seats(*), shifts(*)), member_id(*)')
+            .eq('library_id', libraryId)
+            .gte('payment_date', fetchStartIso)
+            .lte('payment_date', fetchEndIso),
+        _supabase
+            .from('expenditures')
+            .select()
+            .eq('library_id', libraryId)
+            .gte('expense_date', currentRange.start.toUtc().toIso8601String())
+            .lte('expense_date', currentRange.end.toUtc().toIso8601String())
+            .order('expense_date', ascending: false)
+            .catchError((err) {
+              debugPrint('expenditures select failed: $err');
+              return [];
+            }),
+        _supabase
+            .from('memberships')
+            .select('*, member_id(*), seats(*), shifts(*)')
+            .eq('library_id', libraryId),
+        _supabase
+            .from('attendance')
+            .select('*, member_id(*), memberships(*, seats(*), shifts(*))')
+            .eq('library_id', libraryId)
+            .gte('check_in_time', attRange.start.toUtc().toIso8601String())
+            .lte('check_in_time', attRange.end.toUtc().toIso8601String())
+            .order('check_in_time', ascending: false),
+        _supabase
+            .from('seats')
+            .select()
+            .eq('library_id', libraryId),
+        _supabase
+            .from('memberships')
+            .select('created_at, plan_type, status')
+            .eq('library_id', libraryId)
+            .gte('created_at', DateTime.now().subtract(const Duration(days: 180)).toUtc().toIso8601String()),
+      ]);
+
+      if (!mounted) return;
+
+      _rawPayments = List<Map<String, dynamic>>.from(results[0]);
+      _rawExpenditures = List<Map<String, dynamic>>.from(results[1]);
+      _rawMemberships = List<Map<String, dynamic>>.from(results[2]);
+      _rawAttendance = List<Map<String, dynamic>>.from(results[3]);
+      _rawSeats = List<Map<String, dynamic>>.from(results[4]);
+      _rawTrendMemberships = List<Map<String, dynamic>>.from(results[5]);
+
+      // Calculate hold member no-shows count inside the last 7 days
+      int holdNoShowCount = 0;
+      final holdMembers = _rawMemberships.where((m) => m['status'] == 'hold').toList();
+      if (holdMembers.isNotEmpty) {
+        final holdMemberIds = holdMembers.map((m) => m['member_id']?['id']).where((id) => id != null).toList();
+        final recentCheckins = await _supabase
+            .from('attendance')
+            .select('member_id')
+            .inFilter('member_id', holdMemberIds)
+            .gte('check_in_time', DateTime.now().subtract(const Duration(days: 7)).toUtc().toIso8601String());
+        final checkedInHoldIds = List<Map<String, dynamic>>.from(recentCheckins).map((r) => r['member_id']).toSet();
+        holdNoShowCount = holdMembers.where((m) => !checkedInHoldIds.contains(m['member_id']?['id'])).length;
+      }
+      _holdCount = holdNoShowCount;
+
+      // 3. Process data
+      _processRevenueData(currentRange, prevStart, prevEnd, floorId, shiftId);
+      _processAttendanceData(floorId, shiftId);
+      _processShiftsAndPlansData(floorId, shiftId);
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error fetching analytics data: $e');
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _processRevenueData(
+    DateTimeRange currentRange,
+    DateTime prevStart,
+    DateTime prevEnd,
+    String? floorId,
+    String? shiftId,
+  ) {
+    double curRev = 0.0;
+    double prevRev = 0.0;
+    double cash = 0.0;
+    double upi = 0.0;
+    double addon = 0.0;
+
+    final Map<String, double> shiftRevs = {};
+    final Map<String, double> planRevs = {};
+    final Map<String, double> dailyTrend = {};
+
+    List<Map<String, dynamic>> recentPays = [];
+    double pending = 0.0;
+    double expiredPending = 0.0;
+    double expiring7DaysPending = 0.0;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final in7Days = today.add(const Duration(days: 7));
+
+    // Process Payments
+    for (var p in _rawPayments) {
+      final mShip = p['memberships'];
+      if (mShip == null) continue;
+      final seat = mShip['seats'];
+
+      // Filter floor & shift in memory
+      if (floorId != null && seat?['floor_id']?.toString() != floorId) continue;
+      if (shiftId != null && mShip['shift_id']?.toString() != shiftId) continue;
+
+      final double amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
+      final String status = p['status'] ?? 'pending';
+      final String method = (p['method'] ?? 'cash').toString().toLowerCase();
+
+      final payDate = DateTime.parse(p['payment_date']).toLocal();
+
+      if (status == 'confirmed') {
+        if (payDate.isAfter(currentRange.start.subtract(const Duration(seconds: 1))) &&
+            payDate.isBefore(currentRange.end.add(const Duration(seconds: 1)))) {
+          curRev += amt;
+          recentPays.add(p);
+
+          // Split methods
+          if (method == 'cash') {
+            cash += amt;
+          } else if (method == 'upi') {
+            upi += amt;
+          } else {
+            addon += amt;
+          }
+
+          // Group by shift
+          final String sName = mShip['shifts']?['name'] ?? 'Unknown Shift';
+          shiftRevs[sName] = (shiftRevs[sName] ?? 0) + amt;
+
+          // Group by plan type
+          final String rawPlan = mShip['plan_type'] ?? 'monthly';
+          String planName = 'Monthly';
+          if (rawPlan == '3_month') planName = '3-Month';
+          if (rawPlan == '6_month') planName = '6-Month';
+          planRevs[planName] = (planRevs[planName] ?? 0) + amt;
+
+          // Group by date for trend
+          final dateKey = DateFormat('dd MMM').format(payDate);
+          dailyTrend[dateKey] = (dailyTrend[dateKey] ?? 0) + amt;
+        } else if (payDate.isAfter(prevStart.subtract(const Duration(seconds: 1))) &&
+            payDate.isBefore(prevEnd.add(const Duration(seconds: 1)))) {
+          prevRev += amt;
+        }
+      } else if (status == 'pending') {
+        pending += amt;
+        final mStatus = mShip['status'] ?? 'pending';
+        final String? endStr = mShip['end_date'];
+        if (endStr != null) {
+          final endDate = DateTime.parse(endStr);
+          if (mStatus == 'expired' || endDate.isBefore(today)) {
+            expiredPending += amt;
+          } else if (endDate.isAfter(today.subtract(const Duration(seconds: 1))) &&
+              endDate.isBefore(in7Days.add(const Duration(seconds: 1)))) {
+            expiring7DaysPending += amt;
+          }
+        }
+      }
+    }
+
+    recentPays.sort((a, b) => b['payment_date'].toString().compareTo(a['payment_date'].toString()));
+    _recentConfirmedPayments = recentPays.take(5).toList();
+
+    _totalRevenue = curRev;
+    _revenueChangePct = prevRev == 0.0 ? 100.0 : ((curRev - prevRev) / prevRev) * 100.0;
+    _cashRevenue = cash;
+    _upiRevenue = upi;
+    _addonRevenue = addon;
+    _totalPendingDues = pending;
+    _expiredDues = expiredPending;
+    _expiring7DaysDues = expiring7DaysPending;
+
+    // Process Expenses
+    double curExp = 0.0;
+    for (var exp in _rawExpenditures) {
+      curExp += (exp['amount'] as num?)?.toDouble() ?? 0.0;
+    }
+    _totalExpenses = curExp;
+    _netProfit = curRev - curExp;
+    _allExpenses = _rawExpenditures;
+
+    // Group comparisons
+    _shiftCompareRevenue = shiftRevs.values.toList();
+    _shiftCompareLabels = shiftRevs.keys.toList();
+    _planCompareRevenue = planRevs.values.toList();
+    _planCompareLabels = planRevs.keys.toList();
+
+    // Map trends
+    if (dailyTrend.isEmpty) {
+      _trendValues = [0.0];
+      _trendLabels = [DateFormat('dd MMM').format(currentRange.start)];
+    } else {
+      _trendValues = dailyTrend.values.toList();
+      _trendLabels = dailyTrend.keys.toList();
+    }
+
+    // Process Renewal Forecast inside next 30 days
+    int weekExp = 0;
+    double weekRev = 0.0;
+    int monthExp = 0;
+    double monthRev = 0.0;
+
+    final in30Days = today.add(const Duration(days: 30));
+
+    for (var m in _rawMemberships) {
+      final seat = m['seats'];
+      if (floorId != null && seat?['floor_id']?.toString() != floorId) continue;
+      if (shiftId != null && m['shift_id']?.toString() != shiftId) continue;
+
+      final String? endStr = m['end_date'];
+      if (endStr == null) continue;
+      final endDate = DateTime.parse(endStr);
+
+      final String plan = m['plan_type'] ?? 'monthly';
+      final double monthlyPrice = (m['shifts']?['price_monthly'] as num?)?.toDouble() ?? 1500.0;
+      double expectedPrice = monthlyPrice;
+      if (plan == '3_month') expectedPrice = (m['shifts']?['price_3month'] as num?)?.toDouble() ?? (monthlyPrice * 3);
+      if (plan == '6_month') expectedPrice = (m['shifts']?['price_6month'] as num?)?.toDouble() ?? (monthlyPrice * 6);
+
+      if (endDate.isAfter(today.subtract(const Duration(seconds: 1))) &&
+          endDate.isBefore(in7Days.add(const Duration(seconds: 1)))) {
+        weekExp++;
+        weekRev += expectedPrice;
+      } else if (endDate.isAfter(in7Days) &&
+          endDate.isBefore(in30Days.add(const Duration(seconds: 1)))) {
+        monthExp++;
+        monthRev += expectedPrice;
+      }
+    }
+
+    _expiringThisWeekCount = weekExp;
+    _expiringThisWeekRevenue = weekRev;
+    _expiringThisMonthCount = monthExp;
+    _expiringThisMonthRevenue = monthRev;
+  }
+
+  // Expenditures database actions
+  Future<void> _addExpense(double amount, String category, String notes, DateTime date) async {
+    if (_filterLibraryId == null) return;
+    setState(() => _isLoading = true);
+    try {
+      await _supabase.from('expenditures').insert({
+        'library_id': _filterLibraryId!,
+        'amount': amount,
+        'category': category,
+        'notes': notes,
+        'expense_date': date.toUtc().toIso8601String(),
+      });
+      _triggerActiveTabFetch();
+    } catch (e) {
+      debugPrint('Error adding expense: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to add expense: $e')),
+        );
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _editExpense(String expenseId, double amount, String category, String notes, DateTime date) async {
+    setState(() => _isLoading = true);
+    try {
+      await _supabase.from('expenditures').update({
+        'amount': amount,
+        'category': category,
+        'notes': notes,
+        'expense_date': date.toUtc().toIso8601String(),
+      }).eq('id', expenseId);
+      _triggerActiveTabFetch();
+    } catch (e) {
+      debugPrint('Error editing expense: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to edit expense: $e')),
+        );
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteExpense(String expenseId) async {
+    setState(() => _isLoading = true);
+    try {
+      await _supabase.from('expenditures').delete().eq('id', expenseId);
+      _triggerActiveTabFetch();
+    } catch (e) {
+      debugPrint('Error deleting expense: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete expense: $e')),
+        );
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showAddExpenseBottomSheet() {
+    final amountController = TextEditingController();
+    final noteController = TextEditingController();
+    String selectedCategory = 'Electricity';
+    DateTime selectedDate = DateTime.now();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                top: 24, left: 24, right: 24
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Add Expenditures',
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Amount (INR)', prefixText: '₹ '),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCategory,
+                      decoration: const InputDecoration(labelText: 'Category'),
+                      items: const [
+                        DropdownMenuItem(value: 'Electricity', child: Text('Electricity')),
+                        DropdownMenuItem(value: 'Rent', child: Text('Rent')),
+                        DropdownMenuItem(value: 'Water', child: Text('Water')),
+                        DropdownMenuItem(value: 'Salaries', child: Text('Salaries')),
+                        DropdownMenuItem(value: 'Internet', child: Text('Internet')),
+                        DropdownMenuItem(value: 'Maintenance', child: Text('Maintenance')),
+                        DropdownMenuItem(value: 'Others', child: Text('Others')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setSheetState(() => selectedCategory = val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: () async {
+                        final picked = await showCalendarGridBottomSheet(
+                          context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(DateTime.now().year - 2),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setSheetState(() => selectedDate = picked);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[400]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(DateFormat('dd MMMM yyyy').format(selectedDate)),
+                            const Icon(Icons.calendar_today, size: 16, color: Color(0xFFE65C00)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: noteController,
+                      decoration: const InputDecoration(labelText: 'Notes / Remarks'),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE65C00),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        final amt = double.tryParse(amountController.text) ?? 0.0;
+                        if (amt > 0) {
+                          _addExpense(amt, selectedCategory, noteController.text.trim(), selectedDate);
+                          Navigator.pop(ctx);
+                        }
+                      },
+                      child: Text('Add Expense', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showEditExpenseBottomSheet(Map<String, dynamic> exp) {
+    final amountController = TextEditingController(text: (exp['amount'] as num?)?.toDouble().toStringAsFixed(0));
+    final noteController = TextEditingController(text: exp['notes'] ?? '');
+    String selectedCategory = exp['category'] ?? 'Others';
+    DateTime selectedDate = DateTime.parse(exp['expense_date']).toLocal();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                top: 24, left: 24, right: 24
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Edit Expenditure',
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Amount (INR)', prefixText: '₹ '),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCategory,
+                      decoration: const InputDecoration(labelText: 'Category'),
+                      items: const [
+                        DropdownMenuItem(value: 'Electricity', child: Text('Electricity')),
+                        DropdownMenuItem(value: 'Rent', child: Text('Rent')),
+                        DropdownMenuItem(value: 'Water', child: Text('Water')),
+                        DropdownMenuItem(value: 'Salaries', child: Text('Salaries')),
+                        DropdownMenuItem(value: 'Internet', child: Text('Internet')),
+                        DropdownMenuItem(value: 'Maintenance', child: Text('Maintenance')),
+                        DropdownMenuItem(value: 'Others', child: Text('Others')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setSheetState(() => selectedCategory = val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: () async {
+                        final picked = await showCalendarGridBottomSheet(
+                          context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(DateTime.now().year - 2),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setSheetState(() => selectedDate = picked);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[400]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(DateFormat('dd MMMM yyyy').format(selectedDate)),
+                            const Icon(Icons.calendar_today, size: 16, color: Color(0xFFE65C00)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: noteController,
+                      decoration: const InputDecoration(labelText: 'Notes / Remarks'),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE65C00),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        final amt = double.tryParse(amountController.text) ?? 0.0;
+                        if (amt > 0) {
+                          _editExpense(exp['id'].toString(), amt, selectedCategory, noteController.text.trim(), selectedDate);
+                          Navigator.pop(ctx);
+                        }
+                      },
+                      child: Text('Save Changes', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // --- Reports Display Modal ---
+  void _showReportGridModal(String title, List<Map<String, dynamic>> items, List<String> columns, VoidCallback onExportCsv, VoidCallback onExportPdf) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            width: double.infinity,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      ),
+                    ),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SingleChildScrollView(
+                      child: DataTable(
+                        headingRowColor: WidgetStateProperty.all(const Color(0xFFFFF7F4)),
+                        columns: columns.map((col) => DataColumn(label: Text(col, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12)))).toList(),
+                        rows: items.map((row) {
+                          return DataRow(
+                            cells: columns.map((col) {
+                              return DataCell(Text(row[col]?.toString() ?? 'N/A', style: GoogleFonts.inter(fontSize: 12)));
+                            }).toList(),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.download, size: 16, color: Color(0xFFE65C00)),
+                        label: Text('Export CSV', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, fontSize: 13)),
+                        style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFFE65C00))),
+                        onPressed: onExportCsv,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.picture_as_pdf, size: 16, color: Colors.white),
+                        label: Text('Export PDF', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
+                        onPressed: onExportPdf,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showLibrarySwitcherPopup() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Library Switcher',
+      barrierColor: Colors.black.withValues(alpha: 0.15),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, anim1, anim2) {
+        return Align(
+          alignment: const Alignment(-0.85, -0.72),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: 280,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  ...widget.myLibraries.map((lib) {
+                    final bool isSelected =
+                        lib['id'].toString().toLowerCase() ==
+                        (_filterLibraryId ?? '').toString().toLowerCase();
+                    final String? city = lib['address_city'] ?? lib['city'];
+                    final String? coverUrl = lib['cover_photo_url'];
+                    final List<dynamic> photos = lib['photos'] ?? [];
+                    String? itemCover;
+                    if (coverUrl != null && coverUrl.isNotEmpty) {
+                      itemCover = coverUrl;
+                    } else if (photos.isNotEmpty) {
+                      itemCover = photos.first.toString();
+                    }
+
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        setState(() {
+                          _filterLibraryId = lib['id'];
+                          _initCoverUrl();
+                        });
+                        widget.onLibraryChanged(lib['id']);
+                        _fetchCommonData().then((_) => _triggerActiveTabFetch());
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFFF1F5F9),
+                              ),
+                              child: itemCover != null && itemCover.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: CachedNetworkImage(
+                                        imageUrl: itemCover,
+                                        fit: BoxFit.cover,
+                                        memCacheWidth: 200,
+                                        placeholder: (context, url) => const Center(
+                                          child: CircularProgressIndicator(
+                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                                            strokeWidth: 1.5,
+                                          ),
+                                        ),
+                                        errorWidget: (context, url, error) => const Icon(
+                                          Icons.business_rounded,
+                                          color: Color(0xFFE65C00),
+                                          size: 20,
+                                        ),
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.business_rounded,
+                                      color: Color(0xFFE65C00),
+                                      size: 20,
+                                    ),
                             ),
-                          )
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    lib['name'] ?? 'Library',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    city ?? 'Location',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(
+                                Icons.check,
+                                color: Color(0xFFE65C00),
+                                size: 20,
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/admin/library/setup/1');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.add,
+                            color: Color(0xFFE65C00),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '+ Add Library',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFFE65C00),
+                            ),
+                          ),
                         ],
                       ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        return FadeTransition(opacity: anim1, child: child);
+      },
     );
   }
 
-  Widget _buildSkeletonLoader() {
-    return Container(
-      color: const Color(0xFFFBF5EE),
-      child: const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00))),
+  void _showFloorSwitcherPopup(BuildContext context, String currentFloorId, Function(String) onFloorSelected) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Floor Selector',
+      barrierColor: Colors.black.withValues(alpha: 0.15),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, anim1, anim2) {
+        return Align(
+          alignment: const Alignment(-0.5, -0.4),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: 220,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      onFloorSelected('all');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.layers_outlined, color: Color(0xFF64748B), size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'All Floors',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: currentFloorId == 'all' ? FontWeight.bold : FontWeight.normal,
+                                color: const Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                          if (currentFloorId == 'all')
+                            const Icon(Icons.check, color: Color(0xFFE65C00), size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  ..._floors.map((floor) {
+                    final String floorId = floor['id'].toString();
+                    final String floorName = floor['name'] ?? 'Floor';
+                    final bool isSelected = floorId == currentFloorId;
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        onFloorSelected(floorId);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.layers_outlined, color: Color(0xFFE65C00), size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                floorName,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(Icons.check, color: Color(0xFFE65C00), size: 16),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        return FadeTransition(opacity: anim1, child: child);
+      },
     );
   }
 
-  // --- 1. Top Orange Header MATCHING Reservations Tab EXACTLY ---
-  Widget _buildCurvedHeader() {
-    final libraryName = widget.libraryName;
-    String dateRangeStr = 'Today';
-    if (_dateFilter == '7d') {
-      dateRangeStr = 'Last 7 Days';
-    } else if (_dateFilter == 'month') {
-      dateRangeStr = 'This Month';
-    } else if (_dateFilter == 'custom') {
-      dateRangeStr = 'Custom Range';
-    }
+  void _showShiftSwitcherPopup(BuildContext context, String currentShiftId, Function(String) onShiftSelected) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Shift Selector',
+      barrierColor: Colors.black.withValues(alpha: 0.15),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, anim1, anim2) {
+        return Align(
+          alignment: const Alignment(0.5, -0.4),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: 220,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      onShiftSelected('all');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.schedule_outlined, color: Color(0xFF64748B), size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'All Shifts',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: currentShiftId == 'all' ? FontWeight.bold : FontWeight.normal,
+                                color: const Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                          if (currentShiftId == 'all')
+                            const Icon(Icons.check, color: Color(0xFFE65C00), size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  ..._shifts.map((shift) {
+                    final String shiftId = shift['id'].toString();
+                    final String shiftName = shift['name'] ?? 'Shift';
+                    final bool isSelected = shiftId == currentShiftId;
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        onShiftSelected(shiftId);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.schedule_outlined, color: Color(0xFFE65C00), size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                shiftName,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(Icons.check, color: Color(0xFFE65C00), size: 16),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        return FadeTransition(opacity: anim1, child: child);
+      },
+    );
+  }
+
+  // --- Rendering UI Helpers ---
+  Widget _buildTopCurvedHeader() {
+    final todayFormatted = DateFormat('EEE dd/MM').format(DateTime.now()).toUpperCase();
 
     return Container(
       padding: EdgeInsets.only(
@@ -1146,11 +1404,9 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab> with SingleTicker
       ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
           colors: [
-            Color(0xFFFF6B00), // Vibrant Bright Orange
-            Color(0xFFE65C00), // Primary Brand Orange
+            Color(0xFFFF6B00),
+            Color(0xFFE65C00),
           ],
         ),
         borderRadius: BorderRadius.only(
@@ -1161,93 +1417,118 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab> with SingleTicker
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Dynamic Library Switcher (Left Side) - matching Reservations Tab
           Expanded(
-            child: GestureDetector(
-              onTap: () => _showLibrarySwitcherPopup(context),
-              child: Row(
-                children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2.0),
-                      color: Colors.white,
-                    ),
-                    child: _libraryCoverUrl != null && _libraryCoverUrl!.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(25),
-                            child: Image.network(
-                              _libraryCoverUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Icon(
-                                Icons.business_rounded,
-                                color: Color(0xFFE65C00),
-                                size: 26,
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.0),
+                    color: Colors.white,
+                  ),
+                  child: _libraryCoverUrl != null && _libraryCoverUrl!.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(25),
+                          child: CachedNetworkImage(
+                            imageUrl: _libraryCoverUrl!,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 200,
+                            placeholder: (context, url) => const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                                strokeWidth: 2,
                               ),
                             ),
-                          )
-                        : const Icon(
-                            Icons.business_rounded,
-                            color: Color(0xFFE65C00),
-                            size: 26,
+                            errorWidget: (context, url, error) => const Icon(
+                              Icons.business_rounded,
+                              color: Color(0xFFE65C00),
+                              size: 26,
+                            ),
                           ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
+                        )
+                      : const Icon(
+                          Icons.business_rounded,
+                          color: Color(0xFFE65C00),
+                          size: 26,
+                        ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: InkWell(
+                    onTap: _showLibrarySwitcherPopup,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Flexible(
                               child: Text(
-                                libraryName,
+                                widget.libraryName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.outfit(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
+                            const Icon(
+                              Icons.keyboard_arrow_down,
+                              color: Colors.white,
+                              size: 18,
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 2),
                         Text(
-                          'Operations Intelligence & Reports',
+                          _libraryAddress,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.inter(
                             fontSize: 10.5,
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          
-          // Date Filter Summary Pill
+          const SizedBox(width: 8),
+
+          // Date Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.0),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.5),
+                width: 1.0,
+              ),
               borderRadius: BorderRadius.circular(20),
-              color: Colors.white.withOpacity(0.12),
+              color: Colors.white.withValues(alpha: 0.12),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.trending_up_rounded, size: 12, color: Colors.white),
+                const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 12,
+                  color: Colors.white,
+                ),
                 const SizedBox(width: 4),
                 Text(
-                  dateRangeStr,
+                  todayFormatted,
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
@@ -1262,759 +1543,3710 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab> with SingleTicker
     );
   }
 
-  // --- 2. Second Row below Orange Header containing Filters & Date Preset Pills ---
-  Widget _buildSubChipsAndPillsRow() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Row A: Date presets
-          Row(
-            children: [
-              _buildDatePresetPill('Today', 'today'),
-              const SizedBox(width: 4),
-              _buildDatePresetPill('7 Days', '7d'),
-              const SizedBox(width: 4),
-              _buildDatePresetPill('This Month', 'month'),
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: _showCustomDateRangeBottomSheet,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _dateFilter == 'custom' ? const Color(0xFFE65C00) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Text('Custom', style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.bold, color: _dateFilter == 'custom' ? Colors.white : const Color(0xFF475569))),
-                ),
-              )
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Row B: Subtle filters row (Floor, Section, Shift) with custom dropdowns
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: _buildCustomFilterDropdown(
-                    selectedValue: _selectedFloorId,
-                    hintText: 'All Floors',
-                    items: _floors.map((f) => {'id': f['id'].toString(), 'name': f['name'] ?? 'Floor'}).toList(),
-                    onChanged: (val) {
-                      setState(() => _selectedFloorId = val);
-                      _applyFilters();
-                    },
-                  ),
-                ),
-                Container(width: 1, height: 12, color: const Color(0xFFE2E8F0)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _buildCustomFilterDropdown(
-                    selectedValue: _selectedSectionId,
-                    hintText: 'All Sections',
-                    items: _sections.map((s) => {'id': s['id'].toString(), 'name': s['name'] ?? 'Section'}).toList(),
-                    onChanged: (val) {
-                      setState(() => _selectedSectionId = val);
-                      _applyFilters();
-                    },
-                  ),
-                ),
-                Container(width: 1, height: 12, color: const Color(0xFFE2E8F0)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _buildCustomFilterDropdown(
-                    selectedValue: _selectedShiftId,
-                    hintText: 'All Shifts',
-                    items: _shifts.map((s) => {'id': s['id'].toString(), 'name': s['name'] ?? 'Shift'}).toList(),
-                    onChanged: (val) {
-                      setState(() => _selectedShiftId = val);
-                      _applyFilters();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDatePresetPill(String label, String code) {
-    final isSel = _dateFilter == code;
-    return GestureDetector(
-      onTap: () {
-        _setDateRangePreset(code);
-        _loadAllData();
-      },
-      child: Container(
-        margin: const EdgeInsets.only(right: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSel ? const Color(0xFFE65C00) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Text(label, style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.bold, color: isSel ? Colors.white : const Color(0xFF475569))),
-      ),
-    );
-  }
-
-  // --- 3. Sub-Tabs selection bar styled exactly like Reservations Tab ---
-  Widget _buildTabSelectionBar() {
+  Widget _buildSubTabBar() {
     return Container(
       color: Colors.white,
       height: 48,
       child: TabBar(
+        controller: _tabController,
         indicatorColor: const Color(0xFFE65C00),
         indicatorSize: TabBarIndicatorSize.label,
-        indicatorWeight: 3.0,
+        indicatorWeight: 2.0,
+        dividerColor: Colors.transparent,
         labelColor: const Color(0xFFE65C00),
-        unselectedLabelColor: const Color(0xFF6B7280),
-        labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w500, fontSize: 14),
-        unselectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w500, fontSize: 14),
+        unselectedLabelColor: const Color(0xFF64748B),
+        labelStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold),
+        unselectedLabelStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w500),
         tabs: const [
-          Tab(text: 'Overview'),
-          Tab(text: 'Revenue & Expenses'),
-          Tab(text: 'Seats & Attendance'),
-          Tab(text: 'Exports'),
+          Tab(text: 'Revenue'),
+          Tab(text: 'Attendance'),
+          Tab(text: 'Shifts & Plans'),
         ],
       ),
     );
   }
 
-  // --- TAB 1: OVERVIEW HUB (6 CARDS MAX, 16PX PADDING, 14PX CARD LABELS, 22PX VALS) ---
-  Widget _buildOverviewTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _buildCustomPopupSelector({
+    required String label,
+    required String? selectedId,
+    required List<dynamic> items,
+    required bool isFloor,
+    required ValueChanged<String> onChanged,
+  }) {
+    Map<String, dynamic>? selectedItem;
+    for (final item in items) {
+      if (item is Map<String, dynamic> &&
+          item['id']?.toString() == selectedId) {
+        selectedItem = item;
+        break;
+      }
+    }
+    final String selectedName = selectedId == 'all'
+        ? (isFloor ? 'All Floors' : 'All Shifts')
+        : (selectedItem != null ? (selectedItem['name'] ?? '') : 'Select ${isFloor ? 'Floor' : 'Shift'}');
+
+    return GestureDetector(
+      onTap: () => isFloor
+          ? _showFloorSwitcherPopup(context, selectedId ?? 'all', onChanged)
+          : _showShiftSwitcherPopup(context, selectedId ?? 'all', onChanged),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isFloor ? Icons.layers_rounded : Icons.access_time_rounded,
+              color: const Color(0xFFE65C00),
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF64748B),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    selectedName,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Color(0xFF64748B),
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterRowForTab({
+    required String floorId,
+    required String shiftId,
+    required Function(String) onFloorSelected,
+    required Function(String) onShiftSelected,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: const Color(0xFFFBF5EE),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            childAspectRatio: 1.35,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            children: [
-              _buildOverviewCard('Active Members', '$_kpiActiveMembers', '↑ 4% vs prev', const Color(0xFF10B981)),
-              _buildOverviewCard('Seat Occupancy', '${(_kpiOccupancyRate * 100).toStringAsFixed(0)}%', 'Daily peak target', const Color(0xFFE65C00)),
-              _buildOverviewCard('Month Revenue', '₹$_kpiRevenueMonth', 'Inflow sum', const Color(0xFFF59E0B)),
-              _buildOverviewCard('Pending Payments', '₹$_kpiRevenuePending', 'Outstanding dues', const Color(0xFFEF4444)),
-              _buildOverviewCard("Today's Presence", '$_kpiAttendanceToday', 'Check-ins logged', const Color(0xFF3B82F6)),
-              _buildOverviewCard('Expiring 7 Days', '$_kpiExpiringSoon', 'Expiries upcoming', const Color(0xFFEC4899)),
-            ],
+          SizedBox(
+            width: 140,
+            child: _buildCustomPopupSelector(
+              label: 'FLOOR',
+              selectedId: floorId,
+              items: _floors,
+              isFloor: true,
+              onChanged: onFloorSelected,
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 140,
+            child: _buildCustomPopupSelector(
+              label: 'SHIFT',
+              selectedId: shiftId,
+              items: _shifts,
+              isFloor: false,
+              onChanged: onShiftSelected,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildOverviewCard(String title, String val, String subtitle, Color color) {
+  Widget _buildTraditionalDatePresets(String tab) {
+    final activeFilter = tab == 'rev' ? _revDateFilter : _spDateFilter;
+    final customRange = tab == 'rev' ? _revCustomRange : _spCustomRange;
+
+    final presets = ['today', 'week', 'month'];
+    final labels = {'today': 'Today', 'week': 'This Week', 'month': 'This Month'};
+
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+      color: const Color(0xFFFBF5EE),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            ...presets.map((p) {
+              final isSelected = activeFilter == p;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (tab == 'rev') {
+                      _revDateFilter = p;
+                      _revCustomRange = null;
+                    } else {
+                      _spDateFilter = p;
+                      _spCustomRange = null;
+                    }
+                  });
+                  _triggerActiveTabFetch();
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFE65C00) : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: isSelected
+                        ? null
+                        : Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Text(
+                    labels[p]!,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                    ),
+                  ),
+                ),
+              );
+            }),
+            GestureDetector(
+              onTap: () => _openTabCustomRangePicker(tab),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: activeFilter == 'custom' ? const Color(0xFFE65C00) : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: activeFilter == 'custom'
+                      ? null
+                      : Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 14,
+                      color: activeFilter == 'custom' ? Colors.white : const Color(0xFF6B7280),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      activeFilter == 'custom' && customRange != null
+                          ? '${DateFormat('dd MMM').format(customRange.start)} - ${DateFormat('dd MMM').format(customRange.end)}'
+                          : 'Custom',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: activeFilter == 'custom' ? Colors.white : const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttendanceDateFilters() {
+    final pastDates = _getWeekdayDays();
+    
+    return Container(
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+      color: const Color(0xFFFBF5EE),
+      child: Row(
+        children: [
+          Expanded(
+            child: _isAttCustomSelected
+                ? Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE65C00).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
+                          color: Color(0xFFE65C00),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Custom: ${DateFormat('dd MMM yyyy').format(_attDate)}',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFFE65C00),
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _isAttCustomSelected = false;
+                              _attDate = DateTime.now();
+                              _attCustomRange = null;
+                            });
+                            _triggerActiveTabFetch();
+                          },
+                          child: const Icon(
+                            Icons.close_rounded,
+                            size: 16,
+                            color: Color(0xFFE65C00),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : SizedBox(
+                    height: 38,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: pastDates.length,
+                      itemBuilder: (context, index) {
+                        final date = pastDates[index];
+                        final isSelected = !_isAttCustomSelected && DateUtils.isSameDay(date, _attDate);
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _attDate = date;
+                              _isAttCustomSelected = false;
+                              _attCustomRange = null;
+                            });
+                            _triggerActiveTabFetch();
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isSelected ? const Color(0xFFE65C00) : Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: isSelected
+                                  ? null
+                                  : Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  DateFormat('EEE').format(date).toUpperCase(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSelected ? Colors.white.withValues(alpha: 0.8) : const Color(0xFF6B7280),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  DateFormat('d').format(date),
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 38,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                final picked = await showCalendarGridBottomSheet(
+                  context,
+                  initialDate: _attDate,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2101),
+                );
+                if (picked != null) {
+                  setState(() {
+                    _attDate = picked;
+                    _isAttCustomSelected = true;
+                    _attCustomRange = null;
+                  });
+                  _triggerActiveTabFetch();
+                }
+              },
+              icon: const Icon(Icons.calendar_month, size: 14, color: Color(0xFFE65C00)),
+              label: Text(
+                'Custom',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFFE65C00),
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFE65C00)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonLoader() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        Row(
+          children: [
+            Expanded(child: SkeletonWidget(width: double.infinity, height: 100)),
+            SizedBox(width: 16),
+            Expanded(child: SkeletonWidget(width: double.infinity, height: 100)),
+          ],
+        ),
+        SizedBox(height: 16),
+        SkeletonWidget(width: double.infinity, height: 120),
+        SizedBox(height: 16),
+        SkeletonWidget(width: double.infinity, height: 150),
+        SizedBox(height: 16),
+        SkeletonWidget(width: double.infinity, height: 200),
+      ],
+    );
+  }
+
+
+  // --- Card Construction Helpers ---
+  Widget _buildStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    String? subtitle,
+    Color? trendColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          )
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Row(
         children: [
-          Text(title, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280), fontWeight: FontWeight.w600)),
-          Text(val, style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
-          Text(subtitle, style: GoogleFonts.inter(fontSize: 9.5, color: const Color(0xFF94A3B8), fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  // --- TAB 2: MEMBER ANALYTICS ---
-  Widget _buildMembersTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0))),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Members Growth & Demographics', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildMetricCol('Growth', '$_kpiTotalMembers', const Color(0xFFE65C00)),
-                _buildMetricCol('Joined Today', '+$_kpiNewJoiningsToday', const Color(0xFF10B981)),
-                _buildMetricCol('Expired Month', '$_kpiExpiredMembers', const Color(0xFFEF4444)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text('Monthly Joinings & Renewals', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280), fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 100,
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: RevenueTrendPainter(revenueTrend: _joinsTrend, expenseTrend: _renewalsTrend, labels: _trendLabels),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildMiniProgressIndicator('Boys', _maleMembers / (_kpiTotalMembers > 0 ? _kpiTotalMembers : 1), const Color(0xFF3B82F6)),
-            const SizedBox(height: 8),
-            _buildMiniProgressIndicator('Girls', _femaleMembers / (_kpiTotalMembers > 0 ? _kpiTotalMembers : 1), const Color(0xFFEC4899)),
-            const SizedBox(height: 16),
-            Text('Recently Joined Members', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280), fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            _recentlyJoinedMembers.isEmpty
-                ? const Text('No recent joinings.')
-                : Column(
-                    children: _recentlyJoinedMembers.map((m) {
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10)),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(m['name'], style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold)),
-                            Text(m['joined_date'], style: GoogleFonts.inter(fontSize: 9.5, color: const Color(0xFF64748B))),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetricCol(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF6B7280))),
-        Text(value, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-      ],
-    );
-  }
-
-  Widget _buildMiniProgressIndicator(String title, double pct, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(title, style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B))),
-            Text('${(pct * 100).toStringAsFixed(0)}%', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(value: pct, backgroundColor: const Color(0xFFE2E8F0), valueColor: AlwaysStoppedAnimation<Color>(color), minHeight: 4),
-        )
-      ],
-    );
-  }
-
-  // --- TAB 3: SEATS & ATTENDANCE ---
-  Widget _buildAttendanceTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Attendance metrics
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0))),
+          CircleAvatar(
+            radius: 13,
+            backgroundColor: const Color(0xFFFFF7ED),
+            child: Icon(icon, color: const Color(0xFFE65C00), size: 13),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Check-ins & Busiest Traffic Hours', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildMetricCol('Today Scans', '$_kpiQRScansToday', const Color(0xFFE65C00)),
-                    _buildMetricCol('Duration', '240m', const Color(0xFF3B82F6)),
-                    _buildMetricCol('Avg Attendance', '${_kpiAvgAttendance.toStringAsFixed(1)}', const Color(0xFF10B981)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text('Hour-wise Traffic Grid (8 AM - 10 PM)', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280), fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 180,
-                  child: CustomPaint(
-                    size: Size.infinite,
-                    painter: AttendanceHeatmapPainter(heatmapGrid: _trafficHeatmap),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF64748B),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text('Daily Scan Performance Summary', style: GoogleFonts.inter(fontSize: 9.5, color: const Color(0xFF94A3B8))),
-                Text('Failed: $_kpiFailedScans attempts  •  Duplicates: $_kpiDuplicateScans times', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: trendColor ?? const Color(0xFF64748B),
+                    ),
+                  ),
+                ]
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          // Seats Occupancy Metrics
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0))),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Seats Occupancy & Vacancies', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _buildMiniProgressIndicator('Ground Floor', 0.65, const Color(0xFFE65C00))),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildMiniProgressIndicator('First Floor', 0.40, const Color(0xFF10B981))),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text('Seat status logs:', style: GoogleFonts.inter(fontSize: 9.5, color: const Color(0xFF94A3B8))),
-                Text('Occupied: $_kpiOccupiedSeats  •  Vacant: $_kpiVacantSeats  •  Reserved: $_kpiReservedSeats', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
-                const SizedBox(height: 16),
-                Text('Dead Seats (0 check-ins logged)', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280), fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                _deadSeatsList.isEmpty
-                    ? const Text('All seats are active.')
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: _deadSeatsList.map((seat) {
-                            return Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFFEDD5))),
-                              child: Text('Seat ${seat['label']} (${seat['floor']})', style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                            );
-                          }).toList(),
-                        ),
-                      )
-              ],
-            ),
-          )
         ],
       ),
     );
   }
 
-  // --- TAB 4: REVENUE & EXPENSES ---
-  Widget _buildRevenueTab() {
-    return SingleChildScrollView(
+  // --- Revenue Subtab View Builder ---
+  Widget _buildRevenueTabView() {
+    final double changePct = _revenueChangePct;
+    final String pctSign = changePct >= 0 ? '↑' : '↓';
+    final Color pctColor = changePct >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+
+    return ListView(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0))),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
+      children: [
+        // 1. KPI Cards Row
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                title: 'Total Revenue',
+                value: '₹${_totalRevenue.toStringAsFixed(0)}',
+                icon: Icons.payments,
+                subtitle: '$pctSign ${changePct.abs().toStringAsFixed(1)}% vs prev',
+                trendColor: pctColor,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Net Profit',
+                value: '₹${_netProfit.toStringAsFixed(0)}',
+                icon: Icons.wallet,
+                subtitle: 'Expenses: ₹${_totalExpenses.toStringAsFixed(0)}',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // 2. Pending Dues Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Pending Dues',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '₹${_totalPendingDues.toStringAsFixed(0)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFDC2626),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Divider(color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Expired members (not left)',
+                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                  ),
+                  Text(
+                    '₹${_expiredDues.toStringAsFixed(0)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Expiring in 7 days',
+                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                  ),
+                  Text(
+                    '₹${_expiring7DaysDues.toStringAsFixed(0)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 3. Renewal Forecast Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Renewal Forecast – Next 30 days',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFE65C00), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Inflow Collection', style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF6B7280))),
-                        Text('₹$_kpiRevenueMonth', style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                        Text(
+                          '$_expiringThisWeekCount members expiring this week',
+                          style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1E293B)),
+                        ),
+                        Text(
+                          'Expected renewal revenue: ₹${_expiringThisWeekRevenue.toStringAsFixed(0)}',
+                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                        ),
                       ],
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                  )
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFE65C00), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Outstanding Fees', style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF6B7280))),
-                        Text('₹$_kpiRevenuePending', style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
+                        Text(
+                          '$_expiringThisMonthCount members expiring this month',
+                          style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1E293B)),
+                        ),
+                        Text(
+                          'Expected renewal revenue: ₹${_expiringThisMonthRevenue.toStringAsFixed(0)}',
+                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                        ),
                       ],
-                    )
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text('Inflow Collections vs Expense Trend', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280), fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 100,
-                  child: CustomPaint(
-                    size: Size.infinite,
-                    painter: RevenueTrendPainter(revenueTrend: _revenueTrend, expenseTrend: _expensesTrend, labels: _trendLabels),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text('Collection Channels Distribution', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280), fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 80,
-                  child: CustomPaint(
-                    painter: RevenueDonutPainter(cashRatio: _cashRatio, upiRatio: _upiRatio, addonsRatio: _addonsRatio),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildLegendRow('UPI', _upiRatio, const Color(0xFF3B82F6)),
-                    _buildLegendRow('Cash', _cashRatio, const Color(0xFF10B981)),
-                    _buildLegendRow('Add-ons', _addonsRatio, const Color(0xFFF59E0B)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0))),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Recorded Expenses Ledger', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-                    ElevatedButton.icon(
-                      onPressed: _openAddExpenditureBottomSheet,
-                      icon: const Icon(Icons.add, size: 12, color: Colors.white),
-                      label: Text('Record', style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), elevation: 0, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _filteredExpenditures.isEmpty
-                    ? const Center(child: Text('No expenditures recorded.'))
-                    : Column(
-                        children: _filteredExpenditures.take(5).map((exp) {
-                          final note = exp['notes'] ?? '';
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10)),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Icon(_getCategoryIcon(exp['category'] ?? 'Miscellaneous'), size: 14, color: const Color(0xFFE65C00)),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(exp['category'] ?? 'Others', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold)),
-                                      if (note.isNotEmpty) Text(note, style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8))),
-                                    ],
-                                  ),
-                                ),
-                                Text('₹${exp['amount']}', style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
-                                const SizedBox(width: 8),
-                                IconButton(icon: const Icon(Icons.delete_outline, size: 14, color: Color(0xFF94A3B8)), onPressed: () => _deleteExpense(exp['id'])),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      )
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegendRow(String label, double pct, Color color) {
-    return Row(
-      children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text('$label (${(pct * 100).toStringAsFixed(0)}%)', style: GoogleFonts.inter(fontSize: 8.5, color: const Color(0xFF64748B))),
-      ],
-    );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case 'Rent':
-        return Icons.home_rounded;
-      case 'Electricity':
-        return Icons.electric_bolt_rounded;
-      case 'Internet':
-        return Icons.wifi_rounded;
-      case 'Maintenance':
-        return Icons.build_rounded;
-      case 'Salary':
-        return Icons.people_rounded;
-      case 'Supplies':
-        return Icons.inventory_rounded;
-      case 'Generator/Diesel':
-        return Icons.local_gas_station_rounded;
-      case 'Cleaning':
-        return Icons.cleaning_services_rounded;
-      case 'Security':
-        return Icons.security_rounded;
-      case 'Taxes':
-        return Icons.receipt_rounded;
-      default:
-        return Icons.category_rounded;
-    }
-  }
-
-  // --- TAB 4: EXPORTS ROSTER ---
-  Widget _buildExportsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0))),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Data Export Ledger Sheets', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-            const SizedBox(height: 12),
-            _buildExportRow('Attendance Log Report', 'attendance'),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
-            _buildExportRow('Revenue Collections Summary', 'revenue'),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
-            _buildExportRow('Pending Payments Defaulters Roster', 'dues'),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
-            _buildExportRow('Expiring Members List', 'members'),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
-            _buildExportRow('Seat Occupancy Layouts Roster', 'occupancy'),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
-            _buildExportRow('Active Members Directory', 'members'),
-          ],
+                  )
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
+        const SizedBox(height: 16),
 
-  Widget _buildExportRow(String title, String type) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: Text(title, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF334155)))),
-          Row(
+        // 4. Revenue Trend Line Chart
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              GestureDetector(
-                onTap: () => _exportData(type, 'csv'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFBAE6FD))),
-                  child: Text('CSV', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFF0369A1))),
+              Text(
+                'Revenue Trend',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
                 ),
               ),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: () => _exportData(type, 'pdf'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFFECDD3))),
-                  child: Text('PDF', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFFB91C1C))),
+              const SizedBox(height: 12),
+              if (_trendValues.isEmpty || _trendValues.every((v) => v == 0.0))
+                Container(
+                  height: 180,
+                  alignment: Alignment.center,
+                  child: Text('No Revenue Trend Data',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                GestureDetector(
+                  onPanDown: (details) {
+                    // Simple hit testing to find index
+                    final double localX = details.localPosition.dx - 40;
+                    final double chartWidth = MediaQuery.of(context).size.width - 32 - 32 - 80;
+                    if (chartWidth > 0 && _trendValues.length > 1) {
+                      final double step = chartWidth / (_trendValues.length - 1);
+                      final int index = (localX / step).round().clamp(0, _trendValues.length - 1);
+                      setState(() {
+                        _hoverTrendIndex = index;
+                      });
+                    }
+                  },
+                  child: CustomPaint(
+                    size: const Size(double.infinity, 180),
+                    painter: LineChartPainter(
+                      values: _trendValues,
+                      labels: _trendLabels,
+                      selectedIndex: _hoverTrendIndex,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 5. Payment Split Donut Chart
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Payment Method Split',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: CustomPaint(
+                      painter: DonutChartPainter(
+                        values: [_cashRevenue, _upiRevenue, _addonRevenue],
+                        labels: const ['Cash', 'UPI', 'Add-ons'],
+                        colors: const [
+                          Color(0xFFE65C00),
+                          Color(0xFF0F172A),
+                          Color(0xFF94A3B8),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildLegendItem('Cash', _cashRevenue, const Color(0xFFE65C00)),
+                        const SizedBox(height: 8),
+                        _buildLegendItem('UPI', _upiRevenue, const Color(0xFF0F172A)),
+                        const SizedBox(height: 8),
+                        _buildLegendItem('Add-ons', _addonRevenue, const Color(0xFF94A3B8)),
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 6. Recent Payments Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Recent Payments',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildPaymentTypePill('Cash', _cashRevenue),
+                  _buildPaymentTypePill('UPI', _upiRevenue),
+                  _buildPaymentTypePill('Add-ons', _addonRevenue),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Divider(color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 6),
+              if (_recentConfirmedPayments.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  alignment: Alignment.center,
+                  child: Text('No Recent Confirmed Payments',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _recentConfirmedPayments.length,
+                  itemBuilder: (ctx, index) {
+                    final pay = _recentConfirmedPayments[index];
+                    final member = pay['member_id'];
+                    final name = member?['full_name'] ?? 'Member';
+                    final photo = member?['photo_url'] ?? '';
+                    final amt = pay['amount'] ?? 0;
+                    final method = (pay['method'] ?? 'UPI').toString().toUpperCase();
+
+                    return Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: const Color(0xFFFFF7ED),
+                            backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                            child: photo.isEmpty
+                                ? const Icon(Icons.person, color: Color(0xFFE65C00), size: 16)
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF1E293B)),
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '₹$amt',
+                                style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFFE65C00)),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF7ED),
+                                    borderRadius: BorderRadius.circular(4)),
+                                child: Text(
+                                  method,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFE65C00)),
+                                ),
+                              )
+                            ],
+                          )
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 7. Shifts vs Plans Chart Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Revenue Comparison (Shifts vs Plans)',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 200,
+                child: CustomPaint(
+                  painter: BarChartPainter(
+                    shiftValues: _shiftCompareRevenue,
+                    shiftLabels: _shiftCompareLabels,
+                    planValues: _planCompareRevenue,
+                    planLabels: _planCompareLabels,
+                  ),
                 ),
               ),
             ],
-          )
-        ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 8. Expenditure Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Expenditures Breakdown',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE65C00),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.add, size: 14, color: Colors.white),
+                    label: Text(
+                      'Add Expense',
+                      style: GoogleFonts.inter(
+                          fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    onPressed: _showAddExpenseBottomSheet,
+                  )
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (_allExpenses.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  alignment: Alignment.center,
+                  child: Text('No expenditures logged',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _allExpenses.length,
+                  itemBuilder: (ctx, index) {
+                    final exp = _allExpenses[index];
+                    final String id = exp['id'].toString();
+                    final double amt = (exp['amount'] as num?)?.toDouble() ?? 0.0;
+                    final String category = exp['category'] ?? 'Others';
+                    final date = DateTime.parse(exp['expense_date']).toLocal();
+
+                    return Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  category,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF1E293B)),
+                                ),
+                                Text(
+                                  DateFormat('dd MMM yyyy').format(date),
+                                  style: GoogleFonts.inter(fontSize: 11, color: Colors.grey),
+                                )
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '- ₹${amt.toStringAsFixed(0)}',
+                            style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFDC2626)),
+                          ),
+                          const SizedBox(width: 10),
+                          GestureDetector(
+                            onTap: () => _showEditExpenseBottomSheet(exp),
+                            child: const Icon(Icons.edit_outlined,
+                                size: 18, color: Color(0xFF64748B)),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => _deleteExpense(id),
+                            child: const Icon(Icons.delete_outline,
+                                size: 18, color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 9. Export & View Reports Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Export & View Reports',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  SizedBox(
+                    width: (MediaQuery.of(context).size.width - 64 - 10) / 2,
+                    child: _buildReportBtn('Revenue Report', () {
+                      final summaries = _allExpenses.map((e) => {
+                        'date': DateFormat('dd MMM yyyy').format(DateTime.parse(e['expense_date']).toLocal()),
+                        'revenue': _totalRevenue,
+                        'expenses': e['amount'],
+                        'net_profit': _netProfit,
+                      }).toList();
+
+                      _showReportGridModal(
+                        'Revenue Summary Report',
+                        summaries,
+                        const ['date', 'revenue', 'expenses', 'net_profit'],
+                        () => CsvExporter.exportRevenueSummary(libraryName: widget.libraryName, summary: summaries),
+                        () => debugPrint('PDF Export Revenue placeholder'),
+                      );
+                    }),
+                  ),
+                  SizedBox(
+                    width: (MediaQuery.of(context).size.width - 64 - 10) / 2,
+                    child: _buildReportBtn('Expense Report', () {
+                      final data = _allExpenses.map((e) => {
+                        'category': e['category'],
+                        'amount': e['amount'],
+                        'date': DateFormat('dd MMM yyyy').format(DateTime.parse(e['expense_date']).toLocal()),
+                      }).toList();
+
+                      _showReportGridModal(
+                        'Expenses Breakdown Report',
+                        data,
+                        const ['category', 'amount', 'date'],
+                        () => debugPrint('CSV Export Expense placeholder'),
+                        () => debugPrint('PDF Export Expense placeholder'),
+                      );
+                    }),
+                  ),
+                  SizedBox(
+                    width: (MediaQuery.of(context).size.width - 64 - 10) / 2,
+                    child: _buildReportBtn('Payment History', () {
+                      final data = _recentConfirmedPayments.map((p) => {
+                        'id': p['id'].toString().substring(0, 8),
+                        'member_name': p['member_id']?['full_name'] ?? 'N/A',
+                        'amount': p['amount'],
+                        'method': p['method'],
+                        'status': p['status'],
+                        'payment_date': DateFormat('dd MMM yyyy').format(DateTime.parse(p['payment_date']).toLocal()),
+                      }).toList();
+
+                      _showReportGridModal(
+                        'Payments Confirmation Log',
+                        data,
+                        const ['id', 'member_name', 'amount', 'method', 'status', 'payment_date'],
+                        () => CsvExporter.exportPayments(libraryName: widget.libraryName, payments: data),
+                        () => debugPrint('PDF Export Payment placeholder'),
+                      );
+                    }),
+                  ),
+                  SizedBox(
+                    width: (MediaQuery.of(context).size.width - 64 - 10) / 2,
+                    child: _buildReportBtn('Payment Details', () {
+                      final data = _recentConfirmedPayments.map((p) => {
+                        'txId': p['id'].toString().substring(0, 8),
+                        'member': p['member_id']?['full_name'] ?? 'N/A',
+                        'phone': p['member_id']?['phone'] ?? 'N/A',
+                        'email': p['member_id']?['email'] ?? 'N/A',
+                        'amount': p['amount'],
+                        'date': DateFormat('dd MMM yyyy').format(DateTime.parse(p['payment_date']).toLocal()),
+                      }).toList();
+
+                      _showReportGridModal(
+                        'Individual Detailed Payments',
+                        data,
+                        const ['txId', 'member', 'phone', 'email', 'amount', 'date'],
+                        () => debugPrint('CSV Export Details placeholder'),
+                        () => debugPrint('PDF Export Details placeholder'),
+                      );
+                    }),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegendItem(String label, double value, Color color) {
+    return Row(
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)))),
+        Text('₹${value.toStringAsFixed(0)}',
+            style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+      ],
+    );
+  }
+
+  Widget _buildPaymentTypePill(String label, double value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '$label: ₹${value.toStringAsFixed(0)}',
+        style: GoogleFonts.inter(
+            fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+      ),
+    );
+  }
+
+
+  void _processAttendanceData(String? floorId, String? shiftId) {
+    final List<Map<String, dynamic>> filteredAtt = [];
+    final Map<String, double> memberStudyHours = {};
+    final Map<String, Map<String, dynamic>> memberDetails = {};
+    final Map<String, int> dailyCheckins = {};
+    final List<int> hourlyCheckins = List.filled(15, 0);
+
+    int checkedIn = 0;
+    int checkedOut = 0;
+
+    for (var att in _rawAttendance) {
+      final mShip = att['memberships'];
+      final seat = mShip?['seats'];
+
+      if (floorId != null && seat?['floor_id']?.toString() != floorId) continue;
+      if (shiftId != null && att['shift_id']?.toString() != shiftId) continue;
+
+      filteredAtt.add(att);
+
+      final String? ciStr = att['check_in_time'];
+      final String? coStr = att['check_out_time'];
+      if (ciStr == null) continue;
+
+      final checkIn = DateTime.parse(ciStr).toLocal();
+      final checkOut = coStr != null ? DateTime.parse(coStr).toLocal() : null;
+
+      if (checkOut == null) {
+        checkedIn++;
+      } else {
+        checkedOut++;
+      }
+
+      final double durationHrs = checkOut != null
+          ? checkOut.difference(checkIn).inMinutes / 60.0
+          : DateTime.now().difference(checkIn).inMinutes / 60.0;
+
+      final member = att['member_id'];
+      if (member != null) {
+        final String mId = member['id'].toString();
+        memberStudyHours[mId] = (memberStudyHours[mId] ?? 0.0) + durationHrs;
+        memberDetails[mId] = member;
+      }
+
+      final dayKey = DateFormat('dd MMM').format(checkIn);
+      dailyCheckins[dayKey] = (dailyCheckins[dayKey] ?? 0) + 1;
+
+      final hour = checkIn.hour;
+      if (hour >= 8 && hour <= 22) {
+        hourlyCheckins[hour - 8]++;
+      }
+    }
+
+    _attendanceLogs = filteredAtt;
+    _checkedInCount = checkedIn;
+    _checkedOutCount = checkedOut;
+
+    final activeMemberships = _rawMemberships.where((m) {
+      final seat = m['seats'];
+      if (floorId != null && seat?['floor_id']?.toString() != floorId) return false;
+      if (shiftId != null && m['shift_id']?.toString() != shiftId) return false;
+      return m['status'] == 'active';
+    }).toList();
+
+    _absentCount = (activeMemberships.length - checkedIn).clamp(0, 99999);
+
+    final sortedMemberHours = memberStudyHours.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    _leaderboardValues = sortedMemberHours.take(10).map((e) => e.value).toList();
+    _leaderboardLabels = sortedMemberHours.take(10).map<String>((e) {
+      final details = memberDetails[e.key];
+      return (details?['full_name'] ?? 'Member').toString();
+    }).toList();
+
+    final Map<String, double> allActiveStudyHours = {};
+    for (var m in activeMemberships) {
+      final member = m['member_id'];
+      if (member != null) {
+        final String mId = member['id'].toString();
+        allActiveStudyHours[mId] = memberStudyHours[mId] ?? 0.0;
+        memberDetails[mId] = member;
+      }
+    }
+
+    final sortedAllActiveHours = allActiveStudyHours.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+
+    _leastActiveMembers = sortedAllActiveHours.take(5).map((e) {
+      final details = memberDetails[e.key];
+      return {
+        'id': e.key,
+        'name': details?['full_name'] ?? 'Member',
+        'phone': details?['phone'] ?? '',
+        'hours': e.value,
+      };
+    }).toList();
+
+    if (dailyCheckins.isEmpty) {
+      _attendanceTrendValues = [0.0];
+      _attendanceTrendLabels = ['Today'];
+    } else {
+      _attendanceTrendValues = dailyCheckins.values.map((v) => v.toDouble()).toList();
+      _attendanceTrendLabels = dailyCheckins.keys.toList();
+    }
+
+    _peakHoursValues = hourlyCheckins.map((v) => v.toDouble()).toList();
+    _peakHoursLabels = List.generate(15, (i) {
+      final h = i + 8;
+      final ampm = h >= 12 ? 'PM' : 'AM';
+      final displayHour = h > 12 ? h - 12 : (h == 0 ? 12 : h);
+      return '$displayHour$ampm';
+    });
+  }
+
+  void _processShiftsAndPlansData(String? floorId, String? shiftId) {
+    final int totalSeatsCount = _rawSeats.where((s) => floorId == null || s['floor_id']?.toString() == floorId).length;
+
+    final Map<String, int> activeMembershipsPerShift = {};
+    for (var m in _rawMemberships) {
+      if (m['status'] != 'active') continue;
+      final seat = m['seats'];
+      if (floorId != null && seat?['floor_id']?.toString() != floorId) continue;
+
+      final String sName = m['shifts']?['name'] ?? 'Unknown Shift';
+      activeMembershipsPerShift[sName] = (activeMembershipsPerShift[sName] ?? 0) + 1;
+    }
+
+    _shiftOccupancyLabels = _shifts.map((s) => s['name']?.toString() ?? 'Shift').toList();
+    _shiftOccupancyValues = _shifts.map((s) {
+      final name = s['name']?.toString() ?? 'Shift';
+      final activeCount = activeMembershipsPerShift[name] ?? 0;
+      final double totalSeats = totalSeatsCount == 0 ? 30.0 : totalSeatsCount.toDouble();
+      return (activeCount / totalSeats * 100.0).clamp(0.0, 100.0);
+    }).toList();
+
+    final Map<String, int> planCounts = {};
+    for (var m in _rawMemberships) {
+      if (m['status'] != 'active') continue;
+      final seat = m['seats'];
+      if (floorId != null && seat?['floor_id']?.toString() != floorId) continue;
+      if (shiftId != null && m['shift_id']?.toString() != shiftId) continue;
+
+      final String rawPlan = m['plan_type'] ?? 'monthly';
+      String planName = 'Monthly';
+      if (rawPlan == '3_month') planName = '3-Month';
+      if (rawPlan == '6_month') planName = '6-Month';
+
+      planCounts[planName] = (planCounts[planName] ?? 0) + 1;
+    }
+
+    _planDistLabels = planCounts.keys.toList();
+    _planDistValues = planCounts.values.map((v) => v.toDouble()).toList();
+
+    final Map<String, double> shiftRevenue = {};
+    for (var p in _rawPayments) {
+      if (p['status'] != 'confirmed') continue;
+      final mShip = p['memberships'];
+      if (mShip == null) continue;
+      final seat = mShip['seats'];
+      if (floorId != null && seat?['floor_id']?.toString() != floorId) continue;
+      if (shiftId != null && mShip['shift_id']?.toString() != shiftId) continue;
+
+      final String sName = mShip['shifts']?['name'] ?? 'Unknown Shift';
+      final double amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
+      shiftRevenue[sName] = (shiftRevenue[sName] ?? 0.0) + amt;
+    }
+
+    _revPerShiftLabels = _shifts.map((s) => s['name']?.toString() ?? 'Shift').toList();
+    _revPerShiftValues = _shifts.map((s) {
+      final name = s['name']?.toString() ?? 'Shift';
+      return shiftRevenue[name] ?? 0.0;
+    }).toList();
+
+    final Map<String, List<int>> monthlyPlanCounts = {
+      'monthly': List.filled(6, 0),
+      '3_month': List.filled(6, 0),
+      '6_month': List.filled(6, 0),
+    };
+
+    final List<String> months = [];
+    final now = DateTime.now();
+    for (int i = 5; i >= 0; i--) {
+      final mDate = DateTime(now.year, now.month - i, 1);
+      months.add(DateFormat('MMM').format(mDate));
+    }
+    _popularityTrendMonths = months;
+
+    for (var m in _rawTrendMemberships) {
+      final String? ciStr = m['created_at'];
+      if (ciStr == null) continue;
+      final cDate = DateTime.parse(ciStr).toLocal();
+
+      final int diffMonths = (now.year - cDate.year) * 12 + (now.month - cDate.month);
+      if (diffMonths >= 0 && diffMonths < 6) {
+        final int index = 5 - diffMonths;
+        final String rawPlan = m['plan_type'] ?? 'monthly';
+        if (monthlyPlanCounts.containsKey(rawPlan)) {
+          monthlyPlanCounts[rawPlan]![index]++;
+        }
+      }
+    }
+
+    _popularityTrendValues = [
+      monthlyPlanCounts['monthly']!.map((v) => v.toDouble()).toList(),
+      monthlyPlanCounts['3_month']!.map((v) => v.toDouble()).toList(),
+      monthlyPlanCounts['6_month']!.map((v) => v.toDouble()).toList(),
+    ];
+  }
+
+  Future<void> _triggerAttendanceCsvExport() async {
+    if (_attendanceTableToggle == 'date_wise') {
+      final logs = _attendanceLogs.map((l) {
+        final name = l['member_id']?['full_name'] ?? 'N/A';
+        final ci = l['check_in_time'];
+        final co = l['check_out_time'];
+        final sName = l['memberships']?['shifts']?['name'] ?? 'N/A';
+        return {
+          'member_name': name,
+          'check_in_time': ci,
+          'check_out_time': co,
+          'shift_name': sName,
+        };
+      }).toList();
+      await CsvExporter.exportAttendance(libraryName: widget.libraryName, logs: logs);
+    } else {
+      final Map<String, int> checkinCounts = {};
+      final Map<String, double> totalHours = {};
+      final Map<String, String> planTypes = {};
+      final Map<String, String> memberNames = {};
+
+      for (var att in _attendanceLogs) {
+        final member = att['member_id'];
+        if (member == null) continue;
+        final mId = member['id'].toString();
+        final name = member['full_name'] ?? 'Member';
+        memberNames[mId] = name;
+        checkinCounts[mId] = (checkinCounts[mId] ?? 0) + 1;
+
+        final ciStr = att['check_in_time'];
+        final coStr = att['check_out_time'];
+        if (ciStr != null) {
+          final ci = DateTime.parse(ciStr);
+          final co = coStr != null ? DateTime.parse(coStr) : DateTime.now();
+          final diff = co.difference(ci).inMinutes / 60.0;
+          totalHours[mId] = (totalHours[mId] ?? 0.0) + diff;
+        }
+
+        final plan = att['memberships']?['plan_type'] ?? 'monthly';
+        planTypes[mId] = plan == '3_month' ? '3-Month' : (plan == '6_month' ? '6-Month' : 'Monthly');
+      }
+
+      final buffer = StringBuffer();
+      buffer.writeln('SILENCE Member-wise Attendance Summary');
+      buffer.writeln('Library:,$widget.libraryName');
+      buffer.writeln('Export Date:,${DateFormat('dd MMM yyyy').format(DateTime.now())}');
+      buffer.writeln();
+      buffer.writeln('Member Name,Active Plan,Total Check-ins,Total Hours,Avg Hours/Session');
+
+      memberNames.forEach((mId, name) {
+        final plan = planTypes[mId] ?? 'Monthly';
+        final checkins = checkinCounts[mId] ?? 0;
+        final hours = totalHours[mId] ?? 0.0;
+        final avg = checkins == 0 ? 0.0 : hours / checkins;
+        buffer.writeln('"$name","$plan","$checkins","${hours.toStringAsFixed(1)}","${avg.toStringAsFixed(1)}"');
+      });
+
+      final tempDir = Directory.systemTemp;
+      final tempFile = File('${tempDir.path}/${widget.libraryName.replaceAll(' ', '_')}_member_attendance.csv');
+      await tempFile.writeAsString(buffer.toString());
+      await Share.shareXFiles([XFile(tempFile.path, mimeType: 'text/csv')], subject: 'SILENCE Member-wise Attendance Summary');
+    }
+  }
+
+  Future<void> _triggerAttendancePdfExport() async {
+    if (_attendanceTableToggle == 'date_wise') {
+      final logs = _attendanceLogs.map((l) {
+        final name = l['member_id']?['full_name'] ?? 'N/A';
+        final ci = l['check_in_time'];
+        final co = l['check_out_time'];
+        final seatLabel = l['memberships']?['seats']?['seat_label'] ?? 'N/A';
+        final sName = l['memberships']?['shifts']?['name'] ?? 'N/A';
+        return {
+          'member_name': name,
+          'check_in_time': ci,
+          'check_out_time': co,
+          'seat_label': seatLabel,
+          'shift_name': sName,
+        };
+      }).toList();
+
+      final rangeStr = _attCustomRange != null
+          ? '${DateFormat('dd MMM yyyy').format(_attCustomRange!.start)} - ${DateFormat('dd MMM yyyy').format(_attCustomRange!.end)}'
+          : DateFormat('dd MMM yyyy').format(_attDate);
+
+      await PdfExporter.exportAttendance(
+        libraryName: widget.libraryName,
+        libraryAddress: _libraryAddress,
+        dateRange: rangeStr,
+        logs: logs,
+      );
+    } else {
+      final Map<String, int> checkinCounts = {};
+      final Map<String, double> totalHours = {};
+      final Map<String, String> planTypes = {};
+      final Map<String, String> memberNames = {};
+
+      for (var att in _attendanceLogs) {
+        final member = att['member_id'];
+        if (member == null) continue;
+        final mId = member['id'].toString();
+        final name = member['full_name'] ?? 'Member';
+        memberNames[mId] = name;
+        checkinCounts[mId] = (checkinCounts[mId] ?? 0) + 1;
+
+        final ciStr = att['check_in_time'];
+        final coStr = att['check_out_time'];
+        if (ciStr != null) {
+          final ci = DateTime.parse(ciStr);
+          final co = coStr != null ? DateTime.parse(coStr) : DateTime.now();
+          final diff = co.difference(ci).inMinutes / 60.0;
+          totalHours[mId] = (totalHours[mId] ?? 0.0) + diff;
+        }
+
+        final plan = att['memberships']?['plan_type'] ?? 'monthly';
+        planTypes[mId] = plan == '3_month' ? '3-Month' : (plan == '6_month' ? '6-Month' : 'Monthly');
+      }
+
+      final List<Map<String, dynamic>> duesReport = [];
+      memberNames.forEach((mId, name) {
+        final plan = planTypes[mId] ?? 'Monthly';
+        final checkins = checkinCounts[mId] ?? 0;
+        final hours = totalHours[mId] ?? 0.0;
+
+        duesReport.add({
+          'member_name': name,
+          'email': plan,
+          'phone': checkins.toString(),
+          'amount': double.tryParse(hours.toStringAsFixed(1)) ?? 0.0,
+          'due_date': null,
+        });
+      });
+
+      await PdfExporter.exportDues(
+        libraryName: widget.libraryName,
+        libraryAddress: _libraryAddress,
+        dues: duesReport,
+      );
+    }
+  }
+
+  Widget _buildAttendanceTabView() {
+    final bool isSmallScreen = MediaQuery.of(context).size.width < 380;
+    final activeMemberships = _rawMemberships.where((m) {
+      final seat = m['seats'];
+      if (_attFloorId != 'all' && seat?['floor_id']?.toString() != _attFloorId) return false;
+      if (_attShiftId != 'all' && m['shift_id']?.toString() != _attShiftId) return false;
+      return m['status'] == 'active';
+    }).toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        GridView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.8,
+          ),
+          children: [
+            _buildStatCard(
+              title: 'Checked In',
+              value: '$_checkedInCount / ${activeMemberships.length}',
+              icon: Icons.login,
+              subtitle: 'Active Members present',
+            ),
+            _buildStatCard(
+              title: 'Checked Out',
+              value: '$_checkedOutCount / ${_attendanceLogs.length}',
+              icon: Icons.logout,
+              subtitle: 'Completed sessions',
+            ),
+            _buildStatCard(
+              title: 'Absent',
+              value: '$_absentCount',
+              icon: Icons.person_off,
+              subtitle: 'No check-in logged',
+            ),
+            _buildStatCard(
+              title: 'Hold Members',
+              value: '$_holdCount',
+              icon: Icons.pause_circle_outline,
+              subtitle: 'On hold & no-show >7 days',
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Attendance Logs',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_attendanceLogs.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  alignment: Alignment.center,
+                  child: Text('No attendance logged for this period',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _attendanceLogs.length.clamp(0, 10),
+                  itemBuilder: (ctx, index) {
+                    final log = _attendanceLogs[index];
+                    final member = log['member_id'];
+                    final name = member?['full_name'] ?? 'Member';
+                    final photo = member?['photo_url'] ?? '';
+                    final seatLabel = log['memberships']?['seats']?['seat_label'] ?? 'N/A';
+                    final shiftName = log['memberships']?['shifts']?['name'] ?? 'N/A';
+                    final ciStr = log['check_in_time'];
+                    final coStr = log['check_out_time'];
+
+                    final ci = ciStr != null ? DateFormat('hh:mm a').format(DateTime.parse(ciStr).toLocal()) : 'N/A';
+                    final co = coStr != null ? DateFormat('hh:mm a').format(DateTime.parse(coStr).toLocal()) : 'Ongoing';
+
+                    return InkWell(
+                      onTap: () {
+                        if (member?['id'] != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const MemberDetailScreen(),
+                              settings: RouteSettings(arguments: member['id'].toString()),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: const Color(0xFFFFF7ED),
+                              backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                              child: photo.isEmpty
+                                  ? const Icon(Icons.person, color: Color(0xFFE65C00), size: 18)
+                                  : null,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name,
+                                    style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF1E293B)),
+                                  ),
+                                  Text(
+                                    'Seat: $seatLabel • Shift: $shiftName',
+                                    style: GoogleFonts.inter(fontSize: 11, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  'IN: $ci',
+                                  style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF16A34A)),
+                                ),
+                                Text(
+                                  'OUT: $co',
+                                  style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      color: coStr != null ? const Color(0xFF64748B) : const Color(0xFFE65C00),
+                                      fontWeight: coStr != null ? FontWeight.normal : FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Top Members (Study Hours)',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_leaderboardValues.isEmpty)
+                Container(
+                  height: 180,
+                  alignment: Alignment.center,
+                  child: Text('No Leaderboard Data',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                SizedBox(
+                  height: 200,
+                  child: CustomPaint(
+                    painter: AttendanceLeaderboardPainter(
+                      values: _leaderboardValues,
+                      labels: _leaderboardLabels,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Least Active Members',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_leastActiveMembers.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  alignment: Alignment.center,
+                  child: Text('No active members logged',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _leastActiveMembers.length,
+                  itemBuilder: (ctx, index) {
+                    final item = _leastActiveMembers[index];
+                    final String name = item['name'] ?? 'Member';
+                    final String phone = item['phone'] ?? '';
+                    final double hrs = item['hours'] ?? 0.0;
+
+                    return Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF1E293B)),
+                                ),
+                                Text(
+                                  'Study Hours: ${hrs.toStringAsFixed(1)}h',
+                                  style: GoogleFonts.inter(fontSize: 11, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.phone_outlined, size: 20, color: Color(0xFF1E293B)),
+                                onPressed: () async {
+                                  if (phone.isNotEmpty) {
+                                    final uri = Uri.parse('tel:$phone');
+                                    if (await canLaunchUrl(uri)) {
+                                      await launchUrl(uri);
+                                    }
+                                  }
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.chat_bubble_outline, size: 20, color: Color(0xFF16A34A)),
+                                onPressed: () async {
+                                  if (phone.isNotEmpty) {
+                                    final formattedPhone = phone.replaceAll(RegExp(r'\D'), '');
+                                    final uri = Uri.parse('https://wa.me/$formattedPhone');
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                height: 240,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Attendance Trend',
+                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: _attendanceTrendValues.isEmpty
+                          ? Center(child: Text('No Data', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey)))
+                          : CustomPaint(
+                              painter: AttendanceTrendPainter(
+                                values: _attendanceTrendValues,
+                                labels: _attendanceTrendLabels,
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                height: 240,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Peak Hours (8 AM - 10 PM)',
+                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: _peakHoursValues.isEmpty
+                          ? Center(child: Text('No Data', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey)))
+                          : CustomPaint(
+                              painter: PeakHoursPainter(
+                                values: _peakHoursValues,
+                                labels: _peakHoursLabels,
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  Text(
+                    'Export Attendance Logs',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildToggleBtn('Date-wise', _attendanceTableToggle == 'date_wise', () {
+                        setState(() => _attendanceTableToggle = 'date_wise');
+                      }),
+                      const SizedBox(width: 6),
+                      _buildToggleBtn('Member-wise', _attendanceTableToggle == 'member_wise', () {
+                        setState(() => _attendanceTableToggle = 'member_wise');
+                      }),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              isSmallScreen
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.download, size: 16, color: Color(0xFFE65C00)),
+                          label: Text('Export CSV', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFE65C00)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onPressed: _triggerAttendanceCsvExport,
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.picture_as_pdf, size: 16, color: Colors.white),
+                          label: Text('Export PDF', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE65C00),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onPressed: _triggerAttendancePdfExport,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.download, size: 16, color: Color(0xFFE65C00)),
+                            label: Text('Export CSV', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, fontSize: 13)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFE65C00)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            onPressed: _triggerAttendanceCsvExport,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.picture_as_pdf, size: 16, color: Colors.white),
+                            label: Text('Export PDF', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE65C00),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            onPressed: _triggerAttendancePdfExport,
+                          ),
+                        ),
+                      ],
+                    ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShiftsPlansTabView() {
+    final int activeMembersCount = _rawMemberships.where((m) {
+      final seat = m['seats'];
+      if (_spFloorId != 'all' && seat?['floor_id']?.toString() != _spFloorId) return false;
+      if (_spShiftId != 'all' && m['shift_id']?.toString() != _spShiftId) return false;
+      return m['status'] == 'active';
+    }).length;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Shift Occupancy Overview',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_shiftOccupancyValues.isEmpty)
+                Container(
+                  height: 120,
+                  alignment: Alignment.center,
+                  child: Text('No Shift Occupancy Data',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                SizedBox(
+                  height: 150,
+                  child: CustomPaint(
+                    painter: ShiftOccupancyPainter(
+                      values: _shiftOccupancyValues,
+                      labels: _shiftOccupancyLabels,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Plans Distribution',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_planDistValues.isEmpty || _planDistValues.every((v) => v == 0.0))
+                Container(
+                  height: 150,
+                  alignment: Alignment.center,
+                  child: Text('No Plans Distribution Data',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 140,
+                      height: 140,
+                      child: CustomPaint(
+                        painter: PlansDistributionPainter(
+                          values: _planDistValues,
+                          labels: _planDistLabels,
+                          colors: const [
+                            Color(0xFFE65C00),
+                            Color(0xFF0F172A),
+                            Color(0xFF94A3B8),
+                          ],
+                          totalCount: activeMembersCount,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: List.generate(_planDistLabels.length, (index) {
+                          final label = _planDistLabels[index];
+                          final val = _planDistValues[index];
+                          final colors = [
+                            const Color(0xFFE65C00),
+                            const Color(0xFF0F172A),
+                            const Color(0xFF94A3B8),
+                          ];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(color: colors[index % colors.length], shape: BoxShape.circle),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)))),
+                                Text('${val.toStringAsFixed(0)} members',
+                                    style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Revenue per Shift',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_revPerShiftValues.isEmpty || _revPerShiftValues.every((v) => v == 0.0))
+                Container(
+                  height: 160,
+                  alignment: Alignment.center,
+                  child: Text('No Revenue per Shift Data',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                SizedBox(
+                  height: 200,
+                  child: CustomPaint(
+                    painter: RevenuePerShiftPainter(
+                      values: _revPerShiftValues,
+                      labels: _revPerShiftLabels,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Popularity of Plans over Time',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_popularityTrendValues.isEmpty || _popularityTrendValues.first.isEmpty)
+                Container(
+                  height: 160,
+                  alignment: Alignment.center,
+                  child: Text('No Popularity Trend Data',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+                )
+              else
+                Column(
+                  children: [
+                    SizedBox(
+                      height: 180,
+                      child: CustomPaint(
+                        painter: PopularityOfPlansPainter(
+                          valuesList: _popularityTrendValues,
+                          labels: _popularityTrendMonths,
+                          colors: const [
+                            Color(0xFFE65C00),
+                            Color(0xFF0F172A),
+                            Color(0xFF94A3B8),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildLegendColorDot(const Color(0xFFE65C00), 'Monthly'),
+                        const SizedBox(width: 16),
+                        _buildLegendColorDot(const Color(0xFF0F172A), '3-Month'),
+                        const SizedBox(width: 16),
+                        _buildLegendColorDot(const Color(0xFF94A3B8), '6-Month'),
+                      ],
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegendColorDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B))),
+      ],
+    );
+  }
+
+  Widget _buildReportBtn(String title, VoidCallback onTap) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFFE65C00),
+        side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      ),
+      onPressed: onTap,
+      child: Text(
+        title,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggleBtn(String label, bool isActive, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive ? const Color(0xFFE65C00) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive ? const Color(0xFFE65C00) : const Color(0xFFE2E8F0),
+          ),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFE65C00).withValues(alpha: 0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  )
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: isActive ? Colors.white : const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFBF5EE),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildTopCurvedHeader(),
+            _buildSubTabBar(),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // Revenue Tab View
+                  Column(
+                    children: [
+                      _buildFilterRowForTab(
+                        floorId: _revFloorId,
+                        shiftId: _revShiftId,
+                        onFloorSelected: (val) {
+                          setState(() => _revFloorId = val);
+                          _triggerActiveTabFetch();
+                        },
+                        onShiftSelected: (val) {
+                          setState(() => _revShiftId = val);
+                          _triggerActiveTabFetch();
+                        },
+                      ),
+                      _buildTraditionalDatePresets('rev'),
+                      Expanded(
+                        child: _isLoading
+                            ? _buildSkeletonLoader()
+                            : _buildRevenueTabView(),
+                      ),
+                    ],
+                  ),
+                  // Attendance Tab View
+                  Column(
+                    children: [
+                      _buildFilterRowForTab(
+                        floorId: _attFloorId,
+                        shiftId: _attShiftId,
+                        onFloorSelected: (val) {
+                          setState(() => _attFloorId = val);
+                          _triggerActiveTabFetch();
+                        },
+                        onShiftSelected: (val) {
+                          setState(() => _attShiftId = val);
+                          _triggerActiveTabFetch();
+                        },
+                      ),
+                      _buildAttendanceDateFilters(),
+                      Expanded(
+                        child: _isLoading
+                            ? _buildSkeletonLoader()
+                            : _buildAttendanceTabView(),
+                      ),
+                    ],
+                  ),
+                  // Shifts & Plans Tab View
+                  Column(
+                    children: [
+                      _buildFilterRowForTab(
+                        floorId: _spFloorId,
+                        shiftId: _spShiftId,
+                        onFloorSelected: (val) {
+                          setState(() => _spFloorId = val);
+                          _triggerActiveTabFetch();
+                        },
+                        onShiftSelected: (val) {
+                          setState(() => _spShiftId = val);
+                          _triggerActiveTabFetch();
+                        },
+                      ),
+                      _buildTraditionalDatePresets('sp'),
+                      Expanded(
+                        child: _isLoading
+                            ? _buildSkeletonLoader()
+                            : _buildShiftsPlansTabView(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ==========================================
-// BESPOKE CUSTOM PAINTERS FOR REAL TIME DATA
-// ==========================================
+// Custom animated skeleton widget
+class SkeletonWidget extends StatefulWidget {
+  final double width;
+  final double height;
+  final double borderRadius;
 
-class RevenueTrendPainter extends CustomPainter {
-  final List<double> revenueTrend;
-  final List<double> expenseTrend;
+  const SkeletonWidget({
+    super.key,
+    required this.width,
+    required this.height,
+    this.borderRadius = 8,
+  });
+
+  @override
+  State<SkeletonWidget> createState() => _SkeletonWidgetState();
+}
+
+class _SkeletonWidgetState extends State<SkeletonWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: Color.lerp(
+              const Color(0xFFE2E8F0),
+              const Color(0xFFF1F5F9),
+              _controller.value,
+            ),
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Custom Dual Month Calendar Picker used in date range filtering
+class DualMonthCalendarPicker extends StatefulWidget {
+  final DateTimeRange initialRange;
+  final ScrollController scrollController;
+
+  const DualMonthCalendarPicker({
+    super.key,
+    required this.initialRange,
+    required this.scrollController,
+  });
+
+  @override
+  State<DualMonthCalendarPicker> createState() => _DualMonthCalendarPickerState();
+}
+
+class _DualMonthCalendarPickerState extends State<DualMonthCalendarPicker> {
+  late DateTime _monthPivot;
+  DateTime? _selectedStart;
+  DateTime? _selectedEnd;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedStart = widget.initialRange.start;
+    _selectedEnd = widget.initialRange.end;
+    _monthPivot = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  }
+
+  int _daysInMonth(DateTime date) {
+    return DateTime(date.year, date.month + 1, 0).day;
+  }
+
+  Widget _buildMonthGrid(DateTime month) {
+    final daysCount = _daysInMonth(month);
+    final firstWeekday = month.weekday % 7;
+    final totalCells = daysCount + firstWeekday;
+    final weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            DateFormat('MMMM yyyy').format(month),
+            style: GoogleFonts.outfit(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1E293B),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: weekdays.map((day) {
+            return SizedBox(
+              width: 32,
+              child: Text(
+                day,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF6B7280),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 6),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            mainAxisSpacing: 4,
+            crossAxisSpacing: 4,
+            childAspectRatio: 1.0,
+          ),
+          itemCount: totalCells,
+          itemBuilder: (context, index) {
+            if (index < firstWeekday) {
+              return const SizedBox.shrink();
+            }
+
+            final dayNum = index - firstWeekday + 1;
+            final cellDate = DateTime(month.year, month.month, dayNum);
+
+            final isStart = _selectedStart != null &&
+                cellDate.day == _selectedStart!.day &&
+                cellDate.month == _selectedStart!.month &&
+                cellDate.year == _selectedStart!.year;
+
+            final isEnd = _selectedEnd != null &&
+                cellDate.day == _selectedEnd!.day &&
+                cellDate.month == _selectedEnd!.month &&
+                cellDate.year == _selectedEnd!.year;
+
+            final isInRange = _selectedStart != null &&
+                _selectedEnd != null &&
+                cellDate.isAfter(_selectedStart!) &&
+                cellDate.isBefore(_selectedEnd!);
+
+            final isToday = cellDate.day == DateTime.now().day &&
+                cellDate.month == DateTime.now().month &&
+                cellDate.year == DateTime.now().year;
+
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (_selectedStart == null) {
+                    _selectedStart = cellDate;
+                  } else if (_selectedStart != null && _selectedEnd == null) {
+                    if (cellDate.isBefore(_selectedStart!)) {
+                      _selectedStart = cellDate;
+                    } else {
+                      _selectedEnd = cellDate;
+                    }
+                  } else {
+                    _selectedStart = cellDate;
+                    _selectedEnd = null;
+                  }
+                });
+              },
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: (isStart || isEnd)
+                      ? const Color(0xFFE65C00)
+                      : isInRange
+                          ? const Color(0xFFFFF3ED)
+                          : Colors.transparent,
+                  border: isToday && !(isStart || isEnd)
+                      ? Border.all(color: const Color(0xFFE65C00), width: 1.5)
+                      : null,
+                ),
+                child: Text(
+                  '$dayNum',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: (isStart || isEnd || isToday) ? FontWeight.bold : FontWeight.normal,
+                    color: (isStart || isEnd)
+                        ? Colors.white
+                        : isInRange
+                            ? const Color(0xFFE65C00)
+                            : const Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prevMonth = DateTime(_monthPivot.year, _monthPivot.month - 1, 1);
+
+    return Column(
+      children: [
+        // Picker Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left, color: Color(0xFF1A1A2E)),
+              onPressed: () {
+                setState(() {
+                  _monthPivot = DateTime(_monthPivot.year, _monthPivot.month - 1, 1);
+                });
+              },
+            ),
+            Text(
+              'Select Custom Range',
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1E293B),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right, color: Color(0xFF1A1A2E)),
+              onPressed: () {
+                setState(() {
+                  _monthPivot = DateTime(_monthPivot.year, _monthPivot.month + 1, 1);
+                });
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Display current selection range
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFBF5EE),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.calendar_month, size: 16, color: Color(0xFFE65C00)),
+              const SizedBox(width: 8),
+              Text(
+                _selectedStart != null
+                    ? '${DateFormat('dd MMM yyyy').format(_selectedStart!)}${_selectedEnd != null ? ' - ${DateFormat('dd MMM yyyy').format(_selectedEnd!)}' : ' (Choose End Date)'}'
+                    : 'Choose Start Date',
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Scrollable stacked dual months
+        Expanded(
+          child: ListView(
+            controller: widget.scrollController,
+            children: [
+              _buildMonthGrid(prevMonth),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Divider(color: Color(0xFFE2E8F0)),
+              ),
+              _buildMonthGrid(_monthPivot),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Actions
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text('Cancel', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: (_selectedStart != null && _selectedEnd != null)
+                    ? () {
+                        Navigator.pop(
+                          context,
+                          DateTimeRange(
+                            start: DateTime(_selectedStart!.year, _selectedStart!.month, _selectedStart!.day),
+                            end: DateTime(_selectedEnd!.year, _selectedEnd!.month, _selectedEnd!.day, 23, 59, 59),
+                          ),
+                        );
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65C00),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                ),
+                child: Text('Apply Range', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// Custom Painter for Interactive Line Chart
+class LineChartPainter extends CustomPainter {
+  final List<double> values;
+  final List<String> labels;
+  final int? selectedIndex;
+
+  LineChartPainter({
+    required this.values,
+    required this.labels,
+    this.selectedIndex,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final double maxVal = values.reduce((a, b) => a > b ? a : b);
+    final double minVal = 0.0;
+    final double valRange = maxVal == minVal ? 1.0 : maxVal - minVal;
+
+    final double paddingX = 40.0;
+    final double paddingY = 20.0;
+    final double width = size.width - paddingX * 2;
+    final double height = size.height - paddingY * 2;
+
+    final int pointsCount = values.length;
+    final double stepX = pointsCount > 1 ? width / (pointsCount - 1) : width;
+
+    // Draw grid lines
+    final Paint gridPaint = Paint()
+      ..color = const Color(0xFFE2E8F0)
+      ..strokeWidth = 1.0;
+
+    final int gridLinesCount = 4;
+    for (int i = 0; i <= gridLinesCount; i++) {
+      final double y = paddingY + height * (1 - i / gridLinesCount);
+      canvas.drawLine(Offset(paddingX, y), Offset(paddingX + width, y), gridPaint);
+      
+      final double gridVal = minVal + valRange * (i / gridLinesCount);
+      final TextSpan span = TextSpan(
+        style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF94A3B8)),
+        text: '₹${gridVal.toStringAsFixed(0)}',
+      );
+      final TextPainter tp = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(paddingX - tp.width - 5, y - tp.height / 2));
+    }
+
+    // Draw lines & area gradient
+    final List<Offset> points = [];
+    for (int i = 0; i < pointsCount; i++) {
+      final double x = paddingX + i * stepX;
+      final double y = paddingY + height * (1 - (values[i] - minVal) / valRange);
+      points.add(Offset(x, y));
+    }
+
+    if (points.isNotEmpty) {
+      final Path areaPath = Path()..moveTo(points.first.dx, paddingY + height);
+      for (final p in points) {
+        areaPath.lineTo(p.dx, p.dy);
+      }
+      areaPath.lineTo(points.last.dx, paddingY + height);
+      areaPath.close();
+
+      final Paint areaPaint = Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(paddingX, paddingY),
+          Offset(paddingX, paddingY + height),
+          const [
+            Color(0xFFFFEADF),
+            Color(0xFFFFF7F4),
+            Colors.white,
+          ],
+        );
+      canvas.drawPath(areaPath, areaPaint);
+
+      final Path linePath = Path()..moveTo(points.first.dx, points.first.dy);
+      for (int i = 1; i < points.length; i++) {
+        linePath.lineTo(points[i].dx, points[i].dy);
+      }
+
+      final Paint linePaint = Paint()
+        ..color = const Color(0xFFE65C00)
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawPath(linePath, linePaint);
+
+      final Paint pointPaint = Paint()
+        ..color = const Color(0xFFE65C00)
+        ..style = PaintingStyle.fill;
+
+      final Paint outerRingPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+
+      final Paint ringBorderPaint = Paint()
+        ..color = const Color(0xFFE65C00)
+        ..strokeWidth = 2.0
+        ..style = PaintingStyle.stroke;
+
+      for (int i = 0; i < points.length; i++) {
+        final p = points[i];
+        final bool isSelected = selectedIndex == i;
+
+        if (isSelected) {
+          canvas.drawCircle(p, 6.0, outerRingPaint);
+          canvas.drawCircle(p, 6.0, ringBorderPaint);
+          canvas.drawCircle(p, 3.0, pointPaint);
+
+          final TextSpan tooltipSpan = TextSpan(
+            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+            text: '₹${values[i].toStringAsFixed(0)}',
+          );
+          final TextPainter tooltipTp = TextPainter(
+            text: tooltipSpan,
+            textDirection: TextDirection.ltr,
+          )..layout();
+
+          final RRect tooltipRect = RRect.fromRectAndRadius(
+            Rect.fromLTWH(
+              p.dx - tooltipTp.width / 2 - 6,
+              p.dy - tooltipTp.height - 12,
+              tooltipTp.width + 12,
+              tooltipTp.height + 6,
+            ),
+            const Radius.circular(6),
+          );
+
+          final Paint tooltipBg = Paint()..color = const Color(0xFF1E293B);
+          canvas.drawRRect(tooltipRect, tooltipBg);
+          tooltipTp.paint(canvas, Offset(p.dx - tooltipTp.width / 2, p.dy - tooltipTp.height - 9));
+        } else {
+          if (pointsCount < 10 || i % 2 == 0 || i == pointsCount - 1) {
+            canvas.drawCircle(p, 3.0, pointPaint);
+          }
+        }
+      }
+    }
+
+    // Draw X labels
+    for (int i = 0; i < pointsCount; i++) {
+      if (pointsCount > 7 && i % 3 != 0 && i != pointsCount - 1) continue;
+      final p = points[i];
+      final TextSpan span = TextSpan(
+        style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF64748B)),
+        text: labels[i],
+      );
+      final TextPainter tp = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(p.dx - tp.width / 2, paddingY + height + 5));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// Custom Painter for Donut Chart
+class DonutChartPainter extends CustomPainter {
+  final List<double> values;
+  final List<String> labels;
+  final List<Color> colors;
+
+  DonutChartPainter({
+    required this.values,
+    required this.labels,
+    required this.colors,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double total = values.fold(0.0, (sum, val) => sum + val);
+    final center = Offset(size.width / 2, size.height / 2);
+    final double radius = size.width < size.height ? size.width / 2 - 10 : size.height / 2 - 10;
+    final double innerRadius = radius * 0.65;
+
+    if (total == 0.0) {
+      final Paint emptyPaint = Paint()
+        ..color = const Color(0xFFE2E8F0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius - innerRadius;
+      canvas.drawCircle(center, (radius + innerRadius) / 2, emptyPaint);
+      return;
+    }
+
+    double startAngle = -3.14159 / 2;
+    final rect = Rect.fromCircle(center: center, radius: (radius + innerRadius) / 2);
+
+    for (int i = 0; i < values.length; i++) {
+      final double val = values[i];
+      if (val == 0.0) continue;
+
+      final double sweepAngle = 2 * 3.14159 * (val / total);
+      
+      final Paint paint = Paint()
+        ..color = colors[i]
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius - innerRadius
+        ..strokeCap = StrokeCap.square;
+
+      canvas.drawArc(rect, startAngle + 0.02, sweepAngle - 0.04, false, paint);
+      startAngle += sweepAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// Custom Painter for Grouped Revenue Bar Chart
+class BarChartPainter extends CustomPainter {
+  final List<double> shiftValues;
+  final List<String> shiftLabels;
+  final List<double> planValues;
+  final List<String> planLabels;
+
+  BarChartPainter({
+    required this.shiftValues,
+    required this.shiftLabels,
+    required this.planValues,
+    required this.planLabels,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double paddingX = 40.0;
+    final double paddingY = 20.0;
+    final double width = size.width - paddingX * 2;
+    final double height = size.height - paddingY * 2;
+
+    final Paint gridPaint = Paint()
+      ..color = const Color(0xFFE2E8F0)
+      ..strokeWidth = 1.0;
+
+    final double maxVal = [
+      ...shiftValues,
+      ...planValues,
+      1000.0,
+    ].reduce((a, b) => a > b ? a : b);
+
+    for (int i = 0; i <= 4; i++) {
+      final double y = paddingY + height * (1 - i / 4);
+      canvas.drawLine(Offset(paddingX, y), Offset(paddingX + width, y), gridPaint);
+
+      final double gridVal = maxVal * (i / 4);
+      final TextSpan span = TextSpan(
+        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8)),
+        text: '₹${gridVal.toStringAsFixed(0)}',
+      );
+      final TextPainter tp = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(paddingX - tp.width - 5, y - tp.height / 2));
+    }
+
+    final double halfWidth = width / 2;
+    
+    // Draw shifts bars (left half)
+    if (shiftValues.isNotEmpty) {
+      final double barSpaceWidth = halfWidth / (shiftValues.length + 1);
+      final double barWidth = barSpaceWidth * 0.6;
+      final Paint shiftPaint = Paint()..color = const Color(0xFFE65C00);
+
+      for (int i = 0; i < shiftValues.length; i++) {
+        final double val = shiftValues[i];
+        final double barHeight = (val / maxVal) * height;
+        final double x = paddingX + barSpaceWidth * (i + 1) - barWidth / 2;
+        final double y = paddingY + height - barHeight;
+
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x, y, barWidth, barHeight),
+            const Radius.circular(4),
+          ),
+          shiftPaint,
+        );
+
+        final TextSpan labelSpan = TextSpan(
+          style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF64748B)),
+          text: shiftLabels[i],
+        );
+        final TextPainter labelTp = TextPainter(
+          text: labelSpan,
+          textDirection: TextDirection.ltr,
+        )..layout();
+        labelTp.paint(canvas, Offset(x + barWidth / 2 - labelTp.width / 2, paddingY + height + 5));
+      }
+    }
+
+    // Draw plans bars (right half)
+    if (planValues.isNotEmpty) {
+      final double barSpaceWidth = halfWidth / (planValues.length + 1);
+      final double barWidth = barSpaceWidth * 0.6;
+      final Paint planPaint = Paint()..color = const Color(0xFF0F172A);
+
+      for (int i = 0; i < planValues.length; i++) {
+        final double val = planValues[i];
+        final double barHeight = (val / maxVal) * height;
+        final double x = paddingX + halfWidth + barSpaceWidth * (i + 1) - barWidth / 2;
+        final double y = paddingY + height - barHeight;
+
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x, y, barWidth, barHeight),
+            const Radius.circular(4),
+          ),
+          planPaint,
+        );
+
+        final TextSpan labelSpan = TextSpan(
+          style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF64748B)),
+          text: planLabels[i],
+        );
+        final TextPainter labelTp = TextPainter(
+          text: labelSpan,
+          textDirection: TextDirection.ltr,
+        )..layout();
+        labelTp.paint(canvas, Offset(x + barWidth / 2 - labelTp.width / 2, paddingY + height + 5));
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class AttendanceLeaderboardPainter extends CustomPainter {
+  final List<double> values;
   final List<String> labels;
 
-  RevenueTrendPainter({required this.revenueTrend, required this.expenseTrend, required this.labels});
+  AttendanceLeaderboardPainter({required this.values, required this.labels});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final width = size.width;
-    final height = size.height;
+    if (values.isEmpty) return;
 
-    final revPaint = Paint()
+    final double maxVal = values.reduce((a, b) => a > b ? a : b);
+    final double maxBarWidth = size.width - 120;
+    final double rowHeight = size.height / values.length;
+
+    final Paint barPaint = Paint()
       ..color = const Color(0xFFE65C00)
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..style = PaintingStyle.fill;
 
-    final expPaint = Paint()
-      ..color = const Color(0xFFEF4444)
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    final Paint bgPaint = Paint()
+      ..color = const Color(0xFFFFF7ED)
+      ..style = PaintingStyle.fill;
 
-    final gridPaint = Paint()
+    for (int i = 0; i < values.length; i++) {
+      final double val = values[i];
+      final String label = labels[i];
+      final double barWidth = maxVal == 0 ? 0 : (val / maxVal) * maxBarWidth;
+
+      final double y = i * rowHeight + rowHeight * 0.2;
+      final double h = rowHeight * 0.6;
+
+      final TextSpan labelSpan = TextSpan(
+        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+        text: label,
+      );
+      final TextPainter labelTp = TextPainter(
+        text: labelSpan,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 80);
+      labelTp.paint(canvas, Offset(0, y + (h - labelTp.height) / 2));
+
+      final RRect bgRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(85, y, maxBarWidth, h),
+        const Radius.circular(6),
+      );
+      canvas.drawRRect(bgRect, bgPaint);
+
+      if (barWidth > 0) {
+        final RRect filledRect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(85, y, barWidth, h),
+          const Radius.circular(6),
+        );
+        canvas.drawRRect(filledRect, barPaint);
+      }
+
+      final TextSpan valSpan = TextSpan(
+        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+        text: '${val.toStringAsFixed(1)}h',
+      );
+      final TextPainter valTp = TextPainter(
+        text: valSpan,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      valTp.paint(canvas, Offset(85 + barWidth + 8, y + (h - valTp.height) / 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class AttendanceTrendPainter extends CustomPainter {
+  final List<double> values;
+  final List<String> labels;
+
+  AttendanceTrendPainter({required this.values, required this.labels});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final double maxVal = [...values, 5.0].reduce((a, b) => a > b ? a : b);
+    final double paddingX = 30.0;
+    final double paddingY = 20.0;
+    final double width = size.width - paddingX * 2;
+    final double height = size.height - paddingY * 2;
+
+    final Paint gridPaint = Paint()
       ..color = const Color(0xFFE2E8F0)
-      ..strokeWidth = 0.5;
+      ..strokeWidth = 1.0;
 
-    final textPainter = TextPainter(textDirection: ui.TextDirection.ltr);
+    for (int i = 0; i <= 4; i++) {
+      final double y = paddingY + height * (1 - i / 4);
+      canvas.drawLine(Offset(paddingX, y), Offset(paddingX + width, y), gridPaint);
 
-    // Draw grid horizontal lines
-    for (int i = 0; i < 4; i++) {
-      final y = (height - 16) * i / 3 + 4;
-      canvas.drawLine(Offset(24, y), Offset(width, y), gridPaint);
+      final double gridVal = maxVal * (i / 4);
+      final TextSpan span = TextSpan(
+        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8)),
+        text: gridVal.toStringAsFixed(0),
+      );
+      final TextPainter tp = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(paddingX - tp.width - 5, y - tp.height / 2));
     }
 
-    if (revenueTrend.isEmpty || labels.isEmpty) return;
+    final double barSpaceWidth = width / (values.length + 1);
+    final double barWidth = (barSpaceWidth * 0.6).clamp(8.0, 32.0);
+    final Paint barPaint = Paint()..color = const Color(0xFFE65C00);
 
-    final pointsCount = revenueTrend.length;
-    final stepX = (width - 32) / (pointsCount - 1);
+    for (int i = 0; i < values.length; i++) {
+      final double val = values[i];
+      final double barHeight = (val / maxVal) * height;
+      final double x = paddingX + barSpaceWidth * (i + 1) - barWidth / 2;
+      final double y = paddingY + height - barHeight;
 
-    final List<Offset> revPoints = [];
-    final List<Offset> expPoints = [];
-
-    for (int i = 0; i < pointsCount; i++) {
-      final x = 24 + i * stepX;
-      final revY = (height - 24) - (revenueTrend[i].clamp(0.0, 100.0) * (height - 32) / 100.0) + 8;
-      final expY = (height - 24) - (expenseTrend[i].clamp(0.0, 100.0) * (height - 32) / 100.0) + 8;
-
-      revPoints.add(Offset(x, revY));
-      expPoints.add(Offset(x, expY));
-
-      if (i % 2 == 0) {
-        textPainter.text = TextSpan(text: labels[i], style: GoogleFonts.inter(fontSize: 8.0, color: const Color(0xFF94A3B8), fontWeight: FontWeight.bold));
-        textPainter.layout();
-        textPainter.paint(canvas, Offset(x - (textPainter.width / 2), height - 12));
+      if (barHeight > 0) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x, y, barWidth, barHeight),
+            const Radius.circular(4),
+          ),
+          barPaint,
+        );
       }
-    }
 
-    for (int i = 0; i < pointsCount - 1; i++) {
-      canvas.drawLine(revPoints[i], revPoints[i + 1], revPaint);
-      canvas.drawLine(expPoints[i], expPoints[i + 1], expPaint);
-    }
-
-    final circlePaint = Paint()..style = PaintingStyle.fill;
-    for (int i = 0; i < pointsCount; i++) {
-      circlePaint.color = const Color(0xFFE65C00);
-      canvas.drawCircle(revPoints[i], 3.5, circlePaint);
-      circlePaint.color = const Color(0xFFEF4444);
-      canvas.drawCircle(expPoints[i], 2.5, circlePaint);
+      final TextSpan labelSpan = TextSpan(
+        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF64748B)),
+        text: labels[i],
+      );
+      final TextPainter labelTp = TextPainter(
+        text: labelSpan,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      labelTp.paint(canvas, Offset(x + barWidth / 2 - labelTp.width / 2, paddingY + height + 5));
     }
   }
 
   @override
-  bool shouldRepaint(covariant RevenueTrendPainter oldDelegate) =>
-      oldDelegate.revenueTrend != revenueTrend || oldDelegate.expenseTrend != expenseTrend || oldDelegate.labels != labels;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-class RevenueDonutPainter extends CustomPainter {
-  final double cashRatio;
-  final double upiRatio;
-  final double addonsRatio;
+class PeakHoursPainter extends CustomPainter {
+  final List<double> values;
+  final List<String> labels;
 
-  RevenueDonutPainter({required this.cashRatio, required this.upiRatio, required this.addonsRatio});
+  PeakHoursPainter({required this.values, required this.labels});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cX = size.width / 2;
-    final cY = size.height / 2;
-    final radius = size.height / 2 - 8;
+    if (values.isEmpty) return;
 
-    final rect = Rect.fromCircle(center: Offset(cX, cY), radius: radius);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 14
-      ..strokeCap = StrokeCap.round;
+    final double maxVal = [...values, 1.0].reduce((a, b) => a > b ? a : b);
+    final double maxBarWidth = size.width - 70;
+    final double rowHeight = size.height / values.length;
 
-    final double total = cashRatio + upiRatio + addonsRatio;
-    if (total == 0.0) return;
+    final Paint barPaint = Paint()
+      ..color = const Color(0xFFE65C00)
+      ..style = PaintingStyle.fill;
 
-    double startAngle = -3.14 / 2;
+    final Paint bgPaint = Paint()
+      ..color = const Color(0xFFFFF7ED)
+      ..style = PaintingStyle.fill;
 
-    paint.color = const Color(0xFF3B82F6);
-    final sweepUPI = (upiRatio / total) * 2 * 3.14159;
-    canvas.drawArc(rect, startAngle, sweepUPI, false, paint);
-    startAngle += sweepUPI;
+    for (int i = 0; i < values.length; i++) {
+      final double val = values[i];
+      final String label = labels[i];
+      final double barWidth = maxVal == 0 ? 0 : (val / maxVal) * maxBarWidth;
 
-    paint.color = const Color(0xFF10B981);
-    final sweepCash = (cashRatio / total) * 2 * 3.14159;
-    canvas.drawArc(rect, startAngle, sweepCash, false, paint);
-    startAngle += sweepCash;
+      final double y = i * rowHeight + rowHeight * 0.15;
+      final double h = rowHeight * 0.7;
 
-    paint.color = const Color(0xFFF59E0B);
-    final sweepAddons = (addonsRatio / total) * 2 * 3.14159;
-    canvas.drawArc(rect, startAngle, sweepAddons, false, paint);
-  }
+      final TextSpan labelSpan = TextSpan(
+        style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+        text: label,
+      );
+      final TextPainter labelTp = TextPainter(
+        text: labelSpan,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      labelTp.paint(canvas, Offset(0, y + (h - labelTp.height) / 2));
 
-  @override
-  bool shouldRepaint(covariant RevenueDonutPainter oldDelegate) =>
-      oldDelegate.cashRatio != cashRatio || oldDelegate.upiRatio != upiRatio || oldDelegate.addonsRatio != addonsRatio;
-}
+      final RRect bgRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(50, y, maxBarWidth, h),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(bgRect, bgPaint);
 
-class AttendanceHeatmapPainter extends CustomPainter {
-  final List<List<int>> heatmapGrid;
+      if (barWidth > 0) {
+        final RRect filledRect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(50, y, barWidth, h),
+          const Radius.circular(4),
+        );
+        canvas.drawRRect(filledRect, barPaint);
+      }
 
-  AttendanceHeatmapPainter({required this.heatmapGrid});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final width = size.width;
-    final height = size.height;
-
-    final cellW = (width - 32) / 8;
-    final cellH = (height - 24) / 7;
-
-    final dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final hourLabels = ['8A', '10A', '12P', '2P', '4P', '6P', '8P', '10P'];
-
-    final textPainter = TextPainter(textDirection: ui.TextDirection.ltr);
-
-    for (int d = 0; d < 7; d++) {
-      textPainter.text = TextSpan(text: dayLabels[d], style: GoogleFonts.inter(fontSize: 8.5, color: const Color(0xFF64748B), fontWeight: FontWeight.bold));
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(2, d * cellH + 4));
-
-      for (int h = 0; h < 8; h++) {
-        final count = heatmapGrid[d][h];
-        final rect = Rect.fromLTWH(30 + h * cellW, d * cellH, cellW - 2, cellH - 2);
-
-        Color cellColor = const Color(0xFFF1F5F9);
-        if (count > 0 && count <= 2) {
-          cellColor = const Color(0xFFD1FAE5);
-        } else if (count > 2 && count <= 5) {
-          cellColor = const Color(0xFFFDE68A);
-        } else if (count > 5) {
-          cellColor = const Color(0xFFFEE2E2);
+      if (val > 0) {
+        final TextSpan valSpan = TextSpan(
+          style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white),
+          text: val.toStringAsFixed(0),
+        );
+        final TextPainter valTp = TextPainter(
+          text: valSpan,
+          textDirection: TextDirection.ltr,
+        )..layout();
+        if (barWidth > valTp.width + 10) {
+          valTp.paint(canvas, Offset(50 + barWidth - valTp.width - 5, y + (h - valTp.height) / 2));
         }
-
-        final cellPaint = Paint()..color = cellColor..style = PaintingStyle.fill;
-        canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(3)), cellPaint);
       }
-    }
-
-    for (int h = 0; h < 8; h++) {
-      textPainter.text = TextSpan(text: hourLabels[h], style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8), fontWeight: FontWeight.bold));
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(30 + h * cellW + (cellW / 6), height - 12));
     }
   }
 
   @override
-  bool shouldRepaint(covariant AttendanceHeatmapPainter oldDelegate) => oldDelegate.heatmapGrid != heatmapGrid;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class ShiftOccupancyPainter extends CustomPainter {
+  final List<double> values;
+  final List<String> labels;
+
+  ShiftOccupancyPainter({required this.values, required this.labels});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final double maxBarWidth = size.width - 120;
+    final double rowHeight = size.height / values.length;
+
+    final Paint barPaint = Paint()
+      ..color = const Color(0xFFE65C00)
+      ..style = PaintingStyle.fill;
+
+    final Paint bgPaint = Paint()
+      ..color = const Color(0xFFFFF7ED)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < values.length; i++) {
+      final double val = values[i];
+      final String label = labels[i];
+      final double barWidth = (val / 100.0) * maxBarWidth;
+
+      final double y = i * rowHeight + rowHeight * 0.2;
+      final double h = rowHeight * 0.6;
+
+      final TextSpan labelSpan = TextSpan(
+        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+        text: label,
+      );
+      final TextPainter labelTp = TextPainter(
+        text: labelSpan,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 80);
+      labelTp.paint(canvas, Offset(0, y + (h - labelTp.height) / 2));
+
+      final RRect bgRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(85, y, maxBarWidth, h),
+        const Radius.circular(6),
+      );
+      canvas.drawRRect(bgRect, bgPaint);
+
+      if (barWidth > 0) {
+        final RRect filledRect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(85, y, barWidth, h),
+          const Radius.circular(6),
+        );
+        canvas.drawRRect(filledRect, barPaint);
+      }
+
+      final TextSpan valSpan = TextSpan(
+        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+        text: '${val.toStringAsFixed(1)}%',
+      );
+      final TextPainter valTp = TextPainter(
+        text: valSpan,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      valTp.paint(canvas, Offset(85 + barWidth + 8, y + (h - valTp.height) / 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class PlansDistributionPainter extends CustomPainter {
+  final List<double> values;
+  final List<String> labels;
+  final List<Color> colors;
+  final int totalCount;
+
+  PlansDistributionPainter({
+    required this.values,
+    required this.labels,
+    required this.colors,
+    required this.totalCount,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double total = values.fold(0.0, (sum, val) => sum + val);
+    final center = Offset(size.width / 2, size.height / 2);
+    final double radius = size.width < size.height ? size.width / 2 - 10 : size.height / 2 - 10;
+    final double innerRadius = radius * 0.65;
+
+    if (total == 0.0) {
+      final Paint emptyPaint = Paint()
+        ..color = const Color(0xFFE2E8F0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius - innerRadius;
+      canvas.drawCircle(center, (radius + innerRadius) / 2, emptyPaint);
+      return;
+    }
+
+    double startAngle = -3.14159 / 2;
+    final rect = Rect.fromCircle(center: center, radius: (radius + innerRadius) / 2);
+
+    for (int i = 0; i < values.length; i++) {
+      final double val = values[i];
+      if (val == 0.0) continue;
+
+      final double sweepAngle = 2 * 3.14159 * (val / total);
+
+      final Paint paint = Paint()
+        ..color = colors[i % colors.length]
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius - innerRadius
+        ..strokeCap = StrokeCap.square;
+
+      canvas.drawArc(rect, startAngle + 0.02, sweepAngle - 0.04, false, paint);
+      startAngle += sweepAngle;
+    }
+
+    final TextSpan centerSpan = TextSpan(
+      children: [
+        TextSpan(
+          text: '$totalCount\n',
+          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+        ),
+        TextSpan(
+          text: 'Active',
+          style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
+        ),
+      ],
+    );
+    final TextPainter centerTp = TextPainter(
+      text: centerSpan,
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+    centerTp.paint(canvas, Offset(center.dx - centerTp.width / 2, center.dy - centerTp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class RevenuePerShiftPainter extends CustomPainter {
+  final List<double> values;
+  final List<String> labels;
+
+  RevenuePerShiftPainter({required this.values, required this.labels});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final double maxVal = [...values, 1000.0].reduce((a, b) => a > b ? a : b);
+    final double paddingX = 40.0;
+    final double paddingY = 20.0;
+    final double width = size.width - paddingX * 2;
+    final double height = size.height - paddingY * 2;
+
+    final Paint gridPaint = Paint()
+      ..color = const Color(0xFFE2E8F0)
+      ..strokeWidth = 1.0;
+
+    for (int i = 0; i <= 4; i++) {
+      final double y = paddingY + height * (1 - i / 4);
+      canvas.drawLine(Offset(paddingX, y), Offset(paddingX + width, y), gridPaint);
+
+      final double gridVal = maxVal * (i / 4);
+      final TextSpan span = TextSpan(
+        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8)),
+        text: '₹${gridVal.toStringAsFixed(0)}',
+      );
+      final TextPainter tp = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(paddingX - tp.width - 5, y - tp.height / 2));
+    }
+
+    final double barSpaceWidth = width / (values.length + 1);
+    final double barWidth = (barSpaceWidth * 0.5).clamp(16.0, 48.0);
+    final Paint barPaint = Paint()..color = const Color(0xFFE65C00);
+
+    for (int i = 0; i < values.length; i++) {
+      final double val = values[i];
+      final double barHeight = (val / maxVal) * height;
+      final double x = paddingX + barSpaceWidth * (i + 1) - barWidth / 2;
+      final double y = paddingY + height - barHeight;
+
+      if (barHeight > 0) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x, y, barWidth, barHeight),
+            const Radius.circular(4),
+          ),
+          barPaint,
+        );
+      }
+
+      final TextSpan labelSpan = TextSpan(
+        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+        text: labels[i],
+      );
+      final TextPainter labelTp = TextPainter(
+        text: labelSpan,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      labelTp.paint(canvas, Offset(x + barWidth / 2 - labelTp.width / 2, paddingY + height + 5));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class PopularityOfPlansPainter extends CustomPainter {
+  final List<List<double>> valuesList;
+  final List<String> labels;
+  final List<Color> colors;
+
+  PopularityOfPlansPainter({
+    required this.valuesList,
+    required this.labels,
+    required this.colors,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (valuesList.isEmpty || valuesList.first.isEmpty) return;
+
+    double maxVal = 5.0;
+    for (var list in valuesList) {
+      for (var val in list) {
+        if (val > maxVal) maxVal = val;
+      }
+    }
+
+    final double paddingX = 30.0;
+    final double paddingY = 20.0;
+    final double width = size.width - paddingX * 2;
+    final double height = size.height - paddingY * 2;
+
+    final Paint gridPaint = Paint()
+      ..color = const Color(0xFFE2E8F0)
+      ..strokeWidth = 1.0;
+
+    for (int i = 0; i <= 4; i++) {
+      final double y = paddingY + height * (1 - i / 4);
+      canvas.drawLine(Offset(paddingX, y), Offset(paddingX + width, y), gridPaint);
+
+      final double gridVal = maxVal * (i / 4);
+      final TextSpan span = TextSpan(
+        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8)),
+        text: gridVal.toStringAsFixed(0),
+      );
+      final TextPainter tp = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(paddingX - tp.width - 5, y - tp.height / 2));
+    }
+
+    final int pointsCount = labels.length;
+    final double stepX = pointsCount > 1 ? width / (pointsCount - 1) : width;
+
+    for (int l = 0; l < valuesList.length; l++) {
+      final List<double> values = valuesList[l];
+      final Color color = colors[l % colors.length];
+
+      final List<Offset> points = [];
+      final Path path = Path();
+      for (int i = 0; i < values.length; i++) {
+        final double x = paddingX + i * stepX;
+        final double y = paddingY + height * (1 - (values[i] / maxVal));
+        final p = Offset(x, y);
+        points.add(p);
+
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+
+      final Paint linePaint = Paint()
+        ..color = color
+        ..strokeWidth = 2.0
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawPath(path, linePaint);
+
+      final Paint pointPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+
+      for (final p in points) {
+        canvas.drawCircle(p, 3.0, pointPaint);
+      }
+    }
+
+    for (int i = 0; i < pointsCount; i++) {
+      final double x = paddingX + i * stepX;
+      final TextSpan span = TextSpan(
+        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF64748B)),
+        text: labels[i],
+      );
+      final TextPainter tp = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, paddingY + height + 5));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
