@@ -9,12 +9,12 @@ import 'member_profile_edit.dart';
 
 
 class LibraryPublicProfileScreen extends StatefulWidget {
-  final String libraryId;
+  final String? libraryId;
   final bool isAdmin;
 
   const LibraryPublicProfileScreen({
     super.key,
-    required this.libraryId,
+    this.libraryId,
     this.isAdmin = false,
   });
 
@@ -25,6 +25,14 @@ class LibraryPublicProfileScreen extends StatefulWidget {
 class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = true;
+
+  String get libraryId {
+    if (widget.libraryId != null) return widget.libraryId!;
+    final args = ModalRoute.of(context)!.settings.arguments;
+    if (args is String) return args;
+    if (args is Map) return args['libraryId'] as String;
+    throw Exception("Library ID is missing");
+  }
 
   // Database Data
   Map<String, dynamic>? _library;
@@ -126,7 +134,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
           context,
           MaterialPageRoute(
             builder: (context) => JoinFlowScreen(
-              libraryId: widget.libraryId,
+              libraryId: libraryId,
               initialShiftId: shiftId,
             ),
           ),
@@ -152,7 +160,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       final libRes = await _supabase
           .from('libraries')
           .select()
-          .eq('id', widget.libraryId)
+          .eq('id', libraryId)
           .maybeSingle();
       if (!mounted) return;
       _library = libRes;
@@ -161,7 +169,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       final shiftsRes = await _supabase
           .from('shifts')
           .select()
-          .eq('library_id', widget.libraryId)
+          .eq('library_id', libraryId)
           .eq('is_archived', false);
       if (!mounted) return;
       _shifts = List<Map<String, dynamic>>.from(shiftsRes);
@@ -170,7 +178,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       final reviewsRes = await _supabase
           .from('reviews')
           .select()
-          .eq('library_id', widget.libraryId)
+          .eq('library_id', libraryId)
           .order('created_at', ascending: false);
       if (!mounted) return;
       _reviews = List<Map<String, dynamic>>.from(reviewsRes);
@@ -207,7 +215,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
             .from('memberships')
             .select('id')
             .eq('member_id', user.id)
-            .eq('library_id', widget.libraryId)
+            .eq('library_id', libraryId)
             .neq('status', 'pending')
             .limit(1)
             .maybeSingle();
@@ -218,7 +226,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
             .from('reviews')
             .select('id')
             .eq('member_id', user.id)
-            .eq('library_id', widget.libraryId)
+            .eq('library_id', libraryId)
             .maybeSingle();
         _hasReviewed = userReviewRes != null;
       }
@@ -396,7 +404,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                         
                         try {
                           await _supabase.from('reviews').insert({
-                            'library_id': widget.libraryId,
+                            'library_id': libraryId,
                             'member_id': user.id,
                             'rating': selectedRating,
                             'comment': commentCtrl.text.trim(),

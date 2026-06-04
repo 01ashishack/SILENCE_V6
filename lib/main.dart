@@ -7,6 +7,9 @@ import 'screens/auth_screen.dart';
 import 'screens/role_selection_screen.dart';
 import 'screens/admin_home.dart';
 import 'screens/member_home.dart';
+import 'screens/member_profile_edit.dart';
+import 'screens/library_public_profile_screen.dart';
+import 'screens/member_explore_screen.dart';
 import 'screens/admin_profile_complete.dart';
 import 'screens/library_setup_stage1.dart';
 import 'screens/library_setup_stage2.dart';
@@ -115,6 +118,9 @@ class SilenceApp extends StatelessWidget {
         '/admin/home': (context) => const AdminHomeScreen(),
         '/member': (context) => const MemberHomeScreen(),
         '/member/home': (context) => const MemberHomeScreen(),
+        '/member/explore': (context) => const ExploreScreen(),
+        '/member/library-profile': (context) => const LibraryPublicProfileScreen(isAdmin: false),
+        '/member/edit-profile': (context) => const MemberProfileEditScreen(),
         '/admin/profile/complete': (context) => const AdminProfileCompleteScreen(),
         '/admin/library/setup/1': (context) => const LibrarySetupStage1Screen(),
         '/admin/library/setup/2': (context) => const LibrarySetupStage2Screen(),
