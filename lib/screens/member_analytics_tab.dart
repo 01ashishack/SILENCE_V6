@@ -50,7 +50,12 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   void initState() {
     super.initState();
     _selectedLibraryId = widget.activeLibraryId;
-    if (_selectedLibraryId == null && widget.memberLibraries.isNotEmpty) {
+    if (_selectedLibraryId != null) {
+      final exists = widget.memberLibraries.any((lib) => lib['library_id'] == _selectedLibraryId);
+      if (!exists) {
+        _selectedLibraryId = widget.memberLibraries.isNotEmpty ? widget.memberLibraries.first['library_id'] : null;
+      }
+    } else if (widget.memberLibraries.isNotEmpty) {
       _selectedLibraryId = widget.memberLibraries.first['library_id'];
     }
     _loadAllData();
@@ -219,7 +224,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   child: DropdownButton<String>(
                     dropdownColor: const Color(0xFFE65C00),
                     icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
-                    value: _selectedLibraryId,
+                    value: widget.memberLibraries.any((lib) => lib['library_id'] == _selectedLibraryId) ? _selectedLibraryId : null,
                     items: widget.memberLibraries.map((lib) {
                       return DropdownMenuItem<String>(
                         value: lib['library_id'],

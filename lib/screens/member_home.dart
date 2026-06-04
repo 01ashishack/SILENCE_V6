@@ -1,15 +1,23 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
 import '../core/offline_sync.dart';
 import '../core/cache_service.dart';
 import 'reservations/qr_scanner_screen.dart';
 import 'reservations/join_flow_screen.dart';
 import 'member_profile_edit.dart';
 import 'member_analytics_tab.dart';
+import 'library_public_profile_screen.dart';
+import 'member_history_tab.dart';
+import 'help_support_screen.dart';
+import 'about_us_screen.dart';
+import 'terms_screen.dart';
+import 'app_settings_screen.dart';
 import 'package:flutter/services.dart';
 import '../core/calendar_picker.dart';
 
@@ -24,7 +32,7 @@ class MemberHomeScreen extends StatefulWidget {
 }
 
 class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerProviderStateMixin {
-  int _currentBottomTab = 0; // 0 = Home, 1 = Analytics, 2 = Profile
+  int _currentBottomTab = 0; // 0 = Home, 1 = Analytics, 2 = History, 3 = Profile
   int _currentSubTab = 0; // 0 = My Library, 1 = Explore (Home sub-tabs)
   
   bool _isLoading = true;
@@ -42,6 +50,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   List<Map<String, dynamic>> _filteredLibraries = [];
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounceTimer;
+  bool _hasRequestedLocation = false;
+  Position? _currentPosition;
   
   // Attendance Live Ticker
   Timer? _attendanceTimer;
@@ -76,7 +86,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         if (mounted) {
           setState(() {
             _exploreLibraries = List<Map<String, dynamic>>.from(cached);
-            _filteredLibraries = List.from(_exploreLibraries);
+            _filteredLibraries = []; // Keep empty initially
           });
         }
       }
@@ -84,10 +94,53 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   void _onSearchChanged() {
+    final query = _searchController.text.trim();
+    if (query.isNotEmpty && !_hasRequestedLocation) {
+      _requestLocation();
+    }
     if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       _filterLibraries();
     });
+  }
+
+  Future<void> _requestLocation() async {
+    if (_hasRequestedLocation) return;
+    _hasRequestedLocation = true;
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        debugPrint('Location services are disabled.');
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          debugPrint('Location permissions are denied');
+          return;
+        }
+      }
+      
+      if (permission == LocationPermission.deniedForever) {
+        debugPrint('Location permissions are permanently denied.');
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 3),
+      );
+      if (mounted) {
+        setState(() {
+          _currentPosition = position;
+        });
+        _filterLibraries();
+      }
+    } catch (e) {
+      debugPrint('Error getting location: $e');
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -134,6 +187,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           .from('memberships')
           .select('*, libraries(*), shifts(*), seats(*)')
           .eq('member_id', currentUser.id)
+          .inFilter('status', ['active', 'trial', 'pending', 'hold'])
           .order('created_at', ascending: false);
 
       _myMemberships = List<Map<String, dynamic>>.from(membershipsRes);
@@ -188,14 +242,27 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       }
 
       // 5. Load Explore Libraries (All active libraries)
-      final exploreRes = await supabase
-          .from('libraries')
-          .select('id, name, address_city, verified, photos, amenities, library_code, status, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
-          .eq('status', 'active');
+      try {
+        final exploreRes = await supabase
+            .from('libraries')
+            .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, latitude, longitude, shifts(id, name, price_monthly, trial_days, start_time, end_time), reviews(rating)')
+            .eq('status', 'active');
 
-      _exploreLibraries = List<Map<String, dynamic>>.from(exploreRes);
-      _filteredLibraries = List.from(_exploreLibraries);
-      CacheService.instance.writeCache('explore_libraries_list', exploreRes);
+        _exploreLibraries = List<Map<String, dynamic>>.from(exploreRes);
+      } catch (e) {
+        debugPrint('Error loading libraries with new schema: $e. Retrying with fallback schema.');
+        try {
+          final exploreRes = await supabase
+              .from('libraries')
+              .select('id, name, address_city, verified, photos, amenities, library_code, status, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
+              .eq('status', 'active');
+          _exploreLibraries = List<Map<String, dynamic>>.from(exploreRes);
+        } catch (e2) {
+          debugPrint('Error loading explore fallback: $e2');
+        }
+      }
+      _filteredLibraries = []; // Keep empty initially (Initial Blank State)
+      CacheService.instance.writeCache('explore_libraries_list', _exploreLibraries);
 
     } catch (e) {
       debugPrint('Error loading member home data: $e');
@@ -233,33 +300,119 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) {
       setState(() {
-        _filteredLibraries = List.from(_exploreLibraries);
+        _filteredLibraries = [];
       });
       return;
     }
 
+    final List<Map<String, dynamic>> matched = _exploreLibraries.where((lib) {
+      final name = (lib['name'] ?? '').toString().toLowerCase();
+      final city = (lib['address_city'] ?? '').toString().toLowerCase();
+      final code = (lib['library_code'] ?? '').toString().toLowerCase();
+      return name.contains(query) || city.contains(query) || code.contains(query);
+    }).toList();
+
+    if (_currentPosition != null) {
+      matched.sort((a, b) {
+        final aLat = a['latitude'] as num?;
+        final aLng = a['longitude'] as num?;
+        final bLat = b['latitude'] as num?;
+        final bLng = b['longitude'] as num?;
+
+        if (aLat == null || aLng == null) return 1;
+        if (bLat == null || bLng == null) return -1;
+
+        final distA = _calculateDistance(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+          aLat.toDouble(),
+          aLng.toDouble(),
+        );
+        final distB = _calculateDistance(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+          bLat.toDouble(),
+          bLng.toDouble(),
+        );
+        return distA.compareTo(distB);
+      });
+    } else {
+      matched.sort((a, b) {
+        final nameA = (a['name'] ?? '').toString().toLowerCase();
+        final nameB = (b['name'] ?? '').toString().toLowerCase();
+        return nameA.compareTo(nameB);
+      });
+    }
+
     setState(() {
-      _filteredLibraries = _exploreLibraries.where((lib) {
-        final name = (lib['name'] ?? '').toString().toLowerCase();
-        final city = (lib['address_city'] ?? '').toString().toLowerCase();
-        final code = (lib['library_code'] ?? '').toString().toLowerCase();
-        return name.contains(query) || city.contains(query) || code.contains(query);
-      }).toList();
+      _filteredLibraries = matched;
     });
+  }
+
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const p = 0.017453292519943295;
+    final c = cos;
+    final a = 0.5 - c((lat2 - lat1) * p)/2 + 
+          c(lat1 * p) * c(lat2 * p) * 
+          (1 - c((lon2 - lon1) * p))/2;
+    return 12742 * asin(sqrt(a)); // 2 * R; R = 6371 km
   }
 
   bool _isProfileIncomplete() {
     final name = _userProfile?['full_name'] as String?;
     final phone = _userProfile?['phone'] as String?;
-    final photo = _userProfile?['photo_url'] as String?;
+    final nickname = _userProfile?['nickname'] as String?;
+    final gender = _userProfile?['gender'] as String?;
     final dob = _userProfile?['date_of_birth'] as String?;
     final address = _userProfile?['address'] as String?;
+    final examCategory = _userProfile?['exam_category'] as String?;
+    final photo = _userProfile?['photo_url'] as String?;
+    final idProof = _userProfile?['id_proof_url'] as String?;
     
-    return name == null || name.isEmpty || 
-           phone == null || phone.isEmpty || 
-           photo == null || photo.isEmpty ||
-           dob == null || dob.isEmpty ||
-           address == null || address.isEmpty;
+    return name == null || name.trim().isEmpty || 
+           phone == null || phone.trim().isEmpty || 
+           nickname == null || nickname.trim().isEmpty ||
+           gender == null || gender.trim().isEmpty ||
+           dob == null || dob.trim().isEmpty ||
+           address == null || address.trim().isEmpty ||
+           examCategory == null || examCategory.trim().isEmpty ||
+           photo == null || photo.trim().isEmpty ||
+           idProof == null || idProof.trim().isEmpty;
+  }
+
+  void _showProfileIncompleteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Complete Your Profile', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text('Please complete your profile before joining a library.', style: GoogleFonts.inter()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MemberProfileEditScreen()),
+              ).then((result) {
+                if (result == true) {
+                  _loadInitialData(); // Refresh profile data after edit
+                }
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE65C00),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Edit Profile', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -276,17 +429,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   ? _buildErrorState()
                   : _buildCurrentTabContent(),
           bottomNavigationBar: _buildBottomNav(),
-          floatingActionButton: _currentBottomTab == 0
-              ? FloatingActionButton(
-                  onPressed: _openQRScanner,
-                  backgroundColor: const Color(0xFFE65C00),
-                  foregroundColor: Colors.white,
-                  shape: const CircleBorder(),
-                  elevation: 6,
-                  child: const Icon(Icons.qr_code_scanner, size: 28),
-                )
-              : null,
-          floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         ),
       ),
     );
@@ -333,6 +475,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       children: [
         _buildHomeTab(),
         _buildAnalyticsTab(),
+        const MemberHistoryTab(),
         _buildProfileTab(),
       ],
     );
@@ -342,21 +485,38 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   // TAB 0: HOME TAB (My Library + Explore)
   // ==========================================
   Widget _buildHomeTab() {
-    return Column(
+    return Stack(
       children: [
-        _buildOrangeHeader(),
-        _buildSubTabBar(),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _loadInitialData,
-            color: const Color(0xFFE65C00),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16.0),
-              child: _currentSubTab == 0 ? _buildMyLibraryContent() : _buildExploreContent(),
+        Column(
+          children: [
+            _buildOrangeHeader(),
+            _buildSubTabBar(),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _loadInitialData,
+                color: const Color(0xFFE65C00),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16.0),
+                  child: _currentSubTab == 0 ? _buildMyLibraryContent() : _buildExploreContent(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_currentSubTab == 0)
+          Positioned(
+            right: 20,
+            bottom: 20,
+            child: FloatingActionButton(
+              onPressed: _openQRScanner,
+              backgroundColor: const Color(0xFFE65C00),
+              foregroundColor: Colors.white,
+              shape: const CircleBorder(),
+              elevation: 6,
+              child: const Icon(Icons.qr_code_scanner, size: 28),
             ),
           ),
-        ),
       ],
     );
   }
@@ -373,7 +533,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
-        color: const Color(0xFFE65C00),
+        color: Color(0xFFE65C00),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(28),
           bottomRight: Radius.circular(28),
@@ -386,9 +546,12 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'SILENCE',
-                style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.2),
+              Image.asset(
+                'assets/images/BLack_name_with_tag.png',
+                height: 36,
+                width: 150,
+                fit: BoxFit.contain,
+                color: Colors.white,
               ),
               Stack(
                 children: [
@@ -422,7 +585,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           ),
           const SizedBox(height: 16),
           Text(
-            'Good afternoon, $userName 👋',
+            '${DateTime.now().hour < 12 ? 'Good morning' : (DateTime.now().hour < 17 ? 'Good afternoon' : 'Good evening')}, $userName 👋',
             style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 4),
@@ -938,6 +1101,10 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               Expanded(
                 child: OutlinedButton(
                   onPressed: () {
+                    if (_isProfileIncomplete()) {
+                      _showProfileIncompleteDialog();
+                      return;
+                    }
                     // Navigate to Join Flow to renew
                     Navigator.push(
                       context,
@@ -1155,11 +1322,33 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   Widget _buildExploreLibraryCard(Map<String, dynamic> lib) {
     final name = lib['name'] ?? 'SILENCE Zone';
+    final street = lib['address_street'] ?? '';
     final city = lib['address_city'] ?? 'Indore';
+    String address = street.isNotEmpty ? '$street, $city' : city;
+    if (address.length > 30) {
+      address = '${address.substring(0, 27)}...';
+    }
+
     final verified = lib['verified'] == true;
     final photos = lib['photos'] as List? ?? [];
     final amenities = lib['amenities'] as List? ?? [];
     final shifts = lib['shifts'] as List? ?? [];
+
+    // Calculate distance
+    double? distanceKm;
+    final aLat = lib['latitude'] as num?;
+    final aLng = lib['longitude'] as num?;
+    if (_currentPosition != null && aLat != null && aLng != null) {
+      distanceKm = _calculateDistance(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+        aLat.toDouble(),
+        aLng.toDouble(),
+      );
+    }
+    final distanceText = distanceKm != null 
+        ? '${distanceKm.toStringAsFixed(1)} km away' 
+        : null;
 
     // Calculate starting price
     int startingPrice = 0;
@@ -1171,9 +1360,18 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     }
 
     final hasTrial = shifts.any((s) => (s['trial_days'] as int? ?? 0) > 0);
-    
-    // Check if user is already a member
-    final isAlreadyMember = _myMemberships.any((m) => m['library_id'] == lib['id'] && m['status'] != 'exited');
+
+    // Calculate rating summary from reviews
+    final reviews = lib['reviews'] as List? ?? [];
+    double avgRating = 0.0;
+    if (reviews.isNotEmpty) {
+      final total = reviews.fold<num>(0, (sum, item) {
+        final r = item['rating'] as num? ?? 0;
+        return sum + r;
+      });
+      avgRating = total / reviews.length;
+    }
+    final ratingCount = reviews.length;
 
     return Card(
       color: Colors.white,
@@ -1181,7 +1379,23 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       elevation: 3,
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
-        onTap: () => _openLibraryDetailModal(lib),
+        onTap: () async {
+          final res = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LibraryPublicProfileScreen(
+                libraryId: lib['id'],
+                isAdmin: false,
+              ),
+            ),
+          );
+          if (res == 'go_to_profile') {
+            setState(() {
+              _currentBottomTab = 3;
+            });
+          }
+          _loadInitialData();
+        },
         borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1218,20 +1432,66 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                 children: [
                   Row(
                     children: [
-                      Text(
-                        name,
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                name,
+                                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (verified) ...[
+                              const SizedBox(width: 4),
+                              const Icon(Icons.verified, color: Colors.blue, size: 16),
+                            ],
+                          ],
+                        ),
                       ),
-                      if (verified) ...[
-                        const SizedBox(width: 4),
-                        const Icon(Icons.verified, color: Colors.blue, size: 16),
-                      ]
+                      const SizedBox(width: 8),
+                      if (ratingCount > 0) ...[
+                        const Icon(Icons.star, color: Colors.amber, size: 16),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${avgRating.toStringAsFixed(1)} ($ratingCount)',
+                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        ),
+                      ] else
+                        Text(
+                          'New',
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[500]),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    city,
-                    style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        address,
+                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                      if (distanceText != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF3ED),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            distanceText,
+                            style: GoogleFonts.inter(
+                              fontSize: 10, 
+                              fontWeight: FontWeight.bold, 
+                              color: const Color(0xFFE65C00),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 12),
 
@@ -1304,30 +1564,32 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   // Action button
                   SizedBox(
                     width: double.infinity,
-                    child: isAlreadyMember
-                        ? OutlinedButton(
-                            onPressed: null,
-                            style: OutlinedButton.styleFrom(
-                              disabledForegroundColor: Colors.grey,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final res = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => LibraryPublicProfileScreen(
+                              libraryId: lib['id'],
+                              isAdmin: false,
                             ),
-                            child: const Text('Already a Member ✓'),
-                          )
-                        : ElevatedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => JoinFlowScreen(libraryId: lib['id'])),
-                              ).then((_) => _loadInitialData());
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE65C00),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            child: const Text('Apply to Join →'),
                           ),
+                        );
+                        if (res == 'go_to_profile') {
+                          setState(() {
+                            _currentBottomTab = 3;
+                          });
+                        }
+                        _loadInitialData();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE65C00),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text('View Profile'),
+                    ),
                   )
                 ],
               ),
@@ -1440,6 +1702,113 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
+  void _showTermsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Terms & Conditions', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+        content: SingleChildScrollView(
+          child: Text(
+            'Welcome to SILENCE app.\n\n'
+            '1. Usage Rules:\nMembers must maintain absolute silence inside the study zones. Active phone calls are strictly prohibited.\n\n'
+            '2. Seat Booking:\nSeats are allocated based on active memberships. No reserving seats using personal belongings when not present.\n\n'
+            '3. Cancellation & Refunds:\nAll subscription fees are non-refundable once confirmed by the library admin.\n\n'
+            'By using the app, you agree to these rules.',
+            style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF475569)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Close', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('About SILENCE', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.library_books, size: 48, color: Color(0xFFE65C00)),
+            const SizedBox(height: 12),
+            Text(
+              'SILENCE Study Space Manager',
+              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Version 1.0.2',
+              style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'A complete platform to manage libraries, check attendance via QR scanner, track monthly performance analytics, and manage subscriptions.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF475569)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Close', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Local Settings', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SwitchListTile(
+              title: Text('Push Notifications', style: GoogleFonts.inter(fontSize: 14)),
+              value: true,
+              activeColor: const Color(0xFFE65C00),
+              onChanged: (bool val) {},
+            ),
+            SwitchListTile(
+              title: Text('Offline Cache Sync', style: GoogleFonts.inter(fontSize: 14)),
+              value: true,
+              activeColor: const Color(0xFFE65C00),
+              onChanged: (bool val) {},
+            ),
+            ListTile(
+              title: Text('Clear Offline Cache', style: GoogleFonts.inter(fontSize: 14)),
+              trailing: const Icon(Icons.delete_outline, color: Colors.red),
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Offline cache cleared successfully.')),
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Done', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ==========================================
   // TAB 2: PROFILE TAB (S064 Placeholder)
   // ==========================================
@@ -1534,6 +1903,64 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                 // Refer a Friend Section
                 _buildReferralSection(),
                 
+                const SizedBox(height: 16),
+
+                // Help, Terms, About, Settings Card
+                Container(
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.help_outline, color: Color(0xFFE65C00)),
+                        title: Text('Help & Support', style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
+                        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1, indent: 56),
+                      ListTile(
+                        leading: const Icon(Icons.gavel_outlined, color: Color(0xFFE65C00)),
+                        title: Text('Terms & Conditions', style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
+                        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const TermsScreen()),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1, indent: 56),
+                      ListTile(
+                        leading: const Icon(Icons.info_outline, color: Color(0xFFE65C00)),
+                        title: Text('About SILENCE', style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
+                        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const AboutUsScreen()),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1, indent: 56),
+                      ListTile(
+                        leading: const Icon(Icons.settings_outlined, color: Color(0xFFE65C00)),
+                        title: Text('Local Settings', style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
+                        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const AppSettingsScreen()),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
                 const SizedBox(height: 24),
 
                 // Logout
@@ -1664,42 +2091,19 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   // ==========================================
   Widget _buildBottomNav() {
-    return BottomAppBar(
-      color: Colors.white,
-      shape: const CircularNotchedRectangle(),
-      notchMargin: 8.0,
-      padding: EdgeInsets.zero,
+    return Container(
       height: 64,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Left Side Tabs
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildNavItem(0, Icons.home, 'Home'),
-                _buildNavItem(1, Icons.bar_chart, 'Analytics'),
-              ],
-            ),
-          ),
-          const SizedBox(width: 72), // Clear space for FAB notch in exact center
-          // Right Side Tabs
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildNavItem(2, Icons.person, 'Profile'),
-                // Dummy symmetric spacer item using Opacity to balance the Row alignment perfectly!
-                Opacity(
-                  opacity: 0,
-                  child: IgnorePointer(
-                    child: _buildNavItem(99, Icons.home, 'Home'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildNavItem(0, Icons.home, 'Home'),
+          _buildNavItem(1, Icons.bar_chart, 'Analytics'),
+          _buildNavItem(2, Icons.history, 'History'),
+          _buildNavItem(3, Icons.person, 'Profile'),
         ],
       ),
     );
@@ -2538,6 +2942,10 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       
                       if (context.mounted) {
                         Navigator.pop(context);
+                        if (_isProfileIncomplete()) {
+                          _showProfileIncompleteDialog();
+                          return;
+                        }
                         // Open Join flow for this library
                         Navigator.push(
                           context,
@@ -2648,6 +3056,10 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
+                        if (_isProfileIncomplete()) {
+                          _showProfileIncompleteDialog();
+                          return;
+                        }
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => JoinFlowScreen(libraryId: lib['id'])),

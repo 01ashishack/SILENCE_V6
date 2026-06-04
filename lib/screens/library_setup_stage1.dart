@@ -97,7 +97,16 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
     if (user != null) {
       try {
-        final libData = await supabase.from('libraries').select().eq('owner_id', user.id).maybeSingle();
+        final Object? args = ModalRoute.of(context)?.settings.arguments;
+        String? passedId;
+        if (args is String) {
+          passedId = args;
+        }
+
+        final query = supabase.from('libraries').select().eq('owner_id', user.id);
+        final libData = passedId != null
+            ? await query.eq('id', passedId).maybeSingle()
+            : await query.maybeSingle();
         if (libData != null) {
           _libraryId = libData['id'];
           _libraryCode = libData['library_code'] ?? '';

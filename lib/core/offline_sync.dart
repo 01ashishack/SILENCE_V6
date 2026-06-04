@@ -34,10 +34,10 @@ class OfflineSyncManager {
     try {
       final db = await OfflineDatabase.instance.database;
       
-      // Fetch all unsynced scans in FIFO order (older scans first)
+      // Fetch all unsynced scans in FIFO order (older scans first, max 3 retries)
       final List<Map<String, dynamic>> pending = await db.query(
         'offline_scan_queue',
-        where: 'synced = 0',
+        where: 'synced = 0 AND retry_count < 3',
         orderBy: 'created_at ASC',
       );
 
@@ -165,12 +165,19 @@ class OfflineSyncManager {
             await db.delete('offline_scan_queue', where: 'id = ?', whereArgs: [scanId]);
           } else {
             // Keep in queue to retry later
-            await db.update(
-              'offline_scan_queue',
-              {'retry_count': (scan['retry_count'] ?? 0) + 1},
-              where: 'id = ?',
-              whereArgs: [scanId],
-            );
+            final currentRetry = scan['retry_count'] as int? ?? 0;
+            if (currentRetry >= 2) {
+              // Delete permanently after 3 attempts (attempt 0, 1, 2)
+              await db.delete('offline_scan_queue', where: 'id = ?', whereArgs: [scanId]);
+              debugPrint('Scan $scanId permanently failed and removed from queue after 3 attempts.');
+            } else {
+              await db.update(
+                'offline_scan_queue',
+                {'retry_count': currentRetry + 1},
+                where: 'id = ?',
+                whereArgs: [scanId],
+              );
+            }
           }
         }
       }

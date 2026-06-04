@@ -1,0 +1,151 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+class AboutUsScreen extends StatelessWidget {
+  const AboutUsScreen({super.key});
+
+  Future<void> _launchUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      throw Exception('Could not launch $url');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFE65C00),
+      body: SafeArea(
+        top: true,
+        child: Scaffold(
+          backgroundColor: const Color(0xFFFBF5EE),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFFE65C00),
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              'About Us',
+              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            centerTitle: true,
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 24),
+                // Logo/Brand area
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3ED),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFE65C00), width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.storefront,
+                      size: 64,
+                      color: Color(0xFFE65C00),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Text(
+                    'SILENCE',
+                    style: GoogleFonts.outfit(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                      letterSpacing: 2.0,
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Text(
+                    'Study Space Management Redefined',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Description card
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Our Vision',
+                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Silence is built to empower library owners and students by simplifying seat management, attendance tracking, and fee collections. We strive to create the ultimate frictionless study environment.',
+                        style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.5),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Specs list
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        title: Text('Version', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF1E293B))),
+                        trailing: Text('1.0.0 (Build 1)', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
+                      ),
+                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                      ListTile(
+                        title: Text('Privacy Policy', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF1E293B))),
+                        trailing: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF64748B)),
+                        onTap: () => _launchUrl('https://silenceapp.in/privacy'),
+                      ),
+                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                      ListTile(
+                        title: Text('Terms of Service', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF1E293B))),
+                        trailing: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF64748B)),
+                        onTap: () => _launchUrl('https://silenceapp.in/terms'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 48),
+
+                // Copyright
+                Center(
+                  child: Text(
+                    '© 2026 Silence App. All Rights Reserved.',
+                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

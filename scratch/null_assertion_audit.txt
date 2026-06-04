@@ -1,0 +1,245 @@
+Total postfix null assertions found: 243
+
+core\cache_service.dart:12: return _prefs!;
+core\member_analytics_service.dart:79: name = userMap!['full_name'].toString().split(' ').first;
+core\member_analytics_service.dart:87: memberStats[mId]!['total_duration'] += duration;
+core\member_analytics_service.dart:98: nameCounts[name] = nameCounts[name]! + 1;
+core\member_analytics_service.dart:218: if (!earnedTypes.contains('7_day_streak') && streak['best']! >= 7) {
+core\member_analytics_service.dart:223: if (!earnedTypes.contains('30_day_streak') && streak['best']! >= 30) {
+core\offline_db.dart:12: if (_database != null) return _database!;
+core\offline_db.dart:14: return _database!;
+main.dart:93: borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+models\member_draft.dart:35: if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+models\member_draft.dart:36: if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
+screens\admin\add_member_step1.dart:95: if (_debounce?.isActive ?? false) _debounce!.cancel();
+screens\admin\add_member_step1.dart:399: borderSide: BorderSide(color: Colors.red[600]!, width: 1),
+screens\admin\add_member_step1.dart:403: borderSide: BorderSide(color: Colors.red[600]!, width: 1.5),
+screens\admin\add_member_step1.dart:472: ? (kIsWeb ? NetworkImage(widget.memberData.profilePhoto!.path) : FileImage(widget.memberData.profilePhoto!) as ImageProvider)
+screens\admin\add_member_step1.dart:472: ? (kIsWeb ? NetworkImage(widget.memberData.profilePhoto!.path) : FileImage(widget.memberData.profilePhoto!) as ImageProvider)
+screens\admin\add_member_step1.dart:474: ? NetworkImage(widget.memberData.existingPhotoUrl!)
+screens\admin\add_member_step2.dart:210: return widget.memberData.planStartDate!;
+screens\admin\add_member_step2.dart:421: (_selectedShift != null && _selectedShift!['price_3month'] != null)
+screens\admin\add_member_step2.dart:422: ? (_selectedShift!['price_3month'] as num).toInt()
+screens\admin\add_member_step2.dart:429: (_selectedShift != null && _selectedShift!['price_6month'] != null)
+screens\admin\add_member_step2.dart:430: ? (_selectedShift!['price_6month'] as num).toInt()
+screens\admin\add_member_step3.dart:74: shiftId: widget.memberData.selectedShiftId!,
+screens\admin\add_member_step5.dart:99: return memberData.planStartDate!;
+screens\admin\add_member_step5.dart:296: _buildReviewRow('DOB', memberData.dob != null ? _formatDate(memberData.dob!) : 'N/A'),
+screens\admin\add_member_wizard.dart:60: _loadDraft(_draftId!);
+screens\admin\add_member_wizard.dart:82: _loadDraft(_draftId!);
+screens\admin\add_member_wizard.dart:108: _loadDraft(_draftId!);
+screens\admin\add_member_wizard.dart:292: return _memberData.planStartDate!;
+screens\admin\add_member_wizard.dart:378: photoUrl = await _uploadProfilePhoto(_memberData.profilePhoto!, memberUserId);
+screens\admin\add_member_wizard.dart:387: docUrl = await _uploadFileToStorage(_memberData.idProof1File!, 'documents');
+screens\admin\add_member_wizard.dart:389: docUrl = await _uploadFileToStorage(_memberData.idProof2File!, 'documents');
+screens\admin\add_member_wizard.dart:432: }).eq('id', _memberData.selectedSeatId!);
+screens\admin\add_member_wizard.dart:436: await DraftService.instance.deleteDraft(_draftId!, _libraryId);
+screens\admin_analytics_tab.dart:179: final libRes = await _supabase.from('libraries').select().eq('id', _filterLibraryId!).maybeSingle();
+screens\admin_analytics_tab.dart:190: final floorsRes = await _supabase.from('floors').select().eq('library_id', _filterLibraryId!).order('order_index');
+screens\admin_analytics_tab.dart:202: final shiftsRes = await _supabase.from('shifts').select().eq('library_id', _filterLibraryId!).eq('is_archived', false);
+screens\admin_analytics_tab.dart:206: final paymentsRes = await _supabase.from('payments').select('*, member_id(full_name, phone, email)').eq('library_id', _filterLibraryId!).eq('status', 'confirmed');
+screens\admin_analytics_tab.dart:209: final duesRes = await _supabase.from('payments').select('*, member_id(full_name, phone, email)').eq('library_id', _filterLibraryId!).eq('status', 'pending');
+screens\admin_analytics_tab.dart:212: final expRes = await _supabase.from('expenditures').select().eq('library_id', _filterLibraryId!).order('expense_date', ascending: false);
+screens\admin_analytics_tab.dart:215: final seatsRes = await _supabase.from('seats').select('*, shifts(name)').eq('library_id', _filterLibraryId!);
+screens\admin_analytics_tab.dart:218: final membershipsRes = await _supabase.from('memberships').select('*, member_id(full_name, phone, email, gender, created_at), seats(seat_label, floor_id, section_id, status), shifts(name)').eq('library_id', _filterLibraryId!);
+screens\admin_analytics_tab.dart:221: final attRes = await _supabase.from('attendance').select('*, member_id(full_name, photo_url, phone), memberships(seat_id, seats(seat_label, floor_id, section_id), shifts(name))').eq('library_id', _filterLibraryId!).order('check_in_time', ascending: false);
+screens\admin_analytics_tab.dart:1118: child: _libraryCoverUrl != null && _libraryCoverUrl!.isNotEmpty
+screens\admin_analytics_tab.dart:1122: _libraryCoverUrl!,
+screens\admin_home.dart:192: await _loadCachedDashboardStats(_libraryId!);
+screens\admin_home.dart:283: await _loadLibrarySpecificData(_libraryId!);
+screens\admin_home.dart:315: if (_coverPhotoUrl == null || _coverPhotoUrl!.isEmpty) {
+screens\admin_home.dart:767: }).eq('id', _libraryId!);
+screens\admin_home.dart:774: }).eq('id', supabase.auth.currentUser!.id);
+screens\admin_home.dart:900: color: Colors.blue[400]!,
+screens\admin_home.dart:907: color: Colors.amber[600]!,
+screens\admin_home.dart:914: color: Colors.orange[400]!,
+screens\admin_home.dart:921: color: Colors.teal[400]!,
+screens\admin_home.dart:928: color: Colors.pink[400]!,
+screens\admin_home.dart:944: color: Colors.purple[400]!,
+screens\admin_home.dart:951: color: Colors.grey[600]!,
+screens\admin_home.dart:958: color: Colors.indigo[400]!,
+screens\admin_home.dart:974: color: Colors.red[400]!,
+screens\admin_home.dart:981: color: Colors.green[400]!,
+screens\admin_home.dart:1216: child: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
+screens\admin_home.dart:1220: _coverPhotoUrl!,
+screens\admin_home.dart:1502: color: isDone ? const Color(0xFF22C55E) : Colors.grey[300]!,
+screens\admin_home.dart:2344: _loadLibrarySpecificData(_libraryId!).then((_) {
+screens\admin_home.dart:2441: 'library_id': _libraryId!,
+screens\admin_home.dart:2495: .eq('library_id', _libraryId!)
+screens\admin_home.dart:2665: 'library_id': _libraryId!,
+screens\admin_home.dart:2723: libraryId: _libraryId!,
+screens\admin_home.dart:2982: student['name']![0],
+screens\admin_home.dart:3006: student['name']!,
+screens\admin_home.dart:3016: student['seat']!,
+screens\admin_home.dart:3276: image: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
+screens\admin_home.dart:3277: ? NetworkImage(_coverPhotoUrl!) as ImageProvider
+screens\admin_profile_complete.dart:319: if (!_formKey.currentState!.validate()) return;
+screens\admin_profile_complete.dart:334: final String? dobStr = _dob != null ? _dob!.toIso8601String().split('T')[0] : null;
+screens\admin_profile_complete.dart:339: 'email': user.email!,
+screens\admin_profile_complete.dart:408: backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200) : null,
+screens\admin_profile_complete.dart:408: backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200) : null,
+screens\admin_profile_complete.dart:409: child: _photoUrl == null || _photoUrl!.isEmpty
+screens\admin_profile_tab.dart:268: backgroundImage: _adminPhotoUrl != null && _adminPhotoUrl!.isNotEmpty
+screens\admin_profile_tab.dart:269: ? NetworkImage(_adminPhotoUrl!)
+screens\admin_profile_tab.dart:271: child: _adminPhotoUrl == null || _adminPhotoUrl!.isEmpty
+screens\auth_screen.dart:107: if (!_loginFormKey.currentState!.validate()) return;
+screens\auth_screen.dart:125: .eq('id', response.user!.id)
+screens\auth_screen.dart:151: if (!_signupFormKey.currentState!.validate()) return;
+screens\auth_screen.dart:168: 'id': response.user!.id,
+screens\auth_screen.dart:169: 'email': response.user!.email!,
+screens\auth_screen.dart:169: 'email': response.user!.email!,
+screens\auth_screen.dart:181: }).eq('id', response.user!.id);
+screens\branding_assets.dart:364: ? DecorationImage(image: NetworkImage(_logoUrl!), fit: BoxFit.cover)
+screens\business_rules.dart:58: final libData = await _supabase.from('libraries').select('rules_metadata').eq('id', _libId!).maybeSingle();
+screens\business_rules.dart:76: if (!_formKey.currentState!.validate()) return;
+screens\business_rules.dart:98: }).eq('id', _libId!);
+screens\export_center.dart:171: totals[date]!['total'] = totals[date]!['total']! + amount;
+screens\export_center.dart:171: totals[date]!['total'] = totals[date]!['total']! + amount;
+screens\export_center.dart:171: totals[date]!['total'] = totals[date]!['total']! + amount;
+screens\export_center.dart:173: totals[date]![bucket] = totals[date]![bucket]! + amount;
+screens\export_center.dart:173: totals[date]![bucket] = totals[date]![bucket]! + amount;
+screens\export_center.dart:173: totals[date]![bucket] = totals[date]![bucket]! + amount;
+screens\export_center.dart:197: totals[name]![0]++;
+screens\export_center.dart:198: if (row['status'] == 'occupied') totals[name]![1]++;
+screens\library_profile.dart:64: final res = await _supabase.from('libraries').select().eq('id', _libId!).maybeSingle();
+screens\library_profile.dart:71: _name = _libraryData!['name'] ?? _name;
+screens\library_profile.dart:72: _emergencyPhone = _libraryData!['emergency_phone'] ?? _emergencyPhone;
+screens\library_profile.dart:73: _coverUrl = _libraryData!['cover_photo_url'];
+screens\library_profile.dart:75: if (_libraryData!['amenities'] != null) {
+screens\library_profile.dart:76: _selectedAmenities = List<String>.from(_libraryData!['amenities']);
+screens\library_profile.dart:79: final photos = _libraryData!['photos'] as List?;
+screens\library_profile.dart:110: }).eq('id', _libId!);
+screens\library_profile.dart:124: }).eq('id', _libId!);
+screens\library_profile.dart:152: }).eq('id', _libId!);
+screens\library_profile.dart:323: ? DecorationImage(image: CachedNetworkImageProvider(_coverUrl!, maxWidth: 200), fit: BoxFit.cover)
+screens\library_setup_stage1.dart:179: if (_libraryId != null) return _libraryId!;
+screens\library_setup_stage1.dart:212: return _libraryId!;
+screens\library_setup_stage1.dart:558: if (_coverPhotoUrl != null) photosList.add(_coverPhotoUrl!);
+screens\library_setup_stage1.dart:579: if (!_formKey.currentState!.validate()) return;
+screens\library_setup_stage1.dart:589: if (_coverPhotoUrl != null) photosList.add(_coverPhotoUrl!);
+screens\library_setup_stage1.dart:632: }).eq('id', _libraryId!);
+screens\library_setup_stage1.dart:699: backgroundImage: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
+screens\library_setup_stage1.dart:700: ? NetworkImage(_coverPhotoUrl!)
+screens\library_setup_stage1.dart:702: child: _coverPhotoUrl == null || _coverPhotoUrl!.isEmpty
+screens\library_setup_stage2.dart:88: final floorsRaw = await sb.from('floors').select().eq('library_id', _libraryId!).order('order_index');
+screens\library_setup_stage2.dart:575: final existingCount = section != null ? section.seats.length : floor!.floorSeats.length;
+screens\library_setup_stage2.dart:596: floor!.floorSeats.add(SeatModel(label: label));
+screens\library_setup_stage2.dart:638: else floor!.floorSeats.remove(seat);
+screens\library_setup_stage2.dart:694: await sb.from('floors').delete().eq('library_id', _libraryId!);
+screens\library_setup_stage2.dart:697: var shiftsRaw = await sb.from('shifts').select('id').eq('library_id', _libraryId!);
+screens\library_setup_stage2.dart:701: 'library_id': _libraryId!,
+screens\library_setup_stage2.dart:715: 'library_id': _libraryId!,
+screens\library_setup_stage2.dart:735: 'library_id': _libraryId!,
+screens\library_setup_stage2.dart:748: 'library_id': _libraryId!,
+screens\library_setup_stage3.dart:98: final shiftData = await sb.from('shifts').select().eq('library_id', _libraryId!).eq('is_archived', false);
+screens\library_setup_stage3.dart:202: child: child!,
+screens\library_setup_stage3.dart:270: await sb.from('shifts').update({'is_archived': true}).eq('library_id', _libraryId!);
+screens\library_setup_stage3.dart:274: await sb.from('shifts').insert(shift.toMap(_libraryId!));
+screens\library_setup_stage3.dart:283: }).eq('id', _libraryId!);
+screens\member_analytics_tab.dart:97: final String memberId = widget.userProfile!['id'];
+screens\member_analytics_tab.dart:103: _selectedLibraryId!,
+screens\member_analytics_tab.dart:115: final streak = await MemberAnalyticsService.instance.fetchStreak(memberId, _selectedLibraryId!);
+screens\member_analytics_tab.dart:120: final badges = await MemberAnalyticsService.instance.syncAndFetchBadges(memberId, _selectedLibraryId!);
+screens\member_analytics_tab.dart:124: final lb = await MemberAnalyticsService.instance.fetchLeaderboard(_selectedLibraryId!, _dateRange.start, _dateRange.end);
+screens\member_analytics_tab.dart:656: final String memberId = widget.userProfile!['id'];
+screens\member_analytics_tab.dart:667: .eq('library_id', _selectedLibraryId!)
+screens\member_analytics_tab.dart:750: hoursPerDay[dStr] = hoursPerDay[dStr]! + ((r['duration_minutes'] as int) / 60.0);
+screens\member_home.dart:87: if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+screens\member_home.dart:153: final checkInStr = _activeAttendance!['check_in_time'] as String;
+screens\member_home.dart:253: final name = _userProfile!['full_name'] as String?;
+screens\member_home.dart:254: final phone = _userProfile!['phone'] as String?;
+screens\member_home.dart:255: final photo = _userProfile!['photo_url'] as String?;
+screens\member_home.dart:256: final dob = _userProfile!['date_of_birth'] as String?;
+screens\member_home.dart:257: final address = _userProfile!['address'] as String?;
+screens\member_home.dart:735: border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
+screens\member_home.dart:975: border: Border.all(color: Colors.grey[300]!),
+screens\member_home.dart:1018: color: isUnread ? const Color(0xFFE65C00) : Colors.grey[350]!,
+screens\member_home.dart:1263: decoration: BoxDecoration(color: Colors.purple[50], borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.purple[200]!)),
+screens\member_home.dart:1555: side: BorderSide(color: Colors.red[100]!),
+screens\member_home.dart:2011: decoration: BoxDecoration(border: Border.all(color: Colors.grey[300]!), borderRadius: BorderRadius.circular(8)),
+screens\member_home.dart:2047: decoration: BoxDecoration(border: Border.all(color: Colors.grey[300]!), borderRadius: BorderRadius.circular(8)),
+screens\member_profile_edit.dart:302: if (!_formKey.currentState!.validate()) return;
+screens\member_profile_edit.dart:317: final String? dobStr = _dob != null ? _dob!.toIso8601String().split('T')[0] : null;
+screens\member_profile_edit.dart:321: 'email': user.email!,
+screens\member_profile_edit.dart:393: backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200) : null,
+screens\member_profile_edit.dart:393: backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200) : null,
+screens\member_profile_edit.dart:394: child: _photoUrl == null || _photoUrl!.isEmpty
+screens\member_profile_edit.dart:599: border: Border.all(color: Colors.grey[300]!),
+screens\member_profile_edit.dart:673: : _idDocumentUrl != null && _idDocumentUrl!.isNotEmpty
+screens\member_profile_edit.dart:679: imageUrl: _idDocumentUrl!,
+screens\payment_setup.dart:148: }).eq('id', _libraryId!);
+screens\payment_setup.dart:432: color: isActive ? activeColor : Colors.grey[300]!,
+screens\pricing_plans.dart:86: final shiftRes = await _supabase.from('shifts').select().eq('library_id', _libId!).limit(1).maybeSingle();
+screens\pricing_plans.dart:130: await _supabase.from('shifts').update({'price_monthly': newPrice}).eq('library_id', _libId!);
+screens\pricing_plans.dart:132: await _supabase.from('shifts').update({'price_3month': newPrice}).eq('library_id', _libId!);
+screens\pricing_plans.dart:134: await _supabase.from('shifts').update({'price_6month': newPrice}).eq('library_id', _libId!);
+screens\qr_assets.dart:51: final res = await _supabase.from('libraries').select().eq('id', _libId!).maybeSingle();
+screens\qr_assets.dart:141: }).eq('id', _libId!);
+screens\reservations\join_flow_screen.dart:149: _fullNameCtrl.text = _userProfile!['full_name'] ?? '';
+screens\reservations\join_flow_screen.dart:150: _phoneCtrl.text = _userProfile!['phone'] ?? '';
+screens\reservations\join_flow_screen.dart:151: _nicknameCtrl.text = _userProfile!['nickname'] ?? '';
+screens\reservations\join_flow_screen.dart:197: final bytes = await ImageOptimizer.compressImage(_proofImageFile!.path);
+screens\reservations\join_flow_screen.dart:231: return (_selectedShift!['price_3month'] as int? ?? (_selectedShift!['price_monthly'] * 3)).toDouble();
+screens\reservations\join_flow_screen.dart:231: return (_selectedShift!['price_3month'] as int? ?? (_selectedShift!['price_monthly'] * 3)).toDouble();
+screens\reservations\join_flow_screen.dart:233: return (_selectedShift!['price_6month'] as int? ?? (_selectedShift!['price_monthly'] * 6)).toDouble();
+screens\reservations\join_flow_screen.dart:233: return (_selectedShift!['price_6month'] as int? ?? (_selectedShift!['price_monthly'] * 6)).toDouble();
+screens\reservations\join_flow_screen.dart:236: return (_selectedShift!['price_monthly'] as int? ?? 1200).toDouble();
+screens\reservations\join_flow_screen.dart:262: final user = supabase.auth.currentUser!;
+screens\reservations\join_flow_screen.dart:290: 'shift_id': _selectedShift!['id'],
+screens\reservations\join_flow_screen.dart:296: ? DateFormat('yyyy-MM-dd').format(_existingJoinDate!)
+screens\reservations\join_flow_screen.dart:370: Text(_errorMessage!, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13)),
+screens\reservations\join_flow_screen.dart:573: border: Border.all(color: !_isExistingMember ? const Color(0xFFE65C00) : Colors.grey[300]!, width: !_isExistingMember ? 1.5 : 1),
+screens\reservations\join_flow_screen.dart:600: border: Border.all(color: _isExistingMember ? const Color(0xFFE65C00) : Colors.grey[300]!, width: _isExistingMember ? 1.5 : 1),
+screens\reservations\join_flow_screen.dart:653: decoration: BoxDecoration(border: Border.all(color: Colors.grey[300]!), borderRadius: BorderRadius.circular(8)),
+screens\reservations\join_flow_screen.dart:657: Text(_existingJoinDate == null ? 'Select Date' : DateFormat('dd MMM yyyy').format(_existingJoinDate!)),
+screens\reservations\join_flow_screen.dart:740: border: Border.all(color: isSelected ? const Color(0xFFE65C00) : Colors.grey[300]!, width: isSelected ? 1.5 : 1),
+screens\reservations\join_flow_screen.dart:780: if (_selectedShift != null && (_selectedShift!['trial_days'] as int? ?? 0) > 0 && _trialEligible) ...[
+screens\reservations\join_flow_screen.dart:788: color: _selectedPlan == 'trial' ? const Color(0xFF7C3AED) : Colors.purple[100]!,
+screens\reservations\join_flow_screen.dart:837: border: Border.all(color: isSelected ? const Color(0xFFE65C00) : Colors.grey[300]!, width: isSelected ? 1.5 : 1),
+screens\reservations\join_flow_screen.dart:891: border: Border.all(color: active ? const Color(0xFFE65C00) : Colors.grey[200]!, width: active ? 1.5 : 1),
+screens\reservations\join_flow_screen.dart:1026: border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
+screens\reservations\join_flow_screen.dart:1032: ? Image.file(_proofImageFile!, fit: BoxFit.contain)
+screens\reservations\join_flow_screen.dart:1068: border: Border.all(color: isSelected ? const Color(0xFFE65C00) : Colors.grey[300]!, width: isSelected ? 1.5 : 1),
+screens\reservations\join_flow_screen.dart:1216: decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.amber[200]!)),
+screens\reservations\layout_sub_tab.dart:56: if (_seatsChannel != null) supabase.removeChannel(_seatsChannel!);
+screens\reservations\layout_sub_tab.dart:57: if (_floorsChannel != null) supabase.removeChannel(_floorsChannel!);
+screens\reservations\layout_sub_tab.dart:58: if (_sectionsChannel != null) supabase.removeChannel(_sectionsChannel!);
+screens\reservations\layout_sub_tab.dart:200: .eq('floor_id', _selectedFloorId!);
+screens\reservations\layout_sub_tab.dart:209: .eq('floor_id', _selectedFloorId!)
+screens\reservations\layout_sub_tab.dart:210: .eq('shift_id', _selectedShiftId!);
+screens\reservations\layout_sub_tab.dart:218: .eq('shift_id', _selectedShiftId!)
+screens\reservations\layout_sub_tab.dart:237: .eq('shift_id', _selectedShiftId!);
+screens\reservations\layout_sub_tab.dart:305: 'shift_id': _selectedShiftId!,
+screens\reservations\layout_sub_tab.dart:592: selectedShiftId: _selectedShiftId!,
+screens\reservations\layout_sub_tab.dart:634: floorId: _selectedFloorId!,
+screens\reservations\layout_sub_tab.dart:636: selectedShiftId: _selectedShiftId!,
+screens\reservations\layout_sub_tab.dart:3601: _bulkLimitWarning!,
+screens\reservations\member_detail_screen.dart:197: if (_membershipData != null && _membershipData!['member_id'] is Map<String, dynamic>) {
+screens\reservations\member_detail_screen.dart:198: (_membershipData!['member_id'] as Map<String, dynamic>)['nickname'] = _notesController.text.trim();
+screens\reservations\member_detail_screen.dart:424: 'member_id': _memberId!,
+screens\reservations\member_detail_screen.dart:1345: Text(_errorMessage!, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700])),
+screens\reservations\members_sub_tab.dart:308: border: Border.all(color: Colors.grey[200]!),
+screens\reservations\members_sub_tab.dart:386: await DraftService.instance.deleteDraft(draft.id!, widget.libraryId);
+screens\reservations\qr_scanner_screen.dart:95: if (now.difference(_lastScanTime!).inSeconds < 3) {
+screens\reservations\requests_sub_tab.dart:53: supabase.removeChannel(_requestsChannel!);
+screens\reservations\requests_sub_tab.dart:694: border: Border.all(color: Colors.grey[300]!),
+screens\reservations\reservations_tab.dart:262: if (_selectedLibraryId == null || _selectedLibraryId!.isEmpty || _selectedLibraryId == 'null') {
+screens\reservations\reservations_tab.dart:355: _selectedLibraryCover!.isNotEmpty
+screens\reservations\reservations_tab.dart:359: imageUrl: _selectedLibraryCover!,
+screens\reservations\reservations_tab.dart:573: libraryId: _selectedLibraryId!,
+screens\reservations\reservations_tab.dart:576: libraryId: _selectedLibraryId!,
+screens\reservations\reservations_tab.dart:579: libraryId: _selectedLibraryId!,
+screens\reservations\reservations_tab.dart:582: libraryId: _selectedLibraryId!,
+screens\role_selection_screen.dart:43: 'email': user.email!,
+screens\scheduled_closures.dart:67: .eq('library_id', _libId!)
+screens\scheduled_closures.dart:209: 'library_id': _libId!,
+screens\shift_management.dart:58: final List<dynamic> res = await _supabase.from('shifts').select().eq('library_id', _libId!);
+screens\shift_management.dart:245: 'library_id': _libId!,
+services\draft_service.dart:39: if (_isTableMissing(e) || e is! PostgrestException) {
+services\draft_service.dart:79: 'created_at': draftToSave.createdAt!.toIso8601String(),
+services\draft_service.dart:80: 'updated_at': draftToSave.updatedAt!.toIso8601String(),
+services\draft_service.dart:85: 'updated_at': draftToSave.updatedAt!.toIso8601String(),
+services\draft_service.dart:118: if (cached == null || cached is! List) return [];
+utils\pdf_exporter.dart:82: groupedLogs[dateStr]!.add(l);
+utils\pdf_exporter.dart:101: final dailyLogs = groupedLogs[date]!;
+widgets\vacant_seat_grid.dart:263: _currentSelectedSeatLabel!,

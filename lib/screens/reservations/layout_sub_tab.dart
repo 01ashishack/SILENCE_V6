@@ -2535,7 +2535,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
               TextField(controller: controller, decoration: const InputDecoration(labelText: 'Seat Label')),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: status,
+                initialValue: ['vacant', 'occupied', 'hold', 'maintenance'].contains(status) ? status : 'vacant',
                 decoration: const InputDecoration(labelText: 'Seat Status'),
                 items: const [
                   DropdownMenuItem(value: 'vacant', child: Text('Vacant')),
@@ -3303,6 +3303,12 @@ class _AddSeatBottomSheetState extends State<_AddSeatBottomSheet> with SingleTic
       setState(() {
         _sections = List<Map<String, dynamic>>.from(res);
         _loadingSections = false;
+        if (_selectedSectionId != null) {
+          final exists = _sections.any((sec) => sec['id'] == _selectedSectionId);
+          if (!exists) {
+            _selectedSectionId = null;
+          }
+        }
       });
     } catch (e) {
       setState(() => _loadingSections = false);
@@ -3619,7 +3625,7 @@ class _AddSeatBottomSheetState extends State<_AddSeatBottomSheet> with SingleTic
             )
           else if (_sections.isNotEmpty) ...[
             DropdownButtonFormField<String?>(
-              value: _selectedSectionId,
+              value: (_selectedSectionId == null || _sections.any((sec) => sec['id'] == _selectedSectionId)) ? _selectedSectionId : null,
               decoration: const InputDecoration(
                 labelText: 'Select Section',
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -3819,7 +3825,7 @@ class _AddSeatBottomSheetState extends State<_AddSeatBottomSheet> with SingleTic
                               Text('Number Format:', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569))),
                               const SizedBox(width: 12),
                               DropdownButton<String>(
-                                value: _bulkFormat,
+                                value: ['1, 2', '01, 02'].contains(_bulkFormat) ? _bulkFormat : '1, 2',
                                 underline: Container(),
                                 style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
                                 items: const [

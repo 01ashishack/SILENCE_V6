@@ -23,19 +23,28 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
+  final _fatherNameController = TextEditingController();
+  final _emergencyContactController = TextEditingController();
 
   String? _photoUrl;
   String? _idDocumentUrl;
+  String? _idDocument2Url;
   DateTime? _dob;
   String _examCategory = 'UPSC'; // Default category
   String _gender = 'male';
+  
+  // ID Document type selections
+  String _idDocType1 = 'Aadhaar';
+  String _idDocType2 = 'PAN Card';
 
   bool _isLoading = false;
   bool _isUploadingPhoto = false;
   bool _isUploadingDoc = false;
+  bool _isUploadingDoc2 = false;
   bool _isSaving = false;
 
   final List<String> _examCategories = ['UPSC', 'NEET', 'JEE', 'SSC', 'Other'];
+  final List<String> _idDocTypes = ['Aadhaar', 'PAN Card', 'Voter ID', 'Driving License', 'Passport', 'Other'];
 
   @override
   void initState() {
@@ -49,6 +58,8 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _addressController.dispose();
+    _fatherNameController.dispose();
+    _emergencyContactController.dispose();
     super.dispose();
   }
 
@@ -65,6 +76,8 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           _nameController.text = userData['full_name'] ?? '';
           _phoneController.text = userData['phone'] ?? '';
           _addressController.text = userData['address'] ?? '';
+          _fatherNameController.text = userData['father_name'] ?? '';
+          _emergencyContactController.text = userData['emergency_contact'] ?? '';
           
           if (userData['gender'] != null) {
             _gender = userData['gender'];
@@ -75,9 +88,19 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           if (userData['photo_url'] != null) {
             _photoUrl = userData['photo_url'];
           }
-          // Retrieve document URL from id_proof_url column
+          // Retrieve document URLs
           if (userData['id_proof_url'] != null) {
             _idDocumentUrl = userData['id_proof_url'];
+          }
+          if (userData['id_proof_2_url'] != null) {
+            _idDocument2Url = userData['id_proof_2_url'];
+          }
+          // ID document types
+          if (userData['id_doc_type_1'] != null && _idDocTypes.contains(userData['id_doc_type_1'])) {
+            _idDocType1 = userData['id_doc_type_1'];
+          }
+          if (userData['id_doc_type_2'] != null && _idDocTypes.contains(userData['id_doc_type_2'])) {
+            _idDocType2 = userData['id_doc_type_2'];
           }
           if (userData['exam_category'] != null && _examCategories.contains(userData['exam_category'])) {
             _examCategory = userData['exam_category'];
@@ -164,7 +187,8 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
     );
   }
 
-  Future<void> _pickAndUploadPhoto({required bool isIdDoc}) async {
+  /// Upload type: 'profile' | 'id_doc_1' | 'id_doc_2'
+  Future<void> _pickAndUploadPhoto({required String uploadType}) async {
     try {
       final ImageSource? source = await _showImageSourceBottomSheet();
       if (source == null) return;
@@ -196,12 +220,13 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       if (image == null) return;
       if (!mounted) return;
 
+      final bool isIdDoc = uploadType != 'profile';
       CroppedFile? croppedFile;
       bool cropSuccessOrCancel = false;
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
-          aspectRatio: isIdDoc ? null : const CropAspectRatio(ratioX: 1, ratioY: 1), // Square for profile, free/landscape for ID Doc
+          aspectRatio: isIdDoc ? null : const CropAspectRatio(ratioX: 1, ratioY: 1),
           uiSettings: [
             AndroidUiSettings(
               toolbarTitle: isIdDoc ? 'Crop ID Document' : 'Crop Profile Photo',
@@ -230,10 +255,12 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       final String finalPath = croppedFile?.path ?? image.path;
 
       setState(() {
-        if (isIdDoc) {
+        if (uploadType == 'profile') {
+          _isUploadingPhoto = true;
+        } else if (uploadType == 'id_doc_1') {
           _isUploadingDoc = true;
         } else {
-          _isUploadingPhoto = true;
+          _isUploadingDoc2 = true;
         }
       });
 
@@ -246,7 +273,14 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         }
 
         final bytes = await ImageOptimizer.compressImage(finalPath);
-        final fileName = isIdDoc ? 'id_document.jpg' : 'profile.jpg';
+        String fileName;
+        if (uploadType == 'profile') {
+          fileName = 'profile.jpg';
+        } else if (uploadType == 'id_doc_1') {
+          fileName = 'id_document_1.jpg';
+        } else {
+          fileName = 'id_document_2.jpg';
+        }
         final path = 'member_profiles/${user.id}/$fileName';
 
         // Upload directly to pre-provisioned assets bucket
@@ -265,23 +299,28 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
 
         if (mounted) {
           setState(() {
-            if (isIdDoc) {
+            if (uploadType == 'profile') {
+              _photoUrl = publicUrl;
+            } else if (uploadType == 'id_doc_1') {
               _idDocumentUrl = publicUrl;
             } else {
-              _photoUrl = publicUrl;
+              _idDocument2Url = publicUrl;
             }
           });
-          _showSuccessSnackBar('${isIdDoc ? "ID Document" : "Profile Photo"} uploaded successfully! ✓');
+          final label = uploadType == 'profile' ? 'Profile Photo' : (uploadType == 'id_doc_1' ? 'ID Document 1' : 'ID Document 2');
+          _showSuccessSnackBar('$label uploaded successfully! ✓');
         }
       } catch (e) {
         if (mounted) _showErrorSnackBar('Upload failed: $e');
       } finally {
         if (mounted) {
           setState(() {
-            if (isIdDoc) {
+            if (uploadType == 'profile') {
+              _isUploadingPhoto = false;
+            } else if (uploadType == 'id_doc_1') {
               _isUploadingDoc = false;
             } else {
-              _isUploadingPhoto = false;
+              _isUploadingDoc2 = false;
             }
           });
         }
@@ -293,6 +332,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         setState(() {
           _isUploadingPhoto = false;
           _isUploadingDoc = false;
+          _isUploadingDoc2 = false;
         });
       }
     }
@@ -314,9 +354,11 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       final String name = _nameController.text.trim();
       final String phone = _phoneController.text.trim();
       final String address = _addressController.text.trim();
+      final String fatherName = _fatherNameController.text.trim();
+      final String emergencyContact = _emergencyContactController.text.trim();
       final String? dobStr = _dob != null ? _dob!.toIso8601String().split('T')[0] : null;
 
-      await supabase.from('users').upsert({
+      final Map<String, dynamic> upsertData = {
         'id': user.id,
         'email': user.email,
         'full_name': name,
@@ -327,10 +369,31 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         'address': address,
         'exam_category': _examCategory,
         'photo_url': _photoUrl,
-        'id_proof_url': _idDocumentUrl, // Store ID Document URL in dedicated id_proof_url column
+        'id_proof_url': _idDocumentUrl,
         'role': 'member',
         'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'id');
+      };
+
+      // Add optional new fields - only include if they have values
+      // These fields may not exist in the schema yet, so we wrap in try-catch
+      if (fatherName.isNotEmpty) upsertData['father_name'] = fatherName;
+      if (emergencyContact.isNotEmpty) upsertData['emergency_contact'] = emergencyContact;
+      if (_idDocument2Url != null) upsertData['id_proof_2_url'] = _idDocument2Url;
+      upsertData['id_doc_type_1'] = _idDocType1;
+      upsertData['id_doc_type_2'] = _idDocType2;
+
+      try {
+        await supabase.from('users').upsert(upsertData, onConflict: 'id');
+      } catch (e) {
+        // If the new columns don't exist yet, retry without them
+        debugPrint('Upsert with new fields failed: $e, retrying without new columns...');
+        upsertData.remove('father_name');
+        upsertData.remove('emergency_contact');
+        upsertData.remove('id_proof_2_url');
+        upsertData.remove('id_doc_type_1');
+        upsertData.remove('id_doc_type_2');
+        await supabase.from('users').upsert(upsertData, onConflict: 'id');
+      }
 
       _showSuccessSnackBar('Profile saved successfully! ✓');
       if (!mounted) return;
@@ -340,6 +403,133 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Widget _buildIdDocumentCard({
+    required String title,
+    required String subtitle,
+    required String? docUrl,
+    required bool isUploading,
+    required String uploadType,
+    required String docType,
+    required ValueChanged<String?> onDocTypeChanged,
+    bool isRequired = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280)),
+          ),
+          const SizedBox(height: 12),
+          // Document type dropdown
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _idDocTypes.contains(docType) ? docType : _idDocTypes.first,
+                isExpanded: true,
+                icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFE65C00)),
+                items: _idDocTypes.map((String type) {
+                  return DropdownMenuItem<String>(
+                    value: type,
+                    child: Text(type, style: GoogleFonts.inter(fontSize: 14)),
+                  );
+                }).toList(),
+                onChanged: onDocTypeChanged,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: isUploading ? null : () => _pickAndUploadPhoto(uploadType: uploadType),
+            child: Container(
+              height: 160,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7F0),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFFF7F0), width: 1),
+              ),
+              child: isUploading
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00)))
+                  : docUrl != null && docUrl.isNotEmpty
+                      ? Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: CachedNetworkImage(
+                                imageUrl: docUrl,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                memCacheWidth: 200,
+                                placeholder: (context, url) => const Center(
+                                  child: CircularProgressIndicator(color: Color(0xFFE65C00)),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 12,
+                              right: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.6),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.edit, color: Colors.white, size: 14),
+                                    SizedBox(width: 4),
+                                    Text('Change', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            )
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.cloud_upload_outlined, size: 36, color: Color(0xFFE65C00)),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tap to Upload',
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Max file size 5MB (JPG/PNG)',
+                              style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -399,7 +589,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                                       bottom: 0,
                                       right: 0,
                                       child: GestureDetector(
-                                        onTap: _isUploadingPhoto ? null : () => _pickAndUploadPhoto(isIdDoc: false),
+                                        onTap: _isUploadingPhoto ? null : () => _pickAndUploadPhoto(uploadType: 'profile'),
                                         child: Container(
                                           padding: const EdgeInsets.all(6),
                                           decoration: const BoxDecoration(
@@ -458,6 +648,20 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                                   prefixIcon: const Icon(Icons.person_outline, size: 20),
                                 ),
                                 validator: (v) => v == null || v.trim().isEmpty ? 'Full Name is required' : null,
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Father's Name (Optional)
+                              Text("Father's Name (Optional)", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                              const SizedBox(height: 6),
+                              TextFormField(
+                                controller: _fatherNameController,
+                                style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                                decoration: InputDecoration(
+                                  hintText: 'Enter father\'s name',
+                                  hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
+                                  prefixIcon: const Icon(Icons.family_restroom_outlined, size: 20),
+                                ),
                               ),
                               const SizedBox(height: 20),
 
@@ -577,6 +781,40 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                               ),
                               const SizedBox(height: 20),
 
+                              // Emergency Contact (Optional)
+                              Text('Emergency Contact (Optional)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                              const SizedBox(height: 6),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF3ED),
+                                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '+91',
+                                      style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _emergencyContactController,
+                                      keyboardType: TextInputType.phone,
+                                      style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                                      decoration: InputDecoration(
+                                        hintText: 'Emergency phone number',
+                                        hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+
                               Text('Email (Optional)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
                               const SizedBox(height: 6),
                               TextFormField(
@@ -635,101 +873,37 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // 3. ID Document Proof Card
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'ID Document Proof (Optional)',
-                                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Upload Aadhaar, PAN Card, or Voter ID',
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280)),
-                              ),
-                              const SizedBox(height: 16),
-                              GestureDetector(
-                                onTap: _isUploadingDoc ? null : () => _pickAndUploadPhoto(isIdDoc: true),
-                                child: Container(
-                                  height: 180,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF7F0),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFFFF7F0), width: 1),
-                                  ),
-                                  child: _isUploadingDoc
-                                      ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00)))
-                                      : _idDocumentUrl != null && _idDocumentUrl!.isNotEmpty
-                                          ? Stack(
-                                              children: [
-                                                ClipRRect(
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  child: CachedNetworkImage(
-                                                    imageUrl: _idDocumentUrl!,
-                                                    fit: BoxFit.cover,
-                                                    width: double.infinity,
-                                                    height: double.infinity,
-                                                    memCacheWidth: 200,
-                                                    placeholder: (context, url) => const Center(
-                                                      child: CircularProgressIndicator(color: Color(0xFFE65C00)),
-                                                    ),
-                                                  ),
-                                                ),
-                                                Positioned(
-                                                  bottom: 12,
-                                                  right: 12,
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.black.withOpacity(0.6),
-                                                      borderRadius: BorderRadius.circular(20),
-                                                    ),
-                                                    child: Row(
-                                                      children: const [
-                                                        Icon(Icons.edit, color: Colors.white, size: 14),
-                                                        SizedBox(width: 4),
-                                                        Text('Change ID', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                )
-                                              ],
-                                            )
-                                          : Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                const Icon(Icons.cloud_upload_outlined, size: 40, color: Color(0xFFE65C00)),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Tap to Upload ID Photo',
-                                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  'Max file size 5MB (JPG/PNG)',
-                                                  style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
-                                                ),
-                                              ],
-                                            ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        // 3. ID Document 1 (Required)
+                        _buildIdDocumentCard(
+                          title: 'ID Document 1 (Required)',
+                          subtitle: 'Upload your primary identity proof',
+                          docUrl: _idDocumentUrl,
+                          isUploading: _isUploadingDoc,
+                          uploadType: 'id_doc_1',
+                          docType: _idDocType1,
+                          onDocTypeChanged: (value) {
+                            if (value != null) setState(() => _idDocType1 = value);
+                          },
+                          isRequired: true,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 4. ID Document 2 (Optional)
+                        _buildIdDocumentCard(
+                          title: 'ID Document 2 (Optional)',
+                          subtitle: 'Upload a secondary identity proof',
+                          docUrl: _idDocument2Url,
+                          isUploading: _isUploadingDoc2,
+                          uploadType: 'id_doc_2',
+                          docType: _idDocType2,
+                          onDocTypeChanged: (value) {
+                            if (value != null) setState(() => _idDocType2 = value);
+                          },
+                          isRequired: false,
                         ),
                         const SizedBox(height: 32),
 
-                        // 4. Save Button
+                        // 5. Save Button
                         ElevatedButton(
                           onPressed: _isSaving ? null : _handleSave,
                           style: ElevatedButton.styleFrom(

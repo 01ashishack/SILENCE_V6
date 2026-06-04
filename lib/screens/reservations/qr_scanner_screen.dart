@@ -116,6 +116,19 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
     final int qrVersion = parsed['qr_version'] ?? 1;
     final bool isJoining = parsed['is_joining'] ?? false;
 
+    // Check connectivity before any Supabase queries
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isOffline = connectivityResult.contains(ConnectivityResult.none) || connectivityResult.isEmpty;
+      if (isOffline) {
+        setState(() {
+          _isOffline = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking connectivity in scan process: $e');
+    }
+
     if (isJoining) {
       // Direct Join Flow Navigation
       if (!mounted) return;

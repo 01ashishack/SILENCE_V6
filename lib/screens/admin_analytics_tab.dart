@@ -823,7 +823,11 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   void _showEditExpenseBottomSheet(Map<String, dynamic> exp) {
     final amountController = TextEditingController(text: (exp['amount'] as num?)?.toDouble().toStringAsFixed(0));
     final noteController = TextEditingController(text: exp['notes'] ?? '');
+    final List<String> categories = ['Electricity', 'Rent', 'Water', 'Salaries', 'Internet', 'Maintenance', 'Others'];
     String selectedCategory = exp['category'] ?? 'Others';
+    if (!categories.contains(selectedCategory)) {
+      selectedCategory = 'Others';
+    }
     DateTime selectedDate = DateTime.parse(exp['expense_date']).toLocal();
 
     showModalBottomSheet(

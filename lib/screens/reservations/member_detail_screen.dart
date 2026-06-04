@@ -8,7 +8,14 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
 class MemberDetailScreen extends StatefulWidget {
-  const MemberDetailScreen({super.key});
+  final String? memberId;
+  final bool isReadOnly;
+
+  const MemberDetailScreen({
+    super.key,
+    this.memberId,
+    this.isReadOnly = false,
+  });
 
   @override
   State<MemberDetailScreen> createState() => _MemberDetailScreenState();
@@ -19,6 +26,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   String? _memberId;
+  bool _isReadOnly = false;
 
   // Core data
   Map<String, dynamic>? _membershipData;
@@ -52,19 +60,20 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       final args = route?.settings.arguments;
       if (args is String) {
         _memberId = args;
-        _fetchMemberData();
-      } else if (args is Map<String, dynamic> && args.containsKey('memberId')) {
-        _memberId = args['memberId'] as String?;
-        _fetchMemberData();
-      } else if (args is Map<String, dynamic> && args.containsKey('id')) {
-        _memberId = args['id'] as String?;
-        _fetchMemberData();
+        _isReadOnly = widget.isReadOnly;
+      } else if (args is Map<String, dynamic>) {
+        _memberId = args['memberId'] as String? ?? args['id'] as String?;
+        _isReadOnly = args['isReadOnly'] as bool? ?? widget.isReadOnly;
       } else {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Invalid or missing Member ID argument';
-        });
+        _memberId = widget.memberId;
+        _isReadOnly = widget.isReadOnly;
       }
+      
+      if (_isReadOnly && _tabNames.contains('Notes')) {
+        _tabNames.remove('Notes');
+      }
+      
+      _fetchMemberData();
     }
   }
 
@@ -851,19 +860,21 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   onPressed: _exportMemberData,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.person_remove_rounded, size: 18, color: Colors.white),
-                  label: Text('Force Exit', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFDC2626),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              if (!_isReadOnly) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.person_remove_rounded, size: 18, color: Colors.white),
+                    label: Text('Force Exit', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _forceExitMember,
                   ),
-                  onPressed: _forceExitMember,
                 ),
-              ),
+              ],
             ],
           ),
           const SizedBox(height: 24),
@@ -1024,13 +1035,15 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               const SizedBox(height: 16),
               if (sessions.isEmpty) ...[
                 Text('No attendance sessions logged for this day.', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500])),
-                const SizedBox(height: 20),
-                ElevatedButton.icon(
-                  onPressed: () { Navigator.pop(ctx); _showAttendanceModal(date: date); },
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Add Manual Session'),
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white),
-                ),
+                if (!_isReadOnly) ...[
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () { Navigator.pop(ctx); _showAttendanceModal(date: date); },
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add Manual Session'),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white),
+                  ),
+                ],
               ] else ...[
                 ...sessions.map((s) {
                   final String ciStr = s['check_in_time'] ?? '';
@@ -1068,13 +1081,15 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           Padding(padding: const EdgeInsets.only(top: 4), child: Text('Duration: $dur minutes (${(dur / 60).toStringAsFixed(1)} hours)', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic))),
                         if (s['edit_reason'] != null)
                           Padding(padding: const EdgeInsets.only(top: 4), child: Text('Reason: ${s['edit_reason']}', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFDC2626)))),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          onPressed: () { Navigator.pop(ctx); _showAttendanceModal(session: s, date: date); },
-                          icon: const Icon(Icons.edit, size: 16),
-                          label: const Text('Edit Duration'),
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white, elevation: 0),
-                        ),
+                        if (!_isReadOnly) ...[
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            onPressed: () { Navigator.pop(ctx); _showAttendanceModal(session: s, date: date); },
+                            icon: const Icon(Icons.edit, size: 16),
+                            label: const Text('Edit Duration'),
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white, elevation: 0),
+                          ),
+                        ],
                       ],
                     ),
                   );
@@ -1168,7 +1183,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 Padding(padding: const EdgeInsets.only(top: 4), child: Text('Sender: $sender', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]))),
               if (payment['id'] != null)
                 Padding(padding: const EdgeInsets.only(top: 4), child: Text('Txn: ${payment['id'].toString().substring(0, 8).toUpperCase()}', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[400]))),
-              if (status == 'pending') ...[
+              if (status == 'pending' && !_isReadOnly) ...[
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -1435,7 +1450,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   IconButton(icon: const Icon(Icons.arrow_back_rounded, color: Colors.white), onPressed: () => Navigator.pop(context)),
                   Text('Member Details', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
                 ]),
-                IconButton(icon: const Icon(Icons.edit_rounded, color: Colors.white), onPressed: _showEditMemberDialog),
+                if (!_isReadOnly)
+                  IconButton(icon: const Icon(Icons.edit_rounded, color: Colors.white), onPressed: _showEditMemberDialog),
               ],
             ),
           ),

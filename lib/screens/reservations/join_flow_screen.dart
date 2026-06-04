@@ -34,6 +34,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
   List<Map<String, dynamic>> _addOns = [];
   Map<String, dynamic>? _userProfile;
   bool _trialEligible = true;
+  List<Map<String, dynamic>> _activeMemberships = [];
 
   // Step 1: Existing member & inline profile details
   bool _isExistingMember = false;
@@ -82,6 +83,64 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
     super.dispose();
   }
 
+  int _timeStringToMinutes(String timeStr) {
+    final parts = timeStr.split(':');
+    if (parts.isEmpty) return 0;
+    final hours = int.parse(parts[0]);
+    final minutes = parts.length > 1 ? int.parse(parts[1]) : 0;
+    return hours * 60 + minutes;
+  }
+
+  bool _isShiftOverlapping(Map<String, dynamic> shift1, Map<String, dynamic> shift2) {
+    final start1Str = shift1['start_time'] as String?;
+    final end1Str = shift1['end_time'] as String?;
+    final start2Str = shift2['start_time'] as String?;
+    final end2Str = shift2['end_time'] as String?;
+    
+    if (start1Str == null || end1Str == null || start2Str == null || end2Str == null) {
+      return false;
+    }
+    
+    final s1 = _timeStringToMinutes(start1Str);
+    final e1 = _timeStringToMinutes(end1Str);
+    final s2 = _timeStringToMinutes(start2Str);
+    final e2 = _timeStringToMinutes(end2Str);
+    
+    List<List<int>> getIntervals(int start, int end) {
+      if (end > start) {
+        return [[start, end]];
+      } else {
+        return [[start, 1440], [0, end]];
+      }
+    }
+    
+    final iv1 = getIntervals(s1, e1);
+    final iv2 = getIntervals(s2, e2);
+    
+    for (final i1 in iv1) {
+      for (final i2 in iv2) {
+        if (i1[0] < i2[1] && i2[0] < i1[1]) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  Map<String, dynamic>? _getConflictingActiveMembership(Map<String, dynamic> targetShift) {
+    for (var m in _activeMemberships) {
+      final activeShift = m['shifts'] as Map<String, dynamic>?;
+      if (activeShift == null) continue;
+      if (activeShift['id'] == targetShift['id']) continue;
+      
+      if (_isShiftOverlapping(targetShift, activeShift)) {
+        return m;
+      }
+    }
+    return null;
+  }
+
   Future<void> _loadJoinDetails() async {
     setState(() {
       _isLoading = true;
@@ -116,13 +175,29 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       
       _shifts = List<Map<String, dynamic>>.from(shiftsRes);
 
+      // Fetch active/trial memberships to check timing conflicts
+      final activeMembershipsRes = await supabase
+          .from('memberships')
+          .select('*, shifts(*), libraries(*)')
+          .eq('member_id', user.id)
+          .inFilter('status', ['active', 'trial']);
+      _activeMemberships = List<Map<String, dynamic>>.from(activeMembershipsRes);
+
       if (widget.initialShiftId != null && _shifts.isNotEmpty) {
         _selectedShift = _shifts.firstWhere(
           (s) => s['id'] == widget.initialShiftId,
           orElse: () => _shifts.first,
         );
       } else if (_shifts.isNotEmpty) {
-        _selectedShift = _shifts.first;
+        // Find first non-conflicting shift
+        Map<String, dynamic>? initialSel;
+        for (var s in _shifts) {
+          if (_getConflictingActiveMembership(s) == null) {
+            initialSel = s;
+            break;
+          }
+        }
+        _selectedShift = initialSel ?? _shifts.first;
       }
 
       // 3. Fetch add-ons available
@@ -265,6 +340,24 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       final user = supabase.auth.currentUser;
       if (user == null) {
         throw Exception('User session expired. Please login again.');
+      }
+
+      // Check existing active/pending membership
+      final existing = await supabase
+          .from('memberships')
+          .select('id')
+          .eq('member_id', user.id)
+          .eq('library_id', widget.libraryId)
+          .inFilter('status', ['active', 'trial', 'pending'])
+          .maybeSingle();
+
+      if (existing != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are already a member or have a pending request for this library.')),
+          );
+        }
+        return;
       }
 
       // 1. If inline profile was updated, commit to Supabase profile
@@ -512,6 +605,13 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         return;
       }
       
+      if (_getConflictingActiveMembership(_selectedShift!) != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('The selected shift overlaps with an active membership. Please select another shift.')),
+        );
+        return;
+      }
+      
       // Skip Add-ons step if none exist
       if (_addOns.isEmpty) {
         setState(() => _currentStep = _selectedPlan == 'trial' ? 5 : 4);
@@ -740,8 +840,11 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         else
           ..._shifts.map((s) {
             final isSelected = shift?['id'] == s['id'];
+            final conflictM = _getConflictingActiveMembership(s);
+            final hasConflict = conflictM != null;
+            
             return InkWell(
-              onTap: () {
+              onTap: hasConflict ? null : () {
                 setState(() {
                   _selectedShift = s;
                 });
@@ -750,32 +853,59 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: isSelected ? const Color(0xFFE65C00) : Colors.grey[300]!, width: isSelected ? 1.5 : 1),
+                  color: hasConflict ? Colors.grey[100] : Colors.white,
+                  border: Border.all(
+                    color: isSelected 
+                        ? const Color(0xFFE65C00) 
+                        : (hasConflict ? Colors.red[200]! : Colors.grey[300]!), 
+                    width: isSelected ? 1.5 : 1,
+                  ),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
                     Icon(
-                      isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                      color: isSelected ? const Color(0xFFE65C00) : Colors.grey[400],
+                      isSelected 
+                          ? Icons.radio_button_checked 
+                          : (hasConflict ? Icons.block : Icons.radio_button_unchecked),
+                      color: isSelected 
+                          ? const Color(0xFFE65C00) 
+                          : (hasConflict ? Colors.red[400] : Colors.grey[400]),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(s['name'] ?? 'Shift', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                          Text(
+                            s['name'] ?? 'Shift', 
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.bold, 
+                              fontSize: 13,
+                              color: hasConflict ? Colors.grey[500] : Colors.black87,
+                            ),
+                          ),
                           Text(
                             '${s['start_time']} – ${s['end_time']}',
                             style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
                           ),
+                          if (hasConflict) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              '⚠️ Timing overlap: ${conflictM['shifts']?['name'] ?? 'Shift'} (${conflictM['libraries']?['name'] ?? 'Library'})',
+                              style: GoogleFonts.inter(fontSize: 10, color: Colors.red[600], fontWeight: FontWeight.w600),
+                            ),
+                          ],
                         ],
                       ),
                     ),
                     Text(
                       '₹${s['price_monthly']}/mo',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFFE65C00)),
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 13, 
+                        color: hasConflict ? Colors.grey[400] : const Color(0xFFE65C00),
+                      ),
                     )
                   ],
                 ),

@@ -400,6 +400,75 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     final String shiftId = request['shift_id'];
 
     try {
+      final member = request['member_id'];
+      final String memberId = member is Map ? member['id']?.toString() ?? '' : member?.toString() ?? '';
+
+      if (memberId.isNotEmpty) {
+        // Check if this member already has an active or trial membership in this library
+        final existing = await supabase
+            .from('memberships')
+            .select('id')
+            .eq('member_id', memberId)
+            .eq('library_id', widget.libraryId)
+            .inFilter('status', ['active', 'trial'])
+            .limit(1)
+            .maybeSingle();
+
+        if (existing != null) {
+          setState(() => _isLoading = false);
+          if (!mounted) return;
+          
+          final bool confirmReject = await showDialog<bool>(
+            context: context,
+            builder: (c) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                  const SizedBox(width: 8),
+                  Text('Duplicate Membership', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: const Text(
+                'This member already has an active membership in this library. '
+                'Do you want to reject this request to prevent duplicate memberships?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(c, false),
+                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => Navigator.pop(c, true),
+                  child: Text('Yes, Reject', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ) ?? false;
+
+          if (confirmReject) {
+            setState(() => _isLoading = true);
+            await supabase.from('join_requests').update({
+              'status': 'rejected',
+            }).eq('id', request['id']);
+            _fetchRequests();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Join request rejected successfully ✓')),
+              );
+            }
+          }
+          if (mounted) {
+            setState(() => _isLoading = false);
+          }
+          return;
+        }
+      }
+
       // Fetch vacant seats for this shift
       final vacantSeats = await supabase
           .from('seats')

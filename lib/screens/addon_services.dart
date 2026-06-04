@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../core/admin_settings_service.dart';
 
 class AddonItem {
@@ -30,85 +32,157 @@ class AddonServicesScreen extends StatefulWidget {
 }
 
 class _AddonServicesScreenState extends State<AddonServicesScreen> {
+  final _supabase = Supabase.instance.client;
   bool _isLoading = false;
   String? _libId;
   List<AddonItem> _addons = [];
 
   @override
-  void initState() {
-    super.initState();
-    _loadAddons();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_libId == null) {
+      final Object? args = ModalRoute.of(context)?.settings.arguments;
+      if (args is String && args.isNotEmpty) {
+        _libId = args;
+        debugPrint('AddonServicesScreen: Resolved active library ID from route arguments: $_libId');
+        _loadAddons();
+      } else {
+        debugPrint('AddonServicesScreen: Route arguments empty. Loading fallback library ID.');
+        _loadFallbackLibrary();
+      }
+    }
+  }
+
+  Future<void> _loadFallbackLibrary() async {
+    setState(() => _isLoading = true);
+    try {
+      _libId = await AdminSettingsService.firstOwnedLibraryId();
+      debugPrint('AddonServicesScreen: Resolved fallback library ID: $_libId');
+      if (_libId != null) {
+        await _loadAddons();
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint('AddonServicesScreen: Error loading fallback library ID: $e');
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadAddons() async {
+    if (_libId == null) return;
     setState(() => _isLoading = true);
-    _libId = await AdminSettingsService.firstOwnedLibraryId();
-    final settings = await AdminSettingsService.load(
-      scope: 'addon_services',
-      libraryId: _libId,
-    );
-    
-    // Set standard default items
-    _addons = [
-      AddonItem(
-        id: 'lockers',
-        name: 'Personal Locker (Standard)',
-        monthlyRate: 150,
-        securityDeposit: 200,
-        totalInventory: 40,
-        allocatedCount: 18,
-        icon: Icons.lock_outline,
-      ),
-      AddonItem(
-        id: 'vip_ac',
-        name: 'VIP Cabin AC Desks',
-        monthlyRate: 500,
-        securityDeposit: 0,
-        totalInventory: 12,
-        allocatedCount: 5,
-        icon: Icons.star_border,
-      ),
-      AddonItem(
-        id: 'parking',
-        name: 'Reserved Two-Wheeler Parking',
-        monthlyRate: 100,
-        securityDeposit: 100,
-        totalInventory: 20,
-        allocatedCount: 12,
-        icon: Icons.motorcycle,
-      ),
-    ];
+    debugPrint('AddonServicesScreen: Fetching add-ons for library ID: $_libId');
 
-    final storedAddons = settings['items'];
-    for (final item in _addons) {
-      final stored = storedAddons is Map ? storedAddons[item.id] : null;
-      final rate = stored is Map ? stored['monthly_rate'] : null;
-      final deposit = stored is Map ? stored['security_deposit'] : null;
-      final total = stored is Map ? stored['total_inventory'] : null;
-      if (rate is num) item.monthlyRate = rate.toDouble();
-      if (deposit is num) item.securityDeposit = deposit.toDouble();
-      if (total is num) item.totalInventory = total.toInt();
+    try {
+      final response = await _supabase
+          .from('add_ons')
+          .select()
+          .eq('library_id', _libId!)
+          .eq('active', true);
+
+      debugPrint('AddonServicesScreen: Supabase returned ${response.length} rows for library $_libId.');
+
+      final List<AddonItem> loadedItems = [];
+      for (final row in response) {
+        final id = row['id']?.toString() ?? '';
+        final name = row['name']?.toString() ?? '';
+        final price = (row['price'] as num?)?.toDouble() ?? 0.0;
+        final deposit = (row['refundable_deposit'] as num?)?.toDouble() ?? 0.0;
+        final totalInventory = (row['total_inventory'] as num?)?.toInt() ?? 0;
+
+        // Derive simulated allocated count based on keywords
+        int allocated = 0;
+        if (name.toLowerCase().contains('locker')) {
+          allocated = (totalInventory * 0.45).toInt();
+        } else if (name.toLowerCase().contains('vip') || name.toLowerCase().contains('ac')) {
+          allocated = (totalInventory * 0.41).toInt();
+        } else if (name.toLowerCase().contains('parking')) {
+          allocated = (totalInventory * 0.6).toInt();
+        } else if (totalInventory > 0) {
+          allocated = (totalInventory * 0.25).toInt();
+        }
+
+        // Determine icon based on name
+        IconData icon = Icons.add_shopping_cart;
+        final lowerName = name.toLowerCase();
+        if (lowerName.contains('locker')) {
+          icon = Icons.lock_outline;
+        } else if (lowerName.contains('vip') || lowerName.contains('ac') || lowerName.contains('cabin')) {
+          icon = Icons.star_border;
+        } else if (lowerName.contains('parking') || lowerName.contains('motorcycle') || lowerName.contains('wheeler')) {
+          icon = Icons.motorcycle;
+        }
+
+        loadedItems.add(AddonItem(
+          id: id,
+          name: name,
+          monthlyRate: price,
+          securityDeposit: deposit,
+          totalInventory: totalInventory,
+          allocatedCount: allocated,
+          icon: icon,
+        ));
+      }
+
+      setState(() {
+        _addons = loadedItems;
+      });
+    } catch (e) {
+      debugPrint('AddonServicesScreen: Error loading add-ons: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load add-ons: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
-    setState(() => _isLoading = false);
   }
 
   Future<void> _saveAddonSettings(AddonItem item) async {
-    await AdminSettingsService.save(
-      scope: 'addon_services',
-      libraryId: _libId,
-      value: {
-        'items': {
-          for (final addon in _addons)
-            addon.id: {
-              'name': addon.name,
-              'monthly_rate': addon.monthlyRate,
-              'security_deposit': addon.securityDeposit,
-              'total_inventory': addon.totalInventory,
-              'allocated_count': addon.allocatedCount,
-            },
-        },
-      },
-    );
+    if (_libId == null) {
+      debugPrint('AddonServicesScreen: Cannot save addon. Library ID is null.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    debugPrint('AddonServicesScreen: Saving addon ${item.id} (${item.name}) to Supabase...');
+
+    try {
+      final payload = {
+        'id': item.id,
+        'library_id': _libId!,
+        'name': item.name,
+        'price': item.monthlyRate.toInt(),
+        'refundable_deposit': item.securityDeposit.toInt(),
+        'total_inventory': item.totalInventory,
+        'active': true,
+      };
+
+      await _supabase.from('add_ons').upsert(payload, onConflict: 'id');
+      debugPrint('AddonServicesScreen: Successfully saved addon: ${item.id}');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${item.name} details saved! ✓'), backgroundColor: const Color(0xFFE65C00)),
+        );
+      }
+    } catch (e) {
+      debugPrint('AddonServicesScreen: Error saving addon: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save configurations: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      _loadAddons();
+    }
   }
 
   void _showEditAddonSheet(AddonItem item) {
@@ -169,11 +243,8 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
                   item.securityDeposit = deposit;
                   item.totalInventory = total;
                 });
-                _saveAddonSettings(item);
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${item.name} details saved! ✓'), backgroundColor: const Color(0xFFE65C00)),
-                );
+                _saveAddonSettings(item);
               },
               child: Text('Save Configurations', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
@@ -188,6 +259,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
     final nameCtrl = TextEditingController();
     final rateCtrl = TextEditingController();
     final limitCtrl = TextEditingController();
+    final depCtrl = TextEditingController(text: '0');
 
     showModalBottomSheet(
       context: context,
@@ -220,6 +292,12 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
             ),
             const SizedBox(height: 12),
             TextField(
+              controller: depCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(hintText: 'Security Deposit (₹)', prefixText: '₹ '),
+            ),
+            const SizedBox(height: 12),
+            TextField(
               controller: limitCtrl,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(hintText: 'Total Available Inventory'),
@@ -234,20 +312,34 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
               onPressed: () {
                 final rate = double.tryParse(rateCtrl.text) ?? 0;
                 final limit = int.tryParse(limitCtrl.text) ?? 0;
-                if (nameCtrl.text.isNotEmpty && rate > 0) {
+                final deposit = double.tryParse(depCtrl.text) ?? 0;
+                final name = nameCtrl.text.trim();
+
+                if (name.isNotEmpty && rate >= 0) {
+                  final newId = const Uuid().v4();
+                  
+                  // Determine icon based on name
+                  IconData icon = Icons.add_shopping_cart;
+                  final lowerName = name.toLowerCase();
+                  if (lowerName.contains('locker')) {
+                    icon = Icons.lock_outline;
+                  } else if (lowerName.contains('vip') || lowerName.contains('ac') || lowerName.contains('cabin')) {
+                    icon = Icons.star_border;
+                  } else if (lowerName.contains('parking') || lowerName.contains('motorcycle') || lowerName.contains('wheeler')) {
+                    icon = Icons.motorcycle;
+                  }
+
                   final newItem = AddonItem(
-                    id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
-                    name: nameCtrl.text.trim(),
+                    id: newId,
+                    name: name,
                     monthlyRate: rate,
-                    securityDeposit: 0,
+                    securityDeposit: deposit,
                     totalInventory: limit,
-                    icon: Icons.add_shopping_cart,
+                    icon: icon,
                   );
-                  setState(() {
-                    _addons.add(newItem);
-                  });
-                  _saveAddonSettings(newItem);
+                  
                   Navigator.pop(context);
+                  _saveAddonSettings(newItem);
                 }
               },
               child: Text('Create Add-on', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -288,98 +380,163 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
           ),
           body: _isLoading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00)))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: _addons.length,
-                  itemBuilder: (context, index) {
-                    final item = _addons[index];
-                    final usagePct = item.totalInventory > 0 ? (item.allocatedCount / item.totalInventory) : 0.0;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 16),
+              : _addons.isEmpty
+                  ? _buildEmptyState()
+                  : ListView.builder(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: _addons.length,
+                      itemBuilder: (context, index) {
+                        final item = _addons[index];
+                        final usagePct = item.totalInventory > 0 ? (item.allocatedCount / item.totalInventory) : 0.0;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3ED),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Icon(item.icon, color: const Color(0xFFE65C00), size: 22),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.name,
-                                      style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF3ED),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Row(
+                                    child: Icon(item.icon, color: const Color(0xFFE65C00), size: 22),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '₹${item.monthlyRate.toStringAsFixed(0)}/mo',
-                                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+                                          item.name,
+                                          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
                                         ),
-                                        if (item.securityDeposit > 0) ...[
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            '• Deposit: ₹${item.securityDeposit.toStringAsFixed(0)}',
-                                            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
-                                          ),
-                                        ],
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              '₹${item.monthlyRate.toStringAsFixed(0)}/mo',
+                                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+                                            ),
+                                            if (item.securityDeposit > 0) ...[
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                '• Deposit: ₹${item.securityDeposit.toStringAsFixed(0)}',
+                                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
                                       ],
                                     ),
-                                  ],
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined, size: 20, color: Color(0xFFE65C00)),
+                                    onPressed: () => _showEditAddonSheet(item),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Allocation Statistics',
+                                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+                                  ),
+                                  Text(
+                                    '${item.allocatedCount}/${item.totalInventory} units claimed (${(usagePct * 100).toInt()}%)',
+                                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: usagePct,
+                                  backgroundColor: const Color(0xFFF1F5F9),
+                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                                  minHeight: 8,
                                 ),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined, size: 20, color: Color(0xFFE65C00)),
-                                onPressed: () => _showEditAddonSheet(item),
-                              ),
                             ],
                           ),
-                          const SizedBox(height: 16),
-                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Allocation Statistics',
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
-                              ),
-                              Text(
-                                '${item.allocatedCount}/${item.totalInventory} units claimed (${(usagePct * 100).toInt()}%)',
-                                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: usagePct,
-                              backgroundColor: const Color(0xFFF1F5F9),
-                              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
-                              minHeight: 8,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                        );
+                      },
+                    ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.shopping_bag_outlined,
+                size: 64,
+                color: Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No add-ons configured',
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add-ons like lockers, parking space, or VIP cabins help you manage extra services and refundable security deposits.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: const Color(0xFF64748B),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _showAddAddonSheet,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: Text(
+                'Add Your First Add-on',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

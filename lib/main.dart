@@ -14,7 +14,12 @@ import 'screens/library_setup_stage3.dart';
 import 'screens/reservations/member_detail_screen.dart';
 
 // Milestone 5 remaining Admin Panel screens imports
-import 'screens/library_profile.dart';
+import 'screens/library_profile_screen.dart';
+import 'screens/social_links_edit_screen.dart';
+import 'screens/about_us_screen.dart';
+import 'screens/help_support_screen.dart';
+import 'screens/terms_screen.dart';
+import 'screens/app_settings_screen.dart';
 import 'screens/verified_badge_screen.dart';
 import 'screens/pricing_plans.dart';
 import 'screens/shift_management.dart';
@@ -118,6 +123,11 @@ class SilenceApp extends StatelessWidget {
 
         // Milestone 5 Admin routes registrations
         '/admin/library/profile': (context) => const LibraryProfileScreen(),
+        '/admin/settings/social-links': (context) => const SocialLinksEditScreen(),
+        '/admin/about-us': (context) => const AboutUsScreen(),
+        '/admin/help-support': (context) => const HelpSupportScreen(),
+        '/admin/terms': (context) => const TermsScreen(),
+        '/admin/app-settings': (context) => const AppSettingsScreen(),
         '/admin/verified-badge': (context) => const VerifiedBadgeScreen(),
         '/admin/settings/shifts': (context) => const ShiftManagementScreen(),
         '/admin/settings/pricing': (context) => const PricingPlansScreen(),

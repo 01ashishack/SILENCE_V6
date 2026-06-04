@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../core/offline_sync.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,6 +14,14 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    OfflineSyncManager.instance.startListening(context);
+    // Trigger initial sync if online on app startup
+    Connectivity().checkConnectivity().then((results) {
+      final bool hasInternet = !results.contains(ConnectivityResult.none) && results.isNotEmpty;
+      if (hasInternet && mounted) {
+        OfflineSyncManager.instance.syncPendingScans(context);
+      }
+    });
     _checkSession();
   }
 

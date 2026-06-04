@@ -165,41 +165,9 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
 
   // ── Shift operations ──────────────────────────────────────────────────────
 
-  void _addNewShift() {
-    setState(() {
-      _shifts.add(_ShiftModel(
-        name: '',
-        startTime: const TimeOfDay(hour: 9, minute: 0),
-        endTime: const TimeOfDay(hour: 17, minute: 0),
-        priceMonthly: 0,
-        trialDays: 0,
-      ));
-    });
-  }
-
   void _removeShift(int index) {
     if (_shifts.length <= 1) { _showError('You must keep at least one shift.'); return; }
     setState(() => _shifts.removeAt(index));
-  }
-
-  Future<void> _selectTime(int index, bool isStart) async {
-    final shift = _shifts[index];
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: isStart ? shift.startTime : shift.endTime,
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: _dark),
-        ),
-        child: child!,
-      ),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isStart) shift.startTime = picked;
-        else shift.endTime = picked;
-      });
-    }
   }
 
   // ── UPI operations ────────────────────────────────────────────────────────
@@ -337,7 +305,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
 
                   // Add shift button
                   OutlinedButton.icon(
-                    onPressed: _addNewShift,
+                    onPressed: () => _showShiftFormSheet(),
                     icon: const Icon(Icons.add, color: _orange),
                     label: Text('Add New Shift',
                         style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: _orange)),
@@ -400,209 +368,457 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
 
   Widget _buildShiftCard(int index) {
     final shift = _shifts[index];
+    final timeDisplay = shift.shiftType == 'fixed'
+        ? '${shift.startTime.format(context)} - ${shift.endTime.format(context)}'
+        : '${shift.hoursPerDay} hours/day (Hourly)';
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Header
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('Shift ${index + 1}',
-              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: _orange)),
-          if (_shifts.length > 1)
-            GestureDetector(
-              onTap: () => _removeShift(index),
-              child: const Icon(Icons.close, size: 20, color: Color(0xFFEF4444)),
-            ),
-        ]),
-        const SizedBox(height: 12),
-
-        // Shift Name
-        Text('Shift Name', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: _grey)),
-        const SizedBox(height: 6),
-        TextFormField(
-          initialValue: shift.name,
-          onChanged: (v) => shift.name = v,
-          style: GoogleFonts.inter(fontSize: 15, color: _dark),
-          decoration: InputDecoration(
-            hintText: 'e.g. Morning Shift',
-            hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Plan Type Choice Toggle (Fixed Hours vs Hourly Plan)
-        Text('Plan Type', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: _grey)),
-        const SizedBox(height: 6),
-        Row(children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => shift.shiftType = 'fixed'),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: shift.shiftType == 'fixed' ? _orange : const Color(0xFFF9FAFB),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: shift.shiftType == 'fixed' ? _orange : const Color(0xFFE5E7EB),
-                  ),
-                ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
                 child: Text(
-                  'Fixed Hours',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
+                  shift.name.isNotEmpty ? shift.name : 'Untitled Shift',
+                  style: GoogleFonts.outfit(
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: shift.shiftType == 'fixed' ? Colors.white : _grey,
+                    color: _dark,
                   ),
                 ),
               ),
-            ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 20, color: _orange),
+                    onPressed: () => _showShiftFormSheet(index: index),
+                    tooltip: 'Edit Shift',
+                  ),
+                  if (_shifts.length > 1)
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20, color: Color(0xFFEF4444)),
+                      onPressed: () => _removeShift(index),
+                      tooltip: 'Remove Shift',
+                    ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => shift.shiftType = 'hourly'),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: shift.shiftType == 'hourly' ? _orange : const Color(0xFFF9FAFB),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: shift.shiftType == 'hourly' ? _orange : const Color(0xFFE5E7EB),
-                  ),
-                ),
-                child: Text(
-                  'Hourly Plan',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: shift.shiftType == 'hourly' ? Colors.white : _grey,
-                  ),
-                ),
+          const SizedBox(height: 8),
+          
+          Row(
+            children: [
+              const Icon(Icons.access_time, size: 16, color: _orange),
+              const SizedBox(width: 8),
+              Text(
+                timeDisplay,
+                style: GoogleFonts.inter(fontSize: 13, color: _dark, fontWeight: FontWeight.w500),
               ),
-            ),
+            ],
           ),
-        ]),
-        const SizedBox(height: 16),
-
-        // Conditionally render time pickers or hours counter
-        if (shift.shiftType == 'fixed') ...[
-          Row(children: [
-            Expanded(child: _buildTimePicker('Start Time', shift.startTime, () => _selectTime(index, true))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildTimePicker('End Time', shift.endTime, () => _selectTime(index, false))),
-          ]),
-          const SizedBox(height: 16),
-        ] else ...[
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Hours per day', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: _dark)),
-                Text('Maximum daily access limit', style: GoogleFonts.inter(fontSize: 11, color: _grey)),
-              ],
-            ),
-            Row(children: [
-              IconButton(
-                icon: const Icon(Icons.remove_circle_outline, color: _orange, size: 22),
-                onPressed: shift.hoursPerDay > 1 ? () => setState(() => shift.hoursPerDay--) : null,
+          const SizedBox(height: 8),
+          
+          Row(
+            children: [
+              const Icon(Icons.currency_rupee, size: 16, color: _orange),
+              const SizedBox(width: 8),
+              Text(
+                'Monthly: ₹${shift.priceMonthly}${shift.price3Month != null ? '  |  3-Month: ₹${shift.price3Month}' : ''}${shift.price6Month != null ? '  |  6-Month: ₹${shift.price6Month}' : ''}',
+                style: GoogleFonts.inter(fontSize: 13, color: _grey),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7F0),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: _orange.withOpacity(0.3)),
-                ),
-                child: Text(
-                  '${shift.hoursPerDay} hrs',
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: _orange),
-                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          
+          Row(
+            children: [
+              const Icon(Icons.card_giftcard, size: 16, color: _orange),
+              const SizedBox(width: 8),
+              Text(
+                'Trial Period: ${shift.trialDays} days',
+                style: GoogleFonts.inter(fontSize: 13, color: _grey),
               ),
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline, color: _orange, size: 22),
-                onPressed: () => setState(() => shift.hoursPerDay++),
-              ),
-            ]),
-          ]),
-          const SizedBox(height: 16),
+            ],
+          ),
         ],
-
-        // Pricing
-        Text('Pricing Plans', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: _grey)),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _buildPriceField('Monthly *', shift.priceMonthly > 0 ? '${shift.priceMonthly}' : '',
-              (v) => shift.priceMonthly = int.tryParse(v) ?? 0)),
-          const SizedBox(width: 8),
-          Expanded(child: _buildPriceField('3-Month', shift.price3Month != null ? '${shift.price3Month}' : '',
-              (v) => shift.price3Month = int.tryParse(v))),
-          const SizedBox(width: 8),
-          Expanded(child: _buildPriceField('6-Month', shift.price6Month != null ? '${shift.price6Month}' : '',
-              (v) => shift.price6Month = int.tryParse(v))),
-        ]),
-        const SizedBox(height: 16),
-
-        // Trial days
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('Free Trial Days:', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _dark)),
-          Row(children: [
-            IconButton(
-              icon: const Icon(Icons.remove_circle_outline, color: _orange, size: 20),
-              onPressed: shift.trialDays > 0 ? () => setState(() => shift.trialDays--) : null,
-            ),
-            Text('${shift.trialDays}',
-                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: _dark)),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline, color: _orange, size: 20),
-              onPressed: () => setState(() => shift.trialDays++),
-            ),
-          ]),
-        ]),
-      ]),
+      ),
     );
   }
 
-  Widget _buildTimePicker(String label, TimeOfDay time, VoidCallback onTap) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: _grey)),
-      const SizedBox(height: 6),
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(time.format(context), style: GoogleFonts.inter(fontSize: 14, color: _dark)),
-            const Icon(Icons.access_time, size: 18, color: _orange),
-          ]),
-        ),
+  void _showShiftFormSheet({int? index}) {
+    final isEditing = index != null;
+    final shift = isEditing
+        ? _shifts[index]
+        : _ShiftModel(
+            name: '',
+            startTime: const TimeOfDay(hour: 9, minute: 0),
+            endTime: const TimeOfDay(hour: 17, minute: 0),
+            priceMonthly: 0,
+            trialDays: 0,
+          );
+
+    final nameController = TextEditingController(text: shift.name);
+    final priceMonthlyController = TextEditingController(text: shift.priceMonthly > 0 ? '${shift.priceMonthly}' : '');
+    final price3MonthController = TextEditingController(text: shift.price3Month != null ? '${shift.price3Month}' : '');
+    final price6MonthController = TextEditingController(text: shift.price6Month != null ? '${shift.price6Month}' : '');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-    ]);
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter sheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                top: 24,
+                left: 24,
+                right: 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isEditing ? 'Edit Shift' : 'Add New Shift',
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _dark,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Shift Name
+                    Text('Shift Name', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: _grey)),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: nameController,
+                      style: GoogleFonts.inter(fontSize: 15, color: _dark),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. Morning Shift',
+                        hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _orange)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Plan Type
+                    Text('Plan Type', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: _grey)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => sheetState(() => shift.shiftType = 'fixed'),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: shift.shiftType == 'fixed' ? _orange : const Color(0xFFF9FAFB),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: shift.shiftType == 'fixed' ? _orange : const Color(0xFFE5E7EB),
+                                ),
+                              ),
+                              child: Text(
+                                'Fixed Hours',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: shift.shiftType == 'fixed' ? Colors.white : _grey,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => sheetState(() => shift.shiftType = 'hourly'),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: shift.shiftType == 'hourly' ? _orange : const Color(0xFFF9FAFB),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: shift.shiftType == 'hourly' ? _orange : const Color(0xFFE5E7EB),
+                                ),
+                              ),
+                              child: Text(
+                                'Hourly Plan',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: shift.shiftType == 'hourly' ? Colors.white : _grey,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Conditionally render time pickers or hours counter
+                    if (shift.shiftType == 'fixed') ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildSheetTimePicker(
+                              context,
+                              'Start Time',
+                              shift.startTime,
+                              () async {
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: shift.startTime,
+                                  builder: (ctx, child) => Theme(
+                                    data: Theme.of(ctx).copyWith(
+                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: _dark),
+                                    ),
+                                    child: child!,
+                                  ),
+                                );
+                                if (picked != null) {
+                                  sheetState(() => shift.startTime = picked);
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildSheetTimePicker(
+                              context,
+                              'End Time',
+                              shift.endTime,
+                              () async {
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: shift.endTime,
+                                  builder: (ctx, child) => Theme(
+                                    data: Theme.of(ctx).copyWith(
+                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: _dark),
+                                    ),
+                                    child: child!,
+                                  ),
+                                );
+                                if (picked != null) {
+                                  sheetState(() => shift.endTime = picked);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ] else ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Hours per day', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: _dark)),
+                              Text('Maximum daily access limit', style: GoogleFonts.inter(fontSize: 11, color: _grey)),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline, color: _orange, size: 22),
+                                onPressed: shift.hoursPerDay > 1 ? () => sheetState(() => shift.hoursPerDay--) : null,
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF7F0),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: _orange.withOpacity(0.3)),
+                                ),
+                                child: Text(
+                                  '${shift.hoursPerDay} hrs',
+                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: _orange),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle_outline, color: _orange, size: 22),
+                                onPressed: () => sheetState(() => shift.hoursPerDay++),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    
+                    // Pricing
+                    Text('Pricing Plans', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: _grey)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSheetPriceField(
+                            'Monthly *',
+                            priceMonthlyController,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildSheetPriceField(
+                            '3-Month',
+                            price3MonthController,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildSheetPriceField(
+                            '6-Month',
+                            price6MonthController,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Trial days
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Free Trial Days:', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _dark)),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline, color: _orange, size: 20),
+                              onPressed: shift.trialDays > 0 ? () => sheetState(() => shift.trialDays--) : null,
+                            ),
+                            Text('${shift.trialDays}', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: _dark)),
+                            IconButton(
+                              icon: const Icon(Icons.add_circle_outline, color: _orange, size: 20),
+                              onPressed: () => sheetState(() => shift.trialDays++),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Action button
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _orange,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      onPressed: () {
+                        final name = nameController.text.trim();
+                        final monthlyPrice = int.tryParse(priceMonthlyController.text.trim()) ?? 0;
+                        if (name.isEmpty) {
+                          _showError('Shift name cannot be empty.');
+                          return;
+                        }
+                        if (monthlyPrice <= 0) {
+                          _showError('Monthly price must be greater than ₹0.');
+                          return;
+                        }
+
+                        setState(() {
+                          shift.name = name;
+                          shift.priceMonthly = monthlyPrice;
+                          shift.price3Month = int.tryParse(price3MonthController.text.trim());
+                          shift.price6Month = int.tryParse(price6MonthController.text.trim());
+
+                          if (!isEditing) {
+                            _shifts.add(shift);
+                          }
+                        });
+
+                        Navigator.pop(context);
+                      },
+                      child: Text(
+                        isEditing ? 'Update Shift' : 'Add Shift',
+                        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
-  Widget _buildPriceField(String label, String initialValue, void Function(String) onChanged) {
+  Widget _buildSheetTimePicker(BuildContext context, String label, TimeOfDay time, VoidCallback onTap) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: _grey)),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(time.format(context), style: GoogleFonts.inter(fontSize: 14, color: _dark)),
+                const Icon(Icons.access_time, size: 18, color: _orange),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSheetPriceField(String label, TextEditingController controller) {
     return TextFormField(
-      initialValue: initialValue,
+      controller: controller,
       keyboardType: TextInputType.number,
-      onChanged: onChanged,
       style: GoogleFonts.inter(fontSize: 14, color: _dark),
       decoration: InputDecoration(
         prefixText: '₹ ',
@@ -610,6 +826,9 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
         labelStyle: const TextStyle(fontSize: 11),
         hintText: 'e.g. 700',
         hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _orange)),
       ),
     );
   }
