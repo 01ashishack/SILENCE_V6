@@ -156,6 +156,39 @@ class CsvExporter {
     await _shareFile(buffer.toString(), '${libraryName.replaceAll(' ', '_')}_outstanding_dues.csv');
   }
 
+  static Future<void> exportMemberAttendance({
+    required String nickname,
+    required String dateRangeLabel,
+    required List<Map<String, dynamic>> logs,
+  }) async {
+    final buffer = StringBuffer();
+    buffer.writeln('SILENCE - My Attendance Report');
+    buffer.writeln('Member:,$nickname');
+    buffer.writeln('Period:,$dateRangeLabel');
+    buffer.writeln('Export Date:,${DateFormat('dd MMM yyyy hh:mm a').format(DateTime.now())}');
+    buffer.writeln();
+
+    buffer.writeln('Date,Check-in Time,Check-out Time,Duration,Session Type,Library,Seat');
+
+    for (var l in logs) {
+      final date = l['date'] ?? 'N/A';
+      final checkIn = l['check_in'] ?? 'N/A';
+      final checkOut = l['check_out'] ?? 'N/A';
+      final duration = l['duration'] ?? 'N/A';
+      final sessionType = (l['session_type'] ?? 'normal').toString().toUpperCase();
+      final library = l['library'] ?? 'N/A';
+      final seat = l['seat'] ?? 'N/A';
+
+      buffer.writeln('"$date","$checkIn","$checkOut","$duration","$sessionType","$library","$seat"');
+    }
+
+    final safeNickname = nickname.replaceAll(RegExp(r'[^\w]'), '_');
+    final safeDateRange = dateRangeLabel.replaceAll(' ', '_').replaceAll('/', '-');
+    final filename = 'Silence_Attendance_${safeNickname}_$safeDateRange.csv';
+
+    await _shareFile(buffer.toString(), filename);
+  }
+
   static Future<void> _shareFile(String csvContent, String filename) async {
     final tempDir = Directory.systemTemp;
     final tempFile = File('${tempDir.path}/$filename');

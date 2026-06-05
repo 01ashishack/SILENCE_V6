@@ -37,8 +37,19 @@ import 'screens/audit_log_screen.dart';
 import 'screens/referral_settings.dart';
 import 'screens/scheduled_closures.dart';
 import 'screens/announcements_history_screen.dart';
+import 'screens/member_notification_preferences_screen.dart';
+import 'screens/member_privacy_security_screen.dart';
+import 'screens/member_help_support_screen.dart';
+import 'screens/member_about_screen.dart';
+import 'screens/member_terms_screen.dart';
+import 'screens/member_privacy_policy_screen.dart';
+import 'screens/member_licences_screen.dart';
 
 import 'screens/admin/add_member_wizard.dart';
+import 'screens/reservations/renewal_screen.dart';
+import 'screens/reservations/library_query_screen.dart';
+import 'screens/member_analytics_tab.dart';
+import 'screens/past_library_detail_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -121,6 +132,13 @@ class SilenceApp extends StatelessWidget {
         '/member/explore': (context) => const ExploreScreen(),
         '/member/library-profile': (context) => const LibraryPublicProfileScreen(isAdmin: false),
         '/member/edit-profile': (context) => const MemberProfileEditScreen(),
+        '/member/settings/notifications': (context) => const MemberNotificationPreferencesScreen(),
+        '/member/settings/privacy': (context) => const MemberPrivacySecurityScreen(),
+        '/member/help': (context) => const MemberHelpSupportScreen(),
+        '/member/about': (context) => const MemberAboutScreen(),
+        '/member/terms': (context) => const MemberTermsScreen(),
+        '/member/privacy-policy': (context) => const MemberPrivacyPolicyScreen(),
+        '/member/licences': (context) => const MemberLicencesScreen(),
         '/admin/profile/complete': (context) => const AdminProfileCompleteScreen(),
         '/admin/library/setup/1': (context) => const LibrarySetupStage1Screen(),
         '/admin/library/setup/2': (context) => const LibrarySetupStage2Screen(),
@@ -149,6 +167,35 @@ class SilenceApp extends StatelessWidget {
         '/admin/settings/referrals': (context) => const ReferralSettingsScreen(),
         '/admin/settings/closures': (context) => const ScheduledClosuresScreen(),
         '/admin/member/add': (context) => const AddMemberWizard(),
+        '/member/renewal': (context) {
+          final args = (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?) ?? {};
+          return RenewalScreen(
+            libraryId: args['libraryId'] ?? '',
+            initialPlan: args['initialPlan'],
+            initialShiftId: args['initialShiftId'],
+          );
+        },
+        '/member/query': (context) {
+          final args = (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?) ?? {};
+          return LibraryQueryScreen(
+            libraryId: args['libraryId'] ?? '',
+            preFilledMessage: args['preFilledMessage'],
+          );
+        },
+        '/member/analytics': (context) {
+          final args = (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?) ?? {};
+          return MemberAnalyticsTab(
+            userProfile: args['userProfile'],
+            activeLibraryId: args['activeLibraryId'],
+            memberLibraries: args['memberLibraries'] ?? [],
+          );
+        },
+        '/member/library-history': (context) {
+          final args = (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?) ?? {};
+          return PastLibraryDetailScreen(
+            membershipId: args['membershipId'] ?? '',
+          );
+        },
       },
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -21,9 +22,21 @@ import 'app_settings_screen.dart';
 import 'package:flutter/services.dart';
 import '../core/calendar_picker.dart';
 import '../widgets/seat_change_bottom_sheet.dart';
-import 'member_explore_screen.dart';
+import 'reservations/renewal_screen.dart';
+import 'reservations/library_query_screen.dart';
+import 'member_profile_tab.dart';
 
-enum MemberState { fresh, profileCompleteNoLib, activeMember, returning }
+enum MemberState {
+  freshInstall,           // profile incomplete
+  profileCompleteNoLib,   // profile complete, no memberships, no pending request
+  applicationPending,     // join_requests status = 'pending' and no active membership
+  trial,                  // memberships status = 'trial'
+  active,                 // status = 'active' and end_date > today + 7
+  expiringSoon,           // end_date between today and today+7
+  expired,                // end_date < today (or status = 'expired')
+  onHold,                 // status = 'hold'
+  exited,                 // status = 'exited' (or most recent membership is exited)
+}
 
 class MemberHomeScreen extends StatefulWidget {
   const MemberHomeScreen({super.key});
@@ -42,6 +55,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   Map<String, dynamic>? _userProfile;
   List<Map<String, dynamic>> _myMemberships = [];
   List<Map<String, dynamic>> _pastMemberships = [];
+  List<Map<String, dynamic>> _allMemberships = [];
+  Map<String, dynamic>? _pendingRequest;
   List<Map<String, dynamic>> _announcements = [];
   Set<String> _readAnnouncementIds = {};
   Map<String, dynamic>? _activeAttendance;
@@ -142,14 +157,75 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         throw Exception('No logged in user found.');
       }
 
-      // 1. Load User Profile
-      final profileRes = await supabase
+      // 1. Create parallel futures
+      final profileFuture = supabase
           .from('users')
           .select()
           .eq('id', currentUser.id)
           .maybeSingle();
+
+      final pendingReqsFuture = supabase
+          .from('join_requests')
+          .select('*, libraries(*)')
+          .eq('member_id', currentUser.id)
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
+
+      final membershipsFuture = supabase
+          .from('memberships')
+          .select('*, libraries(*), shifts(*), seats(*)')
+          .eq('member_id', currentUser.id)
+          .order('created_at', ascending: false);
+
+      final attendanceFuture = supabase
+          .from('attendance')
+          .select('*, memberships(*), shifts(*), libraries(*)')
+          .eq('member_id', currentUser.id)
+          .isFilter('check_out_time', null)
+          .order('check_in_time', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      final lastCompletedFuture = supabase
+          .from('attendance')
+          .select('*, libraries(name)')
+          .eq('member_id', currentUser.id)
+          .not('check_out_time', 'is', null)
+          .order('check_in_time', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      final exploreFuture = supabase
+          .from('libraries')
+          .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, rules, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
+          .eq('status', 'active');
+
+      final results = await Future.wait([
+        profileFuture,
+        pendingReqsFuture,
+        membershipsFuture,
+        attendanceFuture,
+        lastCompletedFuture,
+        exploreFuture,
+      ]);
+
+      if (!mounted) return;
+
+      _userProfile = results[0] as Map<String, dynamic>?;
       
-      _userProfile = profileRes;
+      final pendingReqs = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
+      _pendingRequest = pendingReqs.isNotEmpty ? pendingReqs.first : null;
+
+      final allMemberships = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
+      _allMemberships = allMemberships;
+
+      _activeAttendance = results[3] as Map<String, dynamic>?;
+      _lastCompletedAttendance = results[4] as Map<String, dynamic>?;
+      
+      final exploreRes = List<Map<String, dynamic>>.from(results[5] as List? ?? []);
+      if (exploreRes.isNotEmpty) {
+        _exploreLibraries = exploreRes;
+      }
 
       if (_userProfile == null) {
         final email = currentUser.email ?? '';
@@ -166,30 +242,10 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         _userProfile = newProfile;
       }
 
-      // 2. Load all memberships
-      final membershipsRes = await supabase
-          .from('memberships')
-          .select('*, libraries(*), shifts(*), seats(*)')
-          .eq('member_id', currentUser.id)
-          .order('created_at', ascending: false);
-
-      final allMemberships = List<Map<String, dynamic>>.from(membershipsRes);
-      
       // Filter memberships
-      _myMemberships = allMemberships.where((m) => ['active', 'trial', 'pending', 'hold'].contains(m['status'])).toList();
-      _pastMemberships = allMemberships.where((m) => ['exited', 'expired'].contains(m['status'])).toList();
+      _myMemberships = allMemberships.where((m) => ['active', 'trial', 'hold', 'expired'].contains(m['status'])).toList();
+      _pastMemberships = allMemberships.where((m) => m['status'] == 'exited').toList();
 
-      // 3. Load Active Attendance (if checked in)
-      final attendanceRes = await supabase
-          .from('attendance')
-          .select('*, memberships(*), shifts(*), libraries(*)')
-          .eq('member_id', currentUser.id)
-          .isFilter('check_out_time', null)
-          .order('check_in_time', ascending: false)
-          .limit(1)
-          .maybeSingle();
-
-      _activeAttendance = attendanceRes;
       final checkInStr = _activeAttendance?['check_in_time'] as String?;
       if (checkInStr != null) {
         _startAttendanceTicker(DateTime.parse(checkInStr));
@@ -198,18 +254,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         _liveSessionDuration = '0h 0m 0s';
       }
 
-      // Load last completed attendance
-      final lastCompletedRes = await supabase
-          .from('attendance')
-          .select('*, libraries(name)')
-          .eq('member_id', currentUser.id)
-          .not('check_out_time', 'is', null)
-          .order('check_in_time', ascending: false)
-          .limit(1)
-          .maybeSingle();
-      _lastCompletedAttendance = lastCompletedRes;
+      CacheService.instance.writeCache('explore_libraries_list', _exploreLibraries);
 
-      // 4. Load Announcements for my joined libraries
+      // Load Announcements for my joined libraries
       final joinedLibIds = allMemberships
           .map((m) => m['library_id'] as String)
           .toSet()
@@ -237,26 +284,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         _announcements = [];
         _readAnnouncementIds = {};
       }
-
-      // 5. Load Explore Libraries (All active libraries)
-      try {
-        final exploreRes = await supabase
-            .from('libraries')
-            .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, latitude, longitude, shifts(id, name, price_monthly, trial_days, start_time, end_time), reviews(rating)')
-            .eq('status', 'active');
-
-        _exploreLibraries = List<Map<String, dynamic>>.from(exploreRes);
-      } catch (e) {
-        debugPrint('Error loading libraries explore: $e');
-        try {
-          final exploreRes = await supabase
-              .from('libraries')
-              .select('id, name, address_city, verified, photos, amenities, library_code, status, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
-              .eq('status', 'active');
-          _exploreLibraries = List<Map<String, dynamic>>.from(exploreRes);
-        } catch (_) {}
-      }
-      CacheService.instance.writeCache('explore_libraries_list', _exploreLibraries);
 
       // 6. Calculate Streak and Trophy Stats from full history
       final allAttendanceRes = await supabase
@@ -502,17 +529,75 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   MemberState _getMemberState() {
-    bool hasActive = _myMemberships.any((m) => m['status'] == 'active');
-    if (hasActive) return MemberState.activeMember;
-
-    bool hasPast = _pastMemberships.isNotEmpty;
-    if (hasPast) return MemberState.returning;
-
-    if (!_isProfileIncomplete()) {
-      return MemberState.profileCompleteNoLib;
+    if (_isProfileIncomplete()) {
+      return MemberState.freshInstall;
     }
 
-    return MemberState.fresh;
+    // trial > active > expiringSoon > expired > hold > applicationPending > exited > profileCompleteNoLib > freshInstall
+
+    // 1. trial
+    final hasTrial = _allMemberships.any((m) => m['status'] == 'trial');
+    if (hasTrial) return MemberState.trial;
+
+    final today = DateTime.now();
+    final todayPlus7 = today.add(const Duration(days: 7));
+
+    // 2. active (end_date > today + 7)
+    final hasActive = _allMemberships.any((m) {
+      if (m['status'] != 'active') return false;
+      if (m['end_date'] == null) return false;
+      try {
+        final endDate = DateTime.parse(m['end_date']);
+        return endDate.isAfter(todayPlus7);
+      } catch (_) {
+        return false;
+      }
+    });
+    if (hasActive) return MemberState.active;
+
+    // 3. expiringSoon (end_date between today and today + 7)
+    final hasExpiringSoon = _allMemberships.any((m) {
+      if (m['status'] != 'active') return false;
+      if (m['end_date'] == null) return false;
+      try {
+        final endDate = DateTime.parse(m['end_date']);
+        return endDate.isAfter(today) && !endDate.isAfter(todayPlus7);
+      } catch (_) {
+        return false;
+      }
+    });
+    if (hasExpiringSoon) return MemberState.expiringSoon;
+
+    // 4. expired (end_date < today or status = 'expired')
+    final hasExpired = _allMemberships.any((m) {
+      if (m['status'] == 'expired') return true;
+      if (m['status'] == 'active' && m['end_date'] != null) {
+        try {
+          final endDate = DateTime.parse(m['end_date']);
+          return endDate.isBefore(today);
+        } catch (_) {
+          return false;
+        }
+      }
+      return false;
+    });
+    if (hasExpired) return MemberState.expired;
+
+    // 5. hold
+    final hasHold = _allMemberships.any((m) => m['status'] == 'hold');
+    if (hasHold) return MemberState.onHold;
+
+    // 6. applicationPending
+    if (_pendingRequest != null) {
+      return MemberState.applicationPending;
+    }
+
+    // 7. exited
+    final hasExited = _allMemberships.any((m) => m['status'] == 'exited');
+    if (hasExited) return MemberState.exited;
+
+    // 8. profileCompleteNoLib
+    return MemberState.profileCompleteNoLib;
   }
 
   void _showProfileIncompleteDialog() {
@@ -645,7 +730,29 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   bool _shouldShowFAB() {
     if (_currentBottomTab != 0) return false;
     final state = _getMemberState();
-    return state == MemberState.activeMember || state == MemberState.returning;
+    if (state == MemberState.active || state == MemberState.trial || state == MemberState.expiringSoon) {
+      return true;
+    }
+    if (state == MemberState.expired) {
+      final expiredM = _allMemberships.firstWhere(
+        (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(DateTime.now())),
+        orElse: () => {},
+      );
+      if (expiredM.isNotEmpty) {
+        final lib = expiredM['libraries'] as Map<String, dynamic>? ?? {};
+        final rawRules = lib['rules_metadata'] ?? lib['rules'];
+        Map<String, dynamic> rules = {};
+        if (rawRules is Map) {
+          rules = Map<String, dynamic>.from(rawRules);
+        } else if (rawRules is String) {
+          try {
+            rules = Map<String, dynamic>.from(jsonDecode(rawRules));
+          } catch (_) {}
+        }
+        return rules['allow_expired_checkin'] == true;
+      }
+    }
+    return false;
   }
 
   Widget _buildErrorState() {
@@ -701,26 +808,36 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   Widget _buildHomeTab() {
     final state = _getMemberState();
     switch (state) {
-      case MemberState.fresh:
+      case MemberState.freshInstall:
         return _buildFreshState();
       case MemberState.profileCompleteNoLib:
         return _buildProfileCompleteNoLibState();
-      case MemberState.activeMember:
-        return _buildActiveMemberState();
-      case MemberState.returning:
-        return _buildReturningState();
+      case MemberState.applicationPending:
+        return _buildApplicationPendingState();
+      case MemberState.trial:
+        return _buildTrialState();
+      case MemberState.active:
+        return _buildActiveState();
+      case MemberState.expiringSoon:
+        return _buildExpiringSoonState();
+      case MemberState.expired:
+        return _buildExpiredState();
+      case MemberState.onHold:
+        return _buildOnHoldState();
+      case MemberState.exited:
+        return _buildExitedState();
     }
   }
 
-  // CURVED ORANGE HEADERS FOR STAGES
-  Widget _buildCurvedHeader({required String greeting, required String subtitle, bool showLogo = true}) {
+  // CURVED HEADERS FOR STAGES
+  Widget _buildCurvedHeader({required String greeting, required String subtitle, required MemberState state, bool showLogo = true}) {
     final unreadCount = _announcements.where((a) => !_readAnnouncementIds.contains(a['id'])).length;
 
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Color(0xFFE65C00),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        gradient: _getHeaderGradient(state),
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(28),
           bottomRight: Radius.circular(28),
         ),
@@ -785,7 +902,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  // STAGE 1: FRESH INSTALL
+  // STAGE 1: FRESH INSTALL (profile incomplete)
   Widget _buildFreshState() {
     final nearLibs = _getNearLibraries();
 
@@ -798,55 +915,74 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildCurvedHeader(
-              greeting: "Welcome to SILENCE!",
-              subtitle: "Complete your profile to start studying",
+              greeting: "Welcome to SILENCE 👋",
+              subtitle: "Let's get you set up",
+              state: MemberState.freshInstall,
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Complete Profile Card
-                  _buildProfileSetupCard(),
-                  const SizedBox(height: 8),
+                  // Setup progress card
+                  _buildSetupProgressCard(
+                    title: "Set Up Your Account",
+                    activeStep: 1,
+                    stepTitles: [
+                      "Complete your profile",
+                      "Find a library",
+                      "Apply and get your seat"
+                    ],
+                    stepCompleted: [false, false, false],
+                    onButtonTap: _navigateToEditProfile,
+                    buttonText: "Complete Profile Now",
+                  ),
+                  const SizedBox(height: 16),
                   
-                  // How SILENCE Works Card
+                  // Dashed membership placeholder
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.badge_outlined, size: 48, color: Colors.grey[300]),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Your library membership will appear here',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500], fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Why SILENCE Card
                   _buildHowItWorksCard(),
-                  const SizedBox(height: 20),
-                  
-                  // Find a Library Button
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE65C00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: Text('Find a Library', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Join with code button
-                  OutlinedButton(
-                    onPressed: _openJoinWithCodeSheet,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
-                      foregroundColor: const Color(0xFFE65C00),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: Text('Join with Code', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                  ),
                   const SizedBox(height: 24),
 
-                  // Libraries Near You section
+                  // Nearby Libraries preview
                   if (nearLibs.isNotEmpty) ...[
-                    Text(
-                      'Libraries Near You',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Libraries Near You',
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please complete your profile first.')),
+                            );
+                          },
+                          child: Text('View all', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFE65C00), fontWeight: FontWeight.bold)),
+                        )
+                      ],
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -882,84 +1018,81 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildCurvedHeader(
-              greeting: "Ready to Study!",
-              subtitle: "Your profile is set. Now find a library.",
+              greeting: "${_getGreetingTime()}, ${_getGreetingName()} 👋",
+              subtitle: "Find a study library near you",
+              state: MemberState.profileCompleteNoLib,
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Celebration Card
+                  // Setup progress card
+                  _buildSetupProgressCard(
+                    title: "Almost there!",
+                    activeStep: 2,
+                    stepTitles: [
+                      "Profile complete ✓",
+                      "Join a library",
+                      "Get your seat"
+                    ],
+                    stepCompleted: [true, false, false],
+                    onButtonTap: () {
+                      Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
+                    },
+                    buttonText: "Find a Library Now",
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Dashed placeholder card
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFDCFCE7), // green-50
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                      border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 28),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Profile Complete ✓',
-                                style: GoogleFonts.outfit(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: const Color(0xFF14532D),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Your account credentials and ID documents are verified.',
-                                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF166534)),
-                              )
-                            ],
+                        Icon(Icons.business, size: 48, color: Colors.grey[300]),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No library joined yet',
+                          style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500], fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE65C00),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
+                          child: const Text('Find a Library'),
                         )
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-
-                  // Find a Library Button
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE65C00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: Text('Find a Library', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Join with code button
-                  OutlinedButton(
-                    onPressed: _openJoinWithCodeSheet,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
-                      foregroundColor: const Color(0xFFE65C00),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: Text('Join with Code', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                  ),
                   const SizedBox(height: 24),
 
-                  // Libraries Near You section
+                  // Nearby libraries preview
                   if (nearLibs.isNotEmpty) ...[
-                    Text(
-                      'Libraries Near You',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Libraries Near You',
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
+                          },
+                          child: Text('View all', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFE65C00), fontWeight: FontWeight.bold)),
+                        )
+                      ],
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -982,14 +1115,10 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  // STAGE 3: ACTIVE MEMBER
-  Widget _buildActiveMemberState() {
-    final nickname = _userProfile?['nickname'] as String?;
-    final userName = (nickname != null && nickname.isNotEmpty && nickname != 'N/A')
-        ? nickname
-        : (_userProfile?['full_name'] ?? 'Student');
-
-    final greetingText = "${DateTime.now().hour < 12 ? 'Good morning' : (DateTime.now().hour < 17 ? 'Good afternoon' : 'Good evening')}, $userName 👋";
+  // STAGE 3: APPLICATION PENDING
+  Widget _buildApplicationPendingState() {
+    final nearLibs = _getNearLibraries();
+    final libraryId = _pendingRequest?['library_id'] ?? '';
 
     return RefreshIndicator(
       onRefresh: _loadInitialData,
@@ -1000,36 +1129,134 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildCurvedHeader(
-              greeting: greetingText,
-              subtitle: "Track your attendance and manage seats",
+              greeting: "Hang tight, ${_getGreetingName()} ⏳",
+              subtitle: "Your application is under review",
+              state: MemberState.applicationPending,
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // My Memberships Section
-                  Text(
-                    'My Memberships',
-                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                  ),
-                  const SizedBox(height: 10),
-                  ..._myMemberships.map((m) => _buildMembershipCard(m)),
+                  _buildApplicationPendingCard(),
                   const SizedBox(height: 16),
 
-                  // Today's Attendance card
+                  // What to expect card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7), // light amber bg
+                      borderRadius: BorderRadius.circular(12),
+                      border: const Border(left: BorderSide(color: Color(0xFFD97706), width: 4)),
+                    ),
+                    child: Text(
+                      'SILENCE Admins usually review and approve pending seat applications within 24 hours. Once approved, your membership card and QR check-in will become active.',
+                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFB45309), height: 1.4),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Contact library button
+                  if (libraryId.isNotEmpty) ...[
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => LibraryQueryScreen(
+                              libraryId: libraryId,
+                              preFilledMessage: 'Hello, I submitted my application for your library and wanted to check if you need any additional documents. Thank you!',
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.mail_outline),
+                      label: const Text('Contact Library Admin'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFE65C00),
+                        side: const BorderSide(color: Color(0xFFE65C00)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // Explore libraries list preview
+                  if (nearLibs.isNotEmpty) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Explore Study Zones',
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
+                          },
+                          child: Text('View all', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFE65C00), fontWeight: FontWeight.bold)),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 180,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: min(5, nearLibs.length),
+                        itemBuilder: (context, index) {
+                          return _buildLibraryCardHorizontal(nearLibs[index]);
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // STAGE 4: ACTIVE MEMBER (normal)
+  Widget _buildActiveState() {
+    return RefreshIndicator(
+      onRefresh: _loadInitialData,
+      color: const Color(0xFFE65C00),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildCurvedHeader(
+              greeting: "${_getGreetingTime()}, ${_getGreetingName()} 👋",
+              subtitle: "Track your study progress",
+              state: MemberState.active,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Membership cards
+                  ..._myMemberships.map((m) => _buildMembershipCard(m, MemberState.active)),
+                  const SizedBox(height: 16),
+
+                  // Today's attendance card
                   _buildTodayAttendanceCard(),
                   const SizedBox(height: 16),
 
-                  // Study Streak card
+                  // Streak card
                   _buildStreakCard(),
                   const SizedBox(height: 16),
 
-                  // Quick Actions Row
+                  // Quick actions row
                   _buildQuickActionsRow(),
                   const SizedBox(height: 24),
 
-                  // Announcements section
+                  // Announcements
                   if (_announcements.isNotEmpty) ...[
                     Text(
                       'Announcements',
@@ -1040,7 +1267,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     const SizedBox(height: 24),
                   ],
 
-                  // Recent Activities Timeline
+                  // Recent Activities
                   Text(
                     'Recent Activities',
                     style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
@@ -1057,8 +1284,423 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  // STAGE 4: RETURNING STATE
-  Widget _buildReturningState() {
+  // STAGE 5: TRIAL MEMBER
+  Widget _buildTrialState() {
+    final trialMembership = _allMemberships.firstWhere((m) => m['status'] == 'trial', orElse: () => {});
+    if (trialMembership.isEmpty) return const SizedBox.shrink();
+    
+    int trialDaysLeft = 0;
+    if (trialMembership['end_date'] != null) {
+      try {
+        trialDaysLeft = DateTime.parse(trialMembership['end_date']).difference(DateTime.now()).inDays;
+        if (trialDaysLeft < 0) trialDaysLeft = 0;
+      } catch (_) {}
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadInitialData,
+      color: const Color(0xFFE65C00),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildCurvedHeader(
+              greeting: "${_getGreetingTime()}, ${_getGreetingName()} ✨",
+              subtitle: "Trial ends in $trialDaysLeft days",
+              state: MemberState.trial,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildMembershipCard(trialMembership, MemberState.trial),
+                  const SizedBox(height: 16),
+
+                  _buildTrialProgressCard(trialMembership),
+                  const SizedBox(height: 16),
+
+                  if (trialDaysLeft <= 3) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAF5FF), // light purple bg
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.purple[200]!),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.star, color: Color(0xFF7C3AED), size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Don\'t lose your progress!', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF5B21B6))),
+                                const SizedBox(height: 2),
+                                InkWell(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => RenewalScreen(
+                                          libraryId: trialMembership['library_id'],
+                                          initialPlan: 'monthly',
+                                          initialShiftId: trialMembership['shift_id'],
+                                        ),
+                                      ),
+                                    ).then((_) => _loadInitialData());
+                                  },
+                                  child: Text(
+                                    'Choose a Plan Now →',
+                                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF7C3AED), fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
+                                  ),
+                                )
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  _buildTodayAttendanceCard(),
+                  const SizedBox(height: 80),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // STAGE 6: EXPIRING SOON (<=7 days left)
+  Widget _buildExpiringSoonState() {
+    final expiringM = _allMemberships.firstWhere((m) => m['status'] == 'active', orElse: () => {});
+    if (expiringM.isEmpty) return const SizedBox.shrink();
+    
+    int daysLeft = 0;
+    if (expiringM['end_date'] != null) {
+      try {
+        daysLeft = DateTime.parse(expiringM['end_date']).difference(DateTime.now()).inDays;
+        if (daysLeft < 0) daysLeft = 0;
+      } catch (_) {}
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadInitialData,
+      color: const Color(0xFFE65C00),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildCurvedHeader(
+              greeting: "Hey ${_getGreetingName()}, renew soon ⏰",
+              subtitle: "Only $daysLeft days left on your plan",
+              state: MemberState.expiringSoon,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Urgency Banner
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7), // amber bg
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFF59E0B)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Plan expiring in $daysLeft days. Renew now to keep your seat.',
+                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFB45309)),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildMembershipCard(expiringM, MemberState.expiringSoon),
+                  const SizedBox(height: 16),
+
+                  _buildQuickRenewalPills(expiringM['library_id']),
+                  const SizedBox(height: 16),
+
+                  _buildTodayAttendanceCard(),
+                  const SizedBox(height: 80),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // STAGE 7: EXPIRED
+  Widget _buildExpiredState() {
+    final expiredM = _allMemberships.firstWhere(
+      (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(DateTime.now())),
+      orElse: () => {},
+    );
+    if (expiredM.isEmpty) return const SizedBox.shrink();
+
+    final lib = expiredM['libraries'] as Map<String, dynamic>? ?? {};
+    final rawRules = lib['rules_metadata'] ?? lib['rules'];
+    Map<String, dynamic> rules = {};
+    if (rawRules is Map) {
+      rules = Map<String, dynamic>.from(rawRules);
+    } else if (rawRules is String) {
+      try {
+        rules = Map<String, dynamic>.from(jsonDecode(rawRules));
+      } catch (_) {}
+    }
+    final bool allowScan = rules['allow_expired_checkin'] == true;
+    final graceDays = rules['grace_days'] as int? ?? 3;
+
+    final seat = expiredM['seats'] as Map<String, dynamic>? ?? {};
+    final seatLabel = seat.isNotEmpty ? (seat['seat_label'] ?? 'Seat') : 'your seat';
+
+    return RefreshIndicator(
+      onRefresh: _loadInitialData,
+      color: const Color(0xFFE65C00),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildCurvedHeader(
+              greeting: "Membership Expired ❌",
+              subtitle: "Renew to continue studying",
+              state: MemberState.expired,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildMembershipCard(expiredM, MemberState.expired),
+                  const SizedBox(height: 16),
+
+                  // Scanning status banner
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: allowScan ? const Color(0xFFFFF3ED) : const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: allowScan ? const Color(0xFFFCD34D) : const Color(0xFFFCA5A5)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          allowScan ? Icons.qr_code_scanner : Icons.block,
+                          color: allowScan ? const Color(0xFFD97706) : const Color(0xFFDC2626),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            allowScan
+                                ? '📱 You can still scan QR. Renew soon to secure your seat.'
+                                : '⛔ QR check-in blocked. Renew to check in again.',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: allowScan ? const Color(0xFFB45309) : const Color(0xFF991B1B),
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Renewal nudge card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('💡 Renew to keep your seat', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Your seat $seatLabel is currently reserved. After the admin\'s grace period ($graceDays days), it may be assigned to another student.',
+                          style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600], height: 1.4),
+                        ),
+                        const SizedBox(height: 12),
+                        InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => RenewalScreen(
+                                  libraryId: expiredM['library_id'],
+                                  initialPlan: 'monthly',
+                                  initialShiftId: expiredM['shift_id'],
+                                ),
+                              ),
+                            ).then((_) => _loadInitialData());
+                          },
+                          child: Text(
+                            'Choose Renewal Plan →',
+                            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFE65C00), fontWeight: FontWeight.bold),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Today's attendance (only if allowed)
+                  if (allowScan)
+                    _buildTodayAttendanceCard()
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                      child: Column(
+                        children: [
+                          Icon(Icons.lock, color: Colors.grey[300], size: 48),
+                          const SizedBox(height: 12),
+                          Text('Check-in is blocked', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.grey[700])),
+                          Text('Renew your plan to resume checking in.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[550])),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => RenewalScreen(
+                                    libraryId: expiredM['library_id'],
+                                  ),
+                                ),
+                              ).then((_) => _loadInitialData());
+                            },
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white),
+                            child: const Text('Renew Plan Now'),
+                          )
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 80),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // STAGE 8: ON HOLD
+  Widget _buildOnHoldState() {
+    final holdM = _allMemberships.firstWhere((m) => m['status'] == 'hold', orElse: () => {});
+    if (holdM.isEmpty) return const SizedBox.shrink();
+
+    String resumeDate = 'soon';
+    if (holdM['end_date'] != null) {
+      try {
+        final dt = DateTime.parse(holdM['end_date']);
+        resumeDate = DateFormat('dd MMM yyyy').format(dt);
+      } catch (_) {}
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadInitialData,
+      color: const Color(0xFFE65C00),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildCurvedHeader(
+              greeting: "Membership on Pause ⏸",
+              subtitle: "Resumes on $resumeDate",
+              state: MemberState.onHold,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildMembershipCard(holdM, MemberState.onHold),
+                  const SizedBox(height: 16),
+
+                  // Hold Info Card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED), // light amber bg
+                      borderRadius: BorderRadius.circular(16),
+                      border: const Border(left: BorderSide(color: Color(0xFFB45309), width: 4)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Membership Paused Info', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFFB45309))),
+                        const SizedBox(height: 8),
+                        _buildHoldBulletInfo('Your assigned seat is reserved for you.'),
+                        const SizedBox(height: 6),
+                        _buildHoldBulletInfo('Billing is paused and plan expiration is extended.'),
+                        const SizedBox(height: 6),
+                        _buildHoldBulletInfo('QR Scanner Check-in is NOT available during holds.'),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Come back on $resumeDate to resume studying.',
+                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF78350F)),
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  if (_announcements.isNotEmpty) ...[
+                    Text(
+                      'Announcements',
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildAnnouncementsSection(),
+                    const SizedBox(height: 24),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHoldBulletInfo(String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.circle, size: 6, color: Color(0xFFB45309)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF92400E)))),
+      ],
+    );
+  }
+
+  // STAGE 9: EXITED
+  Widget _buildExitedState() {
     final suggested = _exploreLibraries.take(2).toList();
     
     // Find last library details
@@ -1077,7 +1719,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         } catch (_) {}
       }
       
-      // Calculate duration
       final startStr = lastM['start_date'];
       final endStr = lastM['end_date'];
       if (startStr != null && endStr != null) {
@@ -1102,158 +1743,167 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildCurvedHeader(
-              greeting: "Welcome back!",
-              subtitle: "You can rejoin or discover new spaces.",
+              greeting: "Welcome back, ${_getGreetingName()} 👋",
+              subtitle: "Ready to study again?",
+              state: MemberState.exited,
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Previous Membership Card
+                  // Previous Exited Membership Card (muted/grayed out)
                   if (_pastMemberships.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: const Border(left: BorderSide(color: Color(0xFFF59E0B), width: 4)), // amber
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Previous Membership',
-                            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[500]),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            lastLibName,
-                            style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Exited: $exitDateStr • Active for $durationMonths month${durationMonths > 1 ? 's' : ''}',
-                            style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[650]),
-                          ),
-                          const SizedBox(height: 16),
-                          
-                          // Trophy/Stats Container
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF3C7), // amber-100
-                              borderRadius: BorderRadius.circular(8),
+                    Opacity(
+                      opacity: 0.8,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: const Border(left: BorderSide(color: Color(0xFF9CA3AF), width: 4)), // gray
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Previous Membership',
+                              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[400]),
                             ),
-                            child: Row(
+                            const SizedBox(height: 6),
+                            Text(
+                              lastLibName,
+                              style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Exited: $exitDateStr • Member for $durationMonths month${durationMonths > 1 ? 's' : ''}',
+                              style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
                               children: [
-                                const Icon(Icons.emoji_events_outlined, color: Color(0xFFB45309), size: 24),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Trophy Stat',
-                                        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFFB45309)),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '${_totalStudyHours.toStringAsFixed(1)} hours in $_daysPresent days present',
-                                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF78350F)),
-                                      ),
-                                    ],
-                                  ),
-                                )
+                                const Icon(Icons.check_circle_outline, color: Color(0xFF22C55E), size: 16),
+                                const SizedBox(width: 6),
+                                Text('History & streaks preserved', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF16A34A), fontWeight: FontWeight.bold)),
                               ],
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: () {
-                                if (lastLib != null) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => JoinFlowScreen(libraryId: lastLib!['id']),
+                            const SizedBox(height: 16),
+                            
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () {
+                                      if (lastLib != null) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => JoinFlowScreen(libraryId: lastLib!['id']),
+                                          ),
+                                        ).then((_) => _loadInitialData());
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Color(0xFFE65C00)),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
-                                  ).then((_) => _loadInitialData());
-                                }
-                              },
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFFE65C00)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                              ),
-                              child: Text('Rejoin Now', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                                    child: Text('Rejoin This Library', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () {
+                                      Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Color(0xFFE65C00)),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                    child: Text('Find New', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
                   ],
 
-                  // Quick Actions row
-                  _buildQuickActionsRow(),
-                  const SizedBox(height: 20),
-
-                  // Streak card
+                  // Find your next study library CTA
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7ED), // orange-50
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+                      border: Border.all(color: Colors.orange[200]!, style: BorderStyle.solid),
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        const Icon(Icons.local_fire_department, color: Color(0xFFE65C00), size: 36),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Your Best Streak: $_bestStreak days',
-                                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFFC2410C)),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Rejoin a library to resume study streaks and boost performance!',
-                                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFEA580C)),
-                              )
-                            ],
+                        Text('Find your next study library', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE65C00),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
+                          child: const Text('Find a Library →'),
                         )
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  // Find Library Button
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
+                  // Lifetime stats card
+                  InkWell(
+                    onTap: () {
+                      setState(() => _currentBottomTab = 1); // Analytics
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE65C00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Lifetime Progress', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildStatColumn('${_totalStudyHours.toStringAsFixed(1)}h', 'Total Hours'),
+                              ),
+                              Container(width: 1, height: 32, color: Colors.grey[200]),
+                              Expanded(
+                                child: _buildStatColumn('$_daysPresent', 'Present Days'),
+                              ),
+                              Container(width: 1, height: 32, color: Colors.grey[200]),
+                              Expanded(
+                                child: _buildStatColumn('$_bestStreak d', 'Best Streak'),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
                     ),
-                    child: Text('Find a Library', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
                   ),
                   const SizedBox(height: 24),
 
-                  // Suggested Libraries section
+                  // Nearby libraries preview
                   if (suggested.isNotEmpty) ...[
                     Text(
-                      'Suggested Libraries',
+                      'Suggested Study Libraries',
                       style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
                     ),
                     const SizedBox(height: 12),
@@ -1269,8 +1919,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     ),
                     const SizedBox(height: 20),
                   ],
-
-                  // Last Activity Card
                   _buildLastActivityCard(),
                   const SizedBox(height: 80),
                 ],
@@ -1282,52 +1930,201 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  // ==========================================
-  // SHARED WIDGET BUILDERS
-  // ==========================================
-  Widget _buildProfileSetupCard() {
+  Widget _buildStatColumn(String val, String label) {
+    return Column(
+      children: [
+        Text(val, style: GoogleFonts.spaceMono(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+        const SizedBox(height: 2),
+        Text(label, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
+      ],
+    );
+  }
+
+  Widget _buildSetupProgressCard({
+    required String title,
+    required int activeStep,
+    required List<String> stepTitles,
+    required List<bool> stepCompleted,
+    required VoidCallback onButtonTap,
+    required String buttonText,
+  }) {
+    final progress = activeStep / stepTitles.length;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: const Border(
-          left: BorderSide(color: Color(0xFFE65C00), width: 4),
-        ),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4)),
-        ],
+        border: const Border(left: BorderSide(color: Color(0xFFE65C00), width: 4)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4))],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.info_outline, color: Color(0xFFE65C00), size: 24),
-              const SizedBox(width: 8),
-              Text(
-                'Complete Your Profile',
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-              ),
+              Text(title, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+              Text('Step $activeStep of ${stepTitles.length}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Provide your photo, contact details, and ID document on a single quick page.',
-            style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600], height: 1.4),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey[200],
+              color: const Color(0xFFE65C00),
+              minHeight: 6,
+            ),
           ),
           const SizedBox(height: 16),
+          ...List.generate(stepTitles.length, (index) {
+            final isCompleted = stepCompleted[index];
+            final isActive = index == activeStep - 1;
+            
+            Widget leadingIcon;
+            if (isCompleted) {
+              leadingIcon = const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 20);
+            } else if (isActive) {
+              leadingIcon = Container(
+                width: 20,
+                height: 20,
+                decoration: const BoxDecoration(color: Color(0xFFFFF3ED), shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(color: Color(0xFFE65C00), shape: BoxShape.circle),
+                ),
+              );
+            } else {
+              leadingIcon = Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(color: Colors.grey[200], shape: BoxShape.circle),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: Row(
+                children: [
+                  leadingIcon,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      stepTitles[index],
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
+                        color: isActive ? const Color(0xFFE65C00) : (isCompleted ? const Color(0xFF15803D) : Colors.grey[500]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _navigateToEditProfile,
-              icon: const Icon(Icons.arrow_forward, size: 16),
-              label: const Text('Get Started'),
+            child: ElevatedButton(
+              onPressed: onButtonTap,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE65C00),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text(buttonText, style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApplicationPendingCard() {
+    if (_pendingRequest == null) return const SizedBox.shrink();
+    
+    final lib = _pendingRequest!['libraries'] as Map<String, dynamic>? ?? {};
+    final libName = lib['name'] ?? 'SILENCE Library';
+    final plan = _pendingRequest!['plan_type'] ?? 'monthly';
+    final payment = _pendingRequest!['payment_method'] ?? 'cash';
+    final createdAtStr = _pendingRequest!['created_at'] as String?;
+    
+    DateTime createdAt = DateTime.now();
+    if (createdAtStr != null) {
+      try {
+        createdAt = DateTime.parse(createdAtStr);
+      } catch (_) {}
+    }
+    
+    // Assume 5 days validity
+    final expiresAt = createdAt.add(const Duration(days: 5));
+    final daysRemaining = expiresAt.difference(DateTime.now()).inDays;
+    
+    String planLabel = plan == 'monthly' ? 'Monthly' : plan == '3_month' ? '3-Month' : plan == '6_month' ? '6-Month' : 'Trial';
+    String paymentLabel = payment == 'upi' ? 'UPI screenshot uploaded' : 'Cash payment declared';
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(left: BorderSide(color: Color(0xFFF59E0B), width: 4)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('APPLICATION SUBMITTED', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
+                child: Text('Pending', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFD97706))),
+              )
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(libName, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+          const SizedBox(height: 8),
+          Text('Plan: $planLabel | Method: $paymentLabel', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
+          const SizedBox(height: 16),
+          
+          // Progress indicator step 2 of 3
+          Row(
+            children: [
+              const Icon(Icons.payment, color: Color(0xFFF59E0B), size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Step 2 of 3: Payment & admin review',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFD97706)),
+                ),
+              ),
+            ],
+          ),
+          
+          if (daysRemaining <= 2) ...[
+            const SizedBox(height: 12),
+            Text(
+              '⚠️ Application expires in $daysRemaining days',
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFD97706)),
+            ),
+          ],
+          const Divider(height: 24),
+          
+          Align(
+            alignment: Alignment.center,
+            child: TextButton(
+              onPressed: () => _confirmWithdrawApplication(_pendingRequest!['id']),
+              child: Text(
+                'Withdraw Application',
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.redAccent),
               ),
             ),
           )
@@ -1335,6 +2132,199 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       ),
     );
   }
+
+  void _confirmWithdrawApplication(String requestId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Withdraw Application', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text('Are you sure you want to withdraw your join request? This cannot be undone.', style: GoogleFonts.inter()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(context);
+              try {
+                final supabase = Supabase.instance.client;
+                await supabase.from('join_requests').delete().eq('id', requestId);
+                if (mounted) {
+                  _loadInitialData();
+                }
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Application withdrawn successfully.')),
+                );
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            child: Text('Withdraw', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrialProgressCard(Map<String, dynamic> membership) {
+    final seat = membership['seats'] as Map<String, dynamic>? ?? {};
+    final seatLabel = seat.isNotEmpty ? (seat['seat_label'] ?? 'Seat') : 'Pending';
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3E8FF), // light purple bg
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(left: BorderSide(color: Color(0xFF7C3AED), width: 4)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('TRIAL PROGRESS', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF7C3AED), letterSpacing: 1)),
+          const SizedBox(height: 12),
+          _buildTrialBullet('Reserved Seat: $seatLabel'),
+          const SizedBox(height: 8),
+          _buildTrialBullet('$_daysPresent study sessions completed'),
+          const SizedBox(height: 8),
+          _buildTrialBullet('${_totalStudyHours.toStringAsFixed(1)} total study hours'),
+          const SizedBox(height: 12),
+          Text(
+            '⏳ Pay before trial ends to keep seat',
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFD97706)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrialBullet(String text) {
+    return Row(
+      children: [
+        const Icon(Icons.check_circle_outline, color: Color(0xFF7C3AED), size: 18),
+        const SizedBox(width: 8),
+        Text(text, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF5B21B6), fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
+
+  Widget _buildQuickRenewalPills(String libraryId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Quick Renew Options',
+          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildRenewalPill(libraryId, 'monthly', 'Monthly', '₹1,500'),
+            const SizedBox(width: 8),
+            _buildRenewalPill(libraryId, '3_month', '3-Month', '₹4,000'),
+            const SizedBox(width: 8),
+            _buildRenewalPill(libraryId, '6_month', '6-Month', '₹7,500'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRenewalPill(String libraryId, String planKey, String label, String price) {
+    return Expanded(
+      child: OutlinedButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RenewalScreen(
+                libraryId: libraryId,
+                initialPlan: planKey,
+              ),
+            ),
+          ).then((_) => _loadInitialData());
+        },
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Color(0xFFF59E0B)),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          backgroundColor: Colors.white,
+        ),
+        child: Column(
+          children: [
+            Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFB45309))),
+            Text(price, style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[650])),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getGreetingName() {
+    final nickname = _userProfile?['nickname'] as String?;
+    return (nickname != null && nickname.isNotEmpty && nickname != 'N/A')
+        ? nickname
+        : (_userProfile?['full_name'] ?? 'Student');
+  }
+
+  String _getGreetingTime() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  LinearGradient _getHeaderGradient(MemberState state) {
+    switch (state) {
+      case MemberState.freshInstall:
+      case MemberState.profileCompleteNoLib:
+      case MemberState.active:
+        return const LinearGradient(
+          colors: [Color(0xFFE65C00), Color(0xFFC44E00)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case MemberState.applicationPending:
+      case MemberState.expiringSoon:
+        return const LinearGradient(
+          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case MemberState.trial:
+        return const LinearGradient(
+          colors: [Color(0xFF7C3AED), Color(0xFF5B21B6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case MemberState.expired:
+        return const LinearGradient(
+          colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case MemberState.onHold:
+        return const LinearGradient(
+          colors: [Color(0xFFD97706), Color(0xFFB45309)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case MemberState.exited:
+        return const LinearGradient(
+          colors: [Color(0xFF6B7280), Color(0xFF4B5563)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+    }
+  }
+
+  // ==========================================
+  // SHARED WIDGET BUILDERS
+  // ==========================================
 
   void _navigateToEditProfile() async {
     final success = await Navigator.pushNamed(context, '/member/edit-profile');
@@ -1519,7 +2509,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildMembershipCard(Map<String, dynamic> membership) {
+  Widget _buildMembershipCard(Map<String, dynamic> membership, MemberState state) {
     final status = membership['status'] as String? ?? 'pending';
     final library = membership['libraries'] as Map<String, dynamic>? ?? {};
     final shift = membership['shifts'] as Map<String, dynamic>? ?? {};
@@ -1534,33 +2524,57 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     }
     final remainingDays = endDate != null ? endDate.difference(DateTime.now()).inDays : -1;
 
-    if (status == 'active' && remainingDays <= 7 && remainingDays >= 0) {
-      borderColor = const Color(0xFFF59E0B); // expiring (amber)
-      statusLabel = 'Expiring Soon';
-    } else {
-      switch (status) {
-        case 'active':
-          borderColor = const Color(0xFF22C55E); // green
-          statusLabel = 'Active';
-          break;
-        case 'expired':
-          borderColor = const Color(0xFFEF4444); // red
-          statusLabel = 'Expired';
-          break;
-        case 'hold':
-          borderColor = const Color(0xFFEAB308); // yellow
-          statusLabel = 'Hold';
-          break;
-        case 'trial':
-          borderColor = const Color(0xFF7C3AED); // purple
-          statusLabel = 'Trial';
-          break;
-        case 'pending':
-        default:
-          borderColor = const Color(0xFF9CA3AF); // gray
-          statusLabel = 'Pending';
-          break;
-      }
+    switch (state) {
+      case MemberState.trial:
+        borderColor = const Color(0xFF7C3AED); // purple
+        statusLabel = 'Trial';
+        break;
+      case MemberState.active:
+        borderColor = const Color(0xFF22C55E); // green
+        statusLabel = 'Active';
+        break;
+      case MemberState.expiringSoon:
+        borderColor = const Color(0xFFF59E0B); // amber
+        statusLabel = 'Expiring Soon';
+        break;
+      case MemberState.expired:
+        borderColor = const Color(0xFFEF4444); // red
+        statusLabel = 'Expired';
+        break;
+      case MemberState.onHold:
+        borderColor = const Color(0xFFEAB308); // yellow
+        statusLabel = 'Hold';
+        break;
+      default:
+        if (status == 'active' && remainingDays <= 7 && remainingDays >= 0) {
+          borderColor = const Color(0xFFF59E0B); // expiring (amber)
+          statusLabel = 'Expiring Soon';
+        } else {
+          switch (status) {
+            case 'active':
+              borderColor = const Color(0xFF22C55E); // green
+              statusLabel = 'Active';
+              break;
+            case 'expired':
+              borderColor = const Color(0xFFEF4444); // red
+              statusLabel = 'Expired';
+              break;
+            case 'hold':
+              borderColor = const Color(0xFFEAB308); // yellow
+              statusLabel = 'Hold';
+              break;
+            case 'trial':
+              borderColor = const Color(0xFF7C3AED); // purple
+              statusLabel = 'Trial';
+              break;
+            case 'pending':
+            default:
+              borderColor = const Color(0xFF9CA3AF); // gray
+              statusLabel = 'Pending';
+              break;
+          }
+        }
+        break;
     }
 
     final isVerified = library['verified'] == true;
@@ -1572,6 +2586,272 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       if (total > 0) {
         final elapsed = DateTime.now().difference(start).inDays;
         progress = (elapsed / total).clamp(0.0, 1.0);
+      }
+    }
+
+    Widget buildButtons() {
+      switch (state) {
+        case MemberState.trial:
+          return Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RenewalScreen(
+                          libraryId: library['id'] ?? '',
+                          initialShiftId: shift['id'],
+                          initialPlan: 'monthly',
+                        ),
+                      ),
+                    ).then((_) => _loadInitialData());
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: BorderSide(color: borderColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Choose a Plan →', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: borderColor)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LibraryQueryScreen(
+                          libraryId: library['id'] ?? '',
+                          preFilledMessage: 'Hello, I have a query about my trial membership.',
+                        ),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: BorderSide(color: borderColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Contact Library', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: borderColor)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 20),
+                  onPressed: () => _openMembershipMoreOptions(membership),
+                ),
+              )
+            ],
+          );
+        case MemberState.expiringSoon:
+          return Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RenewalScreen(
+                          libraryId: library['id'] ?? '',
+                          initialShiftId: shift['id'],
+                          initialPlan: membership['plan_type'],
+                        ),
+                      ),
+                    ).then((_) => _loadInitialData());
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: BorderSide(color: borderColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Renew Now →', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: borderColor)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _openSeatChangeSheet(membership),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: BorderSide(color: borderColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Seat Chg', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: borderColor)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 20),
+                  onPressed: () => _openMembershipMoreOptions(membership),
+                ),
+              )
+            ],
+          );
+        case MemberState.expired:
+          return Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RenewalScreen(
+                          libraryId: library['id'] ?? '',
+                          initialShiftId: shift['id'],
+                          initialPlan: membership['plan_type'],
+                        ),
+                      ),
+                    ).then((_) => _loadInitialData());
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: BorderSide(color: borderColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Renew Immediately →', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: borderColor)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LibraryQueryScreen(
+                          libraryId: library['id'] ?? '',
+                          preFilledMessage: 'Hello, I have a query about my expired membership.',
+                        ),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: BorderSide(color: borderColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Contact Library', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: borderColor)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 20),
+                  onPressed: () => _openMembershipMoreOptions(membership),
+                ),
+              )
+            ],
+          );
+        case MemberState.onHold:
+          return Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LibraryQueryScreen(
+                          libraryId: library['id'] ?? '',
+                          preFilledMessage: 'Hello, I have a query about my paused membership.',
+                        ),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: BorderSide(color: borderColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Contact Library', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: borderColor)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 20),
+                  onPressed: () => _openMembershipMoreOptions(membership),
+                ),
+              )
+            ],
+          );
+        case MemberState.active:
+        default:
+          return Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    if (_isProfileIncomplete()) {
+                      _showProfileIncompleteDialog();
+                      return;
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => JoinFlowScreen(
+                          libraryId: library['id'],
+                          initialShiftId: shift['id'],
+                        ),
+                      ),
+                    ).then((_) => _loadInitialData());
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: const BorderSide(color: Color(0xFFE65C00)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Renew Plan', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _openSeatChangeSheet(membership),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: const BorderSide(color: Color(0xFFE65C00)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Seat Chg', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 20),
+                  onPressed: () => _openMembershipMoreOptions(membership),
+                ),
+              )
+            ],
+          );
       }
     }
 
@@ -1682,58 +2962,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           ],
           
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    if (_isProfileIncomplete()) {
-                      _showProfileIncompleteDialog();
-                      return;
-                    }
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => JoinFlowScreen(
-                          libraryId: library['id'],
-                          initialShiftId: shift['id'],
-                        ),
-                      ),
-                    ).then((_) => _loadInitialData());
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    side: const BorderSide(color: Color(0xFFE65C00)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text('Renew Plan', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _openSeatChangeSheet(membership),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    side: const BorderSide(color: Color(0xFFE65C00)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text('Seat Chg', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 20),
-                  onPressed: () => _openMembershipMoreOptions(membership),
-                ),
-              )
-            ],
-          )
+          buildButtons(),
         ],
       ),
     );
@@ -2252,6 +3481,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       userProfile: _userProfile,
       activeLibraryId: activeLibId,
       memberLibraries: _myMemberships,
+      onSwitchTab: (index) {
+        setState(() => _currentBottomTab = index);
+      },
     );
   }
 
@@ -2259,272 +3491,12 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   // TAB 3: PROFILE TAB
   // ==========================================
   Widget _buildProfileTab() {
-    final name = _userProfile?['full_name'] ?? 'Student User';
-    final email = _userProfile?['email'] ?? '';
-    final phone = _userProfile?['phone'] ?? 'Enter Phone Number';
-    final nickname = _userProfile?['nickname'] ?? 'N/A';
-    final photoUrl = _userProfile?['photo_url'] as String?;
-
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          color: const Color(0xFFE65C00),
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Center(
-            child: Text(
-              'Profile',
-              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-          ),
-        ),
-        
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFFE65C00), width: 3),
-                        ),
-                        child: CircleAvatar(
-                          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                          backgroundColor: Colors.orange[50],
-                          child: photoUrl == null ? const Icon(Icons.person, size: 40, color: Color(0xFFE65C00)) : null,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        name,
-                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                      ),
-                      if (nickname != 'N/A') ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          '@$nickname',
-                          style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _openEditProfileModal,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE65C00),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        ),
-                        child: const Text('Edit Profile'),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                Container(
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Column(
-                    children: [
-                      _buildProfileItem(Icons.phone, 'Phone', phone),
-                      const Divider(height: 1, indent: 56),
-                      _buildProfileItem(Icons.email, 'Email', email),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                _buildReferralSection(),
-                const SizedBox(height: 16),
-
-                Container(
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.help_outline, color: Color(0xFFE65C00)),
-                        title: Text('Help & Support', style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
-                        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
-                          );
-                        },
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(Icons.gavel_outlined, color: Color(0xFFE65C00)),
-                        title: Text('Terms & Conditions', style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
-                        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const TermsScreen()),
-                          );
-                        },
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(Icons.info_outline, color: Color(0xFFE65C00)),
-                        title: Text('About SILENCE', style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
-                        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const AboutUsScreen()),
-                          );
-                        },
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(Icons.settings_outlined, color: Color(0xFFE65C00)),
-                        title: Text('Local Settings', style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
-                        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const AppSettingsScreen()),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      await Supabase.instance.client.auth.signOut();
-                      if (context.mounted) {
-                        Navigator.pushReplacementNamed(context, '/login');
-                      }
-                    },
-                    icon: const Icon(Icons.logout, size: 18),
-                    label: const Text('Logout'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red[50],
-                      foregroundColor: Colors.redAccent,
-                      elevation: 0,
-                      side: BorderSide(color: Colors.red[100]!),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 80),
-              ],
-            ),
-          ),
-        )
-      ],
-    );
-  }
-
-  Widget _buildProfileItem(IconData icon, String title, String val) {
-    return ListTile(
-      leading: Icon(icon, color: const Color(0xFFE65C00)),
-      title: Text(title, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
-      subtitle: Text(val, style: GoogleFonts.inter(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _buildReferralSection() {
-    final uid = _userProfile?['id']?.toString() ?? 'XXXX';
-    final shortUid = uid.length >= 4 ? uid.substring(0, 4).toUpperCase() : 'XXXX';
-    final refCode = 'REF-$shortUid';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEF3C7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF59E0B), width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.group_add, color: Color(0xFFB45309)),
-              const SizedBox(width: 8),
-              Text('Refer a Friend', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFB45309))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Invite your friends to study here and earn free extension days when they join!',
-            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF92400E)),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFFCD34D)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(refCode, style: GoogleFonts.spaceMono(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFB45309), letterSpacing: 2)),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.copy, color: Color(0xFFB45309), size: 20),
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: refCode));
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Referral code copied!')));
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 16),
-                    IconButton(
-                      icon: const Icon(Icons.share, color: Color(0xFFB45309), size: 20),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opening Share Dialog...')));
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                )
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          FutureBuilder<List<dynamic>>(
-            future: Supabase.instance.client.from('referrals').select().eq('referrer_member_id', uid),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
-              final list = snapshot.data ?? [];
-              final pending = list.where((r) => r['status'] == 'pending').length;
-              final credited = list.where((r) => r['status'] == 'credited').length;
-              if (list.isEmpty) return const SizedBox.shrink();
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Total Referred: ${list.length}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFB45309))),
-                  Text('Pending: $pending | Earned: $credited', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF92400E))),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+    return MemberProfileTab(
+      onSwitchTab: (index) {
+        setState(() {
+          _currentBottomTab = index;
+        });
+      },
     );
   }
 
@@ -2822,6 +3794,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                               return;
                             }
                             
+                            final navigator = Navigator.of(context);
+                            final messenger = ScaffoldMessenger.of(context);
+                            
                             try {
                               final supabase = Supabase.instance.client;
                               await supabase.from('hold_requests').insert({
@@ -2834,18 +3809,14 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                                 'status': 'pending',
                               });
                               
-                              if (context.mounted) {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Hold Request submitted! ✓')),
-                                );
-                              }
+                              navigator.pop();
+                              messenger.showSnackBar(
+                                const SnackBar(content: Text('Hold Request submitted! ✓')),
+                              );
                             } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error: $e')),
-                                );
-                              }
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
                             }
                           },
                           style: ElevatedButton.styleFrom(
@@ -3082,6 +4053,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
                         try {
                           final supabase = Supabase.instance.client;
                           final seatId = membership['seat_id'];
@@ -3097,19 +4070,17 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             'exited_at': DateTime.now().toIso8601String(),
                           }).eq('id', membership['id']);
                           
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Successfully exited library. ✓')),
-                            );
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Successfully exited library. ✓')),
+                          );
+                          if (mounted) {
                             _loadInitialData();
                           }
                         } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: $e')),
-                            );
-                          }
+                          messenger.showSnackBar(
+                            SnackBar(content: Text('Error: $e')),
+                          );
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -3184,6 +4155,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     final code = codeCtrl.text.trim();
                     if (code.isEmpty) return;
                     
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
+                    
                     try {
                       final supabase = Supabase.instance.client;
                       final libRes = await supabase
@@ -3193,31 +4167,30 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                           .maybeSingle();
                       
                       if (libRes == null) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Library not found. Check code prefix or suffix.')),
-                          );
-                        }
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Library not found. Check code prefix or suffix.')),
+                        );
                         return;
                       }
                       
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        if (_isProfileIncomplete()) {
-                          _showProfileIncompleteDialog();
-                          return;
+                      navigator.pop();
+                      navigator.push(
+                        MaterialPageRoute(
+                          builder: (context) => LibraryPublicProfileScreen(
+                            libraryId: libRes['id'],
+                            isAdmin: false,
+                            showProceedButton: true,
+                          ),
+                        ),
+                      ).then((_) {
+                        if (mounted) {
+                          _loadInitialData();
                         }
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => JoinFlowScreen(libraryId: libRes['id'])),
-                        ).then((_) => _loadInitialData());
-                      }
+                      });
                     } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error finding library: $e')),
-                        );
-                      }
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Error finding library: $e')),
+                      );
                     }
                   },
                   style: ElevatedButton.styleFrom(

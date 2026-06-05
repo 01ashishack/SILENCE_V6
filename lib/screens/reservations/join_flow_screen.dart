@@ -36,13 +36,17 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
   bool _trialEligible = true;
   List<Map<String, dynamic>> _activeMemberships = [];
 
+  // Returning member welcome state
+  Map<String, dynamic>? _exitedMembershipToWelcome;
+  String _origFullName = '';
+  String _origPhone = '';
+  String _origNickname = '';
+  bool _usedPreviousDetails = false;
+
   // Step 1: Existing member & inline profile details
   bool _isExistingMember = false;
   DateTime? _existingJoinDate;
-  String? _existingPlanType = 'monthly';
-  DateTime? _existingExpiryDate;
   
-  final _profileFormKey = GlobalKey<FormState>();
   final TextEditingController _fullNameCtrl = TextEditingController();
   final TextEditingController _phoneCtrl = TextEditingController();
   final TextEditingController _nicknameCtrl = TextEditingController();
@@ -58,14 +62,12 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
   String _paymentMethod = 'cash'; // 'cash' or 'upi'
   final TextEditingController _upiSenderCtrl = TextEditingController();
   File? _proofImageFile;
-  bool _isUploadingProof = false;
   String? _proofUrl;
 
   // Step 5: Review & Submit
   final TextEditingController _referralCtrl = TextEditingController();
   bool _isSubmitting = false;
   bool _submitSuccess = false;
-  String? _submittedRequestId;
 
   @override
   void initState() {
@@ -212,7 +214,21 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         _selectedAddOns[addOn['id']] = false;
       }
 
-      // 4. Fetch user profile
+      // 4. Fetch exited memberships
+      final exitedMembershipsRes = await supabase
+          .from('memberships')
+          .select('*, libraries(name)')
+          .eq('member_id', user.id)
+          .eq('status', 'exited')
+          .order('end_date', ascending: false)
+          .limit(1);
+
+      final exitedMemberships = List<Map<String, dynamic>>.from(exitedMembershipsRes);
+      if (exitedMemberships.isNotEmpty) {
+        _exitedMembershipToWelcome = exitedMemberships.first;
+      }
+
+      // 5. Fetch user profile
       final profileRes = await supabase
           .from('users')
           .select()
@@ -220,13 +236,16 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
           .maybeSingle();
       
       _userProfile = profileRes;
-      if (_userProfile != null) {
-        _fullNameCtrl.text = _userProfile!['full_name'] ?? '';
-        _phoneCtrl.text = _userProfile!['phone'] ?? '';
-        _nicknameCtrl.text = _userProfile!['nickname'] ?? '';
+      
+      if (_exitedMembershipToWelcome == null) {
+        if (_userProfile != null) {
+          _fullNameCtrl.text = _userProfile!['full_name'] ?? '';
+          _phoneCtrl.text = _userProfile!['phone'] ?? '';
+          _nicknameCtrl.text = _userProfile!['nickname'] ?? '';
+        }
       }
 
-      // 5. Check trial eligibility (has user used trial in this library before?)
+      // 6. Check trial eligibility
       final trialCheck = await supabase
           .from('memberships')
           .select()
@@ -244,7 +263,111 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       setState(() {
         _isLoading = false;
       });
+      if (_exitedMembershipToWelcome != null && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showWelcomeBackBottomSheet();
+        });
+      }
     }
+  }
+
+  void _showWelcomeBackBottomSheet() {
+    final libName = _exitedMembershipToWelcome!['libraries']?['name'] ?? 'SILENCE';
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(
+                  Icons.waving_hand_outlined,
+                  color: Color(0xFFE65C00),
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Welcome Back!',
+                  style: GoogleFonts.outfit(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'We noticed you were previously a member at $libName. Would you like to use your previous profile details to pre-fill the application?',
+                  style: GoogleFonts.inter(
+                    fontSize: 13.5,
+                    color: const Color(0xFF64748B),
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _usedPreviousDetails = true;
+                      if (_userProfile != null) {
+                        _origFullName = _userProfile!['full_name'] ?? '';
+                        _origPhone = _userProfile!['phone'] ?? '';
+                        _origNickname = _userProfile!['nickname'] ?? '';
+                        
+                        _fullNameCtrl.text = _origFullName;
+                        _phoneCtrl.text = _origPhone;
+                        _nicknameCtrl.text = _origNickname;
+                      }
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65C00),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Use Previous Details'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _usedPreviousDetails = false;
+                      _origFullName = '';
+                      _origPhone = '';
+                      _origNickname = '';
+                      _fullNameCtrl.clear();
+                      _phoneCtrl.clear();
+                      _nicknameCtrl.clear();
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF475569),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Start Fresh'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // File picker helper
@@ -260,9 +383,6 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
   Future<bool> _uploadProofImage() async {
     if (_proofImageFile == null) return false;
-    setState(() {
-      _isUploadingProof = true;
-    });
 
     try {
       final supabase = Supabase.instance.client;
@@ -291,10 +411,6 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         );
       }
       return false;
-    } finally {
-      setState(() {
-        _isUploadingProof = false;
-      });
     }
   }
 
@@ -372,6 +488,41 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
           'nickname': nickStr.isNotEmpty ? nickStr : null,
           'updated_at': DateTime.now().toIso8601String(),
         }).eq('id', user.id);
+
+        if (_exitedMembershipToWelcome != null && _usedPreviousDetails) {
+          if (nameStr != _origFullName || phoneStr != _origPhone || nickStr != _origNickname) {
+            try {
+              await supabase.from('audit_log').insert({
+                'admin_id': _library?['owner_id'] ?? user.id,
+                'library_id': widget.libraryId,
+                'action': 'profile_modified_returning_member',
+                'details': {
+                  'member_id': user.id,
+                  'old_full_name': _origFullName,
+                  'new_full_name': nameStr,
+                  'old_phone': _origPhone,
+                  'new_phone': phoneStr,
+                  'old_nickname': _origNickname,
+                  'new_nickname': nickStr,
+                },
+                'previous_value': 'Name: $_origFullName, Phone: $_origPhone, Nickname: $_origNickname',
+                'new_value': 'Name: $nameStr, Phone: $phoneStr, Nickname: $nickStr',
+              });
+
+              await supabase.from('notifications').insert({
+                'user_id': _library?['owner_id'] ?? user.id,
+                'title': 'Returning Member Profile Modified',
+                'body': 'Returning member $nameStr ($phoneStr) modified their profile details during rejoin.',
+                'data': {
+                  'member_id': user.id,
+                  'library_id': widget.libraryId,
+                },
+              });
+            } catch (e) {
+              debugPrint('Error logging/notifying profile modification: $e');
+            }
+          }
+        }
       }
 
       // 2. Upload photo proof if UPI
@@ -402,13 +553,9 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         'status': 'pending',
       };
 
-      final insertedRes = await supabase
+      await supabase
           .from('join_requests')
-          .insert(requestPayload)
-          .select()
-          .single();
-
-      _submittedRequestId = insertedRes['id'];
+          .insert(requestPayload);
 
       // 4. Save optional referral
       final refCode = _referralCtrl.text.trim();
@@ -694,7 +841,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("No, I'm new", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text("New Member", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
                             Text("First time studying at SILENCE", style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                           ],
                         ),
@@ -721,7 +868,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("Yes, returning member", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text("Existing Member", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
                             Text("I have studied here previously", style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                           ],
                         ),
@@ -1256,8 +1403,6 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
   // STEP 5: REVIEW & SUBMIT
   Widget _buildStep5Review() {
-    final double subPlan = _calculateSelectedPlanPrice();
-    final double subAdd = _calculateAddOnsPrice();
     final double grandTotal = _calculateTotalPrice();
 
     return Column(

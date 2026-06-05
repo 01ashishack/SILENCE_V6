@@ -64,16 +64,20 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen> with 
           final List<dynamic> res = await _supabase
               .from('scheduled_closures')
               .select()
-              .eq('library_id', _libId!)
-              .order('closure_date', ascending: true);
+              .eq('library_id', _libId!);
 
           if (res.isNotEmpty) {
-            _closures = res.map((item) => ClosureItem(
-              id: item['id'].toString(),
-              date: item['closure_date'] ?? '2026-05-28',
-              reason: item['reason'] ?? 'Public Holiday',
-              notifyMembers: item['notify_members'] ?? true,
-            )).toList();
+            _closures = res.map((item) {
+              final dateStr = item['closure_date'] ?? item['date'] ?? item['start_date'] ?? '2026-05-28';
+              return ClosureItem(
+                id: item['id'].toString(),
+                date: dateStr.toString(),
+                reason: item['reason'] ?? 'Public Holiday',
+                notifyMembers: item['notify_members'] ?? true,
+              );
+            }).toList();
+            // Sort in memory by date
+            _closures.sort((a, b) => a.date.compareTo(b.date));
           }
         }
       } catch (e) {
@@ -205,13 +209,26 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen> with 
 
                     if (_libId != null) {
                       try {
+                        // Try inserting with closure_date
                         await _supabase.from('scheduled_closures').insert({
                           'library_id': _libId!,
                           'closure_date': dateStr,
                           'reason': newItem.reason,
                           'notify_members': notify,
                         });
-                      } catch (_) {}
+                      } catch (e) {
+                        try {
+                          // Try fallback with 'date'
+                          await _supabase.from('scheduled_closures').insert({
+                            'library_id': _libId!,
+                            'date': dateStr,
+                            'reason': newItem.reason,
+                            'notify_members': notify,
+                          });
+                        } catch (e2) {
+                          debugPrint('Failed to insert closure: $e2');
+                        }
+                      }
                     }
 
                     Navigator.pop(context);

@@ -252,11 +252,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         'confirmed_by_admin_id': currentAdminId,
       }).eq('id', paymentId);
       await _fetchMemberData();
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment confirmed successfully! ✓')));
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error confirming payment: $e')));
       }
@@ -268,11 +268,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       setState(() => _isLoading = true);
       await supabase.from('payments').update({'status': 'rejected'}).eq('id', paymentId);
       await _fetchMemberData();
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment marked as rejected. ✓')));
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error rejecting payment: $e')));
       }
@@ -452,11 +452,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           });
                         }
                         await _fetchMemberData();
-                        if (context.mounted) {
+                        if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Attendance saved successfully! ✓')));
                         }
                       } catch (e) {
-                        if (context.mounted) {
+                        if (mounted) {
                           setState(() => _isLoading = false);
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving attendance: $e')));
                         }
@@ -512,11 +512,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         }).eq('id', membershipId);
       }
       await _fetchMemberData();
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Member has been force-exited successfully.')));
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error force-exiting member: $e')));
       }

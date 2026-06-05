@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../../core/offline_db.dart';
 import 'join_flow_screen.dart';
+import '../library_public_profile_screen.dart';
 
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
@@ -130,12 +131,16 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
     }
 
     if (isJoining) {
-      // Direct Join Flow Navigation
+      // Direct Join Flow Navigation -> Changed to show Library Public Profile first
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => JoinFlowScreen(libraryId: libraryId),
+          builder: (context) => LibraryPublicProfileScreen(
+            libraryId: libraryId,
+            isAdmin: false,
+            showProceedButton: true,
+          ),
         ),
       );
       return;

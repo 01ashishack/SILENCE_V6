@@ -344,6 +344,99 @@ class PdfExporter {
     );
   }
 
+  static pw.Widget _buildReceiptDetailRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 6),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: const pw.TextStyle(fontSize: 9, color: PdfColor.fromInt(0xFF64748B))),
+          pw.Text(value, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF0F172A))),
+        ],
+      ),
+    );
+  }
+
+  static Future<void> exportPaymentReceipt({
+    required String libraryName,
+    required String libraryAddress,
+    required Map<String, dynamic> payment,
+    required String memberName,
+  }) async {
+    final pdf = pw.Document();
+    final logo = await _loadLogo();
+    final dateStr = payment['payment_date'] != null 
+        ? DateFormat('dd MMM yyyy hh:mm a').format(DateTime.parse(payment['payment_date'])) 
+        : 'N/A';
+    final amount = '₹${payment['amount'] ?? 0}';
+    final method = (payment['method'] ?? 'cash').toString().toUpperCase();
+    final status = (payment['status'] ?? 'pending').toString().toUpperCase();
+    final txId = (payment['id'] ?? 'N/A').toString();
+    final refId = payment['ref_id'] ?? 'N/A';
+    final plan = payment['memberships']?['plan_type'] ?? 'N/A';
+    final shift = payment['memberships']?['shifts']?['name'] ?? 'N/A';
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              _buildHeader(context, libraryName, libraryAddress, 'PAYMENT RECEIPT', dateStr, logo),
+              pw.SizedBox(height: 30),
+              pw.Align(
+                alignment: pw.Alignment.center,
+                child: pw.Column(
+                  children: [
+                    pw.Text('RECEIPT TOTAL', style: const pw.TextStyle(fontSize: 10, color: PdfColor.fromInt(0xFF64748B))),
+                    pw.SizedBox(height: 5),
+                    pw.Text(amount, style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFFE65C00))),
+                    pw.SizedBox(height: 5),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: pw.BoxDecoration(
+                        color: status == 'CONFIRMED' ? const PdfColor.fromInt(0xFFDCFCE7) : const PdfColor.fromInt(0xFFFEF9C3),
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+                      ),
+                      child: pw.Text(
+                        status,
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                          color: status == 'CONFIRMED' ? const PdfColor.fromInt(0xFF16A34A) : const PdfColor.fromInt(0xFFCA8A04),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 40),
+              pw.Text('TRANSACTION DETAILS', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF1E293B))),
+              pw.Divider(thickness: 1, color: const PdfColor.fromInt(0xFFE2E8F0)),
+              pw.SizedBox(height: 10),
+              _buildReceiptDetailRow('Transaction ID', txId),
+              _buildReceiptDetailRow('Reference ID', refId),
+              _buildReceiptDetailRow('Member Name', memberName),
+              _buildReceiptDetailRow('Payment Date', dateStr),
+              _buildReceiptDetailRow('Payment Method', method),
+              _buildReceiptDetailRow('Membership Plan', plan),
+              _buildReceiptDetailRow('Shift Assigned', shift),
+              pw.Spacer(),
+              _buildFooter(context, logo),
+            ],
+          );
+        },
+      ),
+    );
+
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: 'Receipt_${txId.split('-').first}.pdf',
+    );
+  }
+
   // --- PRIVATE HEADER/FOOTER/CELL BUILDERS ---
 
   static pw.Widget _buildHeader(

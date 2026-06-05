@@ -86,6 +86,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _pendingPaymentProofsCount = 0;
   int _pendingJoinRequestsCount = 0;
   int _reservationsInitialSubTab = 0;
+  RealtimeChannel? _joinRequestsChannel;
 
   // Form Controllers & State
   // Step 1: Profile
@@ -163,6 +164,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     _upiPaytmController.dispose();
     _upiPhonePeController.dispose();
     _upiGPayController.dispose();
+    if (_joinRequestsChannel != null) {
+      Supabase.instance.client.removeChannel(_joinRequestsChannel!);
+    }
     super.dispose();
   }
 
@@ -429,6 +433,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         await _fetchRealStats(libId);
 
         await _loadOperationalFeeds(libId);
+        _setupJoinRequestsSubscription(libId);
         await _writeDashboardStatsToCache(libId);
       }
     } catch (e) {
@@ -600,23 +605,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       // Fetch pending join requests for this library (Issue 1)
       final pendingRequestsRes = await supabase
           .from('join_requests')
-          .select('payment_method')
+          .select('id, payment_proof_url')
           .eq('library_id', libId)
           .eq('status', 'pending');
 
       final List pendingList = pendingRequestsRes as List;
-      int paymentProofs = 0;
-      int joinRequests = 0;
-      for (final r in pendingList) {
-        final method = (r['payment_method'] as String?)?.toLowerCase();
-        if (method == 'upi') {
-          paymentProofs++;
-        } else {
-          joinRequests++;
-        }
-      }
-      _pendingPaymentProofsCount = paymentProofs;
-      _pendingJoinRequestsCount = joinRequests;
+      _pendingJoinRequestsCount = pendingList.length;
+      _pendingPaymentProofsCount = pendingList
+          .where((r) => r['payment_proof_url'] != null && r['payment_proof_url'].toString().trim().isNotEmpty)
+          .length;
     } catch (e) {
       debugPrint('Error loading real-time dashboard stats: $e');
     } finally {
@@ -624,6 +621,32 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         setState(() => _isStatsLoading = false);
       }
     }
+  }
+
+  void _setupJoinRequestsSubscription(String libId) {
+    final supabase = Supabase.instance.client;
+    if (_joinRequestsChannel != null) {
+      supabase.removeChannel(_joinRequestsChannel!);
+    }
+    _joinRequestsChannel = supabase
+        .channel('public:join_requests:library_id=eq.$libId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'join_requests',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'library_id',
+            value: libId,
+          ),
+          callback: (payload) {
+            if (mounted) {
+              _fetchRealStats(libId);
+              _loadOperationalFeeds(libId);
+            }
+          },
+        )
+        .subscribe();
   }
 
   bool _isCurrentShift(Map<String, dynamic> shift, DateTime now) {
@@ -3025,6 +3048,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         );
                         return;
                       }
+                      final navigator = Navigator.of(context);
+                      final messenger = ScaffoldMessenger.of(context);
                       try {
                         await Supabase.instance.client
                             .from('announcements')
@@ -3035,23 +3060,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                               'created_by':
                                   Supabase.instance.client.auth.currentUser?.id,
                             });
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                '📢 Announcement broadcasted to all members!',
-                              ),
-                              backgroundColor: Color(0xFF8B5CF6),
+                        navigator.pop();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '📢 Announcement broadcasted to all members!',
                             ),
-                          );
-                        }
+                            backgroundColor: Color(0xFF8B5CF6),
+                          ),
+                        );
                       } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                        }
+                        messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
                       }
                     },
                     icon: const Icon(Icons.send, size: 18),
@@ -3384,6 +3403,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () async {
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
                         try {
                           await Supabase.instance.client
                               .from('library_closures')
@@ -3394,24 +3415,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                     .substring(0, 10),
                                 'reason': 'Closed by admin',
                               });
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  '🔒 Library marked as closed for today. Members notified.',
-                                ),
-                                backgroundColor: Color(0xFFE65C00),
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                '🔒 Library marked as closed for today. Members notified.',
                               ),
-                            );
-                          }
+                              backgroundColor: Color(0xFFE65C00),
+                            ),
+                          );
                         } catch (e) {
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: $e')),
-                            );
-                          }
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            SnackBar(content: Text('Error: $e')),
+                          );
                         }
                       },
                       icon: const Icon(Icons.power_settings_new, size: 18),

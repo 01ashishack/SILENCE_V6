@@ -11,11 +11,13 @@ import 'member_profile_edit.dart';
 class LibraryPublicProfileScreen extends StatefulWidget {
   final String? libraryId;
   final bool isAdmin;
+  final bool showProceedButton;
 
   const LibraryPublicProfileScreen({
     super.key,
     this.libraryId,
     this.isAdmin = false,
+    this.showProceedButton = false,
   });
 
   @override
@@ -32,6 +34,13 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     if (args is String) return args;
     if (args is Map) return args['libraryId'] as String;
     throw Exception("Library ID is missing");
+  }
+
+  bool get showProceedButton {
+    if (widget.showProceedButton) return true;
+    final args = ModalRoute.of(context)!.settings.arguments;
+    if (args is Map) return args['showProceedButton'] == true;
+    return false;
   }
 
   // Database Data
@@ -53,7 +62,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     _loadPublicData();
   }
 
-  Future<void> _checkAndJoinLibrary(BuildContext context, {String? shiftId}) async {
+  Future<void> _checkAndJoinLibrary({String? shiftId}) async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
     if (user == null) {
@@ -63,10 +72,13 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       return;
     }
 
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
+      builder: (dialogCtx) => const Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
         ),
@@ -80,9 +92,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
           .eq('id', user.id)
           .maybeSingle();
 
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
+      navigator.pop();
 
       bool complete = false;
       if (profileRes != null) {
@@ -96,7 +106,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       }
 
       if (!complete) {
-        if (context.mounted) {
+        if (mounted) {
           showDialog(
             context: context,
             builder: (dialogCtx) => AlertDialog(
@@ -110,8 +120,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(dialogCtx);
-                    Navigator.push(
-                      context,
+                    navigator.push(
                       MaterialPageRoute(builder: (_) => const MemberProfileEditScreen()),
                     );
                   },
@@ -129,24 +138,23 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
         return;
       }
 
-      if (context.mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => JoinFlowScreen(
-              libraryId: libraryId,
-              initialShiftId: shiftId,
-            ),
+      navigator.push(
+        MaterialPageRoute(
+          builder: (dialogCtx) => JoinFlowScreen(
+            libraryId: libraryId,
+            initialShiftId: shiftId,
           ),
-        ).then((_) => _loadPublicData());
-      }
+        ),
+      ).then((_) {
+        if (mounted) {
+          _loadPublicData();
+        }
+      });
     } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error validating profile: $e')),
-        );
-      }
+      navigator.pop();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Error validating profile: $e')),
+      );
     }
   }
 
@@ -175,35 +183,43 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       _shifts = List<Map<String, dynamic>>.from(shiftsRes);
 
       // 3. Fetch reviews
-      final reviewsRes = await _supabase
-          .from('reviews')
-          .select()
-          .eq('library_id', libraryId)
-          .order('created_at', ascending: false);
-      if (!mounted) return;
-      _reviews = List<Map<String, dynamic>>.from(reviewsRes);
+      try {
+        final reviewsRes = await _supabase
+            .from('reviews')
+            .select()
+            .eq('library_id', libraryId)
+            .order('created_at', ascending: false);
+        if (mounted) {
+          _reviews = List<Map<String, dynamic>>.from(reviewsRes);
 
-      // 4. Enrich reviews with nicknames from users table
-      for (var review in _reviews) {
-        final memberId = review['member_id'];
-        final memberRes = await _supabase
-            .from('users')
-            .select('nickname, full_name')
-            .eq('id', memberId)
-            .maybeSingle();
-        if (memberRes != null) {
-          review['nickname'] = memberRes['nickname'] ?? memberRes['full_name'] ?? 'Anonymous';
-        } else {
-          review['nickname'] = 'Anonymous';
+          // 4. Enrich reviews with nicknames from users table
+          for (var review in _reviews) {
+            final memberId = review['member_id'];
+            final memberRes = await _supabase
+                .from('users')
+                .select('nickname, full_name')
+                .eq('id', memberId)
+                .maybeSingle();
+            if (memberRes != null) {
+              review['nickname'] = memberRes['nickname'] ?? memberRes['full_name'] ?? 'Anonymous';
+            } else {
+              review['nickname'] = 'Anonymous';
+            }
+          }
+
+          // 5. Calculate ratings
+          if (_reviews.isNotEmpty) {
+            final totalRating = _reviews.fold<int>(0, (sum, item) => sum + (item['rating'] as int));
+            _avgRating = totalRating / _reviews.length;
+            _reviewCount = _reviews.length;
+          } else {
+            _avgRating = 0.0;
+            _reviewCount = 0;
+          }
         }
-      }
-
-      // 5. Calculate ratings
-      if (_reviews.isNotEmpty) {
-        final totalRating = _reviews.fold<int>(0, (sum, item) => sum + (item['rating'] as int));
-        _avgRating = totalRating / _reviews.length;
-        _reviewCount = _reviews.length;
-      } else {
+      } catch (e) {
+        debugPrint('Error fetching reviews: $e');
+        _reviews = [];
         _avgRating = 0.0;
         _reviewCount = 0;
       }
@@ -222,13 +238,17 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
         _hasActiveMembership = membershipRes != null;
 
         // Already reviewed check
-        final userReviewRes = await _supabase
-            .from('reviews')
-            .select('id')
-            .eq('member_id', user.id)
-            .eq('library_id', libraryId)
-            .maybeSingle();
-        _hasReviewed = userReviewRes != null;
+        try {
+          final userReviewRes = await _supabase
+              .from('reviews')
+              .select('id')
+              .eq('member_id', user.id)
+              .eq('library_id', libraryId)
+              .maybeSingle();
+          _hasReviewed = userReviewRes != null;
+        } catch (_) {
+          _hasReviewed = false;
+        }
       }
     } catch (e) {
       debugPrint('Error loading public profile: $e');
@@ -402,6 +422,9 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                         final user = _supabase.auth.currentUser;
                         if (user == null) return;
                         
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
+                        
                         try {
                           await _supabase.from('reviews').insert({
                             'library_id': libraryId,
@@ -410,14 +433,16 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                             'comment': commentCtrl.text.trim(),
                           });
 
-                          Navigator.pop(context);
-                          _loadPublicData();
+                          navigator.pop();
+                          if (mounted) {
+                            _loadPublicData();
+                          }
                         } catch (e) {
                           String errorMsg = e.toString();
                           if (errorMsg.contains('23505') || errorMsg.contains('unique_review') || errorMsg.contains('duplicate key')) {
                             errorMsg = 'You have already submitted a review for this library.';
                           }
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(content: Text(errorMsg)),
                           );
                         }
@@ -477,16 +502,20 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
                     try {
                       await _supabase.from('reviews').update({
                         'admin_reply': replyCtrl.text.trim(),
                         'replied_at': DateTime.now().toIso8601String(),
                       }).eq('id', review['id']);
 
-                      Navigator.pop(context);
-                      _loadPublicData();
+                      navigator.pop();
+                      if (mounted) {
+                        _loadPublicData();
+                      }
                     } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(content: Text('Error saving reply: $e')),
                       );
                     }
@@ -1063,7 +1092,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
               ),
               child: ElevatedButton(
                 onPressed: () {
-                  _checkAndJoinLibrary(context);
+                  _checkAndJoinLibrary();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE65C00),
@@ -1072,7 +1101,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: Text(
-                  'Join Library Spaces',
+                  showProceedButton ? 'Proceed to Join' : 'Join Library Spaces',
                   style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -1171,7 +1200,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  _checkAndJoinLibrary(context, shiftId: shiftId);
+                  _checkAndJoinLibrary(shiftId: shiftId);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE65C00),

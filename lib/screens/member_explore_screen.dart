@@ -7,7 +7,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:geolocator/geolocator.dart';
 import 'library_public_profile_screen.dart';
 import 'member_profile_edit.dart';
-import 'reservations/join_flow_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -61,7 +60,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     try {
       final res = await _supabase
           .from('libraries')
-          .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, latitude, longitude, shifts(id, name, price_monthly, trial_days, start_time, end_time), reviews(rating)')
+          .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, rules, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
           .eq('status', 'active');
       
       if (mounted) {
@@ -199,59 +198,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return 12742 * asin(sqrt(a)); // 2 * R; R = 6371 km
   }
 
-  bool _isProfileIncomplete(Map<String, dynamic>? profile) {
-    if (profile == null) return true;
-    final name = profile['full_name'] as String?;
-    final phone = profile['phone'] as String?;
-    final nickname = profile['nickname'] as String?;
-    final gender = profile['gender'] as String?;
-    final dob = profile['date_of_birth'] as String?;
-    final address = profile['address'] as String?;
-    final examCategory = profile['exam_category'] as String?;
-    final photo = profile['photo_url'] as String?;
-    final idProof = profile['id_proof_url'] as String?;
-    
-    return name == null || name.trim().isEmpty || 
-           phone == null || phone.trim().isEmpty || 
-           nickname == null || nickname.trim().isEmpty ||
-           gender == null || gender.trim().isEmpty ||
-           dob == null || dob.trim().isEmpty ||
-           address == null || address.trim().isEmpty ||
-           examCategory == null || examCategory.trim().isEmpty ||
-           photo == null || photo.trim().isEmpty ||
-           idProof == null || idProof.trim().isEmpty;
-  }
 
-  void _showProfileIncompleteDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Complete Your Profile', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Text('Please complete your profile before joining a library.', style: GoogleFonts.inter()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MemberProfileEditScreen()),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE65C00),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text('Edit Profile', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _openJoinWithCodeSheet() {
     final codeCtrl = TextEditingController();
@@ -308,6 +255,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     final code = codeCtrl.text.trim();
                     if (code.isEmpty) return;
                     
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
+                    
                     try {
                       final libRes = await _supabase
                           .from('libraries')
@@ -316,38 +266,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           .maybeSingle();
                       
                       if (libRes == null) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Library not found. Check code prefix or suffix.')),
-                          );
-                        }
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Library not found. Check code prefix or suffix.')),
+                        );
                         return;
                       }
                       
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        
-                        // Check profile completeness
-                        final user = _supabase.auth.currentUser;
-                        if (user != null) {
-                          final profile = await _supabase.from('users').select().eq('id', user.id).maybeSingle();
-                          if (_isProfileIncomplete(profile)) {
-                            _showProfileIncompleteDialog();
-                            return;
-                          }
-                        }
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => JoinFlowScreen(libraryId: libRes['id'])),
-                        );
-                      }
+                      navigator.pop();
+                      navigator.push(
+                        MaterialPageRoute(
+                          builder: (context) => LibraryPublicProfileScreen(
+                            libraryId: libRes['id'],
+                            isAdmin: false,
+                            showProceedButton: true,
+                          ),
+                        ),
+                      );
                     } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error finding library: $e')),
-                        );
-                      }
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Error finding library: $e')),
+                      );
                     }
                   },
                   style: ElevatedButton.styleFrom(

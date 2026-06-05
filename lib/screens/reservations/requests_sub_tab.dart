@@ -194,12 +194,13 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   }
 
   // ── Final Database Seat Assignment and Activation (S034 Flow) ─────────────
-  Future<void> _approveJoinRequestTransaction(Map<String, dynamic> request, Map<String, dynamic> seat) async {
+  Future<void> _approveJoinRequestTransaction(BuildContext sheetContext, Map<String, dynamic> request, Map<String, dynamic> seat) async {
     try {
       final String seatId = seat['id'];
       final String seatLabel = seat['seat_label'];
       final String memberId = request['member_id']['id'];
       final String requestId = request['id'];
+      final String memberName = request['member_id']['full_name'] ?? 'Member';
 
       // 1. Re-validate vacancy at DB level to prevent race conditions
       final seatCheck = await supabase.from('seats').select('status').eq('id', seatId).single();
@@ -256,9 +257,17 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
       _fetchRequests();
       if (!mounted) return;
-      Navigator.pop(context); // Close seat picker bottom sheet
+      Navigator.pop(sheetContext); // Close seat picker bottom sheet
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Membership approved! Assigned seat $seatLabel successfully ✓', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
+        SnackBar(
+          content: Text(
+            "Member $memberName approved and seat $seatLabel assigned successfully.",
+            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500),
+          ),
+          backgroundColor: const Color(0xFF22C55E),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -559,7 +568,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                               ) ?? false;
 
                               if (confirmAssign) {
-                                _approveJoinRequestTransaction(request, seat);
+                                _approveJoinRequestTransaction(ctx, request, seat);
                               }
                             },
                             child: Container(
