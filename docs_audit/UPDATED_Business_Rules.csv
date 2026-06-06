@@ -1,0 +1,32 @@
+Rule Category,Rule Name,Description,Default Value,Min Value,Max Value,Unit,Editable By,Applies To,Enforced in Code,Code Reference / Enforcement Status
+Membership,max_discount_percent,Maximum discount percentage an admin can apply on a membership,15,0,100,percent,Admin,Per library,No,Saved in business rules settings but never verified or enforced when adding members or confirming payments in code.
+Membership,expiry_grace_days,Number of days after expiry before seat auto-hold triggers,3,1,14,days,Admin,All libraries,No,Only used as cosmetic text inside member_home.dart to warn students about seat reassignment.
+Membership,max_hold_days,Maximum duration of a single hold request (pause membership),15,3,90,days,Admin,All libraries,No,Hold request duration is not validated in member_home.dart; users can request any range.
+Membership,max_holds_per_period,Maximum number of hold requests allowed in a 6-month rolling window,2,0,6,count,Admin,Per member,No,Not checked; members can submit unlimited hold requests.
+Membership,allow_expired_checkin,Allow members with expired membership to scan check-in,false,true,false,boolean,Admin,Per library,Partially,Enforced in member_home.dart (hides the check-in FAB for expired members if set to false).
+Membership,trial_max_days,Maximum trial days configurable per shift (admin sets per shift),0,0,30,days,Admin,Per shift,No,Shift configuration sets trials but doesn't validate this cap.
+Membership,trial_once_per_member,Can a member use trial only once per library,true,true,false,boolean,System (fixed),Global,No,No check in codebase to prevent members from re-registering for trial plans.
+Membership,free_days_per_referral,Number of free days awarded for successful referral,3,0,30,days,Admin,Per library,No,Referral reward records are created, but membership durations are not extended in code.
+Membership,referral_reward_min_checkins,Number of check-ins new member must complete before referrer gets reward,5,0,20,count,Admin,Per library,No,Not tracked or checked.
+Membership,referral_reward_min_days,Number of days new member must stay before referrer gets reward,7,0,30,days,Admin,Per library,No,Not tracked or checked.
+Membership,exit_dues_block,Block member from exiting if dues are pending,true,true,false,boolean,System (fixed),Global,No,Members can exit libraries regardless of dues in member_home.dart, and admins can force exit regardless of dues.
+Seat,auto_checkout_delay_minutes,Minutes after shift end before auto-checkout triggers for open sessions,10,0,60,minutes,Admin,Per shift,No,Auto-checkout trigger logic is unimplemented on client side.
+Seat,maintenance_alert_days,After how many days in maintenance to notify admin,7,1,30,days,Admin,Per library,No,No alerting mechanism is coded.
+QR,regeneration_grace_days,Number of days old QR code remains valid after regeneration,7,0,30,days,System (fixed),Global,No,QR code is checked strictly for match with active session in qr_scanner_screen.dart.
+QR,offline_queue_max,Maximum number of offline scans stored locally on device,500,50,1000,count,System (fixed),Global (client),No,Queue accepts unlimited scans; sync manager processes all records stored.
+Notifications,join_request_auto_expiry_days,Join request auto-expires after this many days without admin action,7,1,30,days,System (fixed),Global,Yes,Database defaults join_request expiration to now() + 7 days, but no cleanup process runs.
+Notifications,join_request_reminder_days,Day before expiry to send reminder to admin,1,0,6,days,System (fixed),Global,No,No reminders are sent.
+Notifications,payment_reminder_hours,After how many hours to remind admin about pending payment proof,48,1,168,hours,System (fixed),Global,No,No reminders are sent.
+Notifications,expiry_notification_days,Number of days before expiry to send first notification,7,1,30,days,System (fixed),Global,No,No reminders are sent.
+Subscription,grace_period_days,Admin subscription grace period before read-only mode,7,0,30,days,System (fixed),Global (app),No,Subscription check only displays warning dialogs in UI without locks.
+Subscription,readonly_period_days,Admin subscription read-only period before full lock,23,0,60,days,System (fixed),Global (app),No,Read-only locks are not enforced in code.
+Subscription,full_lock_retention_days,Data retention period after full lock before PII deletion,90,30,365,days,System (fixed),Global (app),No,PII deletion process is unimplemented.
+Closure,streak_freeze_on_closure,Freeze member streaks when library is closed (single day or scheduled),true,true,false,boolean,System (fixed),Global,No,Streak freezing is unimplemented.
+Analytics,expense_recurring_default,Default flag for new expenses as recurring,false,true,false,boolean,Admin,Global,No,Recurring expense status is stored but has no effect on accounting calculations.
+Analytics,expense_categories,List of allowed expense categories (comma-separated),"Rent,Electricity,Internet,Maintenance,Other",N/A,N/A,text,System (fixed),Global,Yes,Enforced in expenditures table CHECK constraint; only Rent, Electricity, Internet, Maintenance, and Other are allowed (unlike the 12 listed in original specs).
+Referral,referral_code_format,Format for generating referral codes (prefix + member_id_part + random),"REF-{member_id_short}-{random3}",N/A,N/A,text,System (fixed),Global,No,Referral code defaults to the referrer's nickname in join_flow_screen.dart.
+Payment,upi_deep_link_enabled,Show UPI app deep-link icons next to UPI IDs,true,true,false,boolean,Admin,Per library,Partially,Icons are rendered on public profiles, but UPI app redirection is simulated.
+Payment,upi_deep_link_map,Maps UPI handle suffixes to app names (JSON),{"@ybl":"PhonePe","@okicici":"Google Pay","@paytm":"Paytm","@apl":"Amazon Pay"},N/A,N/A,json,System (fixed),Global,Yes,UPI app routing checks use these suffixes inside payment settings.
+UI,seat_grid_page_size,Number of seats per page in paginated grid view,30,10,100,count,System (fixed),Global (client),Yes,Page limits are set statically to 30 seats per page.
+UI,attendance_strip_max,Maximum number of profile photos shown in Today's Attendance strip,10,5,20,count,Admin,Per admin,Yes,Statically set to 10 in admin_home.dart.
+UI,default_language,Default app language code,en,N/A,N/A,text,System (fixed),Global,Yes,Defaulted to English in main.dart.

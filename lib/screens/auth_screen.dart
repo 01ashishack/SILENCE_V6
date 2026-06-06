@@ -176,6 +176,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             'role': null, // role = null as per requirements
           });
         } catch (dbErr) {
+          if (dbErr is PostgrestException) {
+            rethrow;
+          }
           // If upsert fails (e.g. trigger constraints), try updating the record
           try {
             await supabase.from('users').update({
@@ -186,6 +189,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             if (!mounted) return;
           } catch (updateErr) {
             print('DB user update failed: $updateErr');
+            if (updateErr is PostgrestException) {
+              rethrow;
+            }
           }
         }
 
@@ -193,13 +199,31 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/role-select');
       }
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      if (e.code == '23505' && e.message?.contains('users_email_key') == true) {
+        // Duplicate email
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User already exists. Please login.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else {
+        // Other Postgrest error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Signup failed: ${e.message}')),
+        );
+      }
     } on AuthException catch (e) {
+      if (!mounted) return;
       if (e.message.toLowerCase().contains('already') || e.message.toLowerCase().contains('registered')) {
         _showErrorSnackBar('Email already registered. Please login instead.');
       } else {
         _showErrorSnackBar(e.message);
       }
     } catch (e) {
+      if (!mounted) return;
       final String errStr = e.toString();
       if (errStr.toLowerCase().contains('already') || errStr.toLowerCase().contains('registered')) {
         _showErrorSnackBar('Email already registered. Please login instead.');

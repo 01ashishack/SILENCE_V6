@@ -28,7 +28,6 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
-  final _customExamController = TextEditingController();
 
   String _gender = 'male';
   DateTime? _dob;
@@ -36,20 +35,6 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
   bool _isLoading = false;
   bool _isUploadingPhoto = false;
   bool _isSaving = false;
-
-  String _examCategory = 'UPSC';
-  String? _idDocumentUrl;
-  String? _idDocument2Url;
-  String _idDocType1 = 'Aadhaar';
-  String _idDocType2 = 'Aadhaar';
-  String _idProofStatus = 'Not uploaded';
-  String _idProof2Status = 'Not uploaded';
-  bool _isUploadingDoc = false;
-  bool _isUploadingDoc2 = false;
-  final List<String> _examCategories = [
-    'UPSC', 'NEET', 'JEE', 'SSC', 'PCS', 'CAT', 'Banking', 'State PCS', 'Class 10-12', 'Other'
-  ];
-  final List<String> _idDocTypes = ['Aadhaar', 'PAN Card', 'Voter ID', 'Driving License', 'Passport', 'Other'];
 
   @override
   void initState() {
@@ -63,7 +48,6 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
     _phoneController.dispose();
     _emailController.dispose();
     _addressController.dispose();
-    _customExamController.dispose();
     super.dispose();
   }
 
@@ -89,23 +73,6 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
             _photoUrl = userData['photo_url'];
           }
           _addressController.text = userData['address'] ?? '';
-          final exam = userData['exam_category'] as String?;
-          if (exam != null) {
-            if (_examCategories.contains(exam)) {
-              _examCategory = exam;
-            } else {
-              _examCategory = 'Other';
-              _customExamController.text = exam;
-            }
-          }
-          if (userData['id_proof_url'] != null) {
-            _idDocumentUrl = userData['id_proof_url'];
-            _idProofStatus = 'Under Review';
-          }
-          if (userData['id_proof_2_url'] != null) {
-            _idDocument2Url = userData['id_proof_2_url'];
-            _idProof2Status = 'Under Review';
-          }
         }
       } catch (e) {
         debugPrint('Error loading profile: $e');
@@ -188,7 +155,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
     );
   }
 
-  Future<void> _pickAndUploadPhoto({required String uploadType}) async {
+  Future<void> _pickAndUploadPhoto() async {
     try {
       // 1. Show source selection
       final ImageSource? source = await _showImageSourceBottomSheet();
@@ -224,27 +191,26 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
       if (!mounted) return;
 
       // 4. Crop Image
-      final bool isIdDoc = uploadType != 'profile';
       CroppedFile? croppedFile;
       bool cropSuccessOrCancel = false;
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
-          aspectRatio: isIdDoc ? null : const CropAspectRatio(ratioX: 1, ratioY: 1),
+          aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
           uiSettings: [
             AndroidUiSettings(
-              toolbarTitle: isIdDoc ? 'Crop ID Document' : 'Crop Profile Photo',
+              toolbarTitle: 'Crop Profile Photo',
               toolbarColor: const Color(0xFFE65C00),
               toolbarWidgetColor: Colors.white,
-              initAspectRatio: isIdDoc ? CropAspectRatioPreset.original : CropAspectRatioPreset.square,
-              lockAspectRatio: !isIdDoc,
-              cropStyle: isIdDoc ? CropStyle.rectangle : CropStyle.circle,
+              initAspectRatio: CropAspectRatioPreset.square,
+              lockAspectRatio: true,
+              cropStyle: CropStyle.circle,
             ),
             IOSUiSettings(
-              title: isIdDoc ? 'Crop ID Document' : 'Crop Profile Photo',
-              aspectRatioLockEnabled: !isIdDoc,
-              resetAspectRatioEnabled: isIdDoc,
-              cropStyle: isIdDoc ? CropStyle.rectangle : CropStyle.circle,
+              title: 'Crop Profile Photo',
+              aspectRatioLockEnabled: true,
+              resetAspectRatioEnabled: false,
+              cropStyle: CropStyle.circle,
             ),
           ],
         );
@@ -265,13 +231,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
 
       // 6. Upload to Supabase Storage
       setState(() {
-        if (uploadType == 'profile') {
-          _isUploadingPhoto = true;
-        } else if (uploadType == 'id_doc_1') {
-          _isUploadingDoc = true;
-        } else {
-          _isUploadingDoc2 = true;
-        }
+        _isUploadingPhoto = true;
       });
 
       try {
@@ -283,17 +243,9 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
         }
 
         final bytes = await ImageOptimizer.compressImage(finalPath);
-        String fileName;
-        if (uploadType == 'profile') {
-          fileName = 'profile.jpg';
-        } else if (uploadType == 'id_doc_1') {
-          fileName = 'id_document_1.jpg';
-        } else {
-          fileName = 'id_document_2.jpg';
-        }
+        String fileName = 'profile.jpg';
         final path = 'admin_profiles/${user.id}/$fileName';
-
-        final String bucketName = (uploadType == 'profile') ? 'silence_assets' : 'silence_private';
+        final String bucketName = 'silence_assets';
 
         await supabase.storage.from(bucketName).uploadBinary(
           path,
@@ -306,50 +258,20 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
         );
 
         if (!mounted) return;
-        final String publicUrl;
-        if (uploadType == 'profile') {
-          publicUrl = supabase.storage.from(bucketName).getPublicUrl(path);
-        } else {
-          publicUrl = await supabase.storage.from(bucketName).createSignedUrl(path, 3600);
-        }
+        final String publicUrl = supabase.storage.from(bucketName).getPublicUrl(path);
 
         if (mounted) {
           setState(() {
-            if (uploadType == 'profile') {
-              _photoUrl = publicUrl;
-            } else if (uploadType == 'id_doc_1') {
-              _idDocumentUrl = publicUrl;
-              _idProofStatus = 'Under Review';
-            } else {
-              _idDocument2Url = publicUrl;
-              _idProof2Status = 'Under Review';
-            }
+            _photoUrl = publicUrl;
           });
-
-          final prefs = await SharedPreferences.getInstance();
-          if (!mounted) return;
-          if (uploadType == 'id_doc_1') {
-            prefs.setString('id_proof_status_${user.id}', 'Under Review');
-          } else if (uploadType == 'id_doc_2') {
-            prefs.setString('id_proof_2_url_${user.id}', publicUrl);
-            prefs.setString('id_proof_status_2_${user.id}', 'Under Review');
-          }
-
-          final label = uploadType == 'profile' ? 'Profile Photo' : (uploadType == 'id_doc_1' ? 'ID Document 1' : 'ID Document 2');
-          _showSuccessSnackBar('$label uploaded successfully! ✓');
+          _showSuccessSnackBar('Profile Photo uploaded successfully! ✓');
         }
       } catch (e) {
         if (mounted) _showErrorSnackBar('Upload failed: $e');
       } finally {
         if (mounted) {
           setState(() {
-            if (uploadType == 'profile') {
-              _isUploadingPhoto = false;
-            } else if (uploadType == 'id_doc_1') {
-              _isUploadingDoc = false;
-            } else {
-              _isUploadingDoc2 = false;
-            }
+            _isUploadingPhoto = false;
           });
         }
       }
@@ -359,8 +281,6 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
         _showErrorSnackBar('Something went wrong. Please try again.');
         setState(() {
           _isUploadingPhoto = false;
-          _isUploadingDoc = false;
-          _isUploadingDoc2 = false;
         });
       }
     }
@@ -416,18 +336,18 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_photoUrl == null || _photoUrl!.isEmpty) {
+      _showErrorSnackBar('Please upload your profile photo.');
+      return;
+    }
+
+    if (_dob == null) {
+      _showErrorSnackBar('Please select your date of birth.');
+      return;
+    }
+
     if (_addressController.text.trim().isEmpty) {
       _showErrorSnackBar('Please enter your address.');
-      return;
-    }
-
-    if (_examCategory == 'Other' && _customExamController.text.trim().isEmpty) {
-      _showErrorSnackBar('Please enter your custom exam category.');
-      return;
-    }
-
-    if (_idDocumentUrl == null || _idDocumentUrl!.isEmpty) {
-      _showErrorSnackBar('Please upload your ID Proof (Front / Full).');
       return;
     }
 
@@ -457,9 +377,6 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
         'photo_url': _photoUrl,
         'role': 'admin',
         'address': _addressController.text.trim(),
-        'exam_category': _examCategory == 'Other' ? _customExamController.text.trim() : _examCategory,
-        'id_proof_url': _idDocumentUrl,
-        'id_proof_2_url': _idDocument2Url,
       };
       if (email.isNotEmpty) {
         upsertData['email'] = email;
@@ -537,7 +454,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                       bottom: 0,
                                       right: 0,
                                       child: GestureDetector(
-                                        onTap: _isUploadingPhoto ? null : () => _pickAndUploadPhoto(uploadType: 'profile'),
+                                        onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
                                         child: Container(
                                           padding: const EdgeInsets.all(6),
                                           decoration: const BoxDecoration(
@@ -794,38 +711,9 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                               validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                             ),
                             const SizedBox(height: 20),
-
-                            Text('Target Exam Category *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
-                            const SizedBox(height: 6),
-                            StyledDropdownButton<String>(
-                              value: _examCategory,
-                              items: _examCategories,
-                              itemLabelBuilder: (String category) => category,
-                              onChanged: (v) {
-                                if (v != null) {
-                                  setState(() => _examCategory = v);
-                                }
-                              },
-                              title: 'Select Category',
-                            ),
-                            if (_examCategory == 'Other') ...[
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _customExamController,
-                                style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
-                                decoration: InputDecoration(
-                                  hintText: 'Enter your exam name',
-                                  hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
-                                ),
-                                validator: (v) => _examCategory == 'Other' && (v == null || v.trim().isEmpty) ? 'Required' : null,
-                              ),
-                            ],
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-
-                      _buildIdDocumentsCard(),
                       const SizedBox(height: 24),
 
                       // Save Button
@@ -853,120 +741,6 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
             ),
           ),
         );
-  }
-
-  Widget _buildIdDocumentsCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('ID Verification Documents', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-          const SizedBox(height: 16),
-          
-          _buildDocRow('ID Proof (Front / Full)', _idDocType1, _idDocumentUrl, _idProofStatus, 'id_doc_1', (v) {
-            if (v != null) setState(() => _idDocType1 = v);
-          }),
-          const Divider(height: 24),
-          _buildDocRow('Other Side (if required for your ID)', _idDocType2, _idDocument2Url, _idProof2Status, 'id_doc_2', (v) {
-            if (v != null) setState(() => _idDocType2 = v);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDocRow(
-    String label, 
-    String docType, 
-    String? docUrl, 
-    String status, 
-    String uploadType,
-    ValueChanged<String?> onTypeChanged
-  ) {
-    Color statusColor = Colors.grey;
-    if (status == 'Verified') statusColor = const Color(0xFF10B981);
-    if (status == 'Under Review') statusColor = const Color(0xFFF59E0B);
-    if (status == 'Rejected') statusColor = const Color(0xFFEF4444);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                status,
-                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
-              ),
-            )
-          ],
-        ),
-        const SizedBox(height: 8),
-        StyledDropdownButton<String>(
-          value: docType,
-          items: _idDocTypes,
-          itemLabelBuilder: (String type) => type,
-          onChanged: onTypeChanged,
-          title: 'Select ID Type',
-        ),
-        const SizedBox(height: 10),
-        GestureDetector(
-          onTap: () => _pickAndUploadPhoto(uploadType: uploadType),
-          child: Container(
-            height: 110,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFBF5EE),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: docUrl != null && docUrl.isNotEmpty
-                ? Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: CachedNetworkImage(
-                          imageUrl: docUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                        ),
-                      ),
-                      Container(
-                        color: Colors.black26,
-                        child: const Center(
-                          child: Icon(Icons.cloud_done, color: Colors.white, size: 28),
-                        ),
-                      )
-                    ],
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.cloud_upload_outlined, size: 24, color: Color(0xFFE65C00)),
-                      const SizedBox(height: 4),
-                      Text('Upload Document', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                    ],
-                  ),
-          ),
-        )
-      ],
-    );
   }
 
   String _getMonthName(int month) {

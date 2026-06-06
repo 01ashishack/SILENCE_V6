@@ -311,15 +311,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           final String gender = userData['gender'] ?? '';
           final String dob = userData['date_of_birth'] ?? '';
           final String address = userData['address'] ?? '';
-          final String examCategory = userData['exam_category'] ?? '';
-          final String idProofUrl = userData['id_proof_url'] ?? '';
+          final String photoUrl = userData['photo_url'] ?? '';
           if (name.isNotEmpty &&
               phone.isNotEmpty &&
               gender.isNotEmpty &&
               dob.isNotEmpty &&
               address.isNotEmpty &&
-              examCategory.isNotEmpty &&
-              idProofUrl.isNotEmpty) {
+              photoUrl.isNotEmpty) {
             _step1Complete = true;
           }
         }

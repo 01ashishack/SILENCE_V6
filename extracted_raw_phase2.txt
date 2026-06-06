@@ -1,0 +1,102 @@
+<USER_REQUEST>
+Here is your **Phase 2 – Admin Onboarding & UI Fixes** prompt for Antigravity. Copy and paste it directly.
+
+---
+
+```text
+You are working on the SILENCE Flutter app (SILENCE_V6).
+This is a bug-fix session only.
+DO NOT add new features.
+DO NOT restructure any files.
+ONLY fix the exact issues listed below, one at a time.
+After each fix, tell me exactly what you changed and in which file.
+
+════════════════════════════════════════
+FIX A — Numeric Keyboard Not Working (Phone & Seat Number)
+════════════════════════════════════════
+
+PROBLEM:
+In multiple screens, the keypad appears but numbers cannot be entered.
+Specifically:
+- Admin profile setup: Phone number field
+- Layout setup: Seat number field (when adding/editing seats)
+- Any other numeric input field (e.g., seat labels, phone numbers, pincodes)
+
+ROOT CAUSE:
+The TextField is likely using `keyboardType: TextInputType.number` but missing
+`inputFormatters` and `textInputAction`.
+
+FILES TO FIX:
+1. lib/screens/admin_profile_complete.dart (phone number field)
+2. lib/screens/library_setup_stage2.dart (seat number field in seat generation / inline seat edit)
+3. lib/screens/reservations/layout_sub_tab.dart (any seat number input)
+4. lib/screens/member_profile_edit.dart (phone number field)
+
+EXACT CHANGE:
+For every numeric TextField, ensure the following:
+
+```dart
+TextField(
+  keyboardType: TextInputType.number,
+  inputFormatters: [
+    FilteringTextInputFormatter.digitsOnly,  // allows only digits
+    LengthLimitingTextInputFormatter(10),    // limit to 10 digits for phone
+  ],
+  // other properties remain unchanged
+)
+```
+
+For seat numbers (may contain letters like "A-12"), use:
+
+```dart
+keyboardType: TextInputType.text,  // not number
+// because seat labels can have letters
+```
+
+Only enforce digits-only for phone numbers, pincodes, and numeric seat numbers
+(if seat number is pure number, use digi
+<truncated 6581 bytes>
+w errors instead of redirecting to setup.
+
+FILES TO FIX:
+1. lib/screens/reservations/layout_sub_tab.dart
+2. lib/screens/reservations/members_sub_tab.dart (Add Member button when no library)
+3. lib/screens/admin_analytics_tab.dart (when no library, show setup CTA)
+4. lib/screens/admin_profile_tab.dart (when no library, Library Management grid should show setup CTA)
+
+EXACT CHANGE:
+In each screen's `initState` or `build`, check if profile is complete and if library exists.
+If profile incomplete → redirect to `/admin/profile/complete`.
+If profile complete but no library → show a friendly card:
+"Complete your library setup to get started. [Set Up Library →]"
+Tap → navigate to `/admin/library/setup/1`.
+
+Specifically for Analytics tab, replace the empty state (currently raw error or blank)
+with a setup card that has the same message and button.
+
+════════════════════════════════════════
+WHAT NOT TO DO
+════════════════════════════════════════
+
+DO NOT touch:
+- Any UI colors or design (keep existing theme)
+- Member side onboarding (this fix is for admin only)
+- Working features (shifts, exports, analytics, etc.)
+
+════════════════════════════════════════
+AFTER ALL FIXES — REQUIRED REPORT
+════════════════════════════════════════
+
+Report each fix with:
+- Files changed
+- What exact code was added/modified
+- Any assumptions made
+
+If any fix requires a database migration (e.g., adding missing columns), ask me before proceeding.
+```
+
+This prompt addresses all your issues: numeric keyboard, save button validation, date picker, step‑by‑step restrictions, and redirects. Give it to Antigravity.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-06T10:12:34+05:30.
+</ADDITIONAL_METADATA>

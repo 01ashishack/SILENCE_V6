@@ -1,0 +1,71 @@
+Screen Name,File Path,Route,Role,Status,Documented in Original,Notes
+AboutUsScreen,lib/screens/about_us_screen.dart,/admin/about-us,Admin,implemented,No,New screen (exists in code but not documented)
+AddonServicesScreen,lib/screens/addon_services.dart,/admin/settings/addons,Admin,implemented,Yes,
+AdminAnalyticsTab,lib/screens/admin_analytics_tab.dart,N/A,Admin,implemented,Yes,
+SkeletonWidget,lib/screens/admin_analytics_tab.dart,N/A,Admin,implemented,No,New screen (exists in code but not documented)
+DualMonthCalendarPicker,lib/screens/admin_analytics_tab.dart,N/A,Admin,implemented,No,New screen (exists in code but not documented)
+AdminHomeScreen,lib/screens/admin_home.dart,/admin/home,Admin,implemented,Yes,
+AdminProfileCompleteScreen,lib/screens/admin_profile_complete.dart,/admin/profile/complete,Admin,implemented,Yes,
+AdminProfileTab,lib/screens/admin_profile_tab.dart,N/A,Admin,implemented,Yes,
+AddonsAmenitiesSheet,lib/screens/admin_profile_tab.dart,N/A,Admin,implemented,No,New screen (exists in code but not documented)
+AnnouncementsHistoryScreen,lib/screens/announcements_history_screen.dart,/admin/announcements,Admin,implemented,Yes,
+AppSettingsScreen,lib/screens/app_settings_screen.dart,/admin/app-settings,Admin,implemented,No,New screen (exists in code but not documented)
+AuditLogScreen,lib/screens/audit_log_screen.dart,/admin/audit-log,Admin,implemented,Yes,
+AuthScreen,lib/screens/auth_screen.dart,/auth,Both,implemented,Yes,
+BrandingAssetsScreen,lib/screens/branding_assets.dart,/admin/settings/branding,Admin,implemented,Yes,
+BusinessRulesScreen,lib/screens/business_rules.dart,/admin/settings/business-rules,Admin,implemented,Yes,
+ExportCenterScreen,lib/screens/export_center.dart,/admin/exports,Admin,partial,Yes,
+HelpSupportScreen,lib/screens/help_support_screen.dart,/admin/help-support,Admin,implemented,No,New screen (exists in code but not documented)
+LibraryProfileScreen,lib/screens/library_profile_screen.dart,/admin/library/profile,Both,implemented,Yes,Renamed/moved (original path: lib\screens\library_profile.dart)
+LibraryPublicProfileScreen,lib/screens/library_public_profile_screen.dart,/member/library-profile,Member,implemented,No,New screen (exists in code but not documented)
+LibrarySetupStage1Screen,lib/screens/library_setup_stage1.dart,/admin/library/setup/1,Both,implemented,Yes,
+LibrarySetupStage2Screen,lib/screens/library_setup_stage2.dart,/admin/library/setup/2,Both,broken,Yes,
+LibrarySetupStage3Screen,lib/screens/library_setup_stage3.dart,/admin/library/setup/3,Both,implemented,Yes,
+MemberAboutScreen,lib/screens/member_about_screen.dart,/member/about,Member,implemented,No,New screen (exists in code but not documented)
+MemberAnalyticsTab,lib/screens/member_analytics_tab.dart,N/A,Member,implemented,Yes,
+ExploreScreen,lib/screens/member_explore_screen.dart,/member/explore,Member,broken,No,New screen (exists in code but not documented)
+MemberHelpSupportScreen,lib/screens/member_help_support_screen.dart,/member/help,Member,implemented,No,New screen (exists in code but not documented)
+MemberHistoryTab,lib/screens/member_history_tab.dart,N/A,Member,implemented,No,New screen (exists in code but not documented)
+ReuploadProofBottomSheet,lib/screens/member_history_tab.dart,N/A,Member,implemented,No,New screen (exists in code but not documented)
+ExportOptionsBottomSheet,lib/screens/member_history_tab.dart,N/A,Member,implemented,No,New screen (exists in code but not documented)
+MemberHomeScreen,lib/screens/member_home.dart,/member/home,Member,implemented,Yes,
+MemberLicencesScreen,lib/screens/member_licences_screen.dart,/member/licences,Member,implemented,No,New screen (exists in code but not documented)
+MemberNotificationPreferencesScreen,lib/screens/member_notification_preferences_screen.dart,/member/settings/notifications,Member,implemented,No,New screen (exists in code but not documented)
+MemberPrivacyPolicyScreen,lib/screens/member_privacy_policy_screen.dart,/member/privacy-policy,Member,implemented,No,New screen (exists in code but not documented)
+MemberPrivacySecurityScreen,lib/screens/member_privacy_security_screen.dart,/member/settings/privacy,Member,implemented,No,New screen (exists in code but not documented)
+MemberProfileEditScreen,lib/screens/member_profile_edit.dart,/member/edit-profile,Member,implemented,Yes,
+MemberProfileTab,lib/screens/member_profile_tab.dart,N/A,Member,implemented,No,New screen (exists in code but not documented)
+MemberTermsScreen,lib/screens/member_terms_screen.dart,/member/terms,Member,implemented,No,New screen (exists in code but not documented)
+NotificationsScreen,lib/screens/notifications_screen.dart,N/A,Both,implemented,No,New screen (exists in code but not documented)
+NotificationPreferencesScreen,lib/screens/notification_preferences.dart,/admin/settings/notifications,Admin,implemented,Yes,
+PastLibraryDetailScreen,lib/screens/past_library_detail_screen.dart,N/A,Member,implemented,No,New screen (exists in code but not documented)
+PaymentSetupScreen,lib/screens/payment_setup.dart,N/A,Both,partial,Yes,
+PricingPlansScreen,lib/screens/pricing_plans.dart,/admin/settings/pricing,Admin,implemented,Yes,
+QRAssetsScreen,lib/screens/qr_assets.dart,/admin/settings/qr,Admin,implemented,Yes,
+ReferralSettingsScreen,lib/screens/referral_settings.dart,/admin/settings/referrals,Admin,implemented,Yes,
+RoleSelectionScreen,lib/screens/role_selection_screen.dart,/role-select,Both,implemented,Yes,
+ScheduledClosuresScreen,lib/screens/scheduled_closures.dart,/admin/settings/closures,Admin,implemented,Yes,
+ShiftManagementScreen,lib/screens/shift_management.dart,/admin/settings/shifts,Admin,implemented,Yes,
+SocialLinksEditScreen,lib/screens/social_links_edit_screen.dart,/admin/settings/social-links,Admin,implemented,No,New screen (exists in code but not documented)
+SplashScreen,lib/screens/splash_screen.dart,/,Both,implemented,Yes,
+SubscriptionScreen,lib/screens/subscription_screen.dart,/admin/subscription,Admin,partial,Yes,
+TermsScreen,lib/screens/terms_screen.dart,/admin/terms,Admin,implemented,No,New screen (exists in code but not documented)
+VerifiedBadgeScreen,lib/screens/verified_badge_screen.dart,/admin/verified-badge,Admin,implemented,Yes,
+AddMemberModeSelection,lib/screens/admin/add_member_mode_selection.dart,N/A,Admin,implemented,Yes,
+AddMemberStep1,lib/screens/admin/add_member_step1.dart,N/A,Admin,implemented,Yes,
+AddMemberStep2,lib/screens/admin/add_member_step2.dart,N/A,Admin,implemented,Yes,
+AddMemberStep3,lib/screens/admin/add_member_step3.dart,N/A,Admin,implemented,Yes,
+AddMemberStep4,lib/screens/admin/add_member_step4.dart,N/A,Admin,implemented,Yes,
+AddMemberStep5,lib/screens/admin/add_member_step5.dart,N/A,Admin,implemented,Yes,
+AddMemberWizard,lib/screens/admin/add_member_wizard.dart,/admin/member/add,Admin,implemented,Yes,
+ArchiveSubTab,lib/screens/reservations/archive_sub_tab.dart,N/A,Both,implemented,Yes,
+JoinFlowScreen,lib/screens/reservations/join_flow_screen.dart,N/A,Both,partial,Yes,
+LayoutSubTab,lib/screens/reservations/layout_sub_tab.dart,N/A,Both,implemented,Yes,
+ManageLayoutTreeSheet,lib/screens/reservations/layout_sub_tab.dart,N/A,Both,implemented,No,New screen (exists in code but not documented)
+LibraryQueryScreen,lib/screens/reservations/library_query_screen.dart,N/A,Member,implemented,No,New screen (exists in code but not documented)
+MembersSubTab,lib/screens/reservations/members_sub_tab.dart,N/A,Member,implemented,Yes,
+MemberDetailScreen,lib/screens/reservations/member_detail_screen.dart,/admin/member,Member,implemented,Yes,
+QRScannerScreen,lib/screens/reservations/qr_scanner_screen.dart,N/A,Both,implemented,Yes,
+RenewalScreen,lib/screens/reservations/renewal_screen.dart,N/A,Member,implemented,No,New screen (exists in code but not documented)
+RequestsSubTab,lib/screens/reservations/requests_sub_tab.dart,N/A,Both,broken,Yes,
+ReservationsTab,lib/screens/reservations/reservations_tab.dart,N/A,Both,implemented,Yes,
