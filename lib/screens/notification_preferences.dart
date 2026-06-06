@@ -33,6 +33,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
       scope: 'notification_preferences',
       libraryId: _libId,
     );
+    if (!mounted) return;
     setState(() {
       _announcePush = settings['announce_push'] as bool? ?? true;
       _remindersPush = settings['reminders_push'] as bool? ?? true;

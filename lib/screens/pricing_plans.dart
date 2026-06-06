@@ -130,6 +130,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
       await prefs.setDouble('pricing_plan_price_${plan.id}_${_libId ?? "default"}', plan.price);
       await prefs.setBool('pricing_plan_active_${plan.id}_${_libId ?? "default"}', plan.isActive);
       await prefs.setBool('pricing_plan_popular_${plan.id}_${_libId ?? "default"}', plan.isPopular);
+      if (!mounted) return;
     }
   }
 
@@ -148,6 +149,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
           await _supabase.from('shifts').update({'price_3month': newPrice}).eq('library_id', _libId!);
         } else if (id == 'semi_annual') {
           await _supabase.from('shifts').update({'price_6month': newPrice}).eq('library_id', _libId!);
+          if (!mounted) return;
         }
       } catch (_) {}
     }
@@ -158,6 +160,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
       _plans.firstWhere((p) => p.id == id).isActive = active;
     });
     await _savePlansToCache();
+    if (!mounted) return;
   }
 
   Future<void> _setPopularPlan(String id) async {

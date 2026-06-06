@@ -34,6 +34,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               .eq('member_id', user.id)
               .limit(1)
               .maybeSingle();
+          if (!mounted) return;
           if (membership != null) {
             libId = membership['library_id'] as String?;
           }
@@ -52,6 +53,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     final Uri url = Uri.parse(urlString);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       throw Exception('Could not launch $url');
+    if (!mounted) return;
     }
   }
 

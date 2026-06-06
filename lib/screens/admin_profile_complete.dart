@@ -8,7 +8,12 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/image_optimizer.dart';
-import 'package:silence/core/calendar_picker.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/styled_dropdown_button.dart';
+
+
 
 class AdminProfileCompleteScreen extends StatefulWidget {
   const AdminProfileCompleteScreen({super.key});
@@ -22,6 +27,8 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _customExamController = TextEditingController();
 
   String _gender = 'male';
   DateTime? _dob;
@@ -29,6 +36,20 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
   bool _isLoading = false;
   bool _isUploadingPhoto = false;
   bool _isSaving = false;
+
+  String _examCategory = 'UPSC';
+  String? _idDocumentUrl;
+  String? _idDocument2Url;
+  String _idDocType1 = 'Aadhaar';
+  String _idDocType2 = 'Aadhaar';
+  String _idProofStatus = 'Not uploaded';
+  String _idProof2Status = 'Not uploaded';
+  bool _isUploadingDoc = false;
+  bool _isUploadingDoc2 = false;
+  final List<String> _examCategories = [
+    'UPSC', 'NEET', 'JEE', 'SSC', 'PCS', 'CAT', 'Banking', 'State PCS', 'Class 10-12', 'Other'
+  ];
+  final List<String> _idDocTypes = ['Aadhaar', 'PAN Card', 'Voter ID', 'Driving License', 'Passport', 'Other'];
 
   @override
   void initState() {
@@ -41,6 +62,8 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _addressController.dispose();
+    _customExamController.dispose();
     super.dispose();
   }
 
@@ -64,6 +87,24 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
           }
           if (userData['photo_url'] != null) {
             _photoUrl = userData['photo_url'];
+          }
+          _addressController.text = userData['address'] ?? '';
+          final exam = userData['exam_category'] as String?;
+          if (exam != null) {
+            if (_examCategories.contains(exam)) {
+              _examCategory = exam;
+            } else {
+              _examCategory = 'Other';
+              _customExamController.text = exam;
+            }
+          }
+          if (userData['id_proof_url'] != null) {
+            _idDocumentUrl = userData['id_proof_url'];
+            _idProofStatus = 'Under Review';
+          }
+          if (userData['id_proof_2_url'] != null) {
+            _idDocument2Url = userData['id_proof_2_url'];
+            _idProof2Status = 'Under Review';
           }
         }
       } catch (e) {
@@ -147,7 +188,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
     );
   }
 
-  Future<void> _pickAndUploadPhoto() async {
+  Future<void> _pickAndUploadPhoto({required String uploadType}) async {
     try {
       // 1. Show source selection
       final ImageSource? source = await _showImageSourceBottomSheet();
@@ -182,27 +223,28 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
       if (image == null) return;
       if (!mounted) return;
 
-      // 4. Crop Image to strict 1:1 square
+      // 4. Crop Image
+      final bool isIdDoc = uploadType != 'profile';
       CroppedFile? croppedFile;
       bool cropSuccessOrCancel = false;
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
-          aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+          aspectRatio: isIdDoc ? null : const CropAspectRatio(ratioX: 1, ratioY: 1),
           uiSettings: [
             AndroidUiSettings(
-              toolbarTitle: 'Crop Profile Photo',
+              toolbarTitle: isIdDoc ? 'Crop ID Document' : 'Crop Profile Photo',
               toolbarColor: const Color(0xFFE65C00),
               toolbarWidgetColor: Colors.white,
-              initAspectRatio: CropAspectRatioPreset.square,
-              lockAspectRatio: true,
-              cropStyle: CropStyle.circle,
+              initAspectRatio: isIdDoc ? CropAspectRatioPreset.original : CropAspectRatioPreset.square,
+              lockAspectRatio: !isIdDoc,
+              cropStyle: isIdDoc ? CropStyle.rectangle : CropStyle.circle,
             ),
             IOSUiSettings(
-              title: 'Crop Profile Photo',
-              aspectRatioLockEnabled: true,
-              resetAspectRatioEnabled: false,
-              cropStyle: CropStyle.circle,
+              title: isIdDoc ? 'Crop ID Document' : 'Crop Profile Photo',
+              aspectRatioLockEnabled: !isIdDoc,
+              resetAspectRatioEnabled: isIdDoc,
+              cropStyle: isIdDoc ? CropStyle.rectangle : CropStyle.circle,
             ),
           ],
         );
@@ -222,7 +264,16 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
       if (!mounted) return;
 
       // 6. Upload to Supabase Storage
-      setState(() => _isUploadingPhoto = true);
+      setState(() {
+        if (uploadType == 'profile') {
+          _isUploadingPhoto = true;
+        } else if (uploadType == 'id_doc_1') {
+          _isUploadingDoc = true;
+        } else {
+          _isUploadingDoc2 = true;
+        }
+      });
+
       try {
         final supabase = Supabase.instance.client;
         final user = supabase.auth.currentUser;
@@ -232,11 +283,19 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
         }
 
         final bytes = await ImageOptimizer.compressImage(finalPath);
-        final path = 'admin_profiles/${user.id}/profile.jpg';
+        String fileName;
+        if (uploadType == 'profile') {
+          fileName = 'profile.jpg';
+        } else if (uploadType == 'id_doc_1') {
+          fileName = 'id_document_1.jpg';
+        } else {
+          fileName = 'id_document_2.jpg';
+        }
+        final path = 'admin_profiles/${user.id}/$fileName';
 
-        // Upload photo directly to pre-provisioned assets bucket
+        final String bucketName = (uploadType == 'profile') ? 'silence_assets' : 'silence_private';
 
-        await supabase.storage.from('silence_assets').uploadBinary(
+        await supabase.storage.from(bucketName).uploadBinary(
           path,
           Uint8List.fromList(bytes),
           fileOptions: const FileOptions(
@@ -246,24 +305,63 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
           ),
         );
 
-        final publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
+        if (!mounted) return;
+        final String publicUrl;
+        if (uploadType == 'profile') {
+          publicUrl = supabase.storage.from(bucketName).getPublicUrl(path);
+        } else {
+          publicUrl = await supabase.storage.from(bucketName).createSignedUrl(path, 3600);
+        }
 
         if (mounted) {
           setState(() {
-            _photoUrl = publicUrl;
+            if (uploadType == 'profile') {
+              _photoUrl = publicUrl;
+            } else if (uploadType == 'id_doc_1') {
+              _idDocumentUrl = publicUrl;
+              _idProofStatus = 'Under Review';
+            } else {
+              _idDocument2Url = publicUrl;
+              _idProof2Status = 'Under Review';
+            }
           });
-          _showSuccessSnackBar('Photo uploaded successfully! ✓');
+
+          final prefs = await SharedPreferences.getInstance();
+          if (!mounted) return;
+          if (uploadType == 'id_doc_1') {
+            prefs.setString('id_proof_status_${user.id}', 'Under Review');
+          } else if (uploadType == 'id_doc_2') {
+            prefs.setString('id_proof_2_url_${user.id}', publicUrl);
+            prefs.setString('id_proof_status_2_${user.id}', 'Under Review');
+          }
+
+          final label = uploadType == 'profile' ? 'Profile Photo' : (uploadType == 'id_doc_1' ? 'ID Document 1' : 'ID Document 2');
+          _showSuccessSnackBar('$label uploaded successfully! ✓');
         }
       } catch (e) {
-        if (mounted) _showErrorSnackBar('Photo upload failed: $e');
+        if (mounted) _showErrorSnackBar('Upload failed: $e');
       } finally {
-        if (mounted) setState(() => _isUploadingPhoto = false);
+        if (mounted) {
+          setState(() {
+            if (uploadType == 'profile') {
+              _isUploadingPhoto = false;
+            } else if (uploadType == 'id_doc_1') {
+              _isUploadingDoc = false;
+            } else {
+              _isUploadingDoc2 = false;
+            }
+          });
+        }
       }
     } catch (e) {
       debugPrint('Unexpected error in _pickAndUploadPhoto: $e');
       if (mounted) {
         _showErrorSnackBar('Something went wrong. Please try again.');
-        setState(() => _isUploadingPhoto = false);
+        setState(() {
+          _isUploadingPhoto = false;
+          _isUploadingDoc = false;
+          _isUploadingDoc2 = false;
+        });
       }
     }
   }
@@ -318,6 +416,21 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_addressController.text.trim().isEmpty) {
+      _showErrorSnackBar('Please enter your address.');
+      return;
+    }
+
+    if (_examCategory == 'Other' && _customExamController.text.trim().isEmpty) {
+      _showErrorSnackBar('Please enter your custom exam category.');
+      return;
+    }
+
+    if (_idDocumentUrl == null || _idDocumentUrl!.isEmpty) {
+      _showErrorSnackBar('Please upload your ID Proof (Front / Full).');
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       final supabase = Supabase.instance.client;
@@ -333,10 +446,9 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
       final String gender = _gender;
       final String? dobStr = _dob != null ? _dob!.toIso8601String().split('T')[0] : null;
 
-      // Update database profile record
-      await supabase.from('users').upsert({
+      final email = user.email ?? '';
+      final Map<String, dynamic> upsertData = {
         'id': user.id,
-        'email': user.email,
         'full_name': name,
         'nickname': name.split(' ').first,
         'phone': phone,
@@ -344,7 +456,18 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
         'date_of_birth': dobStr,
         'photo_url': _photoUrl,
         'role': 'admin',
-      }, onConflict: 'id');
+        'address': _addressController.text.trim(),
+        'exam_category': _examCategory == 'Other' ? _customExamController.text.trim() : _examCategory,
+        'id_proof_url': _idDocumentUrl,
+        'id_proof_2_url': _idDocument2Url,
+      };
+      if (email.isNotEmpty) {
+        upsertData['email'] = email;
+      }
+
+      // Update database profile record
+      await supabase.from('users').upsert(upsertData, onConflict: 'id');
+      if (!mounted) return;
 
       _showSuccessSnackBar('Profile completed successfully! ✓');
       if (!mounted) return;
@@ -414,7 +537,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                       bottom: 0,
                                       right: 0,
                                       child: GestureDetector(
-                                        onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
+                                        onTap: _isUploadingPhoto ? null : () => _pickAndUploadPhoto(uploadType: 'profile'),
                                         child: Container(
                                           padding: const EdgeInsets.all(6),
                                           decoration: const BoxDecoration(
@@ -524,18 +647,54 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                             Text('Date of Birth', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
                             const SizedBox(height: 6),
                             GestureDetector(
-                              onTap: () async {
-                                final selectedDate = await showCalendarGridBottomSheet(
-                                  context,
-                                  initialDate: _dob ?? DateTime(2000),
-                                  firstDate: DateTime(1950),
-                                  lastDate: DateTime.now(),
+                              onTap: () {
+                                DateTime tempDate = _dob ?? DateTime(2000, 1, 1);
+                                showCupertinoModalPopup(
+                                  context: context,
+                                  builder: (BuildContext context) {
+                                    return Container(
+                                      height: 320,
+                                      color: Colors.white,
+                                      child: Column(
+                                        children: [
+                                          Container(
+                                            color: Colors.grey[100],
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(context),
+                                                  child: Text('Cancel', style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      _dob = tempDate;
+                                                    });
+                                                    Navigator.pop(context);
+                                                  },
+                                                  child: Text('Done', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold)),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: CupertinoDatePicker(
+                                              mode: CupertinoDatePickerMode.date,
+                                              initialDateTime: tempDate,
+                                              minimumYear: 1950,
+                                              maximumDate: DateTime.now(),
+                                              onDateTimeChanged: (DateTime newDate) {
+                                                tempDate = newDate;
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
                                 );
-                                if (selectedDate != null) {
-                                  setState(() {
-                                    _dob = selectedDate;
-                                  });
-                                }
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -584,7 +743,11 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                 Expanded(
                                   child: TextFormField(
                                     controller: _phoneController,
-                                    keyboardType: TextInputType.phone,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      LengthLimitingTextInputFormatter(10),
+                                    ],
                                     style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
                                     decoration: InputDecoration(
                                       hintText: '98765 43210',
@@ -611,13 +774,58 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                               controller: _emailController,
                               readOnly: true,
                               style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF9CA3AF)),
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 prefixIcon: Icon(Icons.email_outlined, size: 20),
                               ),
                             ),
+                            const SizedBox(height: 20),
+
+                            Text('Address *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                            const SizedBox(height: 6),
+                            TextFormField(
+                              controller: _addressController,
+                              style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                hintText: 'Enter your complete address',
+                                hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
+                                prefixIcon: const Icon(Icons.location_on_outlined, size: 20),
+                              ),
+                              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                            ),
+                            const SizedBox(height: 20),
+
+                            Text('Target Exam Category *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                            const SizedBox(height: 6),
+                            StyledDropdownButton<String>(
+                              value: _examCategory,
+                              items: _examCategories,
+                              itemLabelBuilder: (String category) => category,
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setState(() => _examCategory = v);
+                                }
+                              },
+                              title: 'Select Category',
+                            ),
+                            if (_examCategory == 'Other') ...[
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _customExamController,
+                                style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                                decoration: InputDecoration(
+                                  hintText: 'Enter your exam name',
+                                  hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
+                                ),
+                                validator: (v) => _examCategory == 'Other' && (v == null || v.trim().isEmpty) ? 'Required' : null,
+                              ),
+                            ],
                           ],
                         ),
                       ),
+                      const SizedBox(height: 16),
+
+                      _buildIdDocumentsCard(),
                       const SizedBox(height: 24),
 
                       // Save Button
@@ -645,6 +853,120 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
             ),
           ),
         );
+  }
+
+  Widget _buildIdDocumentsCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('ID Verification Documents', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+          const SizedBox(height: 16),
+          
+          _buildDocRow('ID Proof (Front / Full)', _idDocType1, _idDocumentUrl, _idProofStatus, 'id_doc_1', (v) {
+            if (v != null) setState(() => _idDocType1 = v);
+          }),
+          const Divider(height: 24),
+          _buildDocRow('Other Side (if required for your ID)', _idDocType2, _idDocument2Url, _idProof2Status, 'id_doc_2', (v) {
+            if (v != null) setState(() => _idDocType2 = v);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocRow(
+    String label, 
+    String docType, 
+    String? docUrl, 
+    String status, 
+    String uploadType,
+    ValueChanged<String?> onTypeChanged
+  ) {
+    Color statusColor = Colors.grey;
+    if (status == 'Verified') statusColor = const Color(0xFF10B981);
+    if (status == 'Under Review') statusColor = const Color(0xFFF59E0B);
+    if (status == 'Rejected') statusColor = const Color(0xFFEF4444);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                status,
+                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+              ),
+            )
+          ],
+        ),
+        const SizedBox(height: 8),
+        StyledDropdownButton<String>(
+          value: docType,
+          items: _idDocTypes,
+          itemLabelBuilder: (String type) => type,
+          onChanged: onTypeChanged,
+          title: 'Select ID Type',
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () => _pickAndUploadPhoto(uploadType: uploadType),
+          child: Container(
+            height: 110,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFBF5EE),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: docUrl != null && docUrl.isNotEmpty
+                ? Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: CachedNetworkImage(
+                          imageUrl: docUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                        ),
+                      ),
+                      Container(
+                        color: Colors.black26,
+                        child: const Center(
+                          child: Icon(Icons.cloud_done, color: Colors.white, size: 28),
+                        ),
+                      )
+                    ],
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.cloud_upload_outlined, size: 24, color: Color(0xFFE65C00)),
+                      const SizedBox(height: 4),
+                      Text('Upload Document', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                    ],
+                  ),
+          ),
+        )
+      ],
+    );
   }
 
   String _getMonthName(int month) {

@@ -60,6 +60,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
       debugPrint('AddonServicesScreen: Resolved fallback library ID: $_libId');
       if (_libId != null) {
         await _loadAddons();
+        if (!mounted) return;
       } else {
         setState(() => _isLoading = false);
       }

@@ -35,6 +35,7 @@ class MembersSubTab extends StatefulWidget {
 class _MembersSubTabState extends State<MembersSubTab> {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
+  bool _isProfileComplete = true;
   List<Map<String, dynamic>> _membersList = [];
   List<MemberDraft> _draftsList = [];
 
@@ -61,12 +62,48 @@ class _MembersSubTabState extends State<MembersSubTab> {
   bool _hasMore = true;
   bool _isLoadingMore = false;
 
+  Future<void> _checkOnboardingStatus() async {
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      try {
+        final userData = await supabase.from('users').select().eq('id', user.id).maybeSingle();
+        if (userData != null) {
+          final String name = userData['full_name'] ?? '';
+          final String phone = userData['phone'] ?? '';
+          final String gender = userData['gender'] ?? '';
+          final String dob = userData['date_of_birth'] ?? '';
+          final String address = userData['address'] ?? '';
+          final String examCategory = userData['exam_category'] ?? '';
+          final String idProofUrl = userData['id_proof_url'] ?? '';
+
+          final bool isComplete = name.isNotEmpty &&
+              phone.isNotEmpty &&
+              gender.isNotEmpty &&
+              dob.isNotEmpty &&
+              address.isNotEmpty &&
+              examCategory.isNotEmpty &&
+              idProofUrl.isNotEmpty;
+          
+          if (mounted) {
+            setState(() {
+              _isProfileComplete = isComplete;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Error in _checkOnboardingStatus: $e');
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _loadCacheAndFetch();
-    _fetchFiltersData();
+    _checkOnboardingStatus().then((_) {
+      _loadCacheAndFetch();
+      _fetchFiltersData();
+    });
   }
 
   Future<void> _fetchDrafts() async {
@@ -125,8 +162,10 @@ class _MembersSubTabState extends State<MembersSubTab> {
           _selectedShiftId = 'all';
         }
       });
-      _loadCacheAndFetch();
-      _fetchFiltersData();
+      _checkOnboardingStatus().then((_) {
+        _loadCacheAndFetch();
+        _fetchFiltersData();
+      });
     }
   }
 
@@ -1001,7 +1040,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton(
-                      onPressed: () {
+                      onPressed: _isProfileComplete ? () {
                         Navigator.pushNamed(
                           context,
                           '/admin/member/add',
@@ -1012,9 +1051,16 @@ class _MembersSubTabState extends State<MembersSubTab> {
                           }
                           _fetchDrafts();
                         });
+                      } : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Complete your profile first to register members', style: GoogleFonts.inter()),
+                            backgroundColor: const Color(0xFFE65C00),
+                          ),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE65C00),
+                        backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
                         foregroundColor: Colors.white,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

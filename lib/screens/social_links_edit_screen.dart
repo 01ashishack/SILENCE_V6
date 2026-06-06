@@ -50,6 +50,7 @@ class _SocialLinksEditScreenState extends State<SocialLinksEditScreen> {
       final String? targetLibId = _libId;
       if (targetLibId != null) {
         final libData = await _supabase.from('libraries').select('social_links').eq('id', targetLibId).maybeSingle();
+        if (!mounted) return;
         if (libData != null && libData['social_links'] != null) {
           final social = libData['social_links'] as Map<String, dynamic>;
           setState(() {

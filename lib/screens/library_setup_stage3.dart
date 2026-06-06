@@ -90,7 +90,17 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
 
     if (user != null) {
       try {
-        final libData = await sb.from('libraries').select().eq('owner_id', user.id).maybeSingle();
+        final Object? args = ModalRoute.of(context)?.settings.arguments;
+        String? passedId;
+        if (args is String) {
+          passedId = args;
+        }
+
+        final query = sb.from('libraries').select().eq('owner_id', user.id);
+        final libData = passedId != null
+            ? await query.eq('id', passedId).maybeSingle()
+            : await query.maybeSingle();
+
         if (libData != null) {
           _libraryId = libData['id'];
 
@@ -241,6 +251,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
           'upi_ids': _upiIds,
         },
       }).eq('id', _libraryId!);
+      if (!mounted) return;
 
       _showSuccess('Shifts & payment options saved successfully! ✓');
       if (!mounted) return;

@@ -146,6 +146,7 @@ class _PaymentSetupScreenState extends State<PaymentSetupScreen> {
           'upi_ids': _upiIds,
         }
       }).eq('id', _libraryId!);
+      if (!mounted) return;
 
       _showSuccessSnackBar('Payment settings updated successfully! ✓');
       if (!mounted) return;

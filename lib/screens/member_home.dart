@@ -84,6 +84,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
+    _checkRoleGuard();
     _loadCachedLibraries();
     _loadInitialData();
     _requestLocation();
@@ -92,6 +93,23 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     WidgetsBinding.instance.addPostFrameCallback((_) {
       OfflineSyncManager.instance.startListening(context);
     });
+  }
+
+  Future<void> _checkRoleGuard() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        final userData = await supabase.from('users').select('role').eq('id', user.id).maybeSingle();
+        if (userData != null && userData['role'] == 'admin') {
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/admin/home');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Member role guard check error: $e');
+    }
   }
 
   @override
@@ -2265,10 +2283,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   String _getGreetingName() {
-    final nickname = _userProfile?['nickname'] as String?;
-    return (nickname != null && nickname.isNotEmpty && nickname != 'N/A')
-        ? nickname
-        : (_userProfile?['full_name'] ?? 'Student');
+    final fullName = _userProfile?['full_name'] as String? ??
+        Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'] as String? ??
+        'Student';
+    final firstName = fullName.split(' ').first;
+    return firstName;
   }
 
   String _getGreetingTime() {
@@ -3446,6 +3465,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                           'member_id': currentUser.id,
                           'read_at': DateTime.now().toIso8601String(),
                         });
+                        if (!mounted) return;
                         
                         setState(() {
                           _readAnnouncementIds.add(announce['id']);
@@ -3496,6 +3516,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         setState(() {
           _currentBottomTab = index;
         });
+        if (index == 0) {
+          _loadInitialData();
+        }
       },
     );
   }
@@ -3525,7 +3548,14 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   Widget _buildNavItem(int index, IconData icon, String label) {
     final selected = _currentBottomTab == index;
     return InkWell(
-      onTap: () => setState(() => _currentBottomTab = index),
+      onTap: () {
+        setState(() {
+          _currentBottomTab = index;
+        });
+        if (index == 0) {
+          _loadInitialData();
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4.0),
         child: Column(

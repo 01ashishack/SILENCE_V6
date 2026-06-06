@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter/gestures.dart';
+
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -113,6 +116,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         email: _loginEmailController.text.trim(),
         password: _loginPasswordController.text,
       );
+      if (!mounted) return;
 
       if (response.user != null) {
         _showSuccessSnackBar('Welcome back!');
@@ -179,6 +183,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               'nickname': _signupNameController.text.trim().split(' ').first,
               'role': null,
             }).eq('id', response.user!.id);
+            if (!mounted) return;
           } catch (updateErr) {
             print('DB user update failed: $updateErr');
           }
@@ -210,23 +215,116 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _showErrorSnackBar('$provider login support is disabled in Milestone 1.');
   }
 
-  Future<void> _handleForgotPassword() async {
-    final email = _loginEmailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      _showErrorSnackBar('Please enter your email first to request a reset link.');
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(email);
-      _showSuccessSnackBar('Password reset link sent to your email.');
-    } catch (e) {
-      _showErrorSnackBar('Error requesting password reset: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
+  void _handleForgotPassword() {
+    final emailController = TextEditingController(text: _loginEmailController.text.trim());
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        bool isResetting = false;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                top: 24,
+                left: 24,
+                right: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Reset Password',
+                    style: GoogleFonts.outfit(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1A1A2E),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Enter your registered email address to receive a password reset link.',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: const Color(0xFF6B7280),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                    decoration: InputDecoration(
+                      labelText: 'Email Address',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: isResetting
+                        ? null
+                        : () async {
+                            final email = emailController.text.trim();
+                            if (email.isEmpty || !email.contains('@')) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please enter a valid email address.')),
+                              );
+                              return;
+                            }
+                            setModalState(() => isResetting = true);
+                            try {
+                              await Supabase.instance.client.auth.resetPasswordForEmail(email);
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                                _showSuccessSnackBar('Password reset link sent to your email.');
+                              }
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
+                            } finally {
+                              setModalState(() => isResetting = false);
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE65C00),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: isResetting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            'Send Reset Link',
+                            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -244,7 +342,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8.0),
                   child: Image.asset(
-                    'assets/images/horizontal app logo.png',
+                    'assets/images/transparent_logo_with_black_name.png',
                     height: 54,
                     fit: BoxFit.contain,
                   ),
@@ -293,6 +391,48 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 ),
               ),
               const SizedBox(height: 24),
+              _buildSocialDivider(),
+              const SizedBox(height: 16),
+              _buildSocialRow(),
+              const SizedBox(height: 24),
+              Center(
+                child: RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280), height: 1.5),
+                    children: [
+                      const TextSpan(text: 'By creating an account, you agree to our\n'),
+                      TextSpan(
+                        text: 'Terms',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFFE65C00),
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () {
+                            Navigator.pushNamed(context, '/member/terms');
+                          },
+                      ),
+                      const TextSpan(text: ' & '),
+                      TextSpan(
+                        text: 'Privacy Policy',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFFE65C00),
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () {
+                            Navigator.pushNamed(context, '/member/privacy-policy');
+                          },
+                      ),
+                      const TextSpan(text: '.'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -351,10 +491,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               text: 'Login',
               onPressed: _handleLogin,
             ),
-            const SizedBox(height: 16),
-            _buildSocialDivider(),
-            const SizedBox(height: 16),
-            _buildSocialRow(),
           ],
         ),
       ),
@@ -443,10 +579,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               text: 'Create Account',
               onPressed: _handleSignup,
             ),
-            const SizedBox(height: 12),
-            _buildSocialDivider(),
-            const SizedBox(height: 12),
-            _buildSocialRow(),
             const SizedBox(height: 16),
             Center(
               child: TextButton.icon(
@@ -578,9 +710,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
         ),
         child: Center(
-          child: provider == 'Google'
-              ? const Icon(Icons.g_mobiledata, size: 40, color: Colors.blue)
-              : const Icon(Icons.apple, size: 28, color: Colors.black),
+          child: FaIcon(
+            provider == 'Google' ? FontAwesomeIcons.google : FontAwesomeIcons.apple,
+            size: 24,
+            color: provider == 'Google' ? const Color(0xFFDB4437) : Colors.black,
+          ),
         ),
       ),
     );

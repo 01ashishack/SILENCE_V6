@@ -36,6 +36,7 @@ class _MemberPrivacyPolicyScreenState extends State<MemberPrivacyPolicyScreen> {
         String? dbVersion;
         try {
           final res = await supabase.from('users').select('accepted_privacy_version').eq('id', user.id).maybeSingle();
+          if (!mounted) return;
           if (res != null) {
             dbVersion = res['accepted_privacy_version'] as String?;
           }
@@ -71,6 +72,7 @@ class _MemberPrivacyPolicyScreenState extends State<MemberPrivacyPolicyScreen> {
         await supabase.from('users').update({
           'accepted_privacy_version': _latestVersion,
         }).eq('id', _userId!);
+        if (!mounted) return;
       } catch (e) {
         debugPrint('Failed to update accepted_privacy_version in DB, using local: $e');
       }

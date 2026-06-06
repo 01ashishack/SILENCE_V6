@@ -124,6 +124,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
   Future<void> _pickProofImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (!mounted) return;
     if (image == null) return;
 
     setState(() {

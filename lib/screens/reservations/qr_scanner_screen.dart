@@ -120,6 +120,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
     // Check connectivity before any Supabase queries
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
+      if (!mounted) return;
       final isOffline = connectivityResult.contains(ConnectivityResult.none) || connectivityResult.isEmpty;
       if (isOffline) {
         setState(() {
@@ -191,6 +192,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           'device_id': 'mobile',
           'synced': 0,
         });
+        if (!mounted) return;
 
         // Trigger success offline display
         _showSuccess(
@@ -303,6 +305,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           'qr_version': qrVersion,
           'device_id': 'mobile',
         });
+        if (!mounted) return;
 
         _showSuccess(
           isCheckIn: true,
@@ -339,6 +342,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           'check_out_time': checkOutTime.toIso8601String(),
           'duration_minutes': durationMinutes,
         }).eq('id', activeSession['id']);
+        if (!mounted) return;
 
         final hrs = durationMinutes ~/ 60;
         final mins = durationMinutes % 60;

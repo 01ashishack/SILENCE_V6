@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'styled_dropdown_button.dart';
 
 class VacantSeatGrid extends StatefulWidget {
   final String libraryId;
@@ -213,18 +214,13 @@ class _VacantSeatGridState extends State<VacantSeatGrid> {
           children: [
             // Floor Dropdown
             Expanded(
-              child: DropdownButtonFormField<String>(
-                value: _selectedFloorId,
-                decoration: const InputDecoration(
-                  labelText: 'Floor',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-                items: _floors.map((f) {
-                  return DropdownMenuItem<String>(
-                    value: f['id'],
-                    child: Text(f['name'] ?? 'Floor'),
-                  );
-                }).toList(),
+              child: StyledDropdownButton<String>(
+                value: _selectedFloorId ?? (_floors.isNotEmpty ? _floors.first['id'].toString() : ''),
+                items: _floors.map((f) => f['id'].toString()).toList(),
+                itemLabelBuilder: (id) {
+                  final match = _floors.firstWhere((f) => f['id'].toString() == id, orElse: () => {});
+                  return match['name'] ?? 'Floor';
+                },
                 onChanged: (val) {
                   if (val != null) {
                     setState(() {
@@ -234,29 +230,28 @@ class _VacantSeatGridState extends State<VacantSeatGrid> {
                     });
                   }
                 },
+                title: 'Select Floor',
               ),
             ),
             if (floorSections.isNotEmpty) ...[
               const SizedBox(width: 12),
               // Section Dropdown
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _selectedSectionId,
-                  decoration: const InputDecoration(
-                    labelText: 'Section',
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: floorSections.map((s) {
-                    return DropdownMenuItem<String>(
-                      value: s['id'],
-                      child: Text(s['name'] ?? 'Section'),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      _selectedSectionId = val;
-                    });
+                child: StyledDropdownButton<String>(
+                  value: _selectedSectionId ?? (floorSections.isNotEmpty ? floorSections.first['id'].toString() : ''),
+                  items: floorSections.map((s) => s['id'].toString()).toList(),
+                  itemLabelBuilder: (id) {
+                    final match = floorSections.firstWhere((s) => s['id'].toString() == id, orElse: () => {});
+                    return match['name'] ?? 'Section';
                   },
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _selectedSectionId = val;
+                      });
+                    }
+                  },
+                  title: 'Select Section',
                 ),
               ),
             ],

@@ -44,6 +44,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
       scope: 'branding',
       libraryId: _libId,
     );
+    if (!mounted) return;
     _logoUrl = settings['logo_url']?.toString();
     final colorVal = settings['accent_color'];
     if (colorVal != null) {
@@ -174,6 +175,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
         );
       },
     ) ?? false;
+    if (!mounted) return false;
   }
 
   Future<void> _uploadLogo() async {
@@ -185,6 +187,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
     }
 
     final ImageSource? source = await _showImageSourceBottomSheet(context, 'Choose Logo Photo Source');
+    if (!mounted) return;
     if (source == null) return;
 
     setState(() => _isLoading = true);
@@ -194,6 +197,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
         hasPermission = await _requestCameraPermission();
       } else {
         hasPermission = await _requestGalleryPermission();
+        if (!mounted) return;
       }
 
       if (!hasPermission) {
@@ -263,6 +267,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
           upsert: true,
         ),
       );
+      if (!mounted) return;
 
       final publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
       
@@ -295,6 +300,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
         'accent_color': _selectedAccent.value,
       },
     );
+    if (!mounted) return;
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Branding assets updated successfully! ✓'), backgroundColor: Color(0xFFE65C00)),

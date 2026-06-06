@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,7 +10,9 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/image_optimizer.dart';
-import '../core/calendar_picker.dart';
+import '../widgets/styled_dropdown_button.dart';
+import 'package:flutter/services.dart';
+
 
 class MemberProfileEditScreen extends StatefulWidget {
   const MemberProfileEditScreen({super.key});
@@ -43,9 +46,14 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
 
   bool _phoneVerified = false;
   bool _emailVerified = false;
+  String _lastVerifiedPhone = '';
+  String _lastVerifiedEmail = '';
 
   String _idProofStatus = 'Not uploaded';
   String _idProof2Status = 'Not uploaded';
+
+  bool get _isPhoneCurrentlyVerified => _phoneVerified && _phoneController.text.trim() == _lastVerifiedPhone && _lastVerifiedPhone.isNotEmpty;
+  bool get _isEmailCurrentlyVerified => _emailVerified && _emailController.text.trim() == _lastVerifiedEmail && _lastVerifiedEmail.isNotEmpty;
 
   bool _isLoading = false;
   bool _isUploadingPhoto = false;
@@ -61,7 +69,17 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
   @override
   void initState() {
     super.initState();
+    _phoneController.addListener(_onPhoneChanged);
+    _emailController.addListener(_onEmailChanged);
     _loadProfileData();
+  }
+
+  void _onPhoneChanged() {
+    setState(() {});
+  }
+
+  void _onEmailChanged() {
+    setState(() {});
   }
 
   @override
@@ -95,6 +113,18 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           _emergencyContactController.text = userData['emergency_contact'] ?? '';
           _phoneVerified = userData['phone_verified'] as bool? ?? false;
           _emailVerified = userData['email_verified'] as bool? ?? false;
+          if (_phoneVerified) {
+            _lastVerifiedPhone = userData['phone'] ?? '';
+          }
+          if (_emailVerified) {
+            _lastVerifiedEmail = user.email ?? '';
+          }
+          if (userData['id_type'] != null) {
+            _idDocType1 = userData['id_type'];
+          }
+          if (userData['id_proof_2_url'] != null) {
+            _idDocument2Url = userData['id_proof_2_url'];
+          }
           
           if (userData['gender'] != null) {
             _gender = userData['gender'];
@@ -313,7 +343,9 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         }
         final path = 'member_profiles/${user.id}/$fileName';
 
-        await supabase.storage.from('silence_assets').uploadBinary(
+        final String bucketName = (uploadType == 'profile') ? 'silence_assets' : 'silence_private';
+
+        await supabase.storage.from(bucketName).uploadBinary(
           path,
           Uint8List.fromList(bytes),
           fileOptions: const FileOptions(
@@ -323,7 +355,13 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ),
         );
 
-        final publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
+        if (!mounted) return;
+        final String publicUrl;
+        if (uploadType == 'profile') {
+          publicUrl = supabase.storage.from(bucketName).getPublicUrl(path);
+        } else {
+          publicUrl = await supabase.storage.from(bucketName).createSignedUrl(path, 3600);
+        }
 
         if (mounted) {
           setState(() {
@@ -339,6 +377,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           });
           
           final prefs = await SharedPreferences.getInstance();
+          if (!mounted) return;
           if (uploadType == 'id_doc_1') {
             prefs.setString('id_proof_status_${user.id}', 'Under Review');
           } else if (uploadType == 'id_doc_2') {
@@ -466,11 +505,27 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                           final user = supabase.auth.currentUser;
                           if (user != null) {
                             if (targetType == 'phone') {
-                              await supabase.from('users').update({'phone_verified': true}).eq('id', user.id);
-                              setState(() => _phoneVerified = true);
+                              final phoneVal = _phoneController.text.trim();
+                              await supabase.from('users').update({
+                                'phone_verified': true,
+                                'phone': phoneVal,
+                              }).eq('id', user.id);
+                              if (!mounted) return;
+                              setState(() {
+                                _phoneVerified = true;
+                                _lastVerifiedPhone = phoneVal;
+                              });
                             } else {
-                              await supabase.from('users').update({'email_verified': true}).eq('id', user.id);
-                              setState(() => _emailVerified = true);
+                              final emailVal = _emailController.text.trim();
+                              await supabase.from('users').update({
+                                'email_verified': true,
+                                'email': emailVal,
+                              }).eq('id', user.id);
+                              if (!mounted) return;
+                              setState(() {
+                                _emailVerified = true;
+                                _lastVerifiedEmail = emailVal;
+                              });
                             }
                             _showSuccessSnackBar('Verified successfully! ✓');
                             Navigator.pop(ctx);
@@ -522,9 +577,9 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       final String emergencyContact = _emergencyContactController.text.trim();
       final String? dobStr = _dob != null ? _dob!.toIso8601String().split('T')[0] : null;
 
+      final email = user.email ?? '';
       final Map<String, dynamic> upsertData = {
         'id': user.id,
-        'email': user.email,
         'full_name': name,
         'nickname': nickname.isNotEmpty ? nickname : name.split(' ').first,
         'phone': phone,
@@ -534,19 +589,25 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         'exam_category': _examCategory == 'Other' ? _customExamController.text.trim() : _examCategory,
         'photo_url': _photoUrl,
         'id_proof_url': _idDocumentUrl,
+        'id_proof_2_url': _idDocument2Url,
+        'id_type': _idDocType1,
         'phone_verified': _phoneVerified,
         'email_verified': _emailVerified,
         'role': 'member',
         'updated_at': DateTime.now().toIso8601String(),
       };
+      if (email.isNotEmpty) {
+        upsertData['email'] = email;
+      }
 
-      if (fatherName.isNotEmpty) upsertData['father_name'] = fatherName;
+      upsertData['father_name'] = fatherName.isNotEmpty ? fatherName : null;
       if (emergencyContact.isNotEmpty) upsertData['emergency_contact'] = emergencyContact;
 
       await supabase.from('users').upsert(upsertData, onConflict: 'id');
 
       // Save SharedPreferences fallbacks
       final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
       final userId = user.id;
       if (_idDocument2Url != null) prefs.setString('id_proof_2_url_$userId', _idDocument2Url!);
       prefs.setString('id_doc_type_1_$userId', _idDocType1);
@@ -745,7 +806,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           const SizedBox(height: 16),
 
           // Father's name
-          Text("Father's Name (Optional)", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text("Father's Name", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
           const SizedBox(height: 6),
           TextFormField(
             controller: _fatherNameController,
@@ -791,18 +852,54 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           Text('Date of Birth *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
           const SizedBox(height: 6),
           GestureDetector(
-            onTap: () async {
-              final selectedDate = await showCalendarGridBottomSheet(
-                context,
-                initialDate: _dob ?? DateTime(2000),
-                firstDate: DateTime(1950),
-                lastDate: DateTime.now(),
+            onTap: () {
+              DateTime tempDate = _dob ?? DateTime(2000, 1, 1);
+              showCupertinoModalPopup(
+                context: context,
+                builder: (BuildContext context) {
+                  return Container(
+                    height: 320,
+                    color: Colors.white,
+                    child: Column(
+                      children: [
+                        Container(
+                          color: Colors.grey[100],
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text('Cancel', style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _dob = tempDate;
+                                  });
+                                  Navigator.pop(context);
+                                },
+                                child: Text('Done', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: CupertinoDatePicker(
+                            mode: CupertinoDatePickerMode.date,
+                            initialDateTime: tempDate,
+                            minimumYear: 1950,
+                            maximumDate: DateTime.now(),
+                            onDateTimeChanged: (DateTime newDate) {
+                              tempDate = newDate;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               );
-              if (selectedDate != null) {
-                setState(() {
-                  _dob = selectedDate;
-                });
-              }
             },
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -839,31 +936,16 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
 
           Text('Exam Preparing For', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
           const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _examCategories.contains(_examCategory) ? _examCategory : 'Other',
-                isExpanded: true,
-                icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFE65C00)),
-                items: _examCategories.map((String category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category, style: GoogleFonts.inter(fontSize: 15)),
-                  );
-                }).toList(),
-                onChanged: (String? value) {
-                  if (value != null) {
-                    setState(() => _examCategory = value);
-                  }
-                },
-              ),
-            ),
+          StyledDropdownButton<String>(
+            value: _examCategories.contains(_examCategory) ? _examCategory : 'Other',
+            items: _examCategories,
+            itemLabelBuilder: (String category) => category,
+            onChanged: (String? value) {
+              if (value != null) {
+                setState(() => _examCategory = value);
+              }
+            },
+            title: 'Select Exam Preparing For',
           ),
           if (_examCategory == 'Other') ...[
             const SizedBox(height: 12),
@@ -935,7 +1017,11 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               Expanded(
                 child: TextFormField(
                   controller: _phoneController,
-                  keyboardType: TextInputType.phone,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
                   style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
                   decoration: InputDecoration(
                     hintText: 'Enter 10 digit number',
@@ -947,7 +1033,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          _buildVerifyRow('phone', _phoneVerified, () => _showVerifyOtpBottomSheet('phone', '+91 ${_phoneController.text}')),
+          _buildVerifyRow('phone', _isPhoneCurrentlyVerified, _phoneController.text.trim(), () => _showVerifyOtpBottomSheet('phone', '+91 ${_phoneController.text}')),
           const SizedBox(height: 16),
 
           // Emergency Contact
@@ -972,7 +1058,11 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               Expanded(
                 child: TextFormField(
                   controller: _emergencyContactController,
-                  keyboardType: TextInputType.phone,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
                   style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
                   decoration: InputDecoration(
                     hintText: 'Emergency phone number',
@@ -984,7 +1074,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ),
           const SizedBox(height: 16),
 
-          Text('Email (Optional)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Email', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
           const SizedBox(height: 6),
           TextFormField(
             controller: _emailController,
@@ -994,13 +1084,13 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          _buildVerifyRow('email', _emailVerified, () => _showVerifyOtpBottomSheet('email', _emailController.text)),
+          _buildVerifyRow('email', _isEmailCurrentlyVerified, _emailController.text.trim(), () => _showVerifyOtpBottomSheet('email', _emailController.text)),
         ],
       ),
     );
   }
 
-  Widget _buildVerifyRow(String type, bool isVerified, VoidCallback onVerify) {
+  Widget _buildVerifyRow(String type, bool isVerified, String text, VoidCallback onVerify) {
     if (isVerified) {
       return Row(
         children: [
@@ -1013,18 +1103,38 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         ],
       );
     } else {
+      final bool isDisabled = text.isEmpty;
+      final child = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            color: isDisabled ? Colors.grey : const Color(0xFFE65C00),
+            size: 14,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'Unverified. [Verify →]',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: isDisabled ? Colors.grey : const Color(0xFFE65C00),
+              fontWeight: FontWeight.bold,
+              decoration: isDisabled ? TextDecoration.none : TextDecoration.underline,
+            ),
+          ),
+        ],
+      );
+
+      if (isDisabled) {
+        return Tooltip(
+          message: 'Enter phone number/email first',
+          child: child,
+        );
+      }
+
       return GestureDetector(
         onTap: onVerify,
-        child: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded, color: Color(0xFFE65C00), size: 14),
-            const SizedBox(width: 4),
-            Text(
-              'Unverified. [Verify →]',
-              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
-            ),
-          ],
-        ),
+        child: child,
       );
     }
   }
@@ -1045,11 +1155,11 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           Text('ID Verification Documents', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
           const SizedBox(height: 16),
           
-          _buildDocRow('Document 1 (Required)', _idDocType1, _idDocumentUrl, _idProofStatus, 'id_doc_1', (v) {
+          _buildDocRow('ID Proof (Front / Full)', _idDocType1, _idDocumentUrl, _idProofStatus, 'id_doc_1', (v) {
             if (v != null) setState(() => _idDocType1 = v);
           }),
           const Divider(height: 24),
-          _buildDocRow('Document 2 (Optional)', _idDocType2, _idDocument2Url, _idProof2Status, 'id_doc_2', (v) {
+          _buildDocRow('Other Side (if required for your ID)', _idDocType2, _idDocument2Url, _idProof2Status, 'id_doc_2', (v) {
             if (v != null) setState(() => _idDocType2 = v);
           }),
         ],
@@ -1091,21 +1201,12 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[200]!),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: docType,
-              isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFE65C00), size: 18),
-              items: _idDocTypes.map((t) => DropdownMenuItem(value: t, child: Text(t, style: GoogleFonts.inter(fontSize: 13)))).toList(),
-              onChanged: onTypeChanged,
-            ),
-          ),
+        StyledDropdownButton<String>(
+          value: docType,
+          items: _idDocTypes,
+          itemLabelBuilder: (String type) => type,
+          onChanged: onTypeChanged,
+          title: 'Select ID Type',
         ),
         const SizedBox(height: 10),
         GestureDetector(

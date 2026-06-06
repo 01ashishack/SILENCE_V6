@@ -515,6 +515,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         );
       },
     );
+    if (!mounted) return;
 
     if (picked != null) {
       setState(() {
@@ -2680,6 +2681,7 @@ class _ReuploadProofBottomSheetState extends State<ReuploadProofBottomSheet> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final img = await picker.pickImage(source: ImageSource.gallery);
+    if (!mounted) return;
     if (img == null) return;
 
     setState(() {

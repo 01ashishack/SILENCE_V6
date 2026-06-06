@@ -260,6 +260,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
           'upi_ids': _upiIds,
         },
       }).eq('id', _libraryId!);
+      if (!mounted) return;
 
       _showSuccess('Shifts & payment options saved successfully! ✓');
       if (!mounted) return;

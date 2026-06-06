@@ -528,6 +528,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
             upsert: true,
           ),
         );
+        if (!mounted) return;
 
         final publicUrl = _supabase.storage.from('silence_assets').getPublicUrl(path);
         setState(() {
@@ -710,6 +711,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                             firstDate: DateTime(1950),
                             lastDate: DateTime.now(),
                           );
+                          if (!mounted) return;
                           if (selected != null) {
                             setState(() {
                               widget.memberData.dob = selected;
@@ -864,6 +866,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                         firstDate: DateTime.now().subtract(const Duration(days: 365)),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
+                       if (!mounted) return;
                       if (selected != null) {
                         setState(() {
                           widget.memberData.joiningDate = selected;

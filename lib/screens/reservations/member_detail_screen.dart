@@ -499,6 +499,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         ],
       ),
     );
+    if (!mounted) return;
 
     if (confirmed != true) return;
 
@@ -737,28 +738,86 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             title: 'ID Documents',
             icon: Icons.badge_outlined,
             children: [
-              if (user['id_type'] != null && user['id_type'].toString().isNotEmpty)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        user['id_type']?.toString().toUpperCase() ?? 'DOCUMENT',
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+              if ((user['id_proof_url'] != null && user['id_proof_url'].toString().isNotEmpty) ||
+                  (user['id_proof_2_url'] != null && user['id_proof_2_url'].toString().isNotEmpty)) ...[
+                if (user['id_proof_url'] != null && user['id_proof_url'].toString().isNotEmpty)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${user['id_type']?.toString().toUpperCase() ?? 'ID PROOF'} (FRONT)',
+                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                        ),
                       ),
-                    ),
-                    if (user['id_document_url'] != null && user['id_document_url'].toString().isNotEmpty)
                       TextButton.icon(
                         icon: const Icon(Icons.open_in_new, size: 14, color: Color(0xFFE65C00)),
                         label: Text('View', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                         onPressed: () async {
-                          final url = user['id_document_url'].toString();
-                          if (url.isNotEmpty) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                          var url = user['id_proof_url'].toString();
+                          if (url.isNotEmpty) {
+                            if (url.contains('silence_private') || url.contains('member_profiles/')) {
+                              try {
+                                final uri = Uri.parse(url);
+                                final pathIndex = uri.path.indexOf('member_profiles/');
+                                if (pathIndex != -1) {
+                                  final storagePath = Uri.decodeComponent(uri.path.substring(pathIndex));
+                                  final signedResult = await supabase.storage
+                                      .from('silence_private')
+                                      .createSignedUrl(storagePath, 3600);
+                                  url = signedResult;
+                                }
+                              } catch (e) {
+                                debugPrint('Error generating fresh signed URL: $e');
+                              }
+                            }
+                            await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                          }
                         },
                       ),
-                  ],
-                )
-              else
+                    ],
+                  ),
+                if (user['id_proof_2_url'] != null && user['id_proof_2_url'].toString().isNotEmpty) ...[
+                  if (user['id_proof_url'] != null && user['id_proof_url'].toString().isNotEmpty)
+                    const Divider(height: 8, color: Color(0xFFF1F5F9)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${user['id_type']?.toString().toUpperCase() ?? 'ID PROOF'} (BACK)',
+                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                        ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.open_in_new, size: 14, color: Color(0xFFE65C00)),
+                        label: Text('View', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                        onPressed: () async {
+                          var url = user['id_proof_2_url'].toString();
+                          if (url.isNotEmpty) {
+                            if (url.contains('silence_private') || url.contains('member_profiles/')) {
+                              try {
+                                final uri = Uri.parse(url);
+                                final pathIndex = uri.path.indexOf('member_profiles/');
+                                if (pathIndex != -1) {
+                                  final storagePath = Uri.decodeComponent(uri.path.substring(pathIndex));
+                                  final signedResult = await supabase.storage
+                                      .from('silence_private')
+                                      .createSignedUrl(storagePath, 3600);
+                                  url = signedResult;
+                                }
+                              } catch (e) {
+                                debugPrint('Error generating fresh signed URL: $e');
+                              }
+                            }
+                            await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ] else
                 Text('No documents uploaded', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
             ],
           ),

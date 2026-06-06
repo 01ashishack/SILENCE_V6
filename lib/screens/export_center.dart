@@ -62,6 +62,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
         );
       },
     );
+    if (!mounted) return;
     if (picked != null) {
       setState(() {
         _startDate = picked.start;

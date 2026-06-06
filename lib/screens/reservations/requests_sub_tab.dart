@@ -14,6 +14,7 @@ class RequestsSubTab extends StatefulWidget {
 class _RequestsSubTabState extends State<RequestsSubTab> {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
+  bool _isProfileComplete = true;
 
   // Horizontal Toggle
   int _activeRequestTab = 0; // 0: Join Requests, 1: Seat Changes, 2: Hold Requests
@@ -29,10 +30,46 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   // Realtime subscription channels
   RealtimeChannel? _requestsChannel;
 
+  Future<void> _checkOnboardingStatus() async {
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      try {
+        final userData = await supabase.from('users').select().eq('id', user.id).maybeSingle();
+        if (userData != null) {
+          final String name = userData['full_name'] ?? '';
+          final String phone = userData['phone'] ?? '';
+          final String gender = userData['gender'] ?? '';
+          final String dob = userData['date_of_birth'] ?? '';
+          final String address = userData['address'] ?? '';
+          final String examCategory = userData['exam_category'] ?? '';
+          final String idProofUrl = userData['id_proof_url'] ?? '';
+
+          final bool isComplete = name.isNotEmpty &&
+              phone.isNotEmpty &&
+              gender.isNotEmpty &&
+              dob.isNotEmpty &&
+              address.isNotEmpty &&
+              examCategory.isNotEmpty &&
+              idProofUrl.isNotEmpty;
+          
+          if (mounted) {
+            setState(() {
+              _isProfileComplete = isComplete;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Error in _checkOnboardingStatus: $e');
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    _fetchRequests();
+    _checkOnboardingStatus().then((_) {
+      _fetchRequests();
+    });
     _setupRealtimeSubscription();
   }
 
@@ -43,7 +80,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       setState(() {
         _isLoading = true;
       });
-      _fetchRequests();
+      _checkOnboardingStatus().then((_) {
+        _fetchRequests();
+      });
     }
   }
 
@@ -304,10 +343,12 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   }) async {
     try {
       await supabase.from('notifications').insert({
-        'member_id': memberId,
+        'user_id': memberId,
         'title': title,
-        'message': message,
-        'type': 'seat_change',
+        'body': message,
+        'data': {
+          'type': 'seat_change',
+        },
         'is_read': false,
         'created_at': DateTime.now().toIso8601String(),
       });
@@ -422,6 +463,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             .inFilter('status', ['active', 'trial'])
             .limit(1)
             .maybeSingle();
+        if (!mounted) return;
 
         if (existing != null) {
           setState(() => _isLoading = false);
@@ -458,6 +500,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
               ],
             ),
           ) ?? false;
+          if (!mounted) return;
 
           if (confirmReject) {
             setState(() => _isLoading = true);
@@ -486,6 +529,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           .eq('shift_id', shiftId)
           .eq('status', 'vacant')
           .order('seat_label');
+      if (!mounted) return;
 
       setState(() => _isLoading = false);
 
@@ -825,9 +869,20 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: isPaymentConfirmed ? () => _showSeatPickerBottomSheet(request) : null,
+                  onPressed: !_isProfileComplete
+                      ? () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
+                              backgroundColor: const Color(0xFFE65C00),
+                            ),
+                          );
+                        }
+                      : (isPaymentConfirmed ? () => _showSeatPickerBottomSheet(request) : null),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
+                    backgroundColor: _isProfileComplete
+                        ? (isPaymentConfirmed ? const Color(0xFFE65C00) : Colors.grey[200])
+                        : const Color(0xFFE65C00).withOpacity(0.5),
                     disabledBackgroundColor: Colors.grey[200],
                     elevation: 0,
                   ),
@@ -836,7 +891,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: isPaymentConfirmed ? Colors.white : Colors.grey[400],
+                      color: _isProfileComplete
+                          ? (isPaymentConfirmed ? Colors.white : Colors.grey[400])
+                          : Colors.white.withOpacity(0.5),
                     ),
                   ),
                 ),
@@ -922,7 +979,18 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                     title: Text(r['member_id']?['full_name'] ?? 'Member'),
                                     subtitle: Text('Change from ${r['current_seat']?['seat_label']} to Preferred section: ${r['preferred_section']}'),
                                     trailing: ElevatedButton(
-                                      onPressed: () => _approveSeatChangeRequest(r),
+                                      onPressed: _isProfileComplete ? () => _approveSeatChangeRequest(r) : () {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
+                                            backgroundColor: const Color(0xFFE65C00),
+                                          ),
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
+                                        foregroundColor: Colors.white,
+                                      ),
                                       child: const Text('Approve'),
                                     ),
                                   ),
@@ -951,10 +1019,21 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                     title: Text(r['member_id']?['full_name'] ?? 'Member'),
                                     subtitle: Text('Hold from ${r['start_date']} to ${r['end_date']}'),
                                     trailing: ElevatedButton(
-                                      onPressed: () async {
+                                      onPressed: _isProfileComplete ? () async {
                                         await supabase.from('hold_requests').update({'status': 'approved'}).eq('id', r['id']);
                                         _fetchRequests();
+                                      } : () {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
+                                            backgroundColor: const Color(0xFFE65C00),
+                                          ),
+                                        );
                                       },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
+                                        foregroundColor: Colors.white,
+                                      ),
                                       child: const Text('Approve'),
                                     ),
                                   ),

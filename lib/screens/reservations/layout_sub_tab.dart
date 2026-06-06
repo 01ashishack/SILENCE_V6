@@ -15,12 +15,55 @@ class LayoutSubTab extends StatefulWidget {
 class LayoutSubTabState extends State<LayoutSubTab> {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
+  bool _isProfileComplete = true;
+  bool _noLibrary = false;
 
   // Dropdowns Lists
   List<Map<String, dynamic>> _shiftsList = [];
   List<Map<String, dynamic>> _floorsList = [];
   String? _selectedShiftId;
   String? _selectedFloorId;
+
+  Future<void> _checkOnboardingStatus() async {
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      try {
+        final userData = await supabase.from('users').select().eq('id', user.id).maybeSingle();
+        if (userData != null) {
+          final String name = userData['full_name'] ?? '';
+          final String phone = userData['phone'] ?? '';
+          final String gender = userData['gender'] ?? '';
+          final String dob = userData['date_of_birth'] ?? '';
+          final String address = userData['address'] ?? '';
+          final String examCategory = userData['exam_category'] ?? '';
+          final String idProofUrl = userData['id_proof_url'] ?? '';
+
+          final bool isComplete = name.isNotEmpty &&
+              phone.isNotEmpty &&
+              gender.isNotEmpty &&
+              dob.isNotEmpty &&
+              address.isNotEmpty &&
+              examCategory.isNotEmpty &&
+              idProofUrl.isNotEmpty;
+          
+          if (mounted) {
+            setState(() {
+              _isProfileComplete = isComplete;
+            });
+          }
+        }
+
+        final libsRes = await supabase.from('libraries').select('id').eq('owner_id', user.id);
+        if (mounted) {
+          setState(() {
+            _noLibrary = libsRes.isEmpty;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error in _checkOnboardingStatus: $e');
+      }
+    }
+  }
 
   // Data collections
   List<Map<String, dynamic>> _sectionsList = [];
@@ -136,6 +179,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
   Future<void> _loadSelectors() async {
     try {
       print('=== LayoutSubTab _loadSelectors START ===');
+      await _checkOnboardingStatus();
       print('libraryId passed: ${widget.libraryId}');
 
       // 1. Fetch non-archived shifts

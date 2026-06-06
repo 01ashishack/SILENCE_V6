@@ -49,6 +49,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
           }
         } else {
           final res = await _supabase.from('libraries').select().eq('id', _libId!).maybeSingle();
+          if (!mounted) return;
           if (res != null) {
             _libCode = res['library_code'] ?? _libCode;
             _qrVersion = res['qr_version'] ?? _qrVersion;
@@ -139,6 +140,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
                                     await _supabase.from('libraries').update({
                                       'qr_version': nextVer,
                                     }).eq('id', _libId!);
+                                    if (!mounted) return;
                                   } catch (_) {}
                                 }
                                 Navigator.pop(context);

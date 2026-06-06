@@ -23,6 +23,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 
   Future<void> _loadThemeSetting() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _isDarkMode = prefs.getBool('app_dark_mode') ?? false;
       _selectedLanguage = prefs.getString('app_language') ?? 'English';
@@ -32,6 +33,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   Future<void> _toggleTheme(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('app_dark_mode', value);
+    if (!mounted) return;
     setState(() {
       _isDarkMode = value;
     });
@@ -71,6 +73,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     if (picked != null) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('app_language', picked);
+      if (!mounted) return;
       setState(() {
         _selectedLanguage = picked;
       });
@@ -147,6 +150,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
         ],
       ),
     );
+    if (!mounted) return;
 
     if (confirm == true) {
       setState(() => _isLoading = true);

@@ -48,14 +48,19 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
         return;
       }
 
-      // Save selection to DB users table (Using upsert to satisfy non-null role constraint)
-      await supabase.from('users').upsert({
+      final email = user.email ?? '';
+      final Map<String, dynamic> upsertData = {
         'id': user.id,
-        'email': user.email,
         'role': _selectedRole,
         'full_name': user.userMetadata?['full_name'] ?? 'Admin User',
         'nickname': (user.userMetadata?['full_name'] as String?)?.split(' ').first ?? 'Admin',
-      });
+      };
+      if (email.isNotEmpty) {
+        upsertData['email'] = email;
+      }
+
+      // Save selection to DB users table (Using upsert to satisfy non-null role constraint)
+      await supabase.from('users').upsert(upsertData);
 
       if (!mounted) return;
 
@@ -75,10 +80,10 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // Mandatory selection, block bypass
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        _showErrorSnackBar('Role selection is mandatory to configure your workspace.');
+        Navigator.of(context).pushReplacementNamed('/auth');
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFFBF5EE),
@@ -88,7 +93,16 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Color(0xFF1A1A2E)),
+                    onPressed: () {
+                      Navigator.of(context).pushReplacementNamed('/auth');
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
                 // Centered branding & logo
                 Center(
                   child: Column(
@@ -96,7 +110,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8.0),
                         child: Image.asset(
-                          'assets/images/horizontal app logo.png',
+                          'assets/images/transparent_logo_with_black_name.png',
                           height: 54,
                           fit: BoxFit.contain,
                         ),

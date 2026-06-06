@@ -67,52 +67,6 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
       } catch (e) {
         debugPrint('Audit logs Supabase query exception: $e');
       }
-
-      // Default visual ledger fallback if query is empty or failed
-      if (_logs.isEmpty) {
-        _logs = [
-          AuditEntry(
-            id: 'log_1',
-            performerName: 'Ashish Kumar (Owner)',
-            category: 'qr',
-            actionTitle: 'Attendance QR Regenerated',
-            actionDetails: 'Invalidated older version. Increment QR version key to v2.',
-            timestamp: '2026-05-27 16:54',
-          ),
-          AuditEntry(
-            id: 'log_2',
-            performerName: 'Ashish Kumar (Owner)',
-            category: 'payments',
-            actionTitle: 'Custom Discount Applied',
-            actionDetails: 'Applied 15% discount for Amit Singh (Monthly Pass plan).',
-            timestamp: '2026-05-27 11:24',
-          ),
-          AuditEntry(
-            id: 'log_3',
-            performerName: 'Ashish Kumar (Owner)',
-            category: 'members',
-            actionTitle: 'Join Request Approved',
-            actionDetails: 'Approved membership profile request for Rahul Sharma (Desk B-04).',
-            timestamp: '2026-05-26 18:02',
-          ),
-          AuditEntry(
-            id: 'log_4',
-            performerName: 'System Trigger',
-            category: 'members',
-            actionTitle: 'Membership Auto-Hold',
-            actionDetails: 'Marked desk vacant & suspended Priya Patel due to plan expiry.',
-            timestamp: '2026-05-25 00:01',
-          ),
-          AuditEntry(
-            id: 'log_5',
-            performerName: 'Ashish Kumar (Owner)',
-            category: 'settings',
-            actionTitle: 'Timing Configurations Changed',
-            actionDetails: 'Modified Morning Shift slot from 07:00 AM start to 06:00 AM start.',
-            timestamp: '2026-05-24 14:15',
-          ),
-        ];
-      }
     }
     setState(() => _isLoading = false);
   }
@@ -188,14 +142,33 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
 
                     // 2. Ledger list
                     Expanded(
-                      child: filteredList.isEmpty
+                      child: _logs.isEmpty
                           ? Center(
-                              child: Text(
-                                'No audit logs found for this category.',
-                                style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.history, size: 64, color: Colors.grey),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No audit logs found',
+                                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Admin actions will appear here',
+                                    style: GoogleFonts.inter(color: Colors.grey, fontSize: 13),
+                                  ),
+                                ],
                               ),
                             )
-                          : ListView.builder(
+                          : (filteredList.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    'No audit logs found for this category.',
+                                    style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                                  ),
+                                )
+                              : ListView.builder(
                               padding: const EdgeInsets.all(16),
                               physics: const BouncingScrollPhysics(),
                               itemCount: filteredList.length,
@@ -267,7 +240,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                   ),
                                 );
                               },
-                            ),
+                            )),
                     ),
                   ],
                 ),

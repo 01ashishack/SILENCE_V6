@@ -253,6 +253,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
           .eq('library_id', widget.libraryId)
           .eq('status', 'trial')
           .limit(1);
+      if (!mounted) return;
       
       _trialEligible = (trialCheck as List).isEmpty;
 
@@ -374,6 +375,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
   Future<void> _pickProofImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (!mounted) return;
     if (image == null) return;
 
     setState(() {
@@ -390,7 +392,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       final path = 'payment_proofs/${supabase.auth.currentUser!.id}/$fileName';
 
       final bytes = await ImageOptimizer.compressImage(_proofImageFile!.path);
-      await supabase.storage.from('silence_assets').uploadBinary(
+      await supabase.storage.from('silence_private').uploadBinary(
             path,
             Uint8List.fromList(bytes),
             fileOptions: const FileOptions(
@@ -400,7 +402,8 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
             ),
           );
 
-      final String publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
+      if (!mounted) return false;
+      final String publicUrl = await supabase.storage.from('silence_private').createSignedUrl(path, 3600);
       _proofUrl = publicUrl;
       return true;
     } catch (e) {
@@ -576,6 +579,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
             'status': 'pending',
             'reward_days': 3, // Reward 3 days by default
           });
+          if (!mounted) return;
         }
       }
 
@@ -902,6 +906,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                       firstDate: DateTime(2020),
                       lastDate: DateTime.now(),
                     );
+                    if (!mounted) return;
                     if (picked != null) {
                       setState(() {
                         _existingJoinDate = picked;

@@ -48,6 +48,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
       if (user != null) {
         _userId = user.id;
         final prefs = await SharedPreferences.getInstance();
+        if (!mounted) return;
         final suffix = _userId!;
 
         setState(() {
@@ -172,6 +173,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
         );
       },
     );
+    if (!mounted) return;
     if (picked != null && picked != _streakTime) {
       setState(() => _streakTime = picked);
     }
@@ -194,6 +196,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
         );
       },
     );
+    if (!mounted) return;
     if (picked != null) {
       setState(() {
         if (isStart) {

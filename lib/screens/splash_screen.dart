@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../core/offline_sync.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -50,7 +51,18 @@ class _SplashScreenState extends State<SplashScreen> {
 
         if (!mounted) return;
 
-        if (userData == null || userData['role'] == null) {
+        if (userData == null) {
+          // User record was deleted. Sign out and go to auth.
+          await supabase.auth.signOut();
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.clear();
+          if (mounted) {
+            Navigator.of(context).pushReplacementNamed('/auth');
+          }
+          return;
+        }
+
+        if (userData['role'] == null) {
           // 3. Session but no role -> navigate to Role Selection (S003)
           Navigator.of(context).pushReplacementNamed('/role-select');
         } else {

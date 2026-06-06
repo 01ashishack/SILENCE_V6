@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/image_optimizer.dart';
 import 'notifications_screen.dart';
@@ -355,6 +356,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
           ),
         ],
       );
+      if (!mounted) return;
     } catch (e) {
       debugPrint('Cropping failed: $e');
     }
@@ -387,6 +389,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
 
       // Update database
       await _supabase.from('users').update({'photo_url': publicUrl}).eq('id', user.id);
+      if (!mounted) return;
 
       setState(() {
         if (_userProfile != null) {
@@ -809,28 +812,6 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
             ..._pastMemberships.map((m) => _buildPastMembershipCard(m)),
           ],
         ],
-
-        const SizedBox(height: 12),
-        // Join Another Library Button
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, '/member/explore').then((_) => _loadData());
-            },
-            icon: const Icon(Icons.add, size: 16),
-            label: Text(
-              'Join Another Library',
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFE65C00),
-              side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -1392,6 +1373,93 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
     );
   }
 
+  void _showChangeRoleDialog() {
+    final hasActive = _activeMemberships.isNotEmpty;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: Text(
+          'Switch to Admin Role?',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to switch your account type to Admin?',
+              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+            ),
+            const SizedBox(height: 12),
+            if (hasActive) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning, color: Color(0xFFEF4444), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'WARNING: You currently have active memberships. Changing your role will block your access to these libraries.',
+                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF991B1B)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Text(
+              'You will be signed out. Upon logging back in, you will configure your library workspace as an Admin.',
+              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+              try {
+                final user = _supabase.auth.currentUser;
+                if (user != null) {
+                  await _supabase.from('users').update({'role': 'admin'}).eq('id', user.id);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.clear();
+                  await _supabase.auth.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+                  }
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to switch role: $e')),
+                  );
+                }
+              } finally {
+                if (mounted) setState(() => _isLoading = false);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: Text('Confirm - Switch to Admin', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // 5. ACCOUNT SECTION
   Widget _buildAccountSection() {
     return Column(
@@ -1455,6 +1523,15 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                 onTap: () {
                   _showLanguageDialog();
                 },
+              ),
+              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
+              _buildRowItem(
+                icon: Icons.swap_horiz,
+                iconBg: const Color(0xFFFEE2E2),
+                iconColor: const Color(0xFFEF4444),
+                title: 'Change Role',
+                subtitle: 'Switch between Admin and Member (requires confirmation)',
+                onTap: _showChangeRoleDialog,
               ),
             ],
           ),

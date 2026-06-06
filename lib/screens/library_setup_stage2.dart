@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/seat_generation_inline_widget.dart';
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data models (local, not persisted until Save is tapped)
@@ -91,9 +93,23 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     if (user == null) { setState(() => _isLoading = false); return; }
 
     try {
-      final libRow = await sb.from('libraries').select('id').eq('owner_id', user.id).maybeSingle();
-      if (libRow == null) { setState(() => _isLoading = false); return; }
-      _libraryId = libRow['id'] as String;
+      final Object? args = ModalRoute.of(context)?.settings.arguments;
+      String? passedId;
+      if (args is String) {
+        passedId = args;
+      }
+
+      String? libId = passedId;
+      if (libId == null) {
+        final libRow = await sb.from('libraries').select('id').eq('owner_id', user.id).maybeSingle();
+        if (libRow != null) {
+          libId = libRow['id'] as String;
+        }
+      }
+
+      if (!mounted) return;
+      if (libId == null) { setState(() => _isLoading = false); return; }
+      _libraryId = libId;
 
       final floorsRaw = await sb.from('floors').select().eq('library_id', _libraryId!).order('order_index');
       final List<FloorModel> floors = [];
@@ -593,6 +609,46 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
 
   // ── save to Supabase ──────────────────────────────────────────────────────
 
+  Future<bool> _hasActiveMemberships(String floorId) async {
+    final sb = Supabase.instance.client;
+    final seats = await sb.from('seats').select('id').eq('floor_id', floorId);
+    if (seats.isEmpty) return false;
+    final seatIds = seats.map((s) => s['id'] as String).toList();
+    final memberships = await sb.from('memberships')
+        .select('id')
+        .inFilter('seat_id', seatIds)
+        .inFilter('status', ['active', 'trial']);
+    return memberships.isNotEmpty;
+  }
+
+  Future<bool> _sectionHasActiveMemberships(String sectionId) async {
+    final sb = Supabase.instance.client;
+    final seats = await sb.from('seats').select('id').eq('section_id', sectionId);
+    if (seats.isEmpty) return false;
+    final seatIds = seats.map((s) => s['id'] as String).toList();
+    final memberships = await sb.from('memberships')
+        .select('id')
+        .inFilter('seat_id', seatIds)
+        .inFilter('status', ['active', 'trial']);
+    return memberships.isNotEmpty;
+  }
+
+  Future<bool> _seatHasActiveMemberships(String seatId) async {
+    final sb = Supabase.instance.client;
+    final memberships = await sb.from('memberships')
+        .select('id')
+        .eq('seat_id', seatId)
+        .inFilter('status', ['active', 'trial']);
+    return memberships.isNotEmpty;
+  }
+
+  T? _firstWhereOrNull<T>(Iterable<T> iterable, bool Function(T) test) {
+    for (var element in iterable) {
+      if (test(element)) return element;
+    }
+    return null;
+  }
+
   Future<void> _handleSave() async {
     if (_libraryId == null) {
       _showError('No library configured. Complete Stage 1 first.');
@@ -607,8 +663,131 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     final sb = Supabase.instance.client;
 
     try {
-      // Delete all existing floors (cascade removes sections + seats)
-      await sb.from('floors').delete().eq('library_id', _libraryId!);
+      // 1. Fetch all existing floors from DB for this library
+      final dbFloors = await sb.from('floors').select('id, name').eq('library_id', _libraryId!);
+      final List<String> deletedFloorIds = [];
+      final List<String> deletedFloorNames = [];
+      final List<Map<String, String>> deletedSections = [];
+      final List<Map<String, String>> deletedSeats = [];
+
+      for (final dbF in dbFloors) {
+        final fId = dbF['id'] as String;
+        final fName = dbF['name'] as String;
+        final keptFloor = _firstWhereOrNull(_floors, (f) => f.id == fId);
+        
+        if (keptFloor == null) {
+          deletedFloorIds.add(fId);
+          deletedFloorNames.add(fName);
+        } else {
+          // If floor is kept, check sections
+          final dbSections = await sb.from('sections').select('id, name').eq('floor_id', fId);
+          for (final dbS in dbSections) {
+            final sId = dbS['id'] as String;
+            final sName = dbS['name'] as String;
+            final keptSection = _firstWhereOrNull(keptFloor.sections, (s) => s.id == sId);
+            
+            if (keptSection == null) {
+              deletedSections.add({'id': sId, 'name': sName});
+            } else {
+              // If section is kept, check seats in section
+              final dbSeatsRaw = await sb.from('seats').select('id, seat_label').eq('section_id', sId);
+              for (final dbSeat in dbSeatsRaw) {
+                final seatId = dbSeat['id'] as String;
+                final seatLabel = dbSeat['seat_label'] as String;
+                if (!keptSection.seats.any((s) => s.id == seatId)) {
+                  deletedSeats.add({'id': seatId, 'label': seatLabel});
+                }
+              }
+            }
+          }
+          // Also check floor-level seats
+          final dbFloorSeatsRaw = await sb.from('seats').select('id, seat_label').eq('floor_id', fId).isFilter('section_id', null);
+          for (final dbSeat in dbFloorSeatsRaw) {
+            final seatId = dbSeat['id'] as String;
+            final seatLabel = dbSeat['seat_label'] as String;
+            if (!keptFloor.floorSeats.any((s) => s.id == seatId)) {
+              deletedSeats.add({'id': seatId, 'label': seatLabel});
+            }
+          }
+        }
+      }
+
+      // 2. Pre-check active memberships for all deletions
+      final List<String> activeFloorBlocks = [];
+      for (int i = 0; i < deletedFloorIds.length; i++) {
+        final hasActive = await _hasActiveMemberships(deletedFloorIds[i]);
+        if (hasActive) {
+          activeFloorBlocks.add(deletedFloorNames[i]);
+        }
+      }
+
+      final List<String> activeSectionBlocks = [];
+      for (final sec in deletedSections) {
+        final hasActive = await _sectionHasActiveMemberships(sec['id']!);
+        if (hasActive) {
+          activeSectionBlocks.add(sec['name']!);
+        }
+      }
+
+      final List<String> activeSeatBlocks = [];
+      for (final seat in deletedSeats) {
+        final hasActive = await _seatHasActiveMemberships(seat['id']!);
+        if (hasActive) {
+          activeSeatBlocks.add(seat['label']!);
+        }
+      }
+
+      if (!mounted) return;
+      if (activeFloorBlocks.isNotEmpty || activeSectionBlocks.isNotEmpty || activeSeatBlocks.isNotEmpty) {
+        setState(() => _isSaving = false);
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              title: Text(
+                'Cannot Save Layout Changes',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'The following elements cannot be deleted because they currently contain active or trial members:',
+                      style: GoogleFonts.inter(),
+                    ),
+                    const SizedBox(height: 12),
+                    if (activeFloorBlocks.isNotEmpty) ...[
+                      Text('Floors:', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                      ...activeFloorBlocks.map((f) => Text('• $f', style: GoogleFonts.inter())),
+                      const SizedBox(height: 8),
+                    ],
+                    if (activeSectionBlocks.isNotEmpty) ...[
+                      Text('Sections:', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                      ...activeSectionBlocks.map((s) => Text('• $s', style: GoogleFonts.inter())),
+                      const SizedBox(height: 8),
+                    ],
+                    if (activeSeatBlocks.isNotEmpty) ...[
+                      Text('Seats:', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                      ...activeSeatBlocks.map((s) => Text('• $s', style: GoogleFonts.inter())),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
 
       // Get or create a default shift to attach seats to
       var shiftsRaw = await sb.from('shifts').select('id').eq('library_id', _libraryId!);
@@ -626,53 +805,108 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
         shiftId = shiftsRaw.first['id'] as String;
       }
 
+      // 3. Perform Deletions (since they have been checked and verified to be safe)
+      for (final fId in deletedFloorIds) {
+        await sb.from('floors').delete().eq('id', fId);
+      }
+      for (final sec in deletedSections) {
+        await sb.from('sections').delete().eq('id', sec['id']!);
+      }
+      for (final seat in deletedSeats) {
+        await sb.from('seats').delete().eq('id', seat['id']!);
+      }
+
+      // 4. Perform Updates and Inserts
       for (int fi = 0; fi < _floors.length; fi++) {
         final floor = _floors[fi];
-        final floorRow = await sb.from('floors').insert({
-          'library_id': _libraryId!,
-          'name': floor.name,
-          'order_index': fi,
-        }).select().single();
-        final floorId = floorRow['id'] as String;
-        floor.id = floorId;
+        String floorId;
 
-        // sections
-        for (final section in floor.sections) {
-          final secRow = await sb.from('sections').insert({
-            'floor_id': floorId,
-            'name': section.name,
-            'tag': section.tag,
+        if (floor.id != null) {
+          // Update existing floor name and order index
+          await sb.from('floors').update({
+            'name': floor.name,
+            'order_index': fi,
+          }).eq('id', floor.id!);
+          floorId = floor.id!;
+        } else {
+          // Insert new floor
+          final floorRow = await sb.from('floors').insert({
+            'library_id': _libraryId!,
+            'name': floor.name,
+            'order_index': fi,
           }).select().single();
-          final sectionId = secRow['id'] as String;
-          section.id = sectionId;
+          floorId = floorRow['id'] as String;
+          floor.id = floorId;
+        }
 
-          // seats in section
-          if (section.seats.isNotEmpty) {
-            await sb.from('seats').insert(section.seats.map((seat) => {
-              'library_id': _libraryId!,
+        // Handle sections
+        for (final section in floor.sections) {
+          String sectionId;
+          if (section.id != null) {
+            // Update section name and tag
+            await sb.from('sections').update({
+              'name': section.name,
+              'tag': section.tag,
+            }).eq('id', section.id!);
+            sectionId = section.id!;
+          } else {
+            // Insert section
+            final secRow = await sb.from('sections').insert({
               'floor_id': floorId,
-              'section_id': sectionId,
-              'shift_id': shiftId,
-              'seat_label': seat.label,
-              'status': seat.status,
-            }).toList());
+              'name': section.name,
+              'tag': section.tag,
+            }).select().single();
+            sectionId = secRow['id'] as String;
+            section.id = sectionId;
+          }
+
+          // Handle seats in section
+          for (final seat in section.seats) {
+            if (seat.id != null) {
+              // Update seat
+              await sb.from('seats').update({
+                'seat_label': seat.label,
+                'status': seat.status,
+              }).eq('id', seat.id!);
+            } else {
+              // Insert new seat
+              final seatRow = await sb.from('seats').insert({
+                'library_id': _libraryId!,
+                'floor_id': floorId,
+                'section_id': sectionId,
+                'shift_id': shiftId,
+                'seat_label': seat.label,
+                'status': seat.status,
+              }).select().single();
+              seat.id = seatRow['id'] as String;
+            }
           }
         }
 
-        // floor-level seats (no section)
-        if (floor.floorSeats.isNotEmpty) {
-          await sb.from('seats').insert(floor.floorSeats.map((seat) => {
-            'library_id': _libraryId!,
-            'floor_id': floorId,
-            'shift_id': shiftId,
-            'seat_label': seat.label,
-            'status': seat.status,
-          }).toList());
+        // Handle floor-level seats (no section)
+        for (final seat in floor.floorSeats) {
+          if (seat.id != null) {
+            // Update seat
+            await sb.from('seats').update({
+              'seat_label': seat.label,
+              'status': seat.status,
+            }).eq('id', seat.id!);
+          } else {
+            // Insert seat
+            final seatRow = await sb.from('seats').insert({
+              'library_id': _libraryId!,
+              'floor_id': floorId,
+              'shift_id': shiftId,
+              'seat_label': seat.label,
+              'status': seat.status,
+            }).select().single();
+            seat.id = seatRow['id'] as String;
+          }
         }
       }
 
-      _showSuccess('Layout saved successfully ✓');
       if (!mounted) return;
+      _showSuccess('Layout saved successfully ✓');
       Navigator.pop(context, true);
     } catch (e) {
       _showError('Error saving layout: $e');
@@ -1711,6 +1945,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
                         child: TextField(
                           controller: _inlineStartCtrl,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           decoration: InputDecoration(
                             hintText: 'e.g. 1',
                             hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
@@ -1735,6 +1970,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
                         child: TextField(
                           controller: _inlineEndCtrl,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           decoration: InputDecoration(
                             hintText: 'e.g. 10',
                             hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
@@ -2212,6 +2448,7 @@ class _AddSeatSheetContentState extends State<_AddSeatSheetContent> with SingleT
                             child: TextField(
                               controller: _startNumCtrl,
                               keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                               decoration: InputDecoration(
                                 labelText: 'Start No.',
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -2223,6 +2460,7 @@ class _AddSeatSheetContentState extends State<_AddSeatSheetContent> with SingleT
                             child: TextField(
                               controller: _endNumCtrl,
                               keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                               decoration: InputDecoration(
                                 labelText: 'End No.',
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

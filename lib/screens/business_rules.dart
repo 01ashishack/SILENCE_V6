@@ -96,6 +96,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
           await _supabase.from('libraries').update({
             'rules_metadata': rulesMap,
           }).eq('id', _libId!);
+          if (!mounted) return;
         } catch (_) {}
       }
 

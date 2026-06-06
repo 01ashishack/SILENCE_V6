@@ -37,6 +37,8 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   late TabController _tabController;
 
   bool _isLoading = false;
+  bool _isProfileComplete = true;
+  bool _noLibrary = false;
 
   // Active Library State
   String? _filterLibraryId;
@@ -137,6 +139,47 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   @override
   bool get wantKeepAlive => true;
 
+  Future<void> _checkOnboardingStatus() async {
+    final user = _supabase.auth.currentUser;
+    if (user != null) {
+      try {
+        final userData = await _supabase.from('users').select().eq('id', user.id).maybeSingle();
+        if (userData != null) {
+          final String name = userData['full_name'] ?? '';
+          final String phone = userData['phone'] ?? '';
+          final String gender = userData['gender'] ?? '';
+          final String dob = userData['date_of_birth'] ?? '';
+          final String address = userData['address'] ?? '';
+          final String examCategory = userData['exam_category'] ?? '';
+          final String idProofUrl = userData['id_proof_url'] ?? '';
+
+          final bool isComplete = name.isNotEmpty &&
+              phone.isNotEmpty &&
+              gender.isNotEmpty &&
+              dob.isNotEmpty &&
+              address.isNotEmpty &&
+              examCategory.isNotEmpty &&
+              idProofUrl.isNotEmpty;
+          
+          if (mounted) {
+            setState(() {
+              _isProfileComplete = isComplete;
+            });
+          }
+        }
+        
+        final libsRes = await _supabase.from('libraries').select('id').eq('owner_id', user.id);
+        if (mounted) {
+          setState(() {
+            _noLibrary = libsRes.isEmpty;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error in _checkOnboardingStatus: $e');
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -144,7 +187,9 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     _tabController.addListener(_handleTabChange);
     _filterLibraryId = widget.libraryId;
     _initCoverUrl();
-    _fetchCommonData().then((_) => _triggerActiveTabFetch());
+    _checkOnboardingStatus().then((_) {
+      _fetchCommonData().then((_) => _triggerActiveTabFetch());
+    });
   }
 
   @override
@@ -156,7 +201,9 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         _filterLibraryId = widget.libraryId;
         _initCoverUrl();
       });
-      _fetchCommonData().then((_) => _triggerActiveTabFetch());
+      _checkOnboardingStatus().then((_) {
+        _fetchCommonData().then((_) => _triggerActiveTabFetch());
+      });
     }
   }
 
@@ -273,6 +320,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         );
       },
     );
+    if (!mounted) return;
 
     if (pickedRange != null) {
       setState(() {
@@ -340,7 +388,15 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
 
   // Load floors and shifts commonly
   Future<void> _fetchCommonData() async {
-    if (_filterLibraryId == null) return;
+    if (!_isProfileComplete || _noLibrary || _filterLibraryId == null) {
+      if (mounted) {
+        setState(() {
+          _floors = [];
+          _shifts = [];
+        });
+      }
+      return;
+    }
     try {
       final res = await Future.wait([
         _supabase.from('floors').select().eq('library_id', _filterLibraryId!).order('order_index'),
@@ -395,6 +451,25 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
           start: DateTime(_attDate.year, _attDate.month, _attDate.day),
           end: DateTime(_attDate.year, _attDate.month, _attDate.day, 23, 59, 59),
         );
+      }
+
+      if (!_isProfileComplete || _noLibrary || libraryId.isEmpty || libraryId == 'null') {
+        if (mounted) {
+          setState(() {
+            _rawPayments = [];
+            _rawExpenditures = [];
+            _rawMemberships = [];
+            _rawAttendance = [];
+            _rawSeats = [];
+            _rawTrendMemberships = [];
+            _holdCount = 0;
+            _processRevenueData(currentRange, prevStart, prevEnd, floorId, shiftId);
+            _processAttendanceData(floorId, shiftId);
+            _processShiftsAndPlansData(floorId, shiftId);
+            _isLoading = false;
+          });
+        }
+        return;
       }
 
       // 2. Fetch parallel tables
@@ -692,6 +767,24 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }
 
   Future<void> _deleteExpense(String expenseId) async {
+    if (!_isProfileComplete) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Complete your profile first to manage expenses', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
+    if (_noLibrary || widget.libraryId == null || widget.libraryId!.isEmpty || widget.libraryId == 'null') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Set up your library first to manage expenses', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
     setState(() => _isLoading = true);
     try {
       await _supabase.from('expenditures').delete().eq('id', expenseId);
@@ -708,6 +801,24 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }
 
   void _showAddExpenseBottomSheet() {
+    if (!_isProfileComplete) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Complete your profile first to manage expenses', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
+    if (_noLibrary || widget.libraryId == null || widget.libraryId!.isEmpty || widget.libraryId == 'null') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Set up your library first to manage expenses', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
     final amountController = TextEditingController();
     final noteController = TextEditingController();
     String selectedCategory = 'Electricity';
@@ -821,6 +932,24 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }
 
   void _showEditExpenseBottomSheet(Map<String, dynamic> exp) {
+    if (!_isProfileComplete) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Complete your profile first to manage expenses', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
+    if (_noLibrary || widget.libraryId == null || widget.libraryId!.isEmpty || widget.libraryId == 'null') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Set up your library first to manage expenses', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
     final amountController = TextEditingController(text: (exp['amount'] as num?)?.toDouble().toStringAsFixed(0));
     final noteController = TextEditingController(text: exp['notes'] ?? '');
     final List<String> categories = ['Electricity', 'Rent', 'Water', 'Salaries', 'Internet', 'Maintenance', 'Others'];
@@ -1904,6 +2033,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   firstDate: DateTime(2020),
                   lastDate: DateTime(2101),
                 );
+                if (!mounted) return;
                 if (picked != null) {
                   setState(() {
                     _attDate = picked;
@@ -2548,7 +2678,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   ),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE65C00),
+                      backgroundColor: (_isProfileComplete && !_noLibrary) ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       elevation: 0,
@@ -2613,16 +2743,22 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                 color: const Color(0xFFDC2626)),
                           ),
                           const SizedBox(width: 10),
-                          GestureDetector(
-                            onTap: () => _showEditExpenseBottomSheet(exp),
-                            child: const Icon(Icons.edit_outlined,
-                                size: 18, color: Color(0xFF64748B)),
+                          Opacity(
+                            opacity: (_isProfileComplete && !_noLibrary) ? 1.0 : 0.5,
+                            child: GestureDetector(
+                              onTap: () => _showEditExpenseBottomSheet(exp),
+                              child: const Icon(Icons.edit_outlined,
+                                  size: 18, color: Color(0xFF64748B)),
+                            ),
                           ),
                           const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: () => _deleteExpense(id),
-                            child: const Icon(Icons.delete_outline,
-                                size: 18, color: Color(0xFF64748B)),
+                          Opacity(
+                            opacity: (_isProfileComplete && !_noLibrary) ? 1.0 : 0.5,
+                            child: GestureDetector(
+                              onTap: () => _deleteExpense(id),
+                              child: const Icon(Icons.delete_outline,
+                                  size: 18, color: Color(0xFF64748B)),
+                            ),
                           ),
                         ],
                       ),
@@ -2990,6 +3126,24 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }
 
   Future<void> _triggerAttendanceCsvExport() async {
+    if (!_isProfileComplete) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Complete your profile first to view/export reports', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
+    if (_noLibrary || widget.libraryId == null || widget.libraryId!.isEmpty || widget.libraryId == 'null') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Set up your library first to view/export reports', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
     if (_attendanceTableToggle == 'date_wise') {
       final logs = _attendanceLogs.map((l) {
         final name = l['member_id']?['full_name'] ?? 'N/A';
@@ -3054,6 +3208,24 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }
 
   Future<void> _triggerAttendancePdfExport() async {
+    if (!_isProfileComplete) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Complete your profile first to view/export reports', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
+    if (_noLibrary || widget.libraryId == null || widget.libraryId!.isEmpty || widget.libraryId == 'null') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Set up your library first to view/export reports', style: GoogleFonts.inter()),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      return;
+    }
     if (_attendanceTableToggle == 'date_wise') {
       final logs = _attendanceLogs.map((l) {
         final name = l['member_id']?['full_name'] ?? 'N/A';
@@ -3903,20 +4075,34 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }
 
   Widget _buildReportBtn(String title, VoidCallback onTap) {
-    return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: const Color(0xFFE65C00),
-        side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      ),
-      onPressed: onTap,
-      child: Text(
-        title,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
+    final bool isEnabled = _isProfileComplete && !_noLibrary;
+    return Opacity(
+      opacity: isEnabled ? 1.0 : 0.5,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFE65C00),
+          side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        ),
+        onPressed: isEnabled ? onTap : () {
+          final String msg = !_isProfileComplete
+              ? 'Complete your profile first to view/export reports'
+              : 'Set up your library first to view/export reports';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg, style: GoogleFonts.inter()),
+              backgroundColor: const Color(0xFFE65C00),
+            ),
+          );
+        },
+        child: Text(
+          title,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -3959,6 +4145,9 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(

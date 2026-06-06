@@ -140,10 +140,28 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _checkRoleGuard();
     _inSetupMode = widget.startInSetupMode;
     _loadCachedInitialData().then((_) {
       _loadInitialData();
     });
+  }
+
+  Future<void> _checkRoleGuard() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        final userData = await supabase.from('users').select('role').eq('id', user.id).maybeSingle();
+        if (userData != null && userData['role'] == 'member') {
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/member/home');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Admin role guard check error: $e');
+    }
   }
 
   @override
@@ -257,6 +275,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       'admin_dashboard_stats_$libId',
       stats,
     );
+    if (!mounted) return;
   }
 
   Future<void> _loadInitialData() async {
@@ -291,10 +310,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           final String phone = userData['phone'] ?? '';
           final String gender = userData['gender'] ?? '';
           final String dob = userData['date_of_birth'] ?? '';
+          final String address = userData['address'] ?? '';
+          final String examCategory = userData['exam_category'] ?? '';
+          final String idProofUrl = userData['id_proof_url'] ?? '';
           if (name.isNotEmpty &&
               phone.isNotEmpty &&
               gender.isNotEmpty &&
-              dob.isNotEmpty) {
+              dob.isNotEmpty &&
+              address.isNotEmpty &&
+              examCategory.isNotEmpty &&
+              idProofUrl.isNotEmpty) {
             _step1Complete = true;
           }
         }
@@ -954,6 +979,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 .toIso8601String(), // 14-day trial
           })
           .eq('id', supabase.auth.currentUser!.id);
+      if (!mounted) return;
 
       _showCongratulationsPopup();
     } catch (e) {
@@ -985,6 +1011,51 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         '/admin/library/setup/3',
       ).then((_) => _loadInitialData());
     }
+  }
+
+  void _showPrerequisiteDialog(int stepNum, String prerequisiteTitle, String route) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: Text(
+            'Prerequisite Required',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          ),
+          content: Text(
+            'You must complete Step $stepNum ($prerequisiteTitle) first. Would you like to complete it now?',
+            style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(color: Colors.grey[500], fontWeight: FontWeight.bold),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final res = await Navigator.pushNamed(context, route);
+                if (res == true || res == null) {
+                  _loadInitialData();
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                'Complete Now',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // --- SUB-VIEWS BUILDERS (TABS) ---
@@ -1731,6 +1802,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               subtitle: 'Add library details & photos',
               isDone: _step2Complete,
               onTap: () async {
+                if (!_step1Complete) {
+                  _showPrerequisiteDialog(1, 'Admin Profile', '/admin/profile/complete');
+                  return;
+                }
                 final res = await Navigator.pushNamed(
                   context,
                   '/admin/library/setup/1',
@@ -1746,6 +1821,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               subtitle: 'Add floors, sections & seats',
               isDone: _step3Complete,
               onTap: () async {
+                if (!_step1Complete) {
+                  _showPrerequisiteDialog(1, 'Admin Profile', '/admin/profile/complete');
+                  return;
+                }
+                if (!_step2Complete) {
+                  _showPrerequisiteDialog(2, 'Library Basic Info', '/admin/library/setup/1');
+                  return;
+                }
                 final res = await Navigator.pushNamed(
                   context,
                   '/admin/library/setup/2',
@@ -1761,6 +1844,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               subtitle: 'Timings, pricing, Cash & UPI setup',
               isDone: _step4Complete,
               onTap: () async {
+                if (!_step1Complete) {
+                  _showPrerequisiteDialog(1, 'Admin Profile', '/admin/profile/complete');
+                  return;
+                }
+                if (!_step2Complete) {
+                  _showPrerequisiteDialog(2, 'Library Basic Info', '/admin/library/setup/1');
+                  return;
+                }
+                if (!_step3Complete) {
+                  _showPrerequisiteDialog(3, 'Layout Setup', '/admin/library/setup/2');
+                  return;
+                }
                 final res = await Navigator.pushNamed(
                   context,
                   '/admin/library/setup/3',
@@ -4090,6 +4185,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ],
       ),
     );
+    if (!mounted) return;
 
     if (confirm == true) {
       setState(() => _isLoading = true);
@@ -4662,6 +4758,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             _libraryId = libId;
           });
           _loadLibrarySpecificData(libId);
+        },
+        onLibraryUpdated: () {
+          _loadInitialData();
         },
         onLogout: _handleLogout,
         adminName: _getAdminName(),

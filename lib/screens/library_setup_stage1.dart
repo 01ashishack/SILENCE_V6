@@ -346,6 +346,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
   Future<void> _uploadCoverPhoto() async {
     final ImageSource? source = await _showImageSourceBottomSheet(context, 'Choose Cover Photo Source');
+    if (!mounted) return;
     if (source == null) return;
 
     setState(() => _isUploadingCover = true);
@@ -356,6 +357,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
         hasPermission = await _requestCameraPermission();
       } else {
         hasPermission = await _requestGalleryPermission();
+        if (!mounted) return;
       }
 
       if (!hasPermission) {
@@ -431,6 +433,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
           upsert: true,
         ),
       );
+      if (!mounted) return;
 
       final publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
       
@@ -447,6 +450,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
         await supabase.from('libraries').update({
           'photos': photosList,
         }).eq('id', libId);
+        if (!mounted) return;
       } catch (_) {}
 
       _showSuccessSnackBar('Cover photo uploaded successfully! ✓');
@@ -467,6 +471,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
     }
 
     final ImageSource? source = await _showImageSourceBottomSheet(context, 'Choose Gallery Photo Source');
+    if (!mounted) return;
     if (source == null) return;
 
     setState(() => _isUploadingGallery = true);
@@ -477,6 +482,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
         hasPermission = await _requestCameraPermission();
       } else {
         hasPermission = await _requestGalleryPermission();
+        if (!mounted) return;
       }
 
       if (!hasPermission) {
@@ -554,6 +560,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
           upsert: true,
         ),
       );
+      if (!mounted) return;
 
       final publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
       
@@ -570,6 +577,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
         await supabase.from('libraries').update({
           'photos': photosList,
         }).eq('id', libId);
+        if (!mounted) return;
       } catch (_) {}
 
       _showSuccessSnackBar('Gallery photo uploaded successfully! ✓');
@@ -639,6 +647,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
           'amenities': _selectedAmenities,
           'library_code': _libraryCode,
         }).eq('id', _libraryId!);
+        if (!mounted) return;
       }
 
       _showSuccessSnackBar('Library details saved successfully! ✓');

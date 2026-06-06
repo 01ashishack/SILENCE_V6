@@ -13,6 +13,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
 import '../core/image_optimizer.dart';
 import 'library_public_profile_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 class AdminProfileTab extends StatefulWidget {
   final String? libraryId;
@@ -24,6 +26,7 @@ class AdminProfileTab extends StatefulWidget {
   final String adminName;
   final String adminEmail;
   final String adminPhone;
+  final VoidCallback? onLibraryUpdated;
 
   const AdminProfileTab({
     super.key,
@@ -36,6 +39,7 @@ class AdminProfileTab extends StatefulWidget {
     required this.adminName,
     required this.adminEmail,
     required this.adminPhone,
+    this.onLibraryUpdated,
   });
 
   @override
@@ -46,6 +50,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
   bool _isUploadingPhoto = false;
+  bool _isProfileComplete = true;
 
   // Dynamic Profile Fields
   String _adminName = '';
@@ -57,6 +62,30 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   bool? _currentLibraryVerified;
   DateTime? _currentLibraryVerifiedAt;
   String? _selectedLibraryIdToManage;
+
+  @override
+  void didUpdateWidget(covariant AdminProfileTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.myLibraries != widget.myLibraries || oldWidget.libraryId != widget.libraryId) {
+      _myLibrariesList = List<Map<String, dynamic>>.from(widget.myLibraries.map((lib) {
+        final coverPhotoUrl = lib['cover_photo_url'] ?? (lib['photos'] != null && (lib['photos'] as List).isNotEmpty ? (lib['photos'] as List).first.toString() : null);
+        return {
+          'id': lib['id'],
+          'name': lib['name'] ?? 'Study Center',
+          'address_city': lib['address_city'] ?? 'City',
+          'address_street': lib['address_street'] ?? '',
+          'cover_photo_url': coverPhotoUrl,
+          'verified': lib['verified'] ?? false,
+          'verified_at': lib['verified_at'] != null ? DateTime.tryParse(lib['verified_at'].toString()) : null,
+          'member_count': 0,
+          'occupancy_pct': 0,
+        };
+      }));
+      final currentLibId = widget.libraryId ?? (_myLibrariesList.isNotEmpty ? _myLibrariesList.first['id'] : null);
+      _selectedLibraryIdToManage = currentLibId;
+      _loadProfileData();
+    }
+  }
 
   @override
   void initState() {
@@ -91,7 +120,24 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
         // 1. Fetch user data (full name, subscription plan/status, expiry)
         final userData = await _supabase.from('users').select().eq('id', user.id).maybeSingle();
         if (userData != null && mounted) {
+          final String name = userData['full_name'] ?? '';
+          final String phone = userData['phone'] ?? '';
+          final String gender = userData['gender'] ?? '';
+          final String dob = userData['date_of_birth'] ?? '';
+          final String address = userData['address'] ?? '';
+          final String examCategory = userData['exam_category'] ?? '';
+          final String idProofUrl = userData['id_proof_url'] ?? '';
+
+          final bool isComplete = name.isNotEmpty &&
+              phone.isNotEmpty &&
+              gender.isNotEmpty &&
+              dob.isNotEmpty &&
+              address.isNotEmpty &&
+              examCategory.isNotEmpty &&
+              idProofUrl.isNotEmpty;
+
           setState(() {
+            _isProfileComplete = isComplete;
             _adminName = userData['full_name'] ?? widget.adminName;
             _adminPhotoUrl = userData['photo_url'];
             _subscriptionPlan = userData['subscription_plan'] ?? 'trial';
@@ -288,6 +334,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           ),
         ],
       );
+      if (!mounted) return;
 
       if (croppedFile == null) return;
 
@@ -381,12 +428,102 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     );
   }
 
+  void _showChangeRoleDialog() {
+    final hasActiveLibraries = _myLibrariesList.isNotEmpty;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: Text(
+          'Switch to Member Role?',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to switch your account type to Member?',
+              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+            ),
+            const SizedBox(height: 12),
+            if (hasActiveLibraries) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning, color: Color(0xFFEF4444), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'WARNING: You currently own active libraries. Changing your role will block your access to library administration panels.',
+                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF991B1B)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Text(
+              'You will be signed out. Upon logging back in, you will be able to search and join libraries as a Member.',
+              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+              try {
+                final user = _supabase.auth.currentUser;
+                if (user != null) {
+                  await _supabase.from('users').update({'role': 'member'}).eq('id', user.id);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.clear();
+                  await _supabase.auth.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+                  }
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to switch role: $e')),
+                  );
+                }
+              } finally {
+                if (mounted) setState(() => _isLoading = false);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: Text('Confirm - Switch to Member', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+
+
     final String dateStr = DateFormat('EEE dd/MM').format(DateTime.now()).toUpperCase();
     final bool isTrial = _subscriptionPlan == 'trial' || _subscriptionPlan == 'free' || _subscriptionStatus == 'trial';
 
@@ -630,11 +767,18 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               ),
                               const SizedBox(height: 16),
                               ElevatedButton(
-                                onPressed: () {
+                                onPressed: _isProfileComplete ? () {
                                   Navigator.pushNamed(context, '/admin/library/setup/1').then((_) => _loadProfileData());
+                                } : () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Complete your profile first to create a library', style: GoogleFonts.inter()),
+                                      backgroundColor: const Color(0xFFE65C00),
+                                    ),
+                                  );
                                 },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFE65C00),
+                                  backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
@@ -689,6 +833,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           _buildSettingsItem(context, Icons.campaign_outlined, 'Announcement History', '/admin/announcements'),
                           _buildSettingsItem(context, Icons.ios_share, 'Exports & Reports', '/admin/exports'),
                           _buildSettingsItem(context, Icons.history_edu_outlined, 'Audit Log', '/admin/audit-log'),
+                          _buildSettingsItem(context, Icons.person_outline_rounded, 'Edit Profile Details', '/admin/profile/complete'),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -700,6 +845,19 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           _buildSettingsItem(context, Icons.info_outline, 'About Us', '/admin/about-us'),
                           _buildSettingsItem(context, Icons.support_agent, 'Help & Support', '/admin/help-support'),
                           _buildSettingsItem(context, Icons.gavel, 'Terms & Conditions', '/admin/terms'),
+                          ListTile(
+                            leading: const Icon(Icons.swap_horiz, size: 20, color: Color(0xFFEF4444)),
+                            title: Text(
+                              'Change Role',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF1E293B),
+                              ),
+                            ),
+                            trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
+                            onTap: _showChangeRoleDialog,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 24),
@@ -1076,6 +1234,66 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 color: const Color(0xFF1E293B),
               ),
             ),
+            if (_myLibrariesList.isEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3ED),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.home_work_outlined,
+                      size: 48,
+                      color: Color(0xFFE65C00),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No Library Created Yet',
+                      style: GoogleFonts.outfit(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Complete library setup steps on the Home tab to start managing your library.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF6B7280),
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Please complete library setup steps in the Home tab.', style: GoogleFonts.inter()),
+                            backgroundColor: const Color(0xFFE65C00),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE65C00),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        'Go to Setup Wizard',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (_myLibrariesList.length > 1) ...[
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -1112,23 +1330,25 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 },
               ),
             ],
-            const SizedBox(height: 16),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 3,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.9,
-              children: [
-                _buildGridItem(Icons.info_outline, 'Basic Details', _showBasicDetailsBottomSheet),
-                _buildGridItem(Icons.widgets_outlined, 'Amenities', _showAmenitiesBottomSheet),
-                _buildGridItem(Icons.access_time, 'Shift & Plan', _navigateToShiftManagement),
-                _buildGridItem(Icons.link, 'Social Links', _showSocialLinksBottomSheet),
-                _buildGridItem(Icons.rule_folder, 'Rules', _showRulesBottomSheet),
-                _buildGridItem(Icons.collections, 'Gallery', _showGalleryBottomSheet),
-              ],
-            ),
+            if (_myLibrariesList.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 3,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.9,
+                children: [
+                  _buildGridItem(Icons.info_outline, 'Basic Details', _showBasicDetailsBottomSheet),
+                  _buildGridItem(Icons.widgets_outlined, 'Amenities', _showAmenitiesBottomSheet),
+                  _buildGridItem(Icons.access_time, 'Shift & Plan', _navigateToShiftManagement),
+                  _buildGridItem(Icons.link, 'Social Links', _showSocialLinksBottomSheet),
+                  _buildGridItem(Icons.rule_folder, 'Rules', _showRulesBottomSheet),
+                  _buildGridItem(Icons.collections, 'Gallery', _showGalleryBottomSheet),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -1171,7 +1391,10 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
       context,
       '/admin/settings/shifts',
       arguments: _selectedLibraryIdToManage,
-    ).then((_) => _loadProfileData());
+    ).then((_) {
+      _loadProfileData();
+      widget.onLibraryUpdated?.call();
+    });
   }
 
   void _showBasicDetailsBottomSheet() {
@@ -1318,6 +1541,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                         );
                       }
                       _loadProfileData();
+                      widget.onLibraryUpdated?.call();
                     } catch (e) {
                       if (sheetContext.mounted) {
                         Navigator.pop(sheetContext);
@@ -1363,6 +1587,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           libraryId: lib['id'],
           onSaved: () {
             _loadProfileData();
+            widget.onLibraryUpdated?.call();
           },
         ),
       ),
@@ -1456,6 +1681,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                         Navigator.pop(ctx);
                       }
                       _loadProfileData();
+                      widget.onLibraryUpdated?.call();
                     } catch (e) {
                       if (ctx.mounted) Navigator.pop(ctx);
                       ScaffoldMessenger.of(ctx).showSnackBar(
@@ -1596,6 +1822,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                             Navigator.pop(ctx);
                           }
                           _loadProfileData();
+                          widget.onLibraryUpdated?.call();
                         } catch (e) {
                           if (ctx.mounted) Navigator.pop(ctx);
                           ScaffoldMessenger.of(ctx).showSnackBar(
@@ -1647,6 +1874,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               try {
                 await _supabase.from('libraries').update({'photos': photos}).eq('id', lib['id']);
                 _loadProfileData();
+                widget.onLibraryUpdated?.call();
               } catch (e) {
                 debugPrint('Error: $e');
               }
@@ -1869,6 +2097,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
         ],
       ),
     );
+    if (!mounted) return;
 
     if (newAmenity != null && newAmenity.isNotEmpty) {
       setState(() {

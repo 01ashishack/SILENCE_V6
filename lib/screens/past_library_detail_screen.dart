@@ -1221,6 +1221,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                             payment: p,
                             memberName: memberName,
                           );
+                          if (!mounted) return;
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to download receipt: $e')));
                         }

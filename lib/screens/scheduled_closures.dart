@@ -225,6 +225,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen> with 
                             'reason': newItem.reason,
                             'notify_members': notify,
                           });
+                          if (!mounted) return;
                         } catch (e2) {
                           debugPrint('Failed to insert closure: $e2');
                         }

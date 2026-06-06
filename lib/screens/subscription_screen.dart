@@ -231,18 +231,21 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 _buildSimulatedPaymentRow('UPI (Google Pay / PhonePe)', 'Instant authorization', Icons.qr_code_scanner, () async {
                   setModalState(() => isProcessing = true);
                   await _completeProUpgrade();
+                  if (!mounted) return;
                   Navigator.pop(context);
                 }),
                 const Divider(height: 1, color: Colors.white10),
                 _buildSimulatedPaymentRow('Credit / Debit Card', 'Visa, Mastercard, RuPay', Icons.credit_card, () async {
                   setModalState(() => isProcessing = true);
                   await _completeProUpgrade();
+                  if (!mounted) return;
                   Navigator.pop(context);
                 }),
                 const Divider(height: 1, color: Colors.white10),
                 _buildSimulatedPaymentRow('Netbanking', 'All Indian banks integrated', Icons.account_balance, () async {
                   setModalState(() => isProcessing = true);
                   await _completeProUpgrade();
+                  if (!mounted) return;
                   Navigator.pop(context);
                 }),
               ],
@@ -285,6 +288,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           'subscription_plan': 'pro',
           'subscription_status': 'active',
         }).eq('id', user.id);
+        if (!mounted) return;
       } catch (_) {}
     }
 

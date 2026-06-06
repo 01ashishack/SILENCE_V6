@@ -68,6 +68,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
     try {
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
         _showErrorSnackBar('Could not launch links.');
+      if (!mounted) return;
       }
     } catch (e) {
       _showErrorSnackBar('Could not launch links: $e');
@@ -128,6 +129,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
         builder: (context, setModalState) {
           Future<void> pickAndUploadScreenshot() async {
             final hasPerm = await _requestPhotosPermission();
+            if (!mounted) return;
             if (!hasPerm) {
               setModalState(() {});
               _showErrorSnackBar('Permission denied. Please grant library permissions.');
@@ -153,6 +155,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
                 Uint8List.fromList(bytes),
                 fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
               );
+              if (!mounted) return;
 
               final publicUrl = _supabase.storage.from('silence_assets').getPublicUrl(path);
               setModalState(() {

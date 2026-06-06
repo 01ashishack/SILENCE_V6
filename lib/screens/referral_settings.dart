@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/admin_settings_service.dart';
 
 class ReferralSettingsScreen extends StatefulWidget {
@@ -19,9 +20,9 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
   final _refereeDaysCtrl = TextEditingController(text: '3');
 
   // Stats aggregate
-  int _totalReferred = 12;
-  int _pendingReferred = 3;
-  int _rewardedReferred = 9;
+  int _totalReferred = 0;
+  int _pendingReferred = 0;
+  int _rewardedReferred = 0;
 
   @override
   void initState() {
@@ -43,10 +44,36 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
       scope: 'referral_settings',
       libraryId: _libId,
     );
+
+    int total = 0;
+    int pending = 0;
+    int rewarded = 0;
+
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+      if (userId != null) {
+        final referrals = await supabase
+            .from('referrals')
+            .select('reward_credited')
+            .eq('referrer_id', userId);
+        if (!mounted) return;
+
+        total = referrals.length;
+        pending = referrals.where((r) => r['reward_credited'] == false || r['reward_credited'] == null).length;
+        rewarded = referrals.where((r) => r['reward_credited'] == true).length;
+      }
+    } catch (e) {
+      debugPrint('Error loading referral stats: $e');
+    }
+
     setState(() {
       _isEnabled = settings['enabled'] as bool? ?? true;
       _referrerDaysCtrl.text = settings['referrer_days']?.toString() ?? '5';
       _refereeDaysCtrl.text = settings['referee_days']?.toString() ?? '3';
+      _totalReferred = total;
+      _pendingReferred = pending;
+      _rewardedReferred = rewarded;
       _isLoading = false;
     });
   }
@@ -62,6 +89,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
         'referee_days': int.tryParse(_refereeDaysCtrl.text.trim()) ?? 3,
       },
     );
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Referral configurations saved! ✓'), backgroundColor: Color(0xFFE65C00)),
@@ -237,14 +265,32 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                               style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
                             ),
                             const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                _buildMetricColumn('$_totalReferred', 'Total Referred'),
-                                _buildMetricColumn('$_pendingReferred', 'Pending'),
-                                _buildMetricColumn('$_rewardedReferred', 'Rewarded'),
-                              ],
-                            ),
+                            if (_totalReferred == 0)
+                              Center(
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.people_outline, size: 40, color: Colors.grey),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'No referrals yet',
+                                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                                    ),
+                                    Text(
+                                      'Referral stats will appear here',
+                                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                children: [
+                                  _buildMetricColumn('$_totalReferred', 'Total Referred'),
+                                  _buildMetricColumn('$_pendingReferred', 'Pending'),
+                                  _buildMetricColumn('$_rewardedReferred', 'Rewarded'),
+                                ],
+                              ),
                           ],
                         ),
                       ),

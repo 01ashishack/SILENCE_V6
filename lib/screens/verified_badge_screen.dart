@@ -73,6 +73,7 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
     try {
       if (_libId == null) {
         _libId = await AdminSettingsService.firstOwnedLibraryId();
+        if (!mounted) return;
       }
 
       if (_libId == null) {

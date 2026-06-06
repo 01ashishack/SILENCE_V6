@@ -122,6 +122,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
           'show_hours': _showHours,
           'hide_nickname': _hideNickname,
         }).eq('id', _userId!);
+        if (!mounted) return;
       } catch (dbError) {
         debugPrint('Column missing in Supabase, using local: $dbError');
       }
@@ -297,6 +298,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                 // Usually done by deleting identity. For safety, we mock the local toggle and show toast.
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('mock_google_unlinked_${_userId!}', true);
+                if (!mounted) return;
                 setState(() => _hasGoogleIdentity = false);
                 _showSuccessSnackBar('Google Account disconnected successfully! ✓');
               } catch (e) {
@@ -404,6 +406,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                     'scheduled_for_deletion': true,
                     'deletion_scheduled_at': deletionTime.toIso8601String(),
                   }).eq('id', _userId!);
+                  if (!mounted) return;
                 } catch (e) {
                   debugPrint('Failed to update scheduled_for_deletion in DB, using local: $e');
                 }
@@ -440,6 +443,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
           'scheduled_for_deletion': false,
           'deletion_scheduled_at': null,
         }).eq('id', _userId!);
+        if (!mounted) return;
       } catch (e) {
         debugPrint('Failed to reset scheduled_for_deletion in DB, using local: $e');
       }
