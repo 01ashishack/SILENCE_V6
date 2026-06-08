@@ -8,8 +8,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../../core/offline_db.dart';
-import 'join_flow_screen.dart';
 import '../library_public_profile_screen.dart';
+import '../../utils/time_utils.dart';
 
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
@@ -30,6 +30,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
   String? _lastScannedValue;
   DateTime? _lastScanTime;
 
+  int _cooldownScansCount = 0;
+
   // Modals/Cards display states
   bool _showSuccessCard = false;
   bool _isCheckInSuccess = true;
@@ -38,6 +40,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
   String _successLibraryName = '';
   String _successSeatLabel = '';
   bool _isSuccessOffline = false;
+
+  String _successCheckInTimeText = '';
+  String _successCheckOutTimeText = '';
+  String _successShiftEndTimeText = '';
+  String _successOvertimeText = '';
+  String _successShiftName = '';
 
   bool _showErrorCard = false;
   String _errorTitle = '';
@@ -107,15 +115,21 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
   }
 
   Future<void> _processQRContent(String code) async {
+    debugPrint('[QR Scan Audit] QR scan success. Code: $code');
     final parsed = _parseQR(code);
     if (parsed == null) {
+      debugPrint('[QR Scan] Failed parsing code: $code');
       _handleFailure('Invalid Code', 'The scanned QR code is invalid. Make sure it is a valid SILENCE QR.');
       return;
     }
 
-    final String libraryId = parsed['library_id'];
+    final String? parsedLibId = parsed['library_id'];
+    final String? libraryCode = parsed['library_code'];
     final int qrVersion = parsed['qr_version'] ?? 1;
     final bool isJoining = parsed['is_joining'] ?? false;
+
+    debugPrint('[QR Scan] Raw QR code: $code');
+    debugPrint('[QR Scan] Parsed properties: $parsed');
 
     // Check connectivity before any Supabase queries
     try {
@@ -128,8 +142,55 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
         });
       }
     } catch (e) {
-      debugPrint('Error checking connectivity in scan process: $e');
+      debugPrint('[QR Scan] Error checking connectivity: $e');
     }
+
+    String libraryId = parsedLibId ?? '';
+    final supabase = Supabase.instance.client;
+
+    // Online Resolution for short code (e.g. "LIB-ABC123")
+    if (libraryId.isEmpty && libraryCode != null && libraryCode.isNotEmpty) {
+      if (_isOffline) {
+        // Offline mode: store short code directly in library_id, will be resolved during offline sync.
+        libraryId = libraryCode;
+        debugPrint('[QR Scan] Offline mode. Queuing short code: $libraryCode');
+      } else {
+        try {
+          debugPrint('[CHECKOUT STEP] Starting: library lookup');
+          debugPrint('[QR Scan] Querying Supabase for library_code: $libraryCode');
+          final resolvedLib = await supabase
+              .from('libraries')
+              .select('id')
+              .eq('library_code', libraryCode)
+              .maybeSingle();
+          debugPrint('[CHECKOUT STEP] Success: library lookup');
+          debugPrint('[QR Scan] Supabase library resolution response: $resolvedLib');
+          if (resolvedLib != null) {
+            libraryId = resolvedLib['id'];
+          } else {
+            _handleFailure('Not a member here', 'No active membership found for this library.');
+            return;
+          }
+        } catch (e, stackTrace) {
+          debugPrint('[CHECKOUT ERROR] ${e.toString()}');
+          debugPrint('[CHECKOUT STACK] $stackTrace');
+          debugPrint('[QR Scan] Exception resolving library code: $e');
+          final errorStr = e.toString().toLowerCase();
+          if (errorStr.contains('socket') || 
+              errorStr.contains('network') || 
+              errorStr.contains('timeout') || 
+              errorStr.contains('connection failed') || 
+              errorStr.contains('failed host lookup')) {
+            _handleFailure('Network Error', 'Network error. Please try again.');
+          } else {
+            _handleFailure('Scan Failed', 'An error occurred during verification. Try again or check internet: ${e.toString()}');
+          }
+          return;
+        }
+      }
+    }
+
+    debugPrint('[QR Scan] Target Library ID: $libraryId');
 
     if (isJoining) {
       // Direct Join Flow Navigation -> Changed to show Library Public Profile first
@@ -147,7 +208,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       return;
     }
 
-    final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
     if (user == null) {
       _handleFailure('Authentication Error', 'No active student session detected.');
@@ -200,11 +260,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           libraryName: 'SILENCE Study Zone (Offline)',
           seatLabel: 'Reserved Seat',
           timeStr: DateFormat('hh:mm a').format(DateTime.now()),
-          durationStr: isCurrentlyCheckedInOffline ? 'Calculated on sync' : '',
+          durationStr: 'Saved offline. Will sync when online.',
           isOffline: true,
         );
 
       } catch (e) {
+        debugPrint('[QR Scan] Exception in offline flow: $e');
         _handleFailure('Offline Error', 'Failed to save offline scan: $e');
       }
       return;
@@ -214,26 +275,52 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
     // ONLINE ATTENDANCE FLOW (Supabase RPC/Queries)
     // ----------------------------------------
     try {
-      // 1. Fetch member active memberships
+      // 1. Check if library is closed today
+      try {
+        debugPrint('[CHECKOUT STEP] Starting: closure lookup');
+        final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+        debugPrint('[QR Scan] Checking library closure for date: $todayStr');
+        final closureCheck = await supabase
+            .from('scheduled_closures')
+            .select()
+            .eq('library_id', libraryId)
+            .eq('closed_date', todayStr)
+            .maybeSingle();
+        debugPrint('[CHECKOUT STEP] Success: closure lookup');
+        debugPrint('[QR Scan] Closure check result: $closureCheck');
+        if (closureCheck != null) {
+          _handleFailure('Library Closed', 'This library is closed today.');
+          return;
+        }
+      } catch (e, stackTrace) {
+        debugPrint('[CHECKOUT ERROR] ${e.toString()}');
+        debugPrint('[CHECKOUT STACK] $stackTrace');
+        debugPrint('[QR Scan] Ignored error while checking library closures: $e');
+      }
+
+      // 2. Fetch member active memberships
+      debugPrint('[QR Scan] Checking membership for member: ${user.id} and library: $libraryId');
+      debugPrint('[CHECKOUT STEP] Starting: membership lookup');
+      debugPrint('[CHECKOUT STEP] Starting: shift lookup');
       final membershipRes = await supabase
           .from('memberships')
-          .select('*, libraries(name, verified, qr_version), shifts(name), seats(seat_label)')
+          .select('*, libraries(name, verified, qr_version), shifts(name, end_time), seats(seat_label)')
           .eq('member_id', user.id)
           .eq('library_id', libraryId)
-          .inFilter('status', ['active', 'trial'])
           .maybeSingle();
+      debugPrint('[CHECKOUT STEP] Success: membership lookup');
+      debugPrint('[CHECKOUT STEP] Success: shift lookup');
+
+      debugPrint('[QR Scan] Membership query result: $membershipRes');
 
       if (membershipRes == null) {
-        // Wrong library scanned, or membership ended/expired
-        // Fetch library name from QR code to display nice "Wrong Library" error card
-        final wrongLib = await supabase
-            .from('libraries')
-            .select('name')
-            .eq('id', libraryId)
-            .maybeSingle();
+        _handleFailure('Not a member here', 'No active membership found for this library.');
+        return;
+      }
 
-        final name = wrongLib != null ? wrongLib['name'] : 'Another SILENCE Study Zone';
-        _handleFailure('Not a member here', 'This QR code belongs to $name. Choose a correct library QR.', wrongLibName: name);
+      final String membershipStatus = membershipRes['status'] ?? '';
+      if (membershipStatus != 'active' && membershipStatus != 'trial') {
+        _handleFailure('Not a member here', 'No active membership found for this library.');
         return;
       }
 
@@ -252,33 +339,41 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       final libName = membershipRes['libraries']?['name'] ?? 'SILENCE Zone';
       final seatLabel = seat.isNotEmpty ? (seat['seat_label'] ?? 'G-A-01') : 'Seat pending';
 
-      // 1.5. Defensive Seat Occupancy Verification
+      // 2.5. Defensive Seat Occupancy Verification
       final seatId = seat['id'] ?? membershipRes['seat_id'];
       if (seatId != null) {
         try {
+          debugPrint('[CHECKOUT STEP] Starting: seat lookup');
+          debugPrint('[QR Scan] Checking seat occupancy status for seat: $seatId');
           final seatCheck = await supabase
               .from('seats')
               .select('status, occupied_by_member_id')
               .eq('id', seatId)
               .maybeSingle();
+          debugPrint('[CHECKOUT STEP] Success: seat lookup');
+          debugPrint('[QR Scan] Seat check result: $seatCheck');
 
           if (seatCheck != null) {
             final String? seatStatus = seatCheck['status'] as String?;
             final String? occupiedBy = seatCheck['occupied_by_member_id'] as String?;
-            if (seatStatus == 'occupied' && occupiedBy != user.id) {
+            if ((seatStatus == 'occupied' && occupiedBy != user.id) || seatStatus == 'maintenance') {
               _handleFailure(
-                'Seat Occupied',
-                'Your assigned seat ($seatLabel) is currently occupied by another member. Contact admin.',
+                'Seat Unavailable',
+                'Seat is not available for check‑in.',
               );
               return;
             }
           }
-        } catch (e) {
-          debugPrint('Error verifying seat status: $e');
+        } catch (e, stackTrace) {
+          debugPrint('[CHECKOUT ERROR] ${e.toString()}');
+          debugPrint('[CHECKOUT STACK] $stackTrace');
+          debugPrint('[QR Scan] Error verifying seat status: $e');
         }
       }
 
-      // 2. Check if currently checked in (active session today)
+      // 3. Check if currently checked in (active session today)
+      debugPrint('[QR Scan] Fetching active session for member: ${user.id}');
+      debugPrint('[CHECKOUT STEP] Starting: attendance lookup');
       final activeSession = await supabase
           .from('attendance')
           .select()
@@ -288,13 +383,38 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           .order('check_in_time', ascending: false)
           .limit(1)
           .maybeSingle();
+      debugPrint('[CHECKOUT STEP] Success: attendance lookup');
+      debugPrint('[QR Scan] Active session result: $activeSession');
 
       if (activeSession == null) {
+        // Reset cooldown count on new check-in flow
+        _cooldownScansCount = 0;
+
+        // Check if already checked in today (completed session)
+        final todayStart = '${DateTime.now().toIso8601String().substring(0, 10)}T00:00:00';
+        debugPrint('[QR Scan] Checking if already checked in today since: $todayStart');
+        final todayAttendance = await supabase
+            .from('attendance')
+            .select()
+            .eq('member_id', user.id)
+            .eq('library_id', libraryId)
+            .gte('check_in_time', todayStart)
+            .limit(1)
+            .maybeSingle();
+        debugPrint('[QR Scan] Today completed attendance check: $todayAttendance');
+
+        if (todayAttendance != null) {
+          _handleFailure('Already Checked In', 'You are already checked in today.');
+          return;
+        }
+
         // ------------------
         // PERFORM CHECK-IN
         // ------------------
-        final nowStr = DateTime.now().toIso8601String();
-        await supabase.from('attendance').insert({
+        final nowUtc = DateTime.now().toUtc();
+        final nowStr = nowUtc.toIso8601String();
+        debugPrint('[QR Scan] Performing check-in with membershipId: $membershipId');
+        final insertResponse = await supabase.from('attendance').insert({
           'membership_id': membershipId,
           'member_id': user.id,
           'library_id': libraryId,
@@ -304,69 +424,89 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           'session_type': 'normal',
           'qr_version': qrVersion,
           'device_id': 'mobile',
-        });
+        }).select();
+        debugPrint('[QR Scan] Check-in insert response: $insertResponse');
         if (!mounted) return;
 
+        final nowIst = toIST(nowUtc);
         _showSuccess(
           isCheckIn: true,
           libraryName: libName,
           seatLabel: seatLabel,
-          timeStr: DateFormat('hh:mm a').format(DateTime.now()),
+          timeStr: DateFormat('hh:mm a').format(nowIst),
           durationStr: '',
           isOffline: false,
+          checkInTimeStr: DateFormat('hh:mm a').format(nowIst),
+          shiftName: shift['name'] ?? 'N/A',
         );
 
       } else {
         // ------------------
-        // PERFORM CHECK-OUT
+        // CHECK-OUT COOLDOWN & CONFIRMATION
         // ------------------
         final checkInStr = activeSession['check_in_time'] as String;
-        final checkInTime = DateTime.parse(checkInStr);
-        final checkOutTime = DateTime.now();
-        final durationMinutes = checkOutTime.difference(checkInTime).inMinutes;
+        final checkInTimeUtc = parseDBTimeToUtc(checkInStr);
+        final nowUtc = DateTime.now().toUtc();
+        final durationMinutes = nowUtc.difference(checkInTimeUtc).inMinutes;
 
-        // Double scan check (checked in within 3 minutes - don't checkout, treat as confirmation)
-        if (checkOutTime.difference(checkInTime).inMinutes < 3) {
-          _showSuccess(
-            isCheckIn: true,
-            libraryName: libName,
-            seatLabel: seatLabel,
-            timeStr: DateFormat('hh:mm a').format(checkInTime),
-            durationStr: 'Already Checked In',
-            isOffline: false,
-          );
+        // 10-Minute Cooldown Check
+        if (durationMinutes < 10) {
+          _cooldownScansCount++;
+          final timeRemaining = 10 - durationMinutes;
+          if (_cooldownScansCount == 1) {
+            _handleFailure(
+              'Checkout Restricted',
+              'Already checked in. Checkout not allowed until $timeRemaining minutes have passed.',
+            );
+          } else {
+            _handleFailure(
+              'Checkout Restricted',
+              'Checkout is restricted for another $timeRemaining minutes. Please wait.',
+            );
+          }
           return;
         }
 
-        await supabase.from('attendance').update({
-          'check_out_time': checkOutTime.toIso8601String(),
-          'duration_minutes': durationMinutes,
-        }).eq('id', activeSession['id']);
+        // Reset cooldown count since cooldown has expired
+        _cooldownScansCount = 0;
+
+        // Past 10 minutes: show check-out confirmation dialog
+        final shiftEndTimeStr = shift['end_time'] as String? ?? '18:00:00';
         if (!mounted) return;
-
-        final hrs = durationMinutes ~/ 60;
-        final mins = durationMinutes % 60;
-
-        _showSuccess(
-          isCheckIn: false,
-          libraryName: libName,
+        await _showCheckoutConfirmDialog(
+          activeSession: activeSession,
+          libName: libName,
           seatLabel: seatLabel,
-          timeStr: DateFormat('hh:mm a').format(checkOutTime),
-          durationStr: '${hrs}h ${mins}m',
-          isOffline: false,
+          shiftName: shift['name'] ?? 'N/A',
+          shiftEndTimeStr: shiftEndTimeStr,
+          checkInTime: checkInTimeUtc,
         );
       }
 
-    } catch (e) {
-      debugPrint('Error during Supabase scan verification: $e');
-      _handleFailure('Scan Failed', 'An error occurred during verification. Try again or check internet.');
+    } catch (e, stackTrace) {
+      debugPrint('[CHECKOUT ERROR] ${e.toString()}');
+      debugPrint('[CHECKOUT STACK] $stackTrace');
+      debugPrint('[QR Scan] Exception in online flow: $e');
+      debugPrint('[QR Scan] StackTrace: $stackTrace');
+      
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('socket') || 
+          errorStr.contains('network') || 
+          errorStr.contains('timeout') || 
+          errorStr.contains('connection failed') || 
+          errorStr.contains('failed host lookup')) {
+        _handleFailure('Network Error', 'Network error. Please try again.');
+      } else {
+        _handleFailure('Scan Failed', 'An error occurred during verification. Try again or check internet: ${e.toString()}');
+      }
     }
   }
 
   Map<String, dynamic>? _parseQR(String code) {
     try {
-      if (code.startsWith('{') && code.endsWith('}')) {
-        final Map<String, dynamic> parsedJson = jsonDecode(code);
+      final trimmed = code.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        final Map<String, dynamic> parsedJson = jsonDecode(trimmed);
         if (parsedJson['type'] == 'join') {
           return {
             'library_id': parsedJson['library_id'],
@@ -378,29 +518,336 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       }
       
       // Check for UUID format directly (if QR has just library UUID)
-      if (RegExp(r'^[a-fA-F0-9-]{36}$').hasMatch(code)) {
+      if (RegExp(r'^[a-fA-F0-9-]{36}$').hasMatch(trimmed)) {
         return {
-          'library_id': code,
+          'library_id': trimmed,
           'qr_version': 1,
         };
       }
 
       // Check for SILENCE_QR prefix or attendance:library_id:qr_version
-      if (code.contains(':')) {
-        final parts = code.split(':');
+      if (trimmed.contains(':')) {
+        final parts = trimmed.split(':');
         if (parts.length >= 2) {
           int version = 1;
           if (parts.length >= 3) {
             version = int.tryParse(parts[2]) ?? 1;
           }
-          return {
-            'library_id': parts[1],
-            'qr_version': version,
-          };
+          final String potentialId = parts[1].trim();
+          if (RegExp(r'^[a-fA-F0-9-]{36}$').hasMatch(potentialId)) {
+            return {
+              'library_id': potentialId,
+              'qr_version': version,
+            };
+          } else if (potentialId.toUpperCase().startsWith('LIB-')) {
+            return {
+              'library_code': potentialId.toUpperCase(),
+              'qr_version': version,
+            };
+          }
         }
+      }
+
+      // Check for short code prefix (e.g. LIB-ABC123)
+      if (trimmed.toUpperCase().startsWith('LIB-')) {
+        return {
+          'library_code': trimmed.toUpperCase(),
+          'qr_version': 1,
+        };
       }
     } catch (_) {}
     return null;
+  }
+
+  Future<void> _showCheckoutConfirmDialog({
+    required Map<String, dynamic> activeSession,
+    required String libName,
+    required String seatLabel,
+    required String shiftName,
+    required String shiftEndTimeStr,
+    required DateTime checkInTime,
+  }) async {
+    final nowUtc = DateTime.now().toUtc();
+    final nowIst = toIST(nowUtc);
+    
+    final parts = shiftEndTimeStr.split(':');
+    int endHour = 14;
+    int endMinute = 0;
+    if (parts.length >= 2) {
+      endHour = int.tryParse(parts[0]) ?? 14;
+      endMinute = int.tryParse(parts[1]) ?? 0;
+      if (shiftEndTimeStr.toLowerCase().contains('pm') && endHour < 12) {
+        endHour += 12;
+      } else if (shiftEndTimeStr.toLowerCase().contains('am') && endHour == 12) {
+        endHour = 0;
+      }
+    }
+    final shiftEndIst = DateTime.utc(
+      nowIst.year,
+      nowIst.month,
+      nowIst.day,
+      endHour,
+      endMinute,
+    );
+    
+    // Duration in library
+    final duration = nowUtc.difference(checkInTime);
+    final isOvertime = nowIst.isAfter(shiftEndIst);
+    final overtimeDuration = isOvertime ? nowIst.difference(shiftEndIst) : Duration.zero;
+    final overtimeStr = formatDurationHuman(overtimeDuration);
+
+    final bool? confirm = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      builder: (BuildContext context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            top: 24,
+            left: 24,
+            right: 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Confirm Check-Out',
+                style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Are you sure you want to check out from the library?',
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 12),
+              
+              // Details
+              _buildDialogDetailRow('Library', libName),
+              _buildDialogDetailRow('Seat', seatLabel),
+              _buildDialogDetailRow('Shift', shiftName),
+              _buildDialogDetailRow('Check-In Time', formatTimeIST(checkInTime)),
+              _buildDialogDetailRow('Current Duration', formatDurationHuman(duration)),
+              _buildDialogDetailRow('Shift End Time', DateFormat('hh:mm a').format(shiftEndIst)),
+              
+              if (isOvertime) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Overtime: $overtimeStr beyond shift end.',
+                          style: GoogleFonts.inter(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: const Color(0xFFE65C00),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Confirm Check-Out',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (confirm == true) {
+      await _performCheckout(
+        activeSession: activeSession,
+        libName: libName,
+        seatLabel: seatLabel,
+        shiftName: shiftName,
+        shiftEndTimeStr: shiftEndTimeStr,
+        checkInTime: checkInTime,
+      );
+    } else {
+      setState(() {
+        _isProcessingScan = false;
+      });
+    }
+  }
+
+  Widget _buildDialogDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performCheckout({
+    required Map<String, dynamic> activeSession,
+    required String libName,
+    required String seatLabel,
+    required String shiftName,
+    required String shiftEndTimeStr,
+    required DateTime checkInTime,
+  }) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final checkOutTimeUtc = DateTime.now().toUtc();
+      final durationMinutes = checkOutTimeUtc.difference(checkInTime).inMinutes;
+
+      debugPrint('[CHECKOUT STEP] Starting: attendance update');
+      debugPrint('[QR Scan Audit] Checkout API call initiated for session: ${activeSession['id']}');
+      debugPrint('[QR Scan] Performing check-out database update for session: ${activeSession['id']}');
+      final updateResponse = await supabase.from('attendance').update({
+        'check_out_time': checkOutTimeUtc.toIso8601String(),
+        'duration_minutes': durationMinutes,
+      }).eq('id', activeSession['id']).select();
+      debugPrint('[CHECKOUT STEP] Success: attendance update');
+      debugPrint('[QR Scan Audit] Supabase response received: $updateResponse');
+      debugPrint('[QR Scan] Check-out database response: $updateResponse');
+
+      if (updateResponse == null || (updateResponse as List).isEmpty) {
+        throw Exception('Database update returned empty list (0 rows updated). Check activeSession id: ${activeSession['id']}');
+      }
+
+      if (!mounted) return;
+
+      // Reset scan counters
+      _cooldownScansCount = 0;
+
+      final nowIst = toIST(checkOutTimeUtc);
+      final parts = shiftEndTimeStr.split(':');
+      int endHour = 14;
+      int endMinute = 0;
+      if (parts.length >= 2) {
+        endHour = int.tryParse(parts[0]) ?? 14;
+        endMinute = int.tryParse(parts[1]) ?? 0;
+        if (shiftEndTimeStr.toLowerCase().contains('pm') && endHour < 12) {
+          endHour += 12;
+        } else if (shiftEndTimeStr.toLowerCase().contains('am') && endHour == 12) {
+          endHour = 0;
+        }
+      }
+      final shiftEndIst = DateTime.utc(
+        nowIst.year,
+        nowIst.month,
+        nowIst.day,
+        endHour,
+        endMinute,
+      );
+
+      final isOvertime = nowIst.isAfter(shiftEndIst);
+      final overtimeDuration = isOvertime ? nowIst.difference(shiftEndIst) : Duration.zero;
+      final overtimeStr = isOvertime ? formatDurationHuman(overtimeDuration) : '';
+
+      final checkInTimeIst = toIST(checkInTime);
+      final checkOutTimeIst = toIST(checkOutTimeUtc);
+      final hrs = durationMinutes ~/ 60;
+      final mins = durationMinutes % 60;
+
+      _showSuccess(
+        isCheckIn: false,
+        libraryName: libName,
+        seatLabel: seatLabel,
+        timeStr: DateFormat('hh:mm a').format(checkOutTimeIst),
+        durationStr: '${hrs}h ${mins}m',
+        isOffline: false,
+        checkInTimeStr: DateFormat('hh:mm a').format(checkInTimeIst),
+        checkOutTimeStr: DateFormat('hh:mm a').format(checkOutTimeIst),
+        shiftEndTimeStr: DateFormat('hh:mm a').format(shiftEndIst),
+        overtimeStr: overtimeStr,
+        shiftName: shiftName,
+      );
+
+    } catch (e, stackTrace) {
+      debugPrint('[CHECKOUT ERROR] ${e.toString()}');
+      debugPrint('[CHECKOUT STACK] $stackTrace');
+      debugPrint('[QR Scan] Error in checkout: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Checkout failed: ${e.toString()}'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        setState(() {
+          _isProcessingScan = false;
+        });
+      }
+    }
   }
 
   void _showSuccess({
@@ -410,7 +857,17 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
     required String timeStr,
     required String durationStr,
     required bool isOffline,
+    String checkInTimeStr = '',
+    String checkOutTimeStr = '',
+    String shiftEndTimeStr = '',
+    String overtimeStr = '',
+    String shiftName = '',
   }) {
+    if (!isCheckIn) {
+      debugPrint('[CHECKOUT STEP] Starting: success card generation');
+      debugPrint('[CHECKOUT] Success card displayed');
+      debugPrint('[CHECKOUT STEP] Success: success card generation');
+    }
     if (!mounted) return;
     setState(() {
       _showSuccessCard = true;
@@ -420,14 +877,19 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       _successTimeText = timeStr;
       _successDurationText = durationStr;
       _isSuccessOffline = isOffline;
+      _successCheckInTimeText = checkInTimeStr;
+      _successCheckOutTimeText = checkOutTimeStr;
+      _successShiftEndTimeText = shiftEndTimeStr;
+      _successOvertimeText = overtimeStr;
+      _successShiftName = shiftName;
       _failedScansCount = 0; // Reset fails on success!
     });
 
-    // Auto dismiss after 3 seconds when online
-    if (!isOffline) {
-      Future.delayed(const Duration(seconds: 3), () {
+    // Auto dismiss after 5 seconds when online (only for check-in)
+    if (!isOffline && isCheckIn) {
+      Future.delayed(const Duration(seconds: 5), () {
         if (mounted && _showSuccessCard) {
-          Navigator.pop(context);
+          Navigator.pop(context, true);
         }
       });
     }
@@ -436,7 +898,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
   void _handleFailure(String title, String msg, {String? wrongLibName}) {
     if (!mounted) return;
     setState(() {
-      _failedScansCount++;
+      if (title != 'Network Error') {
+        _failedScansCount++;
+      }
       _showErrorCard = true;
       _errorTitle = title;
       _errorMsg = msg;
@@ -563,35 +1027,83 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-                child: Icon(Icons.check, size: 48, color: color),
+                child: Icon(
+                  isCheckIn ? Icons.check : Icons.logout,
+                  size: 48,
+                  color: color,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
-                isCheckIn ? 'Checked In!' : 'Checked Out!',
-                style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _successTimeText,
-                style: GoogleFonts.inter(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              
-              Text(
-                _successLibraryName,
-                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
-              ),
-              Text(
-                'Seat: $_successSeatLabel',
-                style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700]),
-              ),
-              
-              if (_successDurationText.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Session Duration: $_successDurationText',
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: color),
+                isCheckIn ? 'Checked In Successfully ✓' : 'Checked Out Successfully ✓',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
                 ),
+              ),
+              const SizedBox(height: 16),
+              
+              if (isCheckIn) ...[
+                Text(
+                  _successLibraryName,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Seat: $_successSeatLabel  ·  Shift: $_successShiftName',
+                  style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'In: $_successTimeText',
+                  style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'You can check out after 10 minutes.',
+                        style: GoogleFonts.inter(fontSize: 12, color: Colors.orange[800], fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                // Check Out Summary Screen
+                Text(
+                  '$_successLibraryName  ·  Seat $_successSeatLabel',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                ),
+                const SizedBox(height: 12),
+                const Divider(),
+                const SizedBox(height: 12),
+                
+                _buildSummaryDetailRow('In:', _successCheckInTimeText),
+                _buildSummaryDetailRow('Out:', _successCheckOutTimeText),
+                _buildSummaryDetailRow('Duration:', _successDurationText),
+                
+                if (_successOvertimeText.isNotEmpty)
+                  _buildSummaryDetailRow(
+                    'Shift ended at:',
+                    '$_successShiftEndTimeText (+$_successOvertimeText overtime)',
+                    valueColor: Colors.redAccent,
+                  )
+                else
+                  _buildSummaryDetailRow('Shift ended at:', _successShiftEndTimeText),
               ],
               
               if (_isSuccessOffline) ...[
@@ -611,7 +1123,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context);
+                    if (!_isCheckInSuccess) {
+                      debugPrint('[CHECKOUT STEP] Starting: navigator return');
+                      debugPrint('[CHECKOUT] Done pressed');
+                      debugPrint('[CHECKOUT] Navigator.pop(true)');
+                      debugPrint('[CHECKOUT STEP] Success: navigator return');
+                    }
+                    Navigator.pop(context, true);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE65C00),
@@ -625,6 +1143,29 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryDetailRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? const Color(0xFF1E293B),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -721,17 +1262,25 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () {
-                          setState(() {
-                            _showErrorCard = false;
-                            _isProcessingScan = false;
-                          });
+                          if (_errorTitle == 'Network Error' && _lastScannedValue != null) {
+                            setState(() {
+                              _showErrorCard = false;
+                              _isProcessingScan = true;
+                            });
+                            _processQRContent(_lastScannedValue!);
+                          } else {
+                            setState(() {
+                              _showErrorCard = false;
+                              _isProcessingScan = false;
+                            });
+                          }
                         },
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           side: const BorderSide(color: Color(0xFFE65C00)),
                           foregroundColor: const Color(0xFFE65C00),
                         ),
-                        child: const Text('Try Again'),
+                        child: Text(_errorTitle == 'Network Error' ? 'Retry' : 'Try Again'),
                       ),
                     ),
                     if (_errorWrongLibraryName != null) ...[

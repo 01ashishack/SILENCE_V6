@@ -507,10 +507,40 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       setState(() => _isLoading = true);
       final membershipId = _membershipData?['id'];
       if (membershipId != null) {
+        final membership = await supabase
+            .from('memberships')
+            .select('seat_id')
+            .eq('id', membershipId)
+            .single();
+        if (!mounted) return;
+
+        final seatId = membership['seat_id'];
+
         await supabase.from('memberships').update({
           'status': 'exited',
           'end_date': DateTime.now().toUtc().toIso8601String(),
         }).eq('id', membershipId);
+        if (!mounted) return;
+
+        if (seatId != null) {
+          final otherActive = await supabase
+              .from('memberships')
+              .select('id')
+              .eq('seat_id', seatId)
+              .neq('id', membershipId)
+              .inFilter('status', ['active', 'trial', 'hold', 'expiring'])
+              .limit(1)
+              .maybeSingle();
+          if (!mounted) return;
+
+          if (otherActive == null) {
+            await supabase.from('seats').update({
+              'status': 'vacant',
+              'occupied_by_member_id': null,
+            }).eq('id', seatId);
+            if (!mounted) return;
+          }
+        }
       }
       await _fetchMemberData();
       if (mounted) {

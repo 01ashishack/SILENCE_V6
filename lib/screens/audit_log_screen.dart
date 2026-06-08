@@ -147,16 +147,16 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.history, size: 64, color: Colors.grey),
+                                  const Icon(Icons.history, size: 64, color: Color(0xFF9CA3AF)),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'No audit logs found',
-                                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                    'No actions recorded yet',
+                                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF374151)),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Admin actions will appear here',
-                                    style: GoogleFonts.inter(color: Colors.grey, fontSize: 13),
+                                    'Actions appear here as you manage your library.',
+                                    style: GoogleFonts.inter(color: const Color(0xFF9CA3AF), fontSize: 13),
                                   ),
                                 ],
                               ),

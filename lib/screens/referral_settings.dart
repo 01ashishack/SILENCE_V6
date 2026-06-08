@@ -51,17 +51,16 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
 
     try {
       final supabase = Supabase.instance.client;
-      final userId = supabase.auth.currentUser?.id;
-      if (userId != null) {
+      if (_libId != null) {
         final referrals = await supabase
             .from('referrals')
-            .select('reward_credited')
-            .eq('referrer_id', userId);
+            .select('*')
+            .eq('library_id', _libId!);
         if (!mounted) return;
 
         total = referrals.length;
-        pending = referrals.where((r) => r['reward_credited'] == false || r['reward_credited'] == null).length;
-        rewarded = referrals.where((r) => r['reward_credited'] == true).length;
+        pending = referrals.where((r) => r['status'] == 'pending').length;
+        rewarded = referrals.where((r) => r['status'] == 'credited' || r['status'] == 'rewarded').length;
       }
     } catch (e) {
       debugPrint('Error loading referral stats: $e');
@@ -272,12 +271,9 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                                     const Icon(Icons.people_outline, size: 40, color: Colors.grey),
                                     const SizedBox(height: 8),
                                     Text(
-                                      'No referrals yet',
+                                      'No referrals yet. Share your library code to get started.',
+                                      textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
-                                    ),
-                                    Text(
-                                      'Referral stats will appear here',
-                                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
                                     ),
                                   ],
                                 ),

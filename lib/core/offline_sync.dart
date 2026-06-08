@@ -60,13 +60,32 @@ class OfflineSyncManager {
         final String? deviceId = scan['device_id'];
 
         try {
+          String resolvedLibraryId = libraryId;
+          if (libraryId.startsWith('LIB-')) {
+            debugPrint('[Offline Sync] Resolving library code: $libraryId');
+            final resolvedLib = await supabase
+                .from('libraries')
+                .select('id')
+                .eq('library_code', libraryId)
+                .maybeSingle();
+            debugPrint('[Offline Sync] Resolution response: $resolvedLib');
+            if (resolvedLib != null) {
+              resolvedLibraryId = resolvedLib['id'];
+            } else {
+              // Invalid library code, delete from queue
+              debugPrint('[Offline Sync] Library code $libraryId could not be resolved. Discarding scan.');
+              await db.delete('offline_scan_queue', where: 'id = ?', whereArgs: [scanId]);
+              continue;
+            }
+          }
+
           if (type == 'checkin') {
             // Find user's active membership for this library
             final activeMembership = await supabase
                 .from('memberships')
                 .select('id, shift_id')
                 .eq('member_id', memberId)
-                .eq('library_id', libraryId)
+                .eq('library_id', resolvedLibraryId)
                 .inFilter('status', ['active', 'trial'])
                 .maybeSingle();
 
@@ -83,7 +102,7 @@ class OfflineSyncManager {
             await supabase.from('attendance').insert({
               'membership_id': membershipId,
               'member_id': memberId,
-              'library_id': libraryId,
+              'library_id': resolvedLibraryId,
               'shift_id': realShiftId,
               'check_in_time': timestamp,
               'check_out_time': null,
@@ -103,7 +122,7 @@ class OfflineSyncManager {
                 .from('attendance')
                 .select('id, check_in_time')
                 .eq('member_id', memberId)
-                .eq('library_id', libraryId)
+                .eq('library_id', resolvedLibraryId)
                 .isFilter('check_out_time', null)
                 .order('check_in_time', ascending: false)
                 .limit(1)
@@ -132,7 +151,7 @@ class OfflineSyncManager {
                   .from('attendance')
                   .select('id, check_in_time')
                   .eq('member_id', memberId)
-                  .eq('library_id', libraryId)
+                  .eq('library_id', resolvedLibraryId)
                   .order('check_in_time', ascending: false)
                   .limit(1)
                   .maybeSingle();

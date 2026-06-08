@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS libraries (
     status TEXT DEFAULT 'setup' CHECK (status IN ('setup', 'active', 'closed')),
     verified BOOLEAN DEFAULT false,
     verified_at TIMESTAMPTZ,
+    qr_version INTEGER DEFAULT 1,
+    avg_rating NUMERIC(2,1) DEFAULT 0,
+    review_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -365,6 +368,80 @@ CREATE TABLE IF NOT EXISTS scheduled_closures (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Reviews Table
+CREATE TABLE IF NOT EXISTS reviews (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    member_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    membership_id UUID REFERENCES memberships(id),
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    review_text TEXT,
+    admin_reply TEXT,
+    admin_replied_at TIMESTAMPTZ,
+    is_read_by_admin BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (library_id, member_id)
+);
+
+CREATE TRIGGER trigger_update_reviews_updated_at
+BEFORE UPDATE ON reviews
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- TRIGGER: Auto-update avg_rating and review_count on libraries
+CREATE OR REPLACE FUNCTION fn_update_library_rating()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE libraries
+  SET
+    avg_rating = (
+      SELECT COALESCE(ROUND(AVG(rating)::numeric, 1), 0)
+      FROM reviews
+      WHERE library_id = NEW.library_id
+    ),
+    review_count = (
+      SELECT COUNT(*)
+      FROM reviews
+      WHERE library_id = NEW.library_id
+    )
+  WHERE id = NEW.library_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_update_library_rating ON reviews;
+CREATE TRIGGER trigger_update_library_rating
+  AFTER INSERT OR UPDATE OR DELETE ON reviews
+  FOR EACH ROW
+  EXECUTE FUNCTION fn_update_library_rating();
+
+-- Expenditures Table
+CREATE TABLE IF NOT EXISTS expenditures (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    amount NUMERIC(10,2) NOT NULL CHECK (amount > 0),
+    category TEXT NOT NULL CHECK (
+        category IN (
+            'rent', 'electricity', 'internet', 'water',
+            'maintenance', 'salary', 'supplies', 'generator',
+            'cleaning', 'security', 'taxes', 'miscellaneous'
+        )
+    ),
+    expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    note TEXT,
+    notes TEXT, -- compatibility column for Flutter app
+    receipt_url TEXT,
+    is_recurring BOOLEAN DEFAULT false,
+    added_by TEXT NOT NULL DEFAULT 'admin',
+    is_deleted BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TRIGGER trigger_update_expenditures_updated_at
+BEFORE UPDATE ON expenditures
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- ------------------------------------------------------------
 -- 3. INDEXES
 -- ------------------------------------------------------------
@@ -408,6 +485,14 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_member_i
 -- Audit Log Indexes
 CREATE INDEX IF NOT EXISTS idx_audit_library ON audit_log(library_id, created_at);
 
+-- Reviews Indexes
+CREATE INDEX IF NOT EXISTS idx_reviews_library_id ON reviews(library_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_member_id ON reviews(member_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_created ON reviews(created_at);
+
+-- Expenditures Indexes
+CREATE INDEX IF NOT EXISTS idx_expenditures_library_date ON expenditures(library_id, expense_date) WHERE is_deleted = false;
+
 -- ------------------------------------------------------------
 -- 4. ROW LEVEL SECURITY (RLS) POLICIES
 -- ------------------------------------------------------------
@@ -436,6 +521,8 @@ ALTER TABLE queries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scheduled_closures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expenditures ENABLE ROW LEVEL SECURITY;
 
 -- 4.1 Users Policies
 CREATE POLICY "Users can view own profile" ON users
@@ -537,6 +624,10 @@ CREATE POLICY "Admin insert (manual check-in)" ON attendance
 CREATE POLICY "Admin update (edit session duration)" ON attendance
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
     WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+
+CREATE POLICY "Member update (check-out)" ON attendance
+    FOR UPDATE USING (member_id = auth.uid())
+    WITH CHECK (member_id = auth.uid());
 
 -- 4.9 Payments Policies
 CREATE POLICY "Member view own payments" ON payments
@@ -701,3 +792,43 @@ CREATE POLICY "Admin manage scheduled closures" ON scheduled_closures
 
 CREATE POLICY "Members view scheduled closures" ON scheduled_closures
     FOR SELECT USING (EXISTS (SELECT 1 FROM memberships WHERE memberships.library_id = scheduled_closures.library_id AND memberships.member_id = auth.uid()));
+
+-- 4.24 Reviews Policies
+CREATE POLICY "member_read_reviews" ON reviews
+  FOR SELECT
+  USING (
+    library_id IN (
+      SELECT library_id FROM memberships WHERE member_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "member_insert_own_review" ON reviews
+  FOR INSERT
+  WITH CHECK (member_id = auth.uid());
+
+CREATE POLICY "member_update_own_review" ON reviews
+  FOR UPDATE
+  USING (member_id = auth.uid())
+  WITH CHECK (member_id = auth.uid());
+
+CREATE POLICY "admin_manage_reviews" ON reviews
+  FOR ALL
+  USING (
+    library_id IN (
+      SELECT id FROM libraries WHERE owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "public_read_active_library_reviews" ON reviews
+  FOR SELECT
+  USING (
+    library_id IN (
+      SELECT id FROM libraries WHERE status = 'active'
+    )
+  );
+
+-- 4.25 Expenditures Policies
+CREATE POLICY "admin_manage_expenditures" ON expenditures
+  FOR ALL
+  USING (library_id IN (SELECT id FROM libraries WHERE owner_id = auth.uid()))
+  WITH CHECK (library_id IN (SELECT id FROM libraries WHERE owner_id = auth.uid()));

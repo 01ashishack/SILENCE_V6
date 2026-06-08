@@ -245,15 +245,117 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // 1. Archive existing shifts
-      await _supabase.from('shifts').update({'is_archived': true}).eq('library_id', _libraryId!);
+      // 1. Identify shifts to archive (active in DB but not present in updated list)
+      final existingDbShifts = await _supabase.from('shifts')
+          .select('id, name')
+          .eq('library_id', _libraryId!)
+          .eq('is_archived', false);
+      final List<String> newShiftIds = _shifts.map((s) => s.id).whereType<String>().toList();
+      final List<Map<String, dynamic>> shiftsToArchive = (existingDbShifts as List)
+          .map((s) => s as Map<String, dynamic>)
+          .where((s) => !newShiftIds.contains(s['id']))
+          .toList();
 
-      // 2. Insert updated shifts
-      for (final shift in _shifts) {
-        await _supabase.from('shifts').insert(shift.toMap(_libraryId!));
+      // 2. Archive Protection: Check for active memberships in shifts to be archived
+      if (shiftsToArchive.isNotEmpty) {
+        final archiveIds = shiftsToArchive.map((s) => s['id'] as String).toList();
+        final activeMemberships = await _supabase.from('memberships')
+            .select('id, shift_id')
+            .inFilter('shift_id', archiveIds)
+            .eq('status', 'active');
+        if ((activeMemberships as List).isNotEmpty) {
+          final firstConflictingShiftId = activeMemberships.first['shift_id'] as String;
+          final conflictingShiftName = shiftsToArchive.firstWhere((s) => s['id'] == firstConflictingShiftId)['name'];
+          _showError('Cannot archive shift "$conflictingShiftName" because active members are assigned to it. Transfer or exit members first.');
+          return;
+        }
       }
 
-      // 3. Save payment settings to libraries.social_links
+      // 3. Archive shifts marked for deletion
+      for (final sa in shiftsToArchive) {
+        await _supabase.from('shifts').update({'is_archived': true}).eq('id', sa['id']);
+      }
+
+      // 4. Update existing shifts
+      for (final shift in _shifts) {
+        if (shift.id != null) {
+          await _supabase.from('shifts').update(shift.toMap(_libraryId!)).eq('id', shift.id!);
+        }
+      }
+
+      // 5. Insert new shifts
+      final List<String> newlyInsertedShiftIds = [];
+      for (final shift in _shifts) {
+        if (shift.id == null) {
+          final newRow = await _supabase.from('shifts').insert(shift.toMap(_libraryId!)).select().single();
+          shift.id = newRow['id'] as String;
+          newlyInsertedShiftIds.add(shift.id!);
+        }
+      }
+
+      // 6. Idempotent Seat Layout Replication for newly inserted shifts
+      if (newlyInsertedShiftIds.isNotEmpty) {
+        // Find a source active shift that already has seats defined
+        String? sourceShiftId;
+        final allDbShifts = await _supabase.from('shifts')
+            .select('id')
+            .eq('library_id', _libraryId!)
+            .eq('is_archived', false);
+        final dbShiftIds = (allDbShifts as List)
+            .map((s) => s['id'] as String)
+            .where((id) => !newlyInsertedShiftIds.contains(id))
+            .toList();
+
+        if (dbShiftIds.isNotEmpty) {
+          final seatsCheck = await _supabase.from('seats')
+              .select('shift_id')
+              .inFilter('shift_id', dbShiftIds)
+              .limit(1);
+          if ((seatsCheck as List).isNotEmpty) {
+            sourceShiftId = seatsCheck.first['shift_id'] as String;
+          }
+        }
+
+        if (sourceShiftId != null) {
+          final existingSeats = await _supabase.from('seats')
+              .select('floor_id, section_id, seat_label')
+              .eq('library_id', _libraryId!)
+              .eq('shift_id', sourceShiftId);
+
+          if ((existingSeats as List).isNotEmpty) {
+            for (final newShiftId in newlyInsertedShiftIds) {
+              // Idempotency check: check if seats already exist for target shift
+              final seatsExist = await _supabase.from('seats')
+                  .select('id')
+                  .eq('shift_id', newShiftId)
+                  .limit(1);
+              if ((seatsExist as List).isNotEmpty) {
+                continue; // Skip replication
+              }
+
+              final List<Map<String, dynamic>> seatsToInsert = (existingSeats as List).map((seat) {
+                return {
+                  'library_id': _libraryId!,
+                  'floor_id': seat['floor_id'],
+                  'section_id': seat['section_id'],
+                  'shift_id': newShiftId,
+                  'seat_label': seat['seat_label'],
+                  'status': 'vacant',
+                  'occupied_by_member_id': null,
+                  'maintenance_reason': null,
+                  'maintenance_until': null,
+                };
+              }).toList();
+
+              if (seatsToInsert.isNotEmpty) {
+                await _supabase.from('seats').insert(seatsToInsert);
+              }
+            }
+          }
+        }
+      }
+
+      // 7. Save payment settings to libraries.social_links
       await _supabase.from('libraries').update({
         'social_links': {
           'cash_enabled': _cashEnabled,

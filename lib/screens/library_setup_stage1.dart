@@ -75,7 +75,11 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
   @override
   void initState() {
     super.initState();
-    _loadExistingLibrary();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadExistingLibrary();
+      }
+    });
   }
 
   @override
@@ -97,16 +101,21 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
     if (user != null) {
       try {
+        debugPrint('--- [STAGE 1] Loading library details for owner_id: ${user.id} ---');
         final Object? args = ModalRoute.of(context)?.settings.arguments;
         String? passedId;
         if (args is String) {
           passedId = args;
         }
+        debugPrint('Passed route arguments (libraryId): $passedId');
 
         final query = supabase.from('libraries').select().eq('owner_id', user.id);
         final libData = passedId != null
             ? await query.eq('id', passedId).maybeSingle()
             : await query.maybeSingle();
+
+        debugPrint('Supabase query result libData: $libData');
+
         if (libData != null) {
           _libraryId = libData['id'];
           _libraryCode = libData['library_code'] ?? '';
@@ -117,6 +126,16 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
           _pinController.text = libData['address_pincode'] ?? '';
           _emergencyPhoneController.text = libData['emergency_phone'] ?? '';
           _coverPhotoUrl = libData['cover_photo_url'];
+
+          debugPrint('Controller values after assignment:');
+          debugPrint('  _libraryId: $_libraryId');
+          debugPrint('  name: ${_nameController.text}');
+          debugPrint('  street: ${_streetController.text}');
+          debugPrint('  city: ${_cityController.text}');
+          debugPrint('  state: ${_stateController.text}');
+          debugPrint('  pincode: ${_pinController.text}');
+          debugPrint('  emergency_phone: ${_emergencyPhoneController.text}');
+          debugPrint('  coverPhotoUrl: $_coverPhotoUrl');
 
           if (libData['amenities'] != null) {
             _selectedAmenities = List<String>.from(libData['amenities']);
@@ -147,9 +166,12 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
               }
             }
           }
+        } else {
+          debugPrint('No library record found matching current criteria.');
         }
-      } catch (e) {
-        debugPrint('Error loading library details: $e');
+      } catch (e, stackTrace) {
+        debugPrint('EXCEPTION in _loadExistingLibrary: $e');
+        debugPrint('Stack trace: $stackTrace');
       }
     }
     setState(() => _isLoading = false);

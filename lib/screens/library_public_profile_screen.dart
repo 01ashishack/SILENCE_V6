@@ -59,7 +59,11 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
   @override
   void initState() {
     super.initState();
-    _loadPublicData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadPublicData();
+      }
+    });
   }
 
   Future<void> _checkAndJoinLibrary({String? shiftId}) async {

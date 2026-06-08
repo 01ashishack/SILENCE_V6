@@ -241,8 +241,8 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
       // 1. Re-validate vacancy at DB level to prevent race conditions
       final seatCheck = await supabase.from('seats').select('status').eq('id', seatId).single();
+      if (!mounted) return;
       if (seatCheck['status'] != 'vacant') {
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Seat just assigned, pick another! ⚠', style: TextStyle(color: Colors.white)), backgroundColor: Colors.red),
         );
@@ -254,33 +254,75 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         'status': 'occupied',
         'occupied_by_member_id': memberId,
       }).eq('id', seatId);
+      if (!mounted) return;
 
       // 3. Set request status to approved
       await supabase.from('join_requests').update({
         'status': 'approved',
       }).eq('id', requestId);
+      if (!mounted) return;
 
-      // 4. Create membership
-      final start = DateTime.now();
-      int durationMonths = 1;
-      if (request['plan_type'] == '3_month') durationMonths = 3;
-      if (request['plan_type'] == '6_month') durationMonths = 6;
-      final end = DateTime(start.year, start.month + durationMonths, start.day);
+      String membershipId;
 
-      final membership = await supabase.from('memberships').insert({
-        'member_id': memberId,
-        'library_id': widget.libraryId,
-        'shift_id': request['shift_id'],
-        'seat_id': seatId,
-        'plan_type': request['plan_type'],
-        'start_date': start.toIso8601String().substring(0, 10),
-        'end_date': end.toIso8601String().substring(0, 10),
-        'status': 'active',
-      }).select('id').single();
+      // Check if member already has an active/expiring membership in this library
+      final existingMembership = await supabase
+          .from('memberships')
+          .select('id, end_date, seat_id, shift_id, status')
+          .eq('member_id', memberId)
+          .eq('library_id', widget.libraryId)
+          .inFilter('status', ['active', 'trial', 'expiring', 'expired'])
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (!mounted) return;
+
+      if (existingMembership != null) {
+        // RENEWAL: Extend existing membership
+        DateTime currentEndDate = DateTime.parse(existingMembership['end_date']);
+        if (currentEndDate.isBefore(DateTime.now())) {
+          currentEndDate = DateTime.now(); // if expired, start from today
+        }
+        
+        int durationMonths = 1;
+        if (request['plan_type'] == '3_month') durationMonths = 3;
+        if (request['plan_type'] == '6_month') durationMonths = 6;
+        DateTime newEndDate = _addMonths(currentEndDate, durationMonths);
+        
+        await supabase.from('memberships').update({
+          'end_date': newEndDate.toIso8601String().substring(0, 10),
+          'status': 'active',
+          'seat_id': seatId,
+          'shift_id': request['shift_id'],
+        }).eq('id', existingMembership['id']);
+        if (!mounted) return;
+        
+        membershipId = existingMembership['id'];
+      } else {
+        // NEW MEMBERSHIP: Create membership
+        final start = DateTime.now();
+        int durationMonths = 1;
+        if (request['plan_type'] == '3_month') durationMonths = 3;
+        if (request['plan_type'] == '6_month') durationMonths = 6;
+        final end = DateTime(start.year, start.month + durationMonths, start.day);
+
+        final membership = await supabase.from('memberships').insert({
+          'member_id': memberId,
+          'library_id': widget.libraryId,
+          'shift_id': request['shift_id'],
+          'seat_id': seatId,
+          'plan_type': request['plan_type'],
+          'start_date': start.toIso8601String().substring(0, 10),
+          'end_date': end.toIso8601String().substring(0, 10),
+          'status': 'active',
+        }).select('id').single();
+        if (!mounted) return;
+
+        membershipId = membership['id'];
+      }
 
       // 5. Create confirmed payment record
       await supabase.from('payments').insert({
-        'membership_id': membership['id'],
+        'membership_id': membershipId,
         'member_id': memberId,
         'library_id': widget.libraryId,
         'amount': request['plan_type'] == 'monthly' ? 1500 : (request['plan_type'] == '3_month' ? 4000 : 7500), // generic pricing
@@ -291,6 +333,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         'proof_url': request['payment_proof_url'],
         'upi_sender_name': request['upi_sender_name'],
       });
+      if (!mounted) return;
 
       _fetchRequests();
       if (!mounted) return;
@@ -1018,7 +1061,46 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                     subtitle: Text('Hold from ${r['start_date']} to ${r['end_date']}'),
                                     trailing: ElevatedButton(
                                       onPressed: _isProfileComplete ? () async {
-                                        await supabase.from('hold_requests').update({'status': 'approved'}).eq('id', r['id']);
+                                        final holdReq = await supabase
+                                            .from('hold_requests')
+                                            .select('*, membership_id, start_date, end_date')
+                                            .eq('id', r['id'])
+                                            .single();
+                                        if (!mounted) return;
+                                        
+                                        final membership = await supabase
+                                            .from('memberships')
+                                            .select('id, end_date, seat_id, member_id')
+                                            .eq('id', holdReq['membership_id'])
+                                            .single();
+                                        if (!mounted) return;
+                                        
+                                        final startDate = DateTime.parse(holdReq['start_date']);
+                                        final endDate = DateTime.parse(holdReq['end_date']);
+                                        final holdDays = endDate.difference(startDate).inDays;
+                                        
+                                        final currentEnd = DateTime.parse(membership['end_date']);
+                                        final newEnd = currentEnd.add(Duration(days: holdDays));
+                                        
+                                        await supabase.from('memberships').update({
+                                          'status': 'hold',
+                                          'end_date': newEnd.toIso8601String().substring(0, 10),
+                                        }).eq('id', membership['id']);
+                                        if (!mounted) return;
+                                        
+                                        await supabase.from('hold_requests').update({
+                                          'status': 'approved'
+                                        }).eq('id', r['id']);
+                                        if (!mounted) return;
+                                        
+                                        await supabase.from('notifications').insert({
+                                          'user_id': membership['member_id'],
+                                          'body': 'Your hold request has been approved. Your membership is paused until ${endDate.toLocal().toString().substring(0, 10)}. Your seat is reserved.',
+                                          'data': {'type': 'hold_approved', 'membership_id': membership['id']},
+                                          'created_at': DateTime.now().toIso8601String(),
+                                        });
+                                        if (!mounted) return;
+                                        
                                         _fetchRequests();
                                       } : () {
                                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1044,5 +1126,15 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         ),
       ],
     );
+  }
+
+  DateTime _addMonths(DateTime date, int months) {
+    int newYear = date.year;
+    int newMonth = date.month + months;
+    while (newMonth > 12) {
+      newMonth -= 12;
+      newYear++;
+    }
+    return DateTime(newYear, newMonth, date.day);
   }
 }

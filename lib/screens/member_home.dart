@@ -9,17 +9,13 @@ import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
 import '../core/offline_sync.dart';
 import '../core/cache_service.dart';
+import '../utils/time_utils.dart';
 import 'reservations/qr_scanner_screen.dart';
 import 'reservations/join_flow_screen.dart';
 import 'member_profile_edit.dart';
 import 'member_analytics_tab.dart';
 import 'library_public_profile_screen.dart';
 import 'member_history_tab.dart';
-import 'help_support_screen.dart';
-import 'about_us_screen.dart';
-import 'terms_screen.dart';
-import 'app_settings_screen.dart';
-import 'package:flutter/services.dart';
 import '../core/calendar_picker.dart';
 import '../widgets/seat_change_bottom_sheet.dart';
 import 'reservations/renewal_screen.dart';
@@ -69,9 +65,30 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   // Explore list in cache
   List<Map<String, dynamic>> _exploreLibraries = [];
   
-  // Attendance Live Ticker
-  Timer? _attendanceTimer;
-  String _liveSessionDuration = '0h 0m 0s';
+  // Attendance Live Ticker (ValueNotifiers for UI updates without full screen rebuilds)
+  final ValueNotifier<Duration> _sessionDurationNotifier = ValueNotifier(Duration.zero);
+  final ValueNotifier<Duration> _shiftRemainingNotifier = ValueNotifier(Duration.zero);
+  final ValueNotifier<double> _shiftProgressNotifier = ValueNotifier(0.0);
+
+  // Session data
+  bool _isCheckedIn = false;
+  bool _hasSessionEndedToday = false;
+  bool _shiftEndedWithoutCheckin = false;
+  DateTime? _checkInTime;
+  DateTime? _checkOutTime;
+  Duration _sessionDuration = Duration.zero;
+
+  int _streak = 0;
+  int _shiftEndHour = 14;
+
+  // Previous session (for small extra card)
+  Map<String, dynamic>? _previousSession;
+
+  // Timer
+  Timer? _sessionTimer;
+  
+  // Cache of all study dates (for streak calculation)
+  Set<String> _studyDates = {};
 
   // Computed Stage Stats
   int _currentStreak = 0;
@@ -114,7 +131,10 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   @override
   void dispose() {
-    _attendanceTimer?.cancel();
+    _sessionTimer?.cancel();
+    _sessionDurationNotifier.dispose();
+    _shiftRemainingNotifier.dispose();
+    _shiftProgressNotifier.dispose();
     OfflineSyncManager.instance.stopListening();
     super.dispose();
   }
@@ -162,6 +182,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   Future<void> _loadInitialData() async {
+    debugPrint('[Home Refresh Audit] Attendance reload initiated');
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -239,6 +260,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
       _activeAttendance = results[3] as Map<String, dynamic>?;
       _lastCompletedAttendance = results[4] as Map<String, dynamic>?;
+      debugPrint('[Home Refresh Audit] Attendance reload completed. Active attendance: $_activeAttendance, Last completed: $_lastCompletedAttendance');
       
       final exploreRes = List<Map<String, dynamic>>.from(results[5] as List? ?? []);
       if (exploreRes.isNotEmpty) {
@@ -264,13 +286,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       _myMemberships = allMemberships.where((m) => ['active', 'trial', 'hold', 'expired'].contains(m['status'])).toList();
       _pastMemberships = allMemberships.where((m) => m['status'] == 'exited').toList();
 
-      final checkInStr = _activeAttendance?['check_in_time'] as String?;
-      if (checkInStr != null) {
-        _startAttendanceTicker(DateTime.parse(checkInStr));
-      } else {
-        _attendanceTimer?.cancel();
-        _liveSessionDuration = '0h 0m 0s';
-      }
+      await _determineCurrentState();
 
       CacheService.instance.writeCache('explore_libraries_list', _exploreLibraries);
 
@@ -325,6 +341,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           }
         }
       }
+      _studyDates = studyDates;
       _currentStreak = _calculateCurrentStreak(studyDates);
       _bestStreak = _calculateBestStreak(studyDates);
       _totalStudyHours = hoursSum;
@@ -413,6 +430,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       debugPrint('Error loading member home data: $e');
       _errorMessage = e.toString();
     } finally {
+      debugPrint('[HOME] Attendance reload complete');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -421,23 +439,279 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     }
   }
 
-  void _startAttendanceTicker(DateTime checkInTime) {
-    _attendanceTimer?.cancel();
-    _updateLiveDuration(checkInTime);
-    _attendanceTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _updateLiveDuration(checkInTime);
+  String formatShiftTimeString(String? timeStr) {
+    if (timeStr == null || timeStr.isEmpty) return 'N/A';
+    try {
+      final parts = timeStr.split(':');
+      int hour = 0;
+      int minute = 0;
+      if (parts.length >= 2) {
+        hour = int.tryParse(parts[0]) ?? 0;
+        minute = int.tryParse(parts[1]) ?? 0;
+      }
+      final tempDt = DateTime(2026, 1, 1, hour, minute);
+      return DateFormat('hh:mm a').format(tempDt);
+    } catch (_) {
+      return 'N/A';
+    }
+  }
+
+  Future<void> _determineCurrentState() async {
+    debugPrint('[HOME] _determineCurrentState() executing. Active session is: $_activeAttendance');
+    if (_activeAttendance != null && _activeAttendance?['check_out_time'] == null && _activeAttendance?['check_in_time'] != null) {
+      _isCheckedIn = true;
+      _hasSessionEndedToday = false;
+      _shiftEndedWithoutCheckin = false;
+      
+      final checkInStr = _activeAttendance!['check_in_time'] as String;
+      _checkInTime = DateTime.parse(checkInStr);
+      _checkOutTime = null;
+      
+      final membership = _activeAttendance!['memberships'] as Map<String, dynamic>? ?? {};
+      final shift = _activeAttendance!['shifts'] as Map<String, dynamic>? ?? membership['shifts'] as Map<String, dynamic>? ?? {};
+      final shiftEndTimeStr = shift['end_time'] as String? ?? '14:00:00';
+      final parts = shiftEndTimeStr.split(':');
+      _shiftEndHour = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 14) : 14;
+      
+      _startSessionTimer();
+    } else {
+      _isCheckedIn = false;
+      _checkInTime = null;
+      _checkOutTime = null;
+      _stopSessionTimer();
+
+      await _fetchPreviousSession();
+    }
+    debugPrint('[Home Refresh Audit] Card state calculation: _isCheckedIn = $_isCheckedIn, _hasSessionEndedToday = $_hasSessionEndedToday, _shiftEndedWithoutCheckin = $_shiftEndedWithoutCheckin');
+  }
+
+  void _startSessionTimer() {
+    _sessionTimer?.cancel();
+    _updateSessionTimerValues();
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _updateSessionTimerValues();
     });
   }
 
-  void _updateLiveDuration(DateTime checkInTime) {
-    final diff = DateTime.now().difference(checkInTime.toLocal());
-    final hrs = diff.inHours;
-    final mins = diff.inMinutes.remainder(60);
-    final secs = diff.inSeconds.remainder(60);
-    if (mounted) {
-      setState(() {
-        _liveSessionDuration = '${hrs}h ${mins}m ${secs}s';
-      });
+  void _stopSessionTimer() {
+    debugPrint('[Home Refresh Audit] Timer cancellation triggered');
+    _sessionTimer?.cancel();
+    _sessionTimer = null;
+  }
+
+  void _updateSessionTimerValues() {
+    if (_checkInTime == null) return;
+    final nowUtc = DateTime.now().toUtc();
+    final checkInUtc = _checkInTime!.toUtc();
+    
+    var sessionDur = nowUtc.difference(checkInUtc);
+    if (sessionDur.isNegative) {
+      sessionDur = Duration.zero;
+    }
+    
+    final nowIst = toIST(nowUtc);
+    
+    String endTimeStr = '14:00:00';
+    String startTimeStr = '06:00:00';
+    if (_activeAttendance != null) {
+      final membership = _activeAttendance!['memberships'] as Map<String, dynamic>? ?? {};
+      final shift = _activeAttendance!['shifts'] as Map<String, dynamic>? ?? membership['shifts'] as Map<String, dynamic>? ?? {};
+      endTimeStr = shift['end_time'] as String? ?? '14:00:00';
+      startTimeStr = shift['start_time'] as String? ?? '06:00:00';
+    } else {
+      final membership = _myMemberships.isNotEmpty ? _myMemberships.first : null;
+      final shift = membership != null ? (membership['shifts'] as Map<String, dynamic>?) : null;
+      endTimeStr = shift != null ? (shift['end_time'] as String? ?? '14:00:00') : '14:00:00';
+      startTimeStr = shift != null ? (shift['start_time'] as String? ?? '06:00:00') : '06:00:00';
+    }
+
+    final endParts = endTimeStr.split(':');
+    int endHour = 14, endMin = 0;
+    if (endParts.length >= 2) {
+      endHour = int.tryParse(endParts[0]) ?? 14;
+      endMin = int.tryParse(endParts[1]) ?? 0;
+    }
+    final shiftEndIst = DateTime.utc(nowIst.year, nowIst.month, nowIst.day, endHour, endMin);
+    
+    final startParts = startTimeStr.split(':');
+    int startHour = 6, startMin = 0;
+    if (startParts.length >= 2) {
+      startHour = int.tryParse(startParts[0]) ?? 6;
+      startMin = int.tryParse(startParts[1]) ?? 0;
+    }
+    final shiftStartIst = DateTime.utc(nowIst.year, nowIst.month, nowIst.day, startHour, startMin);
+
+    final remaining = shiftEndIst.difference(nowIst);
+    
+    final shiftDuration = shiftEndIst.difference(shiftStartIst).inSeconds;
+    final elapsedInShift = nowIst.difference(toIST(checkInUtc)).inSeconds;
+    final progress = shiftDuration > 0 ? (elapsedInShift / shiftDuration).clamp(0.0, 1.0) : 0.0;
+
+    _sessionDurationNotifier.value = sessionDur;
+    _shiftRemainingNotifier.value = remaining;
+    _shiftProgressNotifier.value = progress;
+
+    _sessionDuration = sessionDur;
+  }
+
+  String _getMotivationalMessage(double progress) {
+    if (progress <= 0.10) {
+      return "Great start! Let's build some momentum.";
+    } else if (progress <= 0.25) {
+      return "Keep going! You are settling in nicely.";
+    } else if (progress <= 0.50) {
+      return "Almost halfway there! Stay focused.";
+    } else if (progress <= 0.75) {
+      return "More than halfway! You are doing amazing.";
+    } else if (progress <= 0.90) {
+      return "Homestretch! Finish strong today.";
+    } else {
+      return "Fantastic job! Wrap up your session when ready.";
+    }
+  }
+
+  String _getCompletionMessage(Duration duration) {
+    final minutes = duration.inMinutes;
+    if (minutes < 30) {
+      return "Short but sweet study session. Every minute counts!";
+    } else if (minutes < 120) {
+      return "Solid study block completed! Consistency is key.";
+    } else if (minutes < 240) {
+      return "Great session! You've put in a lot of hard work today.";
+    } else {
+      return "Incredible effort! You studied like a champ today.";
+    }
+  }
+
+  Future<void> _fetchPreviousSession() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) return;
+
+      final completedSessionsRes = await supabase
+          .from('attendance')
+          .select('*, libraries(name), shifts(name), memberships(seats(seat_label))')
+          .eq('member_id', currentUser.id)
+          .not('check_out_time', 'is', null)
+          .order('check_in_time', ascending: false)
+          .limit(2);
+
+      _hasSessionEndedToday = false;
+      _previousSession = null;
+      _streak = _currentStreak;
+
+      final todayStr = DateFormat('yyyy-MM-dd').format(toIST(DateTime.now().toUtc()));
+
+      if (completedSessionsRes.isNotEmpty) {
+        final sessions = List<Map<String, dynamic>>.from(completedSessionsRes);
+        final firstSession = sessions[0];
+        final firstCheckInStr = firstSession['check_in_time'] as String;
+        final firstCheckInUtc = DateTime.parse(firstCheckInStr);
+        final firstCheckInIst = toIST(firstCheckInUtc);
+        final firstSessionDateStr = DateFormat('yyyy-MM-dd').format(firstCheckInIst);
+
+        if (firstSessionDateStr == todayStr) {
+          _hasSessionEndedToday = true;
+          final checkInTime = DateTime.parse(firstSession['check_in_time'] as String);
+          final checkOutTime = DateTime.parse(firstSession['check_out_time'] as String);
+          _sessionDuration = checkOutTime.difference(checkInTime);
+          _checkInTime = checkInTime;
+          _checkOutTime = checkOutTime;
+
+          if (sessions.length > 1) {
+            _previousSession = _formatSessionMap(sessions[1]);
+          }
+        } else {
+          _previousSession = _formatSessionMap(firstSession);
+        }
+      }
+
+      if (!_isCheckedIn && !_hasSessionEndedToday) {
+        final membership = _myMemberships.isNotEmpty ? _myMemberships.first : null;
+        final shift = membership != null ? (membership['shifts'] as Map<String, dynamic>?) : null;
+        final endTimeStr = shift != null ? (shift['end_time'] as String? ?? '14:00:00') : '14:00:00';
+        final parts = endTimeStr.split(':');
+        _shiftEndHour = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 14) : 14;
+
+        final nowIst = toIST(DateTime.now().toUtc());
+        if (nowIst.hour >= _shiftEndHour) {
+          _shiftEndedWithoutCheckin = true;
+        } else {
+          _shiftEndedWithoutCheckin = false;
+        }
+      } else {
+        _shiftEndedWithoutCheckin = false;
+      }
+
+    } catch (e) {
+      debugPrint('Error fetching previous session: $e');
+    }
+  }
+
+  Map<String, dynamic>? _formatSessionMap(Map<String, dynamic> session) {
+    try {
+      final checkInTime = DateTime.parse(session['check_in_time'] as String);
+      final checkOutTime = DateTime.parse(session['check_out_time'] as String);
+      final duration = checkOutTime.difference(checkInTime);
+      final libName = session['libraries']?['name'] ?? 'SILENCE Library';
+      final shift = session['shifts'] as Map<String, dynamic>? ?? {};
+      final shiftName = shift['name'] ?? 'N/A';
+      
+      final membership = session['memberships'] as Map<String, dynamic>? ?? {};
+      final seat = membership['seats'] as Map<String, dynamic>? ?? {};
+      final seatLabel = seat.isNotEmpty ? (seat['seat_label'] ?? 'Pending') : 'Seat pending';
+      final streakAtDate = _calculateStreakAtDate(_studyDates, toIST(checkInTime));
+
+      return {
+        'duration': formatDurationHuman(duration),
+        'check_in_time': formatTimeIST(checkInTime),
+        'library_name': libName,
+        'shift_name': shiftName,
+        'seat_label': seatLabel,
+        'date': DateFormat('E, d MMM').format(toIST(checkInTime)),
+        'streak': '$streakAtDate Day${streakAtDate == 1 ? "" : "s"} 🔥',
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int _calculateStreakAtDate(Set<String> studyDates, DateTime date) {
+    final targetDateStr = DateFormat('yyyy-MM-dd').format(date);
+    final yesterdayOfTarget = DateFormat('yyyy-MM-dd').format(date.subtract(const Duration(days: 1)));
+    
+    bool hasTarget = studyDates.contains(targetDateStr);
+    bool hasYesterday = studyDates.contains(yesterdayOfTarget);
+    
+    if (!hasTarget && !hasYesterday) return 0;
+    
+    int streak = 0;
+    DateTime current = hasTarget ? date : date.subtract(const Duration(days: 1));
+    
+    while (true) {
+      final curStr = DateFormat('yyyy-MM-dd').format(current);
+      if (studyDates.contains(curStr)) {
+        streak++;
+        current = current.subtract(const Duration(days: 1));
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  Future<void> _onCheckOutPressed() async {
+    // Open QR scanner for checkout (second scan)
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const QRScannerScreen()),
+    );
+    debugPrint('[HOME] Received scanner result');
+    debugPrint('[HOME] Received scanner result: $result');
+    if (result == true) {
+      debugPrint('[HOME] Refresh triggered');
+      await _refreshHome();
     }
   }
 
@@ -687,34 +961,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     return list;
   }
 
-  String _getYesterdayOrLastSessionText() {
-    if (_lastCompletedAttendance == null) {
-      return "No recent study sessions recorded.";
-    }
-    final checkInStr = _lastCompletedAttendance!['check_in_time'] as String;
-    final checkOutStr = _lastCompletedAttendance!['check_out_time'] as String;
-    final checkIn = DateTime.parse(checkInStr).toLocal();
-    final checkOut = DateTime.parse(checkOutStr).toLocal();
-    
-    final duration = checkOut.difference(checkIn);
-    final hrs = duration.inHours;
-    final mins = duration.inMinutes.remainder(60);
-    
-    final formattedTime = DateFormat('h:mm a').format(checkIn);
-    final durationStr = "${hrs}h ${mins}m";
-    
-    final now = DateTime.now();
-    final yesterday = now.subtract(const Duration(days: 1));
-    
-    if (checkIn.year == yesterday.year && checkIn.month == yesterday.month && checkIn.day == yesterday.day) {
-      return "Yesterday: checked in at $formattedTime, $durationStr";
-    } else if (checkIn.year == now.year && checkIn.month == now.month && checkIn.day == now.day) {
-      return "Today's previous session: checked in at $formattedTime, $durationStr";
-    } else {
-      final dateStr = DateFormat('dd MMM').format(checkIn);
-      return "Last session ($dateStr): checked in at $formattedTime, $durationStr";
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -2988,110 +3235,945 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   Widget _buildTodayAttendanceCard() {
+    Widget mainCard;
+
+    if (_isCheckedIn) {
+      mainCard = _buildActiveSessionCard();
+    } else if (_hasSessionEndedToday) {
+      mainCard = _buildSessionEndedTodayCard();
+    } else if (_shiftEndedWithoutCheckin) {
+      mainCard = _buildShiftEndedCard();
+    } else {
+      mainCard = _buildNotCheckedInCard();
+    }
+
+    final showPrev = _previousSession != null && !_isCheckedIn;
+
+    if (showPrev) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          mainCard,
+          _buildPreviousSessionCard(),
+        ],
+      );
+    }
+
+    return mainCard;
+  }
+
+  Widget _buildActiveSessionCard() {
     final attendance = _activeAttendance;
-    final checkedIn = attendance != null;
+    if (attendance == null) return const SizedBox.shrink();
+
+    final checkInStr = attendance['check_in_time'] as String;
+    final checkInTime = DateTime.parse(checkInStr);
+
+    final membership = attendance['memberships'] as Map<String, dynamic>? ?? {};
+    final shift = attendance['shifts'] as Map<String, dynamic>? ?? membership['shifts'] as Map<String, dynamic>? ?? {};
+    final seat = attendance['seats'] as Map<String, dynamic>? ?? membership['seats'] as Map<String, dynamic>? ?? {};
+    final seatLabel = seat.isNotEmpty ? (seat['seat_label'] ?? 'Pending') : 'Seat pending';
+
+    final shiftEndTimeStr = shift['end_time'] as String? ?? '14:00:00';
+    final shiftStartTimeStr = shift['start_time'] as String? ?? '06:00:00';
+    final shiftName = shift['name'] ?? 'N/A';
+
+    final startParts = shiftStartTimeStr.split(':');
+    int startHour = 6, startMin = 0;
+    if (startParts.length >= 2) {
+      startHour = int.tryParse(startParts[0]) ?? 6;
+      startMin = int.tryParse(startParts[1]) ?? 0;
+    }
+    final nowIst = toIST(DateTime.now().toUtc());
+    final shiftStartIst = DateTime.utc(nowIst.year, nowIst.month, nowIst.day, startHour, startMin);
+
+    final endParts = shiftEndTimeStr.split(':');
+    int endHour = 14, endMin = 0;
+    if (endParts.length >= 2) {
+      endHour = int.tryParse(endParts[0]) ?? 14;
+      endMin = int.tryParse(endParts[1]) ?? 0;
+    }
+    final shiftEndIst = DateTime.utc(nowIst.year, nowIst.month, nowIst.day, endHour, endMin);
+    final shiftDurationMinutes = shiftEndIst.difference(shiftStartIst).inMinutes;
 
     return Container(
       decoration: BoxDecoration(
-        color: checkedIn ? const Color(0xFFDCFCE7) : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
         ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 4,
+              color: const Color(0xFF22C55E),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title + Date
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "TODAY'S SESSION",
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF94A3B8),
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    Text(
+                      formatDateIST(checkInTime.toUtc()),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Columns: details and progress arc
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      flex: 65,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF22C55E),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Checked In',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF22C55E),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Check-in: ${formatTimeIST(checkInTime.toUtc())}',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF475569),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$shiftName · ${formatShiftTimeString(shiftStartTimeStr)} – ${formatShiftTimeString(shiftEndTimeStr)}',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: const Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 35,
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _shiftProgressNotifier,
+                        builder: (context, progress, child) {
+                          return Center(
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 80,
+                                  height: 80,
+                                  child: CircularProgressIndicator(
+                                    value: progress,
+                                    strokeWidth: 8,
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                                  ),
+                                ),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    ValueListenableBuilder<Duration>(
+                                      valueListenable: _sessionDurationNotifier,
+                                      builder: (context, dur, child) {
+                                        return Text(
+                                          formatDurationHuman(dur),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF1E293B),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    Text(
+                                      'of ${formatDurationHuman(Duration(minutes: shiftDurationMinutes))} shift',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 8,
+                                        color: const Color(0xFF64748B),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                
+                // Stacked Timers
+                ValueListenableBuilder<Duration>(
+                  valueListenable: _sessionDurationNotifier,
+                  builder: (context, dur, child) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SESSION DURATION',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF64748B),
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          formatDurationHMS(dur),
+                          style: GoogleFonts.spaceMono(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Started ${formatTimeIST(checkInTime.toUtc())}',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 16),
+                ValueListenableBuilder<Duration>(
+                  valueListenable: _shiftRemainingNotifier,
+                  builder: (context, rem, child) {
+                    final isOvertime = rem.isNegative;
+                    final absRem = rem.abs();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isOvertime ? 'OVERTIME DURATION' : 'TIME REMAINING',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: isOvertime ? const Color(0xFFEF4444) : const Color(0xFF64748B),
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          formatDurationHMS(absRem),
+                          style: GoogleFonts.spaceMono(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: isOvertime ? const Color(0xFFEF4444) : const Color(0xFFF97316),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isOvertime ? 'Overtime since shift end time' : 'Until shift ends',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                
+                // Motivational message
+                ValueListenableBuilder<double>(
+                  valueListenable: _shiftProgressNotifier,
+                  builder: (context, progress, child) {
+                    return Text(
+                      '"${_getMotivationalMessage(progress)}"',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontStyle: FontStyle.italic,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                
+                // Seat + shift info
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Seat: $seatLabel',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF475569),
+                      ),
+                    ),
+                    Text(
+                      'Shift: $shiftName',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF475569),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                
+                // Check Out button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _onCheckOutPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE65C00),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'Check Out',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionEndedTodayCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 4,
+              color: const Color(0xFFE65C00),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFF22C55E),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Session Complete",
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_checkInTime != null)
+                      Text(
+                        formatDateIST(_checkInTime!.toUtc()),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: const Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Timeline bar
+                if (_checkInTime != null && _checkOutTime != null)
+                  Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Check-in: ${formatTimeIST(_checkInTime!.toUtc())}',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                          Text(
+                            'Check-out: ${formatTimeIST(_checkOutTime!.toUtc())}',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 8,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF22C55E), Color(0xFFE65C00)],
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 20),
+                
+                // 3-stat row
+                if (_checkInTime != null)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStatItem('Duration', formatDurationHuman(_sessionDuration)),
+                      _buildStatItem('Check-In', formatTimeIST(_checkInTime!.toUtc())),
+                      _buildStatItem('Streak', '$_streak Day${_streak == 1 ? "" : "s"} 🔥'),
+                    ],
+                  ),
+                const SizedBox(height: 20),
+                
+                // Completion message
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _getCompletionMessage(_sessionDuration),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShiftEndedCard() {
+    final membership = _myMemberships.isNotEmpty ? _myMemberships.first : null;
+    final shift = membership != null ? (membership['shifts'] as Map<String, dynamic>?) : null;
+    final seat = membership != null ? (membership['seats'] as Map<String, dynamic>?) : null;
+    final seatLabel = seat != null ? (seat['seat_label'] ?? 'Pending') : 'Seat pending';
+    final shiftStartTimeStr = shift != null ? (shift['start_time'] as String? ?? '06:00:00') : '06:00:00';
+    final shiftEndTimeStr = shift != null ? (shift['end_time'] as String? ?? '14:00:00') : '14:00:00';
+    final shiftName = shift != null ? (shift['name'] ?? 'N/A') : 'N/A';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 4,
+              color: const Color(0xFF9CA3AF),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "TODAY'S SESSION",
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF94A3B8),
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    Text(
+                      formatDateIST(DateTime.now().toUtc()),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.timer_off_outlined, color: Color(0xFF64748B), size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Session Ended for Today',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Your shift end time has passed.',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Shift timings',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '$shiftName · ${formatShiftTimeString(shiftStartTimeStr)} – ${formatShiftTimeString(shiftEndTimeStr)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E293B),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Your Seat',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      seatLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E293B),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Your shift ended without a check-in today. You can check in for your next shift tomorrow.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: const Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotCheckedInCard() {
+    final membership = _myMemberships.isNotEmpty ? _myMemberships.first : null;
+    final shift = membership != null ? (membership['shifts'] as Map<String, dynamic>?) : null;
+    final seat = membership != null ? (membership['seats'] as Map<String, dynamic>?) : null;
+    final seatLabel = seat != null ? (seat['seat_label'] ?? 'Pending') : 'Seat pending';
+    final shiftStartTimeStr = shift != null ? (shift['start_time'] as String? ?? '06:00:00') : '06:00:00';
+    final shiftEndTimeStr = shift != null ? (shift['end_time'] as String? ?? '14:00:00') : '14:00:00';
+    final shiftName = shift != null ? (shift['name'] ?? 'N/A') : 'N/A';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 4,
+              color: const Color(0xFF9CA3AF),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "TODAY'S SESSION",
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF94A3B8),
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    Text(
+                      formatDateIST(DateTime.now().toUtc()),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.location_off_outlined, color: Color(0xFF64748B), size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Not checked in yet',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Scan your library QR to check in.',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Shift timings',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '$shiftName · ${formatShiftTimeString(shiftStartTimeStr)} – ${formatShiftTimeString(shiftEndTimeStr)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E293B),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Your Seat',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      seatLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E293B),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                
+                // Scan to Check In button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: _openQRScanner,
+                    icon: const Icon(Icons.qr_code_scanner, size: 20),
+                    label: Text(
+                      'Scan to Check In',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE65C00),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviousSessionCard() {
+    final prev = _previousSession;
+    if (prev == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Today's Attendance",
-            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "PREVIOUS SESSION",
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF94A3B8),
+                  letterSpacing: 1.0,
+                ),
+              ),
+              Text(
+                prev['date'] ?? '',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
-          if (checkedIn) ...[
-            Row(
-              children: [
-                const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Checked In • ${_formatTimeString(attendance['check_in_time'])}',
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF15803D)),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Session Time: $_liveSessionDuration',
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 13, color: Color(0xFF166534), fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _openQRScanner,
-                icon: const Icon(Icons.logout, size: 18),
-                label: const Text('Check Out'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEF4444),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ),
-          ] else ...[
-            Row(
-              children: [
-                const Icon(Icons.location_off, color: Colors.grey, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Not checked in yet',
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[700]),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Scan your library QR to check in.',
-                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _openQRScanner,
-                icon: const Icon(Icons.login, size: 18),
-                label: const Text('Scan to Check In'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE65C00),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ),
-          ],
+          
+          // 3-stat row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem('Duration', prev['duration'] ?? 'N/A'),
+              _buildStatItem('Check-In', prev['check_in_time'] ?? 'N/A'),
+              _buildStatItem('Streak', prev['streak'] ?? 'N/A'),
+            ],
+          ),
           const SizedBox(height: 12),
-          Text(
-            _getYesterdayOrLastSessionText(),
-            style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
+          const Divider(color: Color(0xFFE5E7EB)),
+          const SizedBox(height: 8),
+          
+          // Footer
+          Center(
+            child: Text(
+              '${prev['library_name']} · ${prev['shift_name']} · Seat ${prev['seat_label']}',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: const Color(0xFF64748B),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: GoogleFonts.outfit(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF94A3B8),
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1E293B),
+          ),
+        ),
+      ],
     );
   }
 
@@ -3578,16 +4660,22 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  String _formatTimeString(String isoString) {
-    final dt = DateTime.parse(isoString).toLocal();
-    return DateFormat('hh:mm a').format(dt);
+  Future<void> _refreshHome() async {
+    await _loadInitialData();
+    if (mounted) setState(() {});
   }
 
-  void _openQRScanner() {
-    Navigator.push(
+  Future<void> _openQRScanner() async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const QRScannerScreen()),
-    ).then((_) => _loadInitialData());
+    );
+    debugPrint('[HOME] Received scanner result');
+    debugPrint('[HOME] Received scanner result: $result');
+    if (result == true) {
+      debugPrint('[HOME] Refresh triggered');
+      await _refreshHome();
+    }
   }
 
   void _openSeatChangeSheet(Map<String, dynamic> membership) {
@@ -4239,12 +5327,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  void _openEditProfileModal() async {
-    final success = await Navigator.pushNamed(context, '/member/edit-profile');
-    if (success == true) {
-      _loadInitialData();
-    }
-  }
+
 
   Widget _buildExitBulletRow(bool isPositive, String text) {
     return Row(

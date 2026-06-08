@@ -60,7 +60,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     try {
       final res = await _supabase
           .from('libraries')
-          .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, rules, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
+          .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, rules, avg_rating, review_count, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
           .eq('status', 'active');
       
       if (mounted) {
@@ -75,7 +75,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       try {
         final fallbackRes = await _supabase
             .from('libraries')
-            .select('id, name, address_city, verified, photos, amenities, library_code, status, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
+            .select('id, name, address_city, verified, photos, amenities, library_code, status, avg_rating, review_count, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
             .eq('status', 'active');
         if (mounted) {
           setState(() {
@@ -624,16 +624,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final hasTrial = shifts.any((s) => (s['trial_days'] as int? ?? 0) > 0);
 
     // Rating
-    final reviews = lib['reviews'] as List? ?? [];
-    double avgRating = 0.0;
-    if (reviews.isNotEmpty) {
-      final total = reviews.fold<num>(0, (sum, item) {
-        final r = item['rating'] as num? ?? 0;
-        return sum + r;
-      });
-      avgRating = total / reviews.length;
-    }
-    final ratingCount = reviews.length;
+    final int reviewCount = (lib['review_count'] as num?)?.toInt() ?? 0;
+    final double avgRating = (lib['avg_rating'] as num?)?.toDouble() ?? 0.0;
 
     return Card(
       color: Colors.white,
@@ -705,17 +697,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (ratingCount > 0) ...[
-                        const Icon(Icons.star, color: Colors.amber, size: 16),
-                        const SizedBox(width: 2),
-                        Text(
-                          '${avgRating.toStringAsFixed(1)} ($ratingCount)',
-                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                        ),
-                      ] else
-                        Text(
-                          'New',
-                          style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.bold),
+                      if (reviewCount > 0)
+                        Row(
+                          children: [
+                            const Icon(Icons.star, size: 12, color: Color(0xFFF59E0B)),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${avgRating.toStringAsFixed(1)}  ($reviewCount)',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                            ),
+                          ],
+                        )
+                      else
+                        const Text(
+                          'No reviews yet',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
                         ),
                     ],
                   ),

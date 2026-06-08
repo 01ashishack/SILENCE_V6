@@ -29,6 +29,10 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
 
   // Data
   Map<String, dynamic>? _membership;
+  Map<String, dynamic>? _userReview;
+  int _selectedStars = 0;
+  final _reviewController = TextEditingController();
+  bool _isSubmittingReview = false;
   List<Map<String, dynamic>> _attendanceLogs = [];
   List<Map<String, dynamic>> _payments = [];
   List<Map<String, dynamic>> _closures = [];
@@ -131,6 +135,23 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
 
       // 6. Compute stats
       _calculateStats(startDate, endDate);
+
+      // Fetch user's review for this library
+      final reviewRes = await _supabase
+          .from('reviews')
+          .select('*')
+          .eq('library_id', libraryId)
+          .eq('member_id', user.id)
+          .maybeSingle();
+      
+      _userReview = reviewRes;
+      if (_userReview != null) {
+        _selectedStars = _userReview!['rating'] ?? 0;
+        _reviewController.text = _userReview!['review_text'] ?? '';
+      } else {
+        _selectedStars = 0;
+        _reviewController.clear();
+      }
 
     } catch (e) {
       debugPrint('Error loading past library details: $e');
@@ -553,6 +574,10 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                   // Library Info
                   _buildLibraryInfoSection(lib),
                   const SizedBox(height: 12),
+
+                  // Reviews & Ratings
+                  _buildReviewSection(lib),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -560,6 +585,208 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
 
           // 3. Sticky Bottom Actions Bar
           _buildBottomActionBar(),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _reviewController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitReview() async {
+    if (_selectedStars < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least 1 star')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmittingReview = true;
+    });
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception("User session missing");
+
+      final libraryId = _membership?['library_id'];
+      if (libraryId == null) throw Exception("Library ID not found");
+
+      await _supabase.from('reviews').insert({
+        'library_id': libraryId,
+        'member_id': user.id,
+        'membership_id': widget.membershipId,
+        'rating': _selectedStars,
+        'review_text': _reviewController.text.trim().isEmpty ? null : _reviewController.text.trim(),
+      });
+
+      // Reload/update the details
+      await _loadPastLibraryDetails();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review submitted ✓')),
+      );
+    } catch (e) {
+      debugPrint('Error submitting review: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit review: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingReview = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildReviewSection(Map<String, dynamic>? lib) {
+    if (lib == null) return const SizedBox.shrink();
+
+    final isReviewed = _userReview != null;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!isReviewed) ...[
+            Text(
+              'How was your experience here?',
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1E293B),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                final starIndex = index + 1;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedStars = starIndex;
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                    child: Icon(
+                      starIndex <= _selectedStars ? Icons.star : Icons.star_border,
+                      color: starIndex <= _selectedStars ? const Color(0xFFE65C00) : Colors.grey[350],
+                      size: 36,
+                    ),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _reviewController,
+              maxLines: 3,
+              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B)),
+              decoration: InputDecoration(
+                hintText: 'Write a review... (optional)',
+                hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
+                contentPadding: const EdgeInsets.all(12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _isSubmittingReview ? null : _submitReview,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+                disabledBackgroundColor: Colors.grey[300],
+              ),
+              child: _isSubmittingReview
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      'Submit Review',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+            ),
+          ] else ...[
+            Text(
+              'Your Review',
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: List.generate(5, (index) {
+                final ratingVal = _userReview!['rating'] as int? ?? 0;
+                return Icon(
+                  index < ratingVal ? Icons.star : Icons.star_border,
+                  color: index < ratingVal ? const Color(0xFFE65C00) : Colors.grey[350],
+                  size: 20,
+                );
+              }),
+            ),
+            if (_userReview!['review_text'] != null &&
+                _userReview!['review_text'].toString().trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                '"${_userReview!['review_text']}"',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: const Color(0xFF475569),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Text(
+              'Submitted: ${DateFormat('dd MMM yyyy').format(DateTime.parse(_userReview!['created_at']).toLocal())}',
+              style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
+            ),
+          ],
         ],
       ),
     );

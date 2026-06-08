@@ -1,6 +1,10 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -98,28 +102,27 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       final libraryId = await _firstOwnedLibraryId();
       if (libraryId == null) throw 'No library found for this admin.';
 
-      final String content;
-      final String filename;
-      
       if (isPdf) {
-        content = await _generateFormattedText(type, libraryId);
-        filename = 'SILENCE_${type}_report_${startFmt}_to_${endFmt}.txt';
+        final pdfBytes = await _generatePdfReport(type, libraryId);
+        final filename = 'SILENCE_${type}_report_${startFmt}_to_$endFmt.pdf';
+        if (mounted) setState(() => _isExporting = false);
+        await Printing.sharePdf(bytes: pdfBytes, filename: filename);
       } else {
-        content = await _generateCsv(type, libraryId);
-        filename = 'SILENCE_${type}_export_${startFmt}_to_${endFmt}.csv';
+        final content = await _generateCsv(type, libraryId);
+        final filename = 'SILENCE_${type}_export_${startFmt}_to_$endFmt.csv';
+        if (mounted) setState(() => _isExporting = false);
+        await Share.share(
+          content,
+          subject: filename,
+        );
       }
-
-      if (mounted) setState(() => _isExporting = false);
-      await Share.share(
-        content,
-        subject: filename,
-      );
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _isExporting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent),
-      );
+      if (mounted) {
+        setState(() => _isExporting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 
@@ -144,126 +147,224 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     }
   }
 
-  Future<String> _generateFormattedText(String type, String libraryId) async {
+  Future<Uint8List> _generatePdfReport(String type, String libraryId) async {
     final startFmt = DateFormat('dd MMM yyyy').format(_startDate);
     final endFmt = DateFormat('dd MMM yyyy').format(_endDate);
-    final title = type.toUpperCase().replaceAll('_', ' ');
+    final reportTitle = type.toUpperCase().replaceAll('_', ' ');
     final dateStr = DateFormat('dd MMM yyyy HH:mm').format(DateTime.now());
 
-    final header = StringBuffer();
-    header.writeln('==================================================');
-    header.writeln('             SILENCE LIBRARY REPORT             ');
-    header.writeln('==================================================');
-    header.writeln('Report Type: $title');
-    header.writeln('Date Range:  $startFmt to $endFmt');
-    header.writeln('Generated:   $dateStr');
-    header.writeln('--------------------------------------------------\n');
+    final libData = await _supabase.from('libraries').select('name').eq('id', libraryId).maybeSingle();
+    final libraryName = libData?['name'] ?? 'SILENCE Space';
+
+    List<String> tableHeaders = [];
+    List<List<String>> tableRows = [];
+    String? summaryText;
 
     switch (type) {
       case 'members':
         final list = await _fetchMembers(libraryId);
-        header.writeln('Active & Registered Members Roster:');
-        header.writeln('--------------------------------------------------------------------------------');
-        header.writeln('${_pad('Name', 22)} | ${_pad('Phone', 12)} | ${_pad('Seat', 6)} | ${_pad('Plan', 8)} | ${_pad('Expiry', 11)} | Status');
-        header.writeln('--------------------------------------------------------------------------------');
-        for (final r in list) {
-          header.writeln('${_pad(r['name'], 22)} | ${_pad(r['phone'], 12)} | ${_pad(r['seat'], 6)} | ${_pad(r['plan'], 8)} | ${_pad(r['expiry'], 11)} | ${r['status']}');
-        }
-        header.writeln('--------------------------------------------------------------------------------');
+        tableHeaders = ['Name', 'Phone', 'Seat', 'Plan', 'Expiry', 'Status'];
+        tableRows = list.map((r) => [
+          r['name'].toString(),
+          r['phone'].toString(),
+          r['seat'].toString(),
+          r['plan'].toString(),
+          r['expiry'].toString(),
+          r['status'].toString(),
+        ]).toList();
         break;
 
       case 'attendance':
         final list = await _fetchAttendance(libraryId);
-        header.writeln('Attendance Access Logs:');
-        header.writeln('----------------------------------------------------------------------');
-        header.writeln('${_pad('Member Name', 22)} | ${_pad('Seat', 6)} | ${_pad('Check-In', 16)} | Check-Out');
-        header.writeln('----------------------------------------------------------------------');
-        for (final r in list) {
-          header.writeln('${_pad(r['name'], 22)} | ${_pad(r['seat'], 6)} | ${_pad(r['in'], 16)} | ${r['out']}');
-        }
-        header.writeln('----------------------------------------------------------------------');
+        tableHeaders = ['Member Name', 'Seat', 'Check-In', 'Check-Out'];
+        tableRows = list.map((r) => [
+          r['name'].toString(),
+          r['seat'].toString(),
+          r['in'].toString(),
+          r['out'].toString(),
+        ]).toList();
         break;
 
       case 'payments':
         final list = await _fetchPayments(libraryId);
-        header.writeln('Recent Payment History:');
-        header.writeln('----------------------------------------------------------------------');
-        header.writeln('${_pad('Member Name', 22)} | ${_pad('Amount', 8)} | ${_pad('Method', 8)} | ${_pad('Date', 11)} | Status');
-        header.writeln('----------------------------------------------------------------------');
-        for (final r in list) {
-          header.writeln('${_pad(r['name'], 22)} | ${_pad('Rs.${r['amount']}', 8)} | ${_pad(r['method'], 8)} | ${_pad(r['date'], 11)} | ${r['status']}');
-        }
-        header.writeln('----------------------------------------------------------------------');
+        tableHeaders = ['Member Name', 'Amount', 'Method', 'Date', 'Status'];
+        tableRows = list.map((r) => [
+          r['name'].toString(),
+          'Rs. ${r['amount']}',
+          r['method'].toString(),
+          r['date'].toString(),
+          r['status'].toString(),
+        ]).toList();
         break;
 
       case 'revenue':
         final map = await _fetchRevenue(libraryId);
-        header.writeln('Collection Summary Split:');
-        header.writeln('----------------------------------------------------------------------');
-        header.writeln('${_pad('Date', 12)} | ${_pad('Total Collection', 18)} | ${_pad('Cash Split', 12)} | UPI Split');
-        header.writeln('----------------------------------------------------------------------');
+        tableHeaders = ['Date', 'Total Collection', 'Cash Split', 'UPI Split'];
         double totalRev = 0;
-        for (final entry in map.entries) {
+        tableRows = map.entries.map((entry) {
           final amt = entry.value['total'] ?? 0;
           totalRev += amt;
-          header.writeln('${_pad(entry.key, 12)} | ${_pad('Rs.${amt.toStringAsFixed(0)}', 18)} | ${_pad('Rs.${(entry.value['cash'] ?? 0).toStringAsFixed(0)}', 12)} | Rs.${(entry.value['upi'] ?? 0).toStringAsFixed(0)}');
-        }
-        header.writeln('----------------------------------------------------------------------');
-        header.writeln('TOTAL REVENUE COLLECTED: Rs.${totalRev.toStringAsFixed(0)}');
-        header.writeln('----------------------------------------------------------------------');
+          return [
+            entry.key,
+            'Rs. ${amt.toStringAsFixed(0)}',
+            'Rs. ${(entry.value['cash'] ?? 0).toStringAsFixed(0)}',
+            'Rs. ${(entry.value['upi'] ?? 0).toStringAsFixed(0)}'
+          ];
+        }).toList();
+        summaryText = 'TOTAL REVENUE COLLECTED: Rs. ${totalRev.toStringAsFixed(0)}';
         break;
 
       case 'occupancy':
         final map = await _fetchOccupancy(libraryId);
-        header.writeln('Seat Occupancy Breakdown:');
-        header.writeln('--------------------------------------------------------------');
-        header.writeln('${_pad('Shift Name', 24)} | ${_pad('Total Seats', 12)} | occupied Seats | Occupancy %');
-        header.writeln('--------------------------------------------------------------');
-        for (final entry in map.entries) {
+        tableHeaders = ['Shift Name', 'Total Seats', 'Occupied Seats', 'Occupancy %'];
+        tableRows = map.entries.map((entry) {
           final total = entry.value[0];
           final occupied = entry.value[1];
           final pct = total == 0 ? '0.0%' : '${((occupied / total) * 100).toStringAsFixed(1)}%';
-          header.writeln('${_pad(entry.key, 24)} | ${_pad(total.toString(), 12)} | ${_pad(occupied.toString(), 14)} | $pct');
-        }
-        header.writeln('--------------------------------------------------------------');
+          return [entry.key, total.toString(), occupied.toString(), pct];
+        }).toList();
         break;
 
       case 'dues':
         final list = await _fetchDues(libraryId);
-        header.writeln('Pending Payments & Dues Roster:');
-        header.writeln('----------------------------------------------------------------------');
-        header.writeln('${_pad('Member Name', 22)} | ${_pad('Phone', 12)} | ${_pad('Due Amount', 11)} | Due Date');
-        header.writeln('----------------------------------------------------------------------');
+        tableHeaders = ['Member Name', 'Phone', 'Due Amount', 'Due Date'];
         double totalDues = 0;
-        for (final r in list) {
+        tableRows = list.map((r) {
           totalDues += r['amount'];
-          header.writeln('${_pad(r['name'], 22)} | ${_pad(r['phone'], 12)} | ${_pad('Rs.${r['amount'].toStringAsFixed(0)}', 11)} | ${r['date']}');
-        }
-        header.writeln('----------------------------------------------------------------------');
-        header.writeln('TOTAL OUTSTANDING DUES: Rs.${totalDues.toStringAsFixed(0)}');
-        header.writeln('----------------------------------------------------------------------');
+          return [
+            r['name'].toString(),
+            r['phone'].toString(),
+            'Rs. ${r['amount'].toStringAsFixed(0)}',
+            r['date'].toString(),
+          ];
+        }).toList();
+        summaryText = 'TOTAL OUTSTANDING DUES: Rs. ${totalDues.toStringAsFixed(0)}';
         break;
 
       case 'expiry':
         final list = await _fetchExpiry(libraryId);
-        header.writeln('Upcoming Membership Expirations:');
-        header.writeln('----------------------------------------------------------------------');
-        header.writeln('${_pad('Member Name', 22)} | ${_pad('Phone', 12)} | ${_pad('Seat', 6)} | Expiry Date');
-        header.writeln('----------------------------------------------------------------------');
-        for (final r in list) {
-          header.writeln('${_pad(r['name'], 22)} | ${_pad(r['phone'], 12)} | ${_pad(r['seat'], 6)} | ${r['expiry']}');
-        }
-        header.writeln('----------------------------------------------------------------------');
+        tableHeaders = ['Member Name', 'Phone', 'Seat', 'Expiry Date'];
+        tableRows = list.map((r) => [
+          r['name'].toString(),
+          r['phone'].toString(),
+          r['seat'].toString(),
+          r['expiry'].toString(),
+        ]).toList();
         break;
+      default:
+        throw 'Invalid export type';
     }
 
-    return header.toString();
-  }
+    final doc = pw.Document();
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        build: (context) {
+          return [
+            // Title Header with App Branding
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'SILENCE – $reportTitle',
+                  style: pw.TextStyle(
+                    fontSize: 20,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColor.fromHex('#E65C00'),
+                  ),
+                ),
+                pw.Text(
+                  libraryName,
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColor.fromHex('#1E293B'),
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 6),
+            pw.Divider(color: PdfColor.fromHex('#E65C00'), thickness: 1.5),
+            pw.SizedBox(height: 8),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'Date Range: $startFmt to $endFmt',
+                  style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                ),
+                pw.Text(
+                  'Generated on: $dateStr',
+                  style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+            // Report Table
+            if (tableRows.isEmpty)
+              pw.Center(
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.all(20),
+                  child: pw.Text(
+                    'No data available for the selected range.',
+                    style: pw.TextStyle(fontStyle: pw.FontStyle.italic, color: PdfColors.grey500),
+                  ),
+                ),
+              )
+            else
+              pw.TableHelper.fromTextArray(
+                headers: tableHeaders,
+                data: tableRows,
+                border: const pw.TableBorder(
+                  horizontalInside: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+                  bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+                  top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+                ),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
+                headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E65C00')),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+                cellAlignment: pw.Alignment.centerLeft,
+                headerAlignment: pw.Alignment.centerLeft,
+                cellHeight: 24,
+              ),
+            if (summaryText != null) ...[
+              pw.SizedBox(height: 16),
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Text(
+                  summaryText,
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: PdfColor.fromHex('#E65C00')),
+                ),
+              ),
+            ],
+          ];
+        },
+        footer: (context) {
+          return pw.Column(
+            children: [
+              pw.Divider(color: PdfColors.grey300, thickness: 0.5),
+              pw.SizedBox(height: 4),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'SILENCE Silent Study Spaces – Premium Library Management',
+                    style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
+                  ),
+                  pw.Text(
+                    'Page ${context.pageNumber} of ${context.pagesCount}',
+                    style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
 
-  String _pad(String? text, int width) {
-    final str = text ?? '';
-    if (str.length >= width) return str.substring(0, width);
-    return str + ' ' * (width - str.length);
+    return doc.save();
   }
 
   // ----------------------------------------------------
@@ -785,7 +886,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () => _exportData(type, title, true),
                   icon: const Icon(Icons.picture_as_pdf_outlined, size: 16, color: Colors.white),
-                  label: Text('PDF (Text)', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
+                  label: Text('PDF', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE65C00),
                     elevation: 0,

@@ -78,7 +78,11 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadData();
+      }
+    });
   }
 
   @override
@@ -593,9 +597,14 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
 
   String _sectionPrefix(String name) {
     // derive short prefix from name, e.g. "General Study" → "GS"
-    final words = name.trim().split(RegExp(r'\s+'));
-    if (words.length == 1) return words[0].substring(0, name.length.clamp(1, 3)).toUpperCase();
-    return words.take(2).map((w) => w[0].toUpperCase()).join();
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return 'FL';
+    final words = trimmed.split(RegExp(r'\s+'));
+    if (words.length == 1) {
+      final w = words[0];
+      return w.substring(0, w.length.clamp(1, 3)).toUpperCase();
+    }
+    return words.take(2).map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').join();
   }
 
   Color _seatColor(String status) {
@@ -656,6 +665,17 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     }
     if (_floors.isEmpty) {
       _showError('Add at least one floor before saving.');
+      return;
+    }
+    int totalSeats = 0;
+    for (final f in _floors) {
+      totalSeats += f.floorSeats.length;
+      for (final s in f.sections) {
+        totalSeats += s.seats.length;
+      }
+    }
+    if (totalSeats == 0) {
+      _showError('Add at least one seat before saving.');
       return;
     }
 
@@ -1686,11 +1706,13 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
   void initState() {
     super.initState();
     final name = widget.section.name;
-    final words = name.trim().split(RegExp(r'\s+'));
+    final trimmed = name.trim();
+    final words = trimmed.isEmpty ? <String>[] : trimmed.split(RegExp(r'\s+'));
     String defaultPrefix = '';
     if (words.isNotEmpty) {
       if (words.length == 1) {
-        defaultPrefix = words[0].substring(0, name.length.clamp(1, 3)).toUpperCase();
+        final w = words[0];
+        defaultPrefix = w.substring(0, w.length.clamp(1, 3)).toUpperCase();
       } else {
         defaultPrefix = words.take(2).map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').join();
       }

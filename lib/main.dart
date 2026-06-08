@@ -51,6 +51,7 @@ import 'screens/reservations/renewal_screen.dart';
 import 'screens/reservations/library_query_screen.dart';
 import 'screens/member_analytics_tab.dart';
 import 'screens/past_library_detail_screen.dart';
+import 'screens/admin/all_reviews_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -122,13 +123,9 @@ class SilenceApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),
-        '/login': (context) => const AuthScreen(),
         '/auth': (context) => const AuthScreen(),
-        '/role': (context) => const RoleSelectionScreen(),
         '/role-select': (context) => const RoleSelectionScreen(),
-        '/admin': (context) => const AdminHomeScreen(),
         '/admin/home': (context) => const AdminHomeScreen(),
-        '/member': (context) => const MemberHomeScreen(),
         '/member/home': (context) => const MemberHomeScreen(),
         '/member/explore': (context) => const ExploreScreen(),
         '/member/library-profile': (context) => const LibraryPublicProfileScreen(isAdmin: false),
@@ -149,6 +146,10 @@ class SilenceApp extends StatelessWidget {
 
         // Milestone 5 Admin routes registrations
         '/admin/library/profile': (context) => const LibraryProfileScreen(),
+        '/admin/all-reviews': (context) {
+          final libraryId = ModalRoute.of(context)?.settings.arguments as String? ?? '';
+          return AllReviewsScreen(libraryId: libraryId);
+        },
         '/admin/settings/social-links': (context) => const SocialLinksEditScreen(),
         '/admin/about-us': (context) => const AboutUsScreen(),
         '/admin/help-support': (context) => const HelpSupportScreen(),
