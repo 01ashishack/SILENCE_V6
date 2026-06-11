@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/admin_settings_service.dart';
+import '../utils/error_messages.dart';
 
 class HelpSupportScreen extends StatefulWidget {
   const HelpSupportScreen({super.key});
@@ -116,7 +117,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       debugPrint('HelpSupportScreen: Error submitting bug report: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to submit report: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.redAccent),
         );
       }
     } finally {

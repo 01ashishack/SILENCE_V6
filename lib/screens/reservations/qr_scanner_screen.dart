@@ -275,21 +275,29 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
     // ONLINE ATTENDANCE FLOW (Supabase RPC/Queries)
     // ----------------------------------------
     try {
-      // 1. Check if library is closed today
+      // 1. Check if library is closed today (range-aware holiday).
+      //    Canonical table: scheduled_closures(start_date..end_date inclusive).
       try {
         debugPrint('[CHECKOUT STEP] Starting: closure lookup');
         final todayStr = DateTime.now().toIso8601String().substring(0, 10);
         debugPrint('[QR Scan] Checking library closure for date: $todayStr');
-        final closureCheck = await supabase
+        final closureRows = await supabase
             .from('scheduled_closures')
-            .select()
+            .select('reason, start_date, end_date')
             .eq('library_id', libraryId)
-            .eq('closed_date', todayStr)
-            .maybeSingle();
+            .lte('start_date', todayStr)
+            .gte('end_date', todayStr)
+            .limit(1);
         debugPrint('[CHECKOUT STEP] Success: closure lookup');
-        debugPrint('[QR Scan] Closure check result: $closureCheck');
-        if (closureCheck != null) {
-          _handleFailure('Library Closed', 'This library is closed today.');
+        debugPrint('[QR Scan] Closure check result: $closureRows');
+        if (closureRows.isNotEmpty) {
+          final reason = (closureRows.first['reason'] ?? '').toString();
+          _handleFailure(
+            'Library Closed',
+            reason.isEmpty
+                ? 'This library is closed today (holiday).'
+                : 'Closed today: $reason',
+          );
           return;
         }
       } catch (e, stackTrace) {
@@ -390,23 +398,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
         // Reset cooldown count on new check-in flow
         _cooldownScansCount = 0;
 
-        // Check if already checked in today (completed session)
-        final todayStart = '${DateTime.now().toIso8601String().substring(0, 10)}T00:00:00';
-        debugPrint('[QR Scan] Checking if already checked in today since: $todayStart');
-        final todayAttendance = await supabase
-            .from('attendance')
-            .select()
-            .eq('member_id', user.id)
-            .eq('library_id', libraryId)
-            .gte('check_in_time', todayStart)
-            .limit(1)
-            .maybeSingle();
-        debugPrint('[QR Scan] Today completed attendance check: $todayAttendance');
-
-        if (todayAttendance != null) {
-          _handleFailure('Already Checked In', 'You are already checked in today.');
-          return;
-        }
+        // Multiple sessions per day are allowed: after checking out, a member
+        // may check in again. A second open session is prevented by the
+        // activeSession != null branch (checkout), so no duplicate-open risk.
 
         // ------------------
         // PERFORM CHECK-IN
@@ -449,10 +443,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
         final nowUtc = DateTime.now().toUtc();
         final durationMinutes = nowUtc.difference(checkInTimeUtc).inMinutes;
 
-        // 10-Minute Cooldown Check
-        if (durationMinutes < 10) {
+        // Minimum-session-length cooldown before checkout.
+        // TEMPORARILY DISABLED: set _minCheckoutMinutes back to 10 to re-enable.
+        const int minCheckoutMinutes = 0;
+        if (durationMinutes < minCheckoutMinutes) {
           _cooldownScansCount++;
-          final timeRemaining = 10 - durationMinutes;
+          final timeRemaining = minCheckoutMinutes - durationMinutes;
           if (_cooldownScansCount == 1) {
             _handleFailure(
               'Checkout Restricted',
@@ -1075,7 +1071,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                       const Icon(Icons.info_outline, color: Colors.orange, size: 16),
                       const SizedBox(width: 8),
                       Text(
-                        'You can check out after 10 minutes.',
+                        'Scan the QR again anytime to check out.',
                         style: GoogleFonts.inter(fontSize: 12, color: Colors.orange[800], fontWeight: FontWeight.bold),
                       ),
                     ],

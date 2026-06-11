@@ -13,6 +13,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
 import '../core/image_optimizer.dart';
 import 'library_public_profile_screen.dart';
+import 'payment_methods_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 
@@ -831,6 +832,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           _buildSettingsItem(context, Icons.campaign_outlined, 'Announcement History', '/admin/announcements'),
                           _buildSettingsItem(context, Icons.ios_share, 'Exports & Reports', '/admin/exports'),
                           _buildSettingsItem(context, Icons.history_edu_outlined, 'Audit Log', '/admin/audit-log'),
+                          _buildSettingsItem(context, Icons.card_giftcard_outlined, 'Referral Rewards', '/admin/settings/referrals'),
                           _buildSettingsItem(context, Icons.person_outline_rounded, 'Edit Profile Details', '/admin/profile/complete'),
                         ],
                       ),
@@ -838,6 +840,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       _buildSettingsGroup(
                         title: 'App & Support',
                         items: [
+                          _buildSettingsItem(context, Icons.workspace_premium_outlined, 'Subscription & Billing', '/admin/subscription'),
                           _buildSettingsItem(context, Icons.settings_outlined, 'Settings', '/admin/app-settings'),
                           _buildShareAppItem(),
                           _buildSettingsItem(context, Icons.info_outline, 'About Us', '/admin/about-us'),
@@ -877,6 +880,29 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                         ),
                         trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.redAccent),
                       ),
+                      const SizedBox(height: 12),
+                      ListTile(
+                        onTap: _handleDeleteAccount,
+                        tileColor: const Color(0xFFFEF2F2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.red.withOpacity(0.25)),
+                        ),
+                        leading: const Icon(Icons.delete_forever, color: Color(0xFFDC2626)),
+                        title: Text(
+                          'Delete Account',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Request permanent deletion of your account & library',
+                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF991B1B)),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFFDC2626)),
+                      ),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -885,6 +911,121 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // ── Honest account-deletion request (admin) ────────────────────────────────
+  // No real purge here (that needs the server tier); this records the request
+  // so the app-owner can action it, and tells the user the honest status.
+  Future<void> _handleDeleteAccount() async {
+    final confirmCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          final canDelete = confirmCtrl.text.trim().toUpperCase() == 'DELETE';
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Delete your account?',
+                      style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold, color: const Color(0xFFDC2626))),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('This requests permanent deletion with a 30-day grace period. '
+                    'After that it cannot be undone.',
+                    style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
+                const SizedBox(height: 10),
+                _adminDelWarn('Your library, seats, shifts & settings will be removed'),
+                _adminDelWarn('Your members lose access to this library'),
+                _adminDelWarn('Analytics, payments & audit history will be erased'),
+                const SizedBox(height: 8),
+                Text('You can cancel anytime before the 30 days end by contacting support.',
+                    style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B))),
+                const SizedBox(height: 14),
+                Text('Type DELETE to confirm:',
+                    style: GoogleFonts.inter(
+                        fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: confirmCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (_) => setDialog(() {}),
+                  decoration: const InputDecoration(hintText: 'DELETE'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.grey[600])),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  disabledBackgroundColor: const Color(0xFFFCA5A5),
+                ),
+                onPressed: canDelete ? () => Navigator.pop(ctx, true) : null,
+                child: Text('Request deletion',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    final deletionTime = DateTime.now().add(const Duration(days: 30));
+    try {
+      await supabase.from('users').update({
+        'scheduled_for_deletion': true,
+        'deletion_scheduled_at': deletionTime.toIso8601String(),
+      }).eq('id', user.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deletion requested. Your account is scheduled for removal on '
+              '${deletionTime.day}/${deletionTime.month}/${deletionTime.year}. Contact support to cancel.'),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not submit the request: $e')),
+      );
+    }
+  }
+
+  Widget _adminDelWarn(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.remove_circle_outline, size: 15, color: Color(0xFFDC2626)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569))),
+          ),
+        ],
       ),
     );
   }
@@ -1341,6 +1482,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                   _buildGridItem(Icons.info_outline, 'Basic Details', _showBasicDetailsBottomSheet),
                   _buildGridItem(Icons.widgets_outlined, 'Amenities', _showAmenitiesBottomSheet),
                   _buildGridItem(Icons.access_time, 'Shift & Plan', _navigateToShiftManagement),
+                  _buildGridItem(Icons.payments_outlined, 'Payment Methods', _openPaymentMethods),
                   _buildGridItem(Icons.link, 'Social Links', _showSocialLinksBottomSheet),
                   _buildGridItem(Icons.rule_folder, 'Rules', _showRulesBottomSheet),
                   _buildGridItem(Icons.collections, 'Gallery', _showGalleryBottomSheet),
@@ -1592,6 +1734,21 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     );
   }
 
+  Future<void> _openPaymentMethods() async {
+    final lib = _selectedLibrary;
+    if (lib == null) return;
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentMethodsScreen(libraryId: lib['id'] as String),
+      ),
+    );
+    if (changed == true) {
+      _loadProfileData();
+      widget.onLibraryUpdated?.call();
+    }
+  }
+
   void _showSocialLinksBottomSheet() {
     final lib = _selectedLibrary;
     if (lib == null) return;
@@ -1661,13 +1818,14 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00))),
                     );
 
-                    final updatedSocial = {
-                      'instagram': instaCtrl.text.trim(),
-                      'youtube': ytCtrl.text.trim(),
-                      'facebook': fbCtrl.text.trim(),
-                      'whatsapp': waCtrl.text.trim(),
-                      'website': webCtrl.text.trim(),
-                    };
+                    // Merge into the existing map so other keys in the same
+                    // JSONB (cash_enabled, upi_ids) are preserved, not wiped.
+                    final updatedSocial = Map<String, dynamic>.from(existing)
+                      ..['instagram'] = instaCtrl.text.trim()
+                      ..['youtube'] = ytCtrl.text.trim()
+                      ..['facebook'] = fbCtrl.text.trim()
+                      ..['whatsapp'] = waCtrl.text.trim()
+                      ..['website'] = webCtrl.text.trim();
 
                     try {
                       await _supabase.from('libraries').update({

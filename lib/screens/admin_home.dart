@@ -9,6 +9,8 @@ import 'reservations/reservations_tab.dart';
 import '../widgets/qr_modal.dart';
 import 'admin_analytics_tab.dart';
 import 'admin_profile_tab.dart';
+import 'scheduled_closures.dart';
+import '../utils/holiday_service.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final bool startInSetupMode;
@@ -49,6 +51,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   String? _libraryId;
   String _libraryCode = 'SIL-XXXXXX';
   String _libraryName = 'Your Library';
+  Holiday? _todayHoliday;
   String _libraryAddress = 'Setup your library details to activate';
   String? _coverPhotoUrl;
   int _qrVersion = 1;
@@ -458,6 +461,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         await _loadOperationalFeeds(libId);
         _setupJoinRequestsSubscription(libId);
         await _writeDashboardStatsToCache(libId);
+
+        try {
+          _todayHoliday = await HolidayService.instance.todaysHoliday(libId);
+        } catch (_) {
+          _todayHoliday = null;
+        }
       }
     } catch (e) {
       debugPrint('Error loading library specific data: $e');
@@ -2045,6 +2054,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // 0. Today-is-a-holiday banner (conditional)
+        if (_todayHoliday != null) ...[
+          _buildHolidayBanner(_todayHoliday!),
+          const SizedBox(height: 16),
+        ],
+
         // 1. Photo Carousel
         _buildPhotoCarousel(),
         const SizedBox(height: 16),
@@ -2901,8 +2916,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               onTap: _showManageQueries,
             ),
             _buildCircularActionButton(
-              icon: Icons.power_settings_new,
-              label: 'Close Library',
+              icon: Icons.event_busy,
+              label: 'Holidays',
               color: const Color(0xFFE65C00), // Orange
               onTap: _showCloseLibrarySheet,
             ),
@@ -3203,166 +3218,192 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return FutureBuilder(
-          future: Supabase.instance.client
-              .from('queries')
-              .select('*')
-              .eq('library_id', _libraryId!)
-              .order('created_at', ascending: false)
-              .limit(20),
-          builder: (context, AsyncSnapshot snapshot) {
-            return Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            final future = Supabase.instance.client
+                .from('queries')
+                .select('*')
+                .eq('library_id', _libraryId!)
+                .order('created_at', ascending: false)
+                .limit(30);
+            return FutureBuilder(
+              future: future,
+              builder: (context, AsyncSnapshot snapshot) {
+                return Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Icon(
-                        Icons.chat_bubble,
-                        color: Color(0xFF06B6D4),
-                        size: 24,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Member Queries',
-                        style: GoogleFonts.outfit(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF1A1A2E),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'View and respond to member questions and support requests.',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (snapshot.connectionState == ConnectionState.waiting)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF06B6D4),
-                        ),
-                      ),
-                    )
-                  else if (snapshot.hasError ||
-                      snapshot.data == null ||
-                      (snapshot.data as List).isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.inbox_outlined,
-                            size: 48,
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
                             color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          const SizedBox(height: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble,
+                            color: Color(0xFF06B6D4),
+                            size: 24,
+                          ),
+                          const SizedBox(width: 10),
                           Text(
-                            'No queries yet',
+                            'Member Queries',
                             style: GoogleFonts.outfit(
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Member queries will appear here.',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.grey[400],
+                              color: const Color(0xFF1A1A2E),
                             ),
                           ),
                         ],
                       ),
-                    )
-                  else
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height * 0.4,
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tap a query to reply. The member sees your reply in "My Queries".',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey[500],
+                        ),
                       ),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: (snapshot.data as List).length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (_, i) {
-                          final q = (snapshot.data as List)[i];
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: const Color(0xFFF0FDFA),
-                              child: Icon(
-                                Icons.help_outline,
-                                color: q['status'] == 'resolved'
-                                    ? Colors.green
-                                    : const Color(0xFF06B6D4),
-                                size: 20,
-                              ),
+                      const SizedBox(height: 20),
+                      if (snapshot.connectionState == ConnectionState.waiting)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF06B6D4),
                             ),
-                            title: Text(
-                              q['subject'] ?? 'Query',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      else if (snapshot.hasError ||
+                          snapshot.data == null ||
+                          (snapshot.data as List).isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.inbox_outlined,
+                                size: 48,
+                                color: Colors.grey[300],
                               ),
-                            ),
-                            subtitle: Text(
-                              q['message'] ?? '',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                            trailing: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: q['status'] == 'resolved'
-                                    ? const Color(0xFFDCFCE7)
-                                    : const Color(0xFFFEF3C7),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                (q['status'] ?? 'open').toUpperCase(),
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
+                              const SizedBox(height: 12),
+                              Text(
+                                'No queries yet',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: q['status'] == 'resolved'
-                                      ? const Color(0xFF16A34A)
-                                      : const Color(0xFFD97706),
+                                  color: const Color(0xFF6B7280),
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                ],
-              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Member queries will appear here.',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: MediaQuery.of(context).size.height * 0.45,
+                          ),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: (snapshot.data as List).length,
+                            separatorBuilder: (_, _) => const Divider(height: 1),
+                            itemBuilder: (_, i) {
+                              final q = (snapshot.data as List)[i]
+                                  as Map<String, dynamic>;
+                              final status = (q['status'] ?? 'open').toString();
+                              final replied = status == 'replied';
+                              final closed = status == 'closed';
+                              final hasReply =
+                                  (q['admin_reply'] ?? '').toString().isNotEmpty;
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                onTap: () =>
+                                    _openReplyToQuery(q, () => setSheet(() {})),
+                                leading: CircleAvatar(
+                                  backgroundColor: const Color(0xFFF0FDFA),
+                                  child: Icon(
+                                    hasReply
+                                        ? Icons.mark_chat_read_outlined
+                                        : Icons.help_outline,
+                                    color: (replied || closed)
+                                        ? Colors.green
+                                        : const Color(0xFF06B6D4),
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  q['message'] ?? '',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                subtitle: hasReply
+                                    ? Text(
+                                        'You replied: ${q['admin_reply']}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11.5,
+                                          color: const Color(0xFF16A34A),
+                                        ),
+                                      )
+                                    : Text(
+                                        'Tap to reply',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11.5,
+                                          color: Colors.grey[400],
+                                        ),
+                                      ),
+                                trailing: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: (replied || closed)
+                                        ? const Color(0xFFDCFCE7)
+                                        : const Color(0xFFFEF3C7),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    status.toUpperCase(),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: (replied || closed)
+                                          ? const Color(0xFF16A34A)
+                                          : const Color(0xFFD97706),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                );
+              },
             );
           },
         );
@@ -3370,182 +3411,423 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  // ── Close Library Bottom Sheet ─────────────────────────────────────────────
+  // Reply to a member query: writes admin_reply + status='replied' + replied_at,
+  // notifies the member, then refreshes the queries sheet. [onDone] re-renders.
+  void _openReplyToQuery(Map<String, dynamic> query, VoidCallback onDone) {
+    final replyCtrl =
+        TextEditingController(text: (query['admin_reply'] ?? '').toString());
+    bool saving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+            top: 20,
+            left: 20,
+            right: 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Reply to member',
+                  style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1A1A2E))),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Text(
+                  query['message']?.toString() ?? '',
+                  style: GoogleFonts.inter(
+                      fontSize: 13, color: const Color(0xFF475569)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: replyCtrl,
+                maxLines: 5,
+                style: GoogleFonts.inter(fontSize: 14),
+                decoration: const InputDecoration(
+                  hintText: 'Type your reply…',
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final text = replyCtrl.text.trim();
+                        if (text.isEmpty) {
+                          ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                            const SnackBar(content: Text('Please type a reply.')),
+                          );
+                          return;
+                        }
+                        setSheet(() => saving = true);
+                        final messenger = ScaffoldMessenger.of(context);
+                        try {
+                          final supabase = Supabase.instance.client;
+                          await supabase.from('queries').update({
+                            'admin_reply': text,
+                            'status': 'replied',
+                            'replied_at': DateTime.now().toIso8601String(),
+                          }).eq('id', query['id']);
+
+                          // Notify the member (honest: only after the write).
+                          try {
+                            await supabase.from('notifications').insert({
+                              'user_id': query['member_id'],
+                              'title': 'Your query was answered',
+                              'body': text,
+                              'data': {
+                                'type': 'query_reply',
+                                'query_id': query['id'],
+                              },
+                            });
+                          } catch (e) {
+                            debugPrint('query reply notify failed: $e');
+                          }
+
+                          if (!sheetCtx.mounted) return;
+                          Navigator.pop(sheetCtx);
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Reply sent. Member notified.'),
+                              backgroundColor: Color(0xFFE65C00),
+                            ),
+                          );
+                          onDone();
+                        } catch (e) {
+                          setSheet(() => saving = false);
+                          messenger.showSnackBar(
+                            SnackBar(content: Text('Could not send reply: $e')),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65C00),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: saving
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : Text('Send reply',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Holiday / Closure Bottom Sheet ─────────────────────────────────────────
   void _showCloseLibrarySheet() {
     if (_libraryId == null) {
       _showErrorSnackBar('Please complete library setup first.');
       return;
     }
+    final reasonCtrl = TextEditingController();
+    bool notify = true;
+    bool saving = false;
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) {
+          final alreadyHoliday = _todayHoliday != null;
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+              top: 20,
+              left: 20,
+              right: 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEE2E2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.power_settings_new,
-                      color: Color(0xFFDC2626),
-                      size: 24,
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Close Library for Today',
-                          style: GoogleFonts.outfit(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1A1A2E),
-                          ),
-                        ),
-                        Text(
-                          'Mark the library as closed today',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFFD1B3)),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Text(
-                      'What happens when you close:',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF92400E),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3ED),
+                        borderRadius: BorderRadius.circular(12),
                       ),
+                      child: const Icon(Icons.event_busy,
+                          color: Color(0xFFE65C00), size: 24),
                     ),
-                    const SizedBox(height: 8),
-                    _buildCloseInfoRow(
-                      '🛡️',
-                      'Streak freeze applied for all members today',
-                    ),
-                    const SizedBox(height: 4),
-                    _buildCloseInfoRow(
-                      '🔔',
-                      'All members will be notified via app',
-                    ),
-                    const SizedBox(height: 4),
-                    _buildCloseInfoRow(
-                      '📊',
-                      'Today will not count towards attendance',
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            alreadyHoliday ? 'Today is already a holiday' : 'Close library today',
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1A1A2E),
+                            ),
+                          ),
+                          Text(
+                            alreadyHoliday
+                                ? _todayHoliday!.reason
+                                : 'Mark the library closed for today only',
+                            style: GoogleFonts.inter(
+                                fontSize: 12, color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        'Cancel',
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFFD1B3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'What happens when you close:',
                         style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF6B7280),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF92400E),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      _buildCloseInfoRow('🛡️', 'Members’ study streaks are protected'),
+                      const SizedBox(height: 4),
+                      _buildCloseInfoRow('🚫', 'Check-in is blocked for everyone today'),
+                      const SizedBox(height: 4),
+                      _buildCloseInfoRow(
+                          '🔔',
+                          notify
+                              ? 'Members get an in-app notification'
+                              : 'Members are NOT notified'),
+                    ],
+                  ),
+                ),
+                if (!alreadyHoliday) ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: reasonCtrl,
+                    style: GoogleFonts.inter(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Reason (e.g. Holi, Maintenance)',
+                      hintStyle:
+                          GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final navigator = Navigator.of(context);
-                        final messenger = ScaffoldMessenger.of(context);
-                        try {
-                          await Supabase.instance.client
-                              .from('library_closures')
-                              .insert({
-                                'library_id': _libraryId!,
-                                'closed_date': DateTime.now()
-                                    .toIso8601String()
-                                    .substring(0, 10),
-                                'reason': 'Closed by admin',
-                              });
-                          navigator.pop();
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                '🔒 Library marked as closed for today. Members notified.',
-                              ),
-                              backgroundColor: Color(0xFFE65C00),
-                            ),
-                          );
-                        } catch (e) {
-                          navigator.pop();
-                          messenger.showSnackBar(
-                            SnackBar(content: Text('Error: $e')),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.power_settings_new, size: 18),
-                      label: Text(
-                        'Close Today',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFDC2626),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Notify all members',
+                        style: GoogleFonts.inter(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                    value: notify,
+                    activeColor: const Color(0xFFE65C00),
+                    onChanged: (v) => setSheet(() => notify = v),
                   ),
                 ],
-              ),
-              const SizedBox(height: 12),
-            ],
+                const SizedBox(height: 12),
+                // Primary action: close today (only if not already a holiday)
+                if (!alreadyHoliday)
+                  ElevatedButton.icon(
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            if (reasonCtrl.text.trim().isEmpty) {
+                              ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                                const SnackBar(content: Text('Please add a reason.')),
+                              );
+                              return;
+                            }
+                            setSheet(() => saving = true);
+                            final messenger = ScaffoldMessenger.of(context);
+                            try {
+                              final today = DateTime.now();
+                              final created = await HolidayService.instance.addHoliday(
+                                libraryId: _libraryId!,
+                                start: today,
+                                end: today,
+                                reason: reasonCtrl.text.trim(),
+                                notifyMembers: notify,
+                              );
+                              if (mounted) setState(() => _todayHoliday = created);
+                              if (!sheetCtx.mounted) return;
+                              Navigator.pop(sheetCtx);
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(notify
+                                      ? 'Library closed for today. Members notified.'
+                                      : 'Library closed for today.'),
+                                  backgroundColor: const Color(0xFFE65C00),
+                                ),
+                              );
+                            } catch (e) {
+                              setSheet(() => saving = false);
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Could not close: $e')),
+                              );
+                            }
+                          },
+                    icon: saving
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.event_busy, size: 18),
+                    label: Text('Close today',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE65C00),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(sheetCtx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            ScheduledClosuresScreen(libraryId: _libraryId),
+                      ),
+                    ).then((_) {
+                      if (_libraryId != null) _loadLibrarySpecificData(_libraryId!);
+                    });
+                  },
+                  icon: const Icon(Icons.calendar_month, size: 18),
+                  label: Text('Schedule Holidays',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFE65C00),
+                    side: const BorderSide(color: Color(0xFFE65C00)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHolidayBanner(Holiday h) {
+    final dateLabel = h.isRange
+        ? '${DateFormat('dd MMM').format(h.startDate)} – ${DateFormat('dd MMM').format(h.endDate)}'
+        : DateFormat('EEEE, dd MMM').format(h.startDate);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3ED),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE65C00), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: const BoxDecoration(
+              color: Color(0xFFE65C00),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.event_busy, color: Colors.white, size: 20),
           ),
-        );
-      },
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Today is a holiday',
+                  style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF9A3412)),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$dateLabel · ${h.reason} · Check-in is disabled.',
+                  style: GoogleFonts.inter(
+                      fontSize: 11.5, color: const Color(0xFF9A3412)),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ScheduledClosuresScreen(libraryId: _libraryId),
+                ),
+              ).then((_) {
+                if (_libraryId != null) _loadLibrarySpecificData(_libraryId!);
+              });
+            },
+            child: Text('Manage',
+                style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFE65C00))),
+          ),
+        ],
+      ),
     );
   }
 

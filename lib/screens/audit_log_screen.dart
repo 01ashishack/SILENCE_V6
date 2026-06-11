@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class AuditEntry {
   final String id;
@@ -53,16 +52,33 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
             .limit(40);
         
         if (res.isNotEmpty) {
-          _logs = res.map((item) => AuditEntry(
-            id: item['id'].toString(),
-            performerName: item['performer_name'] ?? 'System Admin',
-            category: item['category'] ?? 'settings',
-            actionTitle: item['action_title'] ?? 'Updated Settings',
-            actionDetails: item['action_details'] ?? 'Modified metadata rules',
-            timestamp: item['created_at'] != null 
-                ? item['created_at'].toString().substring(0, 16).replaceAll('T', ' ')
-                : '2026-05-27 10:15',
-          )).toList();
+          _logs = res.map((item) {
+            // Canonical rows store display fields inside the `details` JSONB.
+            // Fall back to legacy flat columns for older rows.
+            final d = item['details'];
+            final meta = d is Map ? d : const {};
+            return AuditEntry(
+              id: item['id'].toString(),
+              performerName: (meta['performer_name'] ??
+                      item['performer_name'] ??
+                      'System Admin')
+                  .toString(),
+              category:
+                  (meta['category'] ?? item['category'] ?? 'settings').toString(),
+              actionTitle: (meta['title'] ??
+                      item['action_title'] ??
+                      item['action'] ??
+                      'Updated Settings')
+                  .toString(),
+              actionDetails: (meta['details'] ??
+                      item['action_details'] ??
+                      (d is String ? d : 'Modified record'))
+                  .toString(),
+              timestamp: item['created_at'] != null
+                  ? item['created_at'].toString().substring(0, 16).replaceAll('T', ' ')
+                  : '',
+            );
+          }).toList();
         }
       } catch (e) {
         debugPrint('Audit logs Supabase query exception: $e');

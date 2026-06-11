@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../utils/audit_logger.dart';
+import '../../utils/error_messages.dart';
 
 class RequestsSubTab extends StatefulWidget {
   final String libraryId;
@@ -15,6 +17,8 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
   bool _isProfileComplete = true;
+  // Re-entrancy guard so a fast double-tap can't create two memberships/payments.
+  bool _isApproving = false;
 
   // Horizontal Toggle
   int _activeRequestTab = 0; // 0: Join Requests, 1: Seat Changes, 2: Hold Requests
@@ -181,7 +185,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   }
 
   // ── Reject Join Request ───────────────────────────────────────────────────
-  Future<void> _rejectJoinRequest(String requestId) async {
+  Future<void> _rejectJoinRequest(Map<String, dynamic> request) async {
+    final requestId = request['id']?.toString() ?? '';
+    final memberId = request['member_id']?['id']?.toString();
     final reasonController = TextEditingController();
     final confirm = await showDialog<bool>(
       context: context,
@@ -211,27 +217,50 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
     if (!confirm) return;
 
+    final reason = reasonController.text.trim().isNotEmpty
+        ? reasonController.text.trim()
+        : 'Rejected by Admin';
+
     try {
       await supabase.from('join_requests').update({
         'status': 'rejected',
-        'rejection_reason': reasonController.text.trim().isNotEmpty ? reasonController.text.trim() : 'Rejected by Admin',
+        'rejection_reason': reason,
       }).eq('id', requestId);
+
+      // Notify the member (honest: only after the write).
+      if (memberId != null) {
+        await _notifyMember(
+          memberId: memberId,
+          title: 'Join request not approved',
+          message: 'Your request was not approved. Reason: $reason. '
+              'You can contact the admin or apply again.',
+          type: 'join_rejected',
+        );
+      }
+      await _logAudit(
+        action: 'membership_reject',
+        category: AuditLogger.categoryMembers,
+        title: 'Rejected join request',
+        details: '${request['member_id']?['full_name'] ?? 'Member'} · $reason',
+      );
 
       _fetchRequests();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Join request rejected successfully.')),
+        const SnackBar(content: Text('Join request rejected.')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }
 
   // ── Final Database Seat Assignment and Activation (S034 Flow) ─────────────
   Future<void> _approveJoinRequestTransaction(BuildContext sheetContext, Map<String, dynamic> request, Map<String, dynamic> seat) async {
+    if (_isApproving) return; // ignore double-taps
+    _isApproving = true;
     try {
       final String seatId = seat['id'];
       final String seatLabel = seat['seat_label'];
@@ -262,6 +291,41 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       }).eq('id', requestId);
       if (!mounted) return;
 
+      final String planType = (request['plan_type'] ?? 'monthly').toString();
+      int durationMonths = 1;
+      if (planType == '3_month') durationMonths = 3;
+      if (planType == '6_month') durationMonths = 6;
+
+      // Selected add-ons carried on the request (may be absent on older rows).
+      final List<String> addOnIds = (request['selected_addon_ids'] is List)
+          ? List<String>.from(
+              (request['selected_addon_ids'] as List).map((e) => e.toString()))
+          : <String>[];
+
+      // Fetch add-on prices/deposits once (for amount + member_add_ons rows).
+      List<Map<String, dynamic>> addOnRows = [];
+      if (addOnIds.isNotEmpty) {
+        try {
+          final res = await supabase
+              .from('add_ons')
+              .select('id, price, refundable_deposit')
+              .inFilter('id', addOnIds);
+          addOnRows = List<Map<String, dynamic>>.from(res);
+        } catch (e) {
+          debugPrint('add_ons price lookup failed: $e');
+        }
+      }
+      final int addOnsTotal = addOnRows.fold<int>(
+          0, (sum, a) => sum + ((a['price'] as int?) ?? 0));
+
+      // Real amount = plan price + add-ons − discount. No hardcoded figures.
+      final int planAmount = await _computeApprovalAmount(
+        shiftId: request['shift_id']?.toString(),
+        planType: planType,
+        discount: (request['discount_amount'] as int?) ?? 0,
+      );
+      final int amount = planAmount + addOnsTotal;
+
       String membershipId;
 
       // Check if member already has an active/expiring membership in this library
@@ -276,18 +340,16 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           .maybeSingle();
       if (!mounted) return;
 
-      if (existingMembership != null) {
+      final bool isRenewal = existingMembership != null;
+
+      if (isRenewal) {
         // RENEWAL: Extend existing membership
         DateTime currentEndDate = DateTime.parse(existingMembership['end_date']);
         if (currentEndDate.isBefore(DateTime.now())) {
           currentEndDate = DateTime.now(); // if expired, start from today
         }
-        
-        int durationMonths = 1;
-        if (request['plan_type'] == '3_month') durationMonths = 3;
-        if (request['plan_type'] == '6_month') durationMonths = 6;
         DateTime newEndDate = _addMonths(currentEndDate, durationMonths);
-        
+
         await supabase.from('memberships').update({
           'end_date': newEndDate.toIso8601String().substring(0, 10),
           'status': 'active',
@@ -295,22 +357,19 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           'shift_id': request['shift_id'],
         }).eq('id', existingMembership['id']);
         if (!mounted) return;
-        
+
         membershipId = existingMembership['id'];
       } else {
         // NEW MEMBERSHIP: Create membership
         final start = DateTime.now();
-        int durationMonths = 1;
-        if (request['plan_type'] == '3_month') durationMonths = 3;
-        if (request['plan_type'] == '6_month') durationMonths = 6;
-        final end = DateTime(start.year, start.month + durationMonths, start.day);
+        final end = _addMonths(start, durationMonths);
 
         final membership = await supabase.from('memberships').insert({
           'member_id': memberId,
           'library_id': widget.libraryId,
           'shift_id': request['shift_id'],
           'seat_id': seatId,
-          'plan_type': request['plan_type'],
+          'plan_type': planType,
           'start_date': start.toIso8601String().substring(0, 10),
           'end_date': end.toIso8601String().substring(0, 10),
           'status': 'active',
@@ -320,12 +379,12 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         membershipId = membership['id'];
       }
 
-      // 5. Create confirmed payment record
+      // 5. Create confirmed payment record (real, derived amount)
       await supabase.from('payments').insert({
         'membership_id': membershipId,
         'member_id': memberId,
         'library_id': widget.libraryId,
-        'amount': request['plan_type'] == 'monthly' ? 1500 : (request['plan_type'] == '3_month' ? 4000 : 7500), // generic pricing
+        'amount': amount,
         'method': request['payment_method'] ?? 'cash',
         'status': 'confirmed',
         'payment_date': DateTime.now().toIso8601String(),
@@ -334,6 +393,42 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         'upi_sender_name': request['upi_sender_name'],
       });
       if (!mounted) return;
+
+      // 5b. Persist selected add-ons against this membership.
+      if (addOnRows.isNotEmpty) {
+        try {
+          final rows = addOnRows
+              .map((a) => {
+                    'membership_id': membershipId,
+                    'add_on_id': a['id'],
+                    'deposit_paid': (a['refundable_deposit'] as int?) ?? 0,
+                  })
+              .toList();
+          await supabase.from('member_add_ons').insert(rows);
+        } catch (e) {
+          debugPrint('member_add_ons insert failed: $e');
+        }
+      }
+      if (!mounted) return;
+
+      // 6. Notify the member (honest: only after the writes succeed).
+      await _notifyMember(
+        memberId: memberId,
+        title: isRenewal ? 'Membership renewed' : 'Welcome aboard!',
+        message: isRenewal
+            ? 'Your renewal is confirmed. Seat $seatLabel is assigned. Payment of ₹$amount recorded.'
+            : 'Your membership is approved. Seat $seatLabel is assigned. Payment of ₹$amount recorded. You can check in now.',
+        type: isRenewal ? 'join_approved' : 'join_approved',
+      );
+
+      // 7. Audit trail.
+      await _logAudit(
+        action: isRenewal ? 'membership_renew' : 'membership_approve',
+        category: AuditLogger.categoryMembers,
+        title: isRenewal ? 'Renewed membership' : 'Approved join request',
+        details:
+            '$memberName · ${_planLabel(planType)} · seat $seatLabel · ₹$amount',
+      );
 
       _fetchRequests();
       if (!mounted) return;
@@ -352,8 +447,62 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error approving request: $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
+    } finally {
+      _isApproving = false;
+    }
+  }
+
+  /// Real plan amount = shift price for the chosen plan − discount (≥ 0).
+  /// Falls back to monthly×N if a multi-month price column is null.
+  Future<int> _computeApprovalAmount({
+    required String? shiftId,
+    required String planType,
+    required int discount,
+  }) async {
+    int base = 0;
+    if (shiftId != null) {
+      try {
+        final shift = await supabase
+            .from('shifts')
+            .select('price_monthly, price_3month, price_6month')
+            .eq('id', shiftId)
+            .maybeSingle();
+        if (shift != null) {
+          final monthly = (shift['price_monthly'] as int?) ?? 0;
+          switch (planType) {
+            case '3_month':
+              base = (shift['price_3month'] as int?) ?? monthly * 3;
+              break;
+            case '6_month':
+              base = (shift['price_6month'] as int?) ?? monthly * 6;
+              break;
+            case 'trial':
+              base = 0;
+              break;
+            default:
+              base = monthly;
+          }
+        }
+      } catch (e) {
+        debugPrint('Shift price lookup failed: $e');
+      }
+    }
+    final net = base - (discount > 0 ? discount : 0);
+    return net < 0 ? 0 : net;
+  }
+
+  String _planLabel(String planType) {
+    switch (planType) {
+      case '3_month':
+        return '3-month plan';
+      case '6_month':
+        return '6-month plan';
+      case 'trial':
+        return 'Trial';
+      default:
+        return 'Monthly plan';
     }
   }
 
@@ -362,39 +511,100 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     required String title,
     required String details,
     required String category,
+    String action = 'update',
   }) async {
-    final admin = supabase.auth.currentUser;
-    try {
-      await supabase.from('audit_log').insert({
-        'performer_name': admin?.email ?? 'Admin',
-        'category': category,
-        'action_title': title,
-        'action_details': details,
-        'created_at': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      debugPrint('Audit log insert failed: $e');
-    }
+    await AuditLogger.instance.log(
+      action: action,
+      category: category,
+      title: title,
+      details: details,
+      libraryId: widget.libraryId,
+    );
   }
 
   Future<void> _notifyMember({
     required String memberId,
     required String title,
     required String message,
+    String type = 'info',
   }) async {
     try {
+      // Schema columns: user_id, title, body, data, sent_at(default now),
+      // read_at(default null = unread). Do NOT send is_read/created_at — those
+      // columns don't exist and make the insert throw.
       await supabase.from('notifications').insert({
         'user_id': memberId,
         'title': title,
         'body': message,
-        'data': {
-          'type': 'seat_change',
-        },
-        'is_read': false,
-        'created_at': DateTime.now().toIso8601String(),
+        'data': {'type': type},
       });
     } catch (e) {
       debugPrint('Notification insert failed: $e');
+    }
+  }
+
+  Future<void> _rejectSeatChangeRequest(Map<String, dynamic> request) async {
+    final requestId = request['id']?.toString();
+    final memberId =
+        request['member_id']?['id']?.toString() ?? request['member_id']?.toString();
+    if (requestId == null || memberId == null) return;
+
+    final reasonController = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Reject Seat Change', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Reject this seat change request? The member will be notified.',
+                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569))),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Reason (optional)', hintText: 'e.g. Requested seat unavailable'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    final reason = reasonController.text.trim();
+    try {
+      setState(() => _isLoading = true);
+      await supabase.from('seat_change_requests').update({'status': 'rejected'}).eq('id', requestId);
+      await _logAudit(
+        title: 'Seat Change Rejected',
+        details: 'Rejected seat change for member $memberId.${reason.isNotEmpty ? ' Reason: $reason' : ''}',
+        category: 'members',
+      );
+      await _notifyMember(
+        memberId: memberId,
+        title: 'Seat change rejected',
+        message: reason.isNotEmpty
+            ? 'Your seat change request was rejected. Reason: $reason'
+            : 'Your seat change request was rejected.',
+        type: 'seat_change',
+      );
+      await _fetchRequests();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not reject: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -469,6 +679,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         memberId: memberId,
         title: 'Seat change approved',
         message: 'Your seat change request was approved. New seat: $newSeatLabel.',
+        type: 'seat_change',
       );
 
       await _fetchRequests();
@@ -942,7 +1153,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
               const SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => _rejectJoinRequest(reqId),
+                  onPressed: () => _rejectJoinRequest(request),
                   child: Text('Reject', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
                 ),
               ),
@@ -1019,20 +1230,35 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                   child: ListTile(
                                     title: Text(r['member_id']?['full_name'] ?? 'Member'),
                                     subtitle: Text('Change from ${r['current_seat']?['seat_label']} to Preferred section: ${r['preferred_section']}'),
-                                    trailing: ElevatedButton(
-                                      onPressed: _isProfileComplete ? () => _approveSeatChangeRequest(r) : () {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
-                                            backgroundColor: const Color(0xFFE65C00),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        TextButton(
+                                          onPressed: () => _rejectSeatChangeRequest(r),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                                            minimumSize: const Size(0, 36),
                                           ),
-                                        );
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      child: const Text('Approve'),
+                                          child: Text('Reject', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
+                                        ),
+                                        const SizedBox(width: 2),
+                                        ElevatedButton(
+                                          onPressed: _isProfileComplete ? () => _approveSeatChangeRequest(r) : () {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
+                                                backgroundColor: const Color(0xFFE65C00),
+                                              ),
+                                            );
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          ),
+                                          child: const Text('Approve'),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 );
@@ -1095,9 +1321,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                         
                                         await supabase.from('notifications').insert({
                                           'user_id': membership['member_id'],
+                                          'title': 'Hold approved',
                                           'body': 'Your hold request has been approved. Your membership is paused until ${endDate.toLocal().toString().substring(0, 10)}. Your seat is reserved.',
                                           'data': {'type': 'hold_approved', 'membership_id': membership['id']},
-                                          'created_at': DateTime.now().toIso8601String(),
                                         });
                                         if (!mounted) return;
                                         

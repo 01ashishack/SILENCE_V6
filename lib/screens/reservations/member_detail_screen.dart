@@ -6,6 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../utils/error_messages.dart';
+import '../../utils/audit_logger.dart';
+import 'member_transfer_screen.dart';
 
 class MemberDetailScreen extends StatefulWidget {
   final String? memberId;
@@ -251,14 +254,28 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         'status': 'confirmed',
         'confirmed_by_admin_id': currentAdminId,
       }).eq('id', paymentId);
+
+      await _notifyMemberOfPayment(
+        confirmed: true,
+        title: 'Payment confirmed',
+        message: 'Your payment has been verified and confirmed by the admin.',
+      );
+      await AuditLogger.instance.log(
+        action: 'payment_confirm',
+        category: AuditLogger.categoryPayments,
+        title: 'Confirmed payment',
+        details: '${_userProfile?['full_name'] ?? 'Member'} · payment $paymentId',
+        libraryId: _membershipData?['library_id']?.toString(),
+      );
+
       await _fetchMemberData();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment confirmed successfully! ✓')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment confirmed. Member notified.')));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error confirming payment: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     }
   }
@@ -267,15 +284,50 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     try {
       setState(() => _isLoading = true);
       await supabase.from('payments').update({'status': 'rejected'}).eq('id', paymentId);
+
+      await _notifyMemberOfPayment(
+        confirmed: false,
+        title: 'Payment not verified',
+        message: 'Your payment could not be verified. Please re-check the '
+            'transaction or contact the admin.',
+      );
+      await AuditLogger.instance.log(
+        action: 'payment_reject',
+        category: AuditLogger.categoryPayments,
+        title: 'Rejected payment',
+        details: '${_userProfile?['full_name'] ?? 'Member'} · payment $paymentId',
+        libraryId: _membershipData?['library_id']?.toString(),
+      );
+
       await _fetchMemberData();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment marked as rejected. ✓')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment marked as rejected. Member notified.')));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error rejecting payment: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
+    }
+  }
+
+  /// Notify the member of a payment verdict. Best-effort.
+  Future<void> _notifyMemberOfPayment({
+    required bool confirmed,
+    required String title,
+    required String message,
+  }) async {
+    final memberId = _memberId ?? _userProfile?['id']?.toString();
+    if (memberId == null) return;
+    try {
+      await supabase.from('notifications').insert({
+        'user_id': memberId,
+        'title': title,
+        'body': message,
+        'data': {'type': confirmed ? 'payment_confirmed' : 'payment_rejected'},
+      });
+    } catch (e) {
+      debugPrint('payment notify failed: $e');
     }
   }
 
@@ -472,6 +524,226 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         );
       },
     );
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  bool _canHoldOrResume() {
+    final s = _membershipData?['status'];
+    return s == 'active' || s == 'trial' || s == 'expiring' || s == 'hold';
+  }
+
+  bool _canTransfer() {
+    if (_membershipData == null || _membershipData!['library_id'] == null) return false;
+    final s = _membershipData?['status'];
+    return s == 'active' || s == 'trial' || s == 'expiring' || s == 'hold' || s == 'expired';
+  }
+
+  Future<void> _openTransfer() async {
+    final ms = _membershipData;
+    if (ms == null) return;
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MemberTransferScreen(
+          memberId: _memberId ?? _userProfile?['id']?.toString() ?? '',
+          memberName: (_userProfile?['full_name'] ?? 'Member').toString(),
+          fromMembership: ms,
+        ),
+      ),
+    );
+    if (result == true) {
+      await _fetchMemberData();
+    }
+  }
+
+  // ── Hold a member's membership ──────────────────────────────────────────────
+  // Pauses the membership: status -> 'hold' and records the hold window in
+  // hold_requests. The paused days are added back to end_date on resume, so the
+  // member never loses paid days.
+  Future<void> _holdMembership() async {
+    final ms = _membershipData;
+    if (ms == null) return;
+    final daysCtrl = TextEditingController(text: '7');
+    final reasonCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          const Icon(Icons.pause_circle_outline, color: Color(0xFFD97706), size: 26),
+          const SizedBox(width: 8),
+          Text('Hold Membership', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Pause this membership. The paused days are added back to the plan when you resume it. The seat stays reserved.',
+              style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF475569), height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: daysCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Number of days', hintText: 'e.g. 7'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Reason', hintText: 'e.g. Member travelling'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B)))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white),
+            child: Text('Put on Hold', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final days = int.tryParse(daysCtrl.text.trim()) ?? 0;
+    if (days <= 0) {
+      _snack('Enter a valid number of days');
+      return;
+    }
+    final reason = reasonCtrl.text.trim().isEmpty ? 'Hold by admin' : reasonCtrl.text.trim();
+
+    try {
+      setState(() => _isLoading = true);
+      final today = DateTime.now();
+      final holdEnd = today.add(Duration(days: days));
+      final dateFmt = DateFormat('yyyy-MM-dd');
+      final memberId = ms['member_id'] ?? _memberId;
+
+      await supabase.from('hold_requests').insert({
+        'membership_id': ms['id'],
+        'member_id': memberId,
+        'library_id': ms['library_id'],
+        'start_date': dateFmt.format(today),
+        'end_date': dateFmt.format(holdEnd),
+        'reason': reason,
+        'status': 'approved',
+      });
+      if (!mounted) return;
+
+      await supabase.from('memberships').update({'status': 'hold'}).eq('id', ms['id']);
+      if (!mounted) return;
+
+      await supabase.from('notifications').insert({
+        'user_id': memberId,
+        'title': 'Membership on hold',
+        'body': 'Your membership has been put on hold for $days day${days == 1 ? '' : 's'} (until ${DateFormat('dd MMM yyyy').format(holdEnd)}). Your seat is reserved and the paused days will be added back when it resumes.',
+        'data': {'type': 'hold', 'membership_id': ms['id']},
+      });
+      if (!mounted) return;
+
+      _snack('Membership put on hold');
+      _fetchMemberData();
+    } catch (e) {
+      if (mounted) _snack(friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ── Resume (un-hold) a membership ───────────────────────────────────────────
+  // Lifts the hold: status -> 'active' and extends end_date by the number of
+  // days actually paused (today - hold start), so the member regains exactly the
+  // paused days whether resumed early or on time.
+  Future<void> _resumeMembership() async {
+    final ms = _membershipData;
+    if (ms == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Resume Membership', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Lift the hold and reactivate this membership now? The paused days will be added back to the plan.',
+          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B)))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
+            child: Text('Resume', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      setState(() => _isLoading = true);
+      final memberId = ms['member_id'] ?? _memberId;
+
+      // Find the active hold window to compute days actually paused.
+      final hold = await supabase
+          .from('hold_requests')
+          .select('id, start_date')
+          .eq('membership_id', ms['id'])
+          .eq('status', 'approved')
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (!mounted) return;
+
+      int heldDays = 0;
+      if (hold != null && hold['start_date'] != null) {
+        final start = DateTime.parse(hold['start_date'].toString());
+        final startDay = DateTime(start.year, start.month, start.day);
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        heldDays = today.difference(startDay).inDays;
+        if (heldDays < 0) heldDays = 0;
+      }
+
+      // Extend end_date by the paused days.
+      final updates = <String, dynamic>{'status': 'active'};
+      if (ms['end_date'] != null && heldDays > 0) {
+        final end = DateTime.parse(ms['end_date'].toString());
+        final newEnd = end.add(Duration(days: heldDays));
+        updates['end_date'] = DateFormat('yyyy-MM-dd').format(newEnd);
+      }
+      await supabase.from('memberships').update(updates).eq('id', ms['id']);
+      if (!mounted) return;
+
+      if (hold != null) {
+        await supabase.from('hold_requests').update({'status': 'cancelled'}).eq('id', hold['id']);
+        if (!mounted) return;
+      }
+
+      await supabase.from('notifications').insert({
+        'user_id': memberId,
+        'title': 'Membership resumed',
+        'body': heldDays > 0
+            ? 'Your membership is active again. $heldDays paused day${heldDays == 1 ? '' : 's'} ${heldDays == 1 ? 'was' : 'were'} added back to your plan.'
+            : 'Your membership is active again.',
+        'data': {'type': 'hold_lifted', 'membership_id': ms['id']},
+      });
+      if (!mounted) return;
+
+      _snack('Membership resumed');
+      _fetchMemberData();
+    } catch (e) {
+      if (mounted) _snack(friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   // ── Force Exit Member ──────────────────────────────────────────────────────
@@ -935,6 +1207,50 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
           // 7. Admin Actions
           const SizedBox(height: 8),
+          if (!_isReadOnly && _canHoldOrResume()) ...[
+            SizedBox(
+              width: double.infinity,
+              child: (_membershipData?['status'] == 'hold')
+                  ? OutlinedButton.icon(
+                      icon: const Icon(Icons.play_circle_outline, size: 18, color: Color(0xFF16A34A)),
+                      label: Text('Resume Membership', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF16A34A))),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF16A34A)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _resumeMembership,
+                    )
+                  : OutlinedButton.icon(
+                      icon: const Icon(Icons.pause_circle_outline, size: 18, color: Color(0xFFD97706)),
+                      label: Text('Hold Membership', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFD97706))),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFD97706)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _holdMembership,
+                    ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (!_isReadOnly && _canTransfer()) ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.swap_horiz_rounded, size: 18, color: Color(0xFFE65C00)),
+                label: Text('Transfer to another library',
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFE65C00)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _openTransfer,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Row(
             children: [
               Expanded(

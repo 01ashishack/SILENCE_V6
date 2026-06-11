@@ -1,3 +1,7 @@
+-- ⚠️ SUPERSEDED (2026-06-11, Phase C). DO NOT RUN.
+-- `draft_members` is now folded into silence_app/supabase_schema.sql (§2b) and
+-- silence_app/migrations/2026-06-11_phase_c_reconciliation.sql. Kept for history.
+-- ---------------------------------------------------------------------------
 -- SQL Migration: Create draft_members table and set up security
 -- Run this in your Supabase SQL Editor (https://supabase.com/dashboard/project/kndeshxeerldamafweru/sql/new)
 

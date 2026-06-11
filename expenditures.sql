@@ -1,3 +1,9 @@
+-- ⚠️ SUPERSEDED (2026-06-11, Phase C). DO NOT RUN.
+-- The canonical `expenditures` table now lives in silence_app/supabase_schema.sql
+-- (12-category lowercase CHECK, expense_date DATE). This loose file defined a
+-- CONFLICTING shape (no CHECK, expense_date TIMESTAMPTZ) and was one of the four
+-- drifting definitions flagged by audit P5-02. Kept only for history.
+-- ---------------------------------------------------------------------------
 -- SQL Migration: Create expenditures table and set up security
 -- Run this in your Supabase SQL Editor (https://supabase.com/dashboard/project/kndeshxeerldamafweru/sql/new)
 

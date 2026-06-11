@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:geolocator/geolocator.dart';
 import 'library_public_profile_screen.dart';
-import 'member_profile_edit.dart';
+import '../utils/error_messages.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -86,7 +86,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       } catch (e2) {
         if (mounted) {
           setState(() {
-            _errorMessage = e2.toString();
+            _errorMessage = friendlyError(e2);
             _isLoading = false;
           });
         }
@@ -284,7 +284,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       );
                     } catch (e) {
                       messenger.showSnackBar(
-                        SnackBar(content: Text('Error finding library: $e')),
+                        SnackBar(content: Text(friendlyError(e))),
                       );
                     }
                   },
@@ -337,24 +337,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
         );
       }
     } catch (e) {
-      debugPrint('Leads table insert failed (probably not created). Falling back to mock success: $e');
+      debugPrint('Leads insert failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Suggestion submitted! Thank you. ✓'),
-            backgroundColor: Color(0xFF22C55E),
+          SnackBar(
+            content: Text(friendlyError(e)),
+            backgroundColor: const Color(0xFFDC2626),
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmittingSuggestion = false;
-          _suggestNameController.clear();
-          _suggestLocController.clear();
-          _suggestOwnerController.clear();
-        });
-      }
+      // Do NOT clear the form on failure — keep the user's input so they can retry.
+      if (mounted) setState(() => _isSubmittingSuggestion = false);
+      return;
+    }
+    // Success path only: clear the form.
+    if (mounted) {
+      setState(() {
+        _isSubmittingSuggestion = false;
+        _suggestNameController.clear();
+        _suggestLocController.clear();
+        _suggestOwnerController.clear();
+      });
     }
   }
 

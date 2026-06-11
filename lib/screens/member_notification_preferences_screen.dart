@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/error_messages.dart';
 
 class MemberNotificationPreferencesScreen extends StatefulWidget {
   const MemberNotificationPreferencesScreen({super.key});
@@ -145,7 +146,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to save preferences: $e',
+            content: Text(friendlyError(e),
                 style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
             backgroundColor: const Color(0xFFEF4444),
           ),

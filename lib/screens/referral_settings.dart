@@ -235,7 +235,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        'ℹ Rewards are authorized after 7 days of active status or 5 check-ins recorded to prevent account fraud.',
+                                        'ℹ This sets your reward policy. Crediting is applied manually for now — extend the referrer’s membership once the new member is active. Automatic crediting comes later.',
                                         style: GoogleFonts.inter(fontSize: 10.5, color: const Color(0xFF1D4ED8), height: 1.4),
                                       ),
                                     ),

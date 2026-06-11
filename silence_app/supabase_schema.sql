@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS users (
     subscription_plan TEXT CHECK (subscription_plan IN ('starter', 'basic', 'pro', 'trial')),
     subscription_status TEXT DEFAULT 'active' CHECK (subscription_status IN ('active', 'grace', 'readonly', 'locked', 'cancelled')),
     subscription_expiry TIMESTAMPTZ,
+    referral_code TEXT,
+    scheduled_for_deletion BOOLEAN DEFAULT false,
+    deletion_scheduled_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -171,7 +174,11 @@ CREATE TABLE IF NOT EXISTS attendance (
     qr_version INTEGER,
     offline_synced BOOLEAN DEFAULT false,
     device_id TEXT,
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT chk_attendance_checkout_after_checkin
+        CHECK (check_out_time IS NULL OR check_out_time >= check_in_time),
+    CONSTRAINT chk_attendance_duration_nonneg
+        CHECK (duration_minutes IS NULL OR duration_minutes >= 0)
 );
 
 -- Payments Table
@@ -208,6 +215,7 @@ CREATE TABLE IF NOT EXISTS join_requests (
     discount_amount INTEGER DEFAULT 0,
     discount_reason TEXT,
     requested_seat_id UUID REFERENCES seats(id) ON DELETE SET NULL,
+    selected_addon_ids UUID[],
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'expired')),
     rejection_reason TEXT,
     existing_member_join_date DATE,
@@ -226,6 +234,7 @@ CREATE TABLE IF NOT EXISTS seat_change_requests (
     reason TEXT NOT NULL,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
     new_seat_id UUID REFERENCES seats(id) ON DELETE SET NULL,
+    approved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -326,7 +335,10 @@ CREATE TABLE IF NOT EXISTS queries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     member_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    subject TEXT,
+    type TEXT,
     message TEXT NOT NULL,
+    screenshot_url TEXT,
     status TEXT DEFAULT 'open' CHECK (status IN ('open', 'replied', 'closed')),
     admin_reply TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
@@ -443,6 +455,81 @@ BEFORE UPDATE ON expenditures
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ------------------------------------------------------------
+-- 2b. PHASE C RECONCILIATION TABLES
+--     Referenced by code; folded in from loose migrations + drift.
+--     (See silence_app/migrations/2026-06-11_phase_c_reconciliation.sql)
+-- ------------------------------------------------------------
+
+-- Settings Table (admin per-library / global key-value config)
+CREATE TABLE IF NOT EXISTS settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    library_id UUID REFERENCES libraries(id) ON DELETE CASCADE,
+    scope TEXT NOT NULL,
+    value JSONB NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+-- library_id is NULLABLE (global scope) so the upsert key must treat NULLs as
+-- equal, else the global row can't be matched on conflict (Postgres 15+).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_settings_admin_lib_scope
+    ON settings (admin_id, library_id, scope) NULLS NOT DISTINCT;
+
+-- Streaks Table (per member, per library; analytics cache)
+CREATE TABLE IF NOT EXISTS streaks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    member_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    current_streak INTEGER DEFAULT 0,
+    longest_streak INTEGER DEFAULT 0,
+    last_present_date DATE,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT uq_streaks_member_library UNIQUE (member_id, library_id)
+);
+
+-- Member Daily Stats Table (precomputed per-day attendance facts)
+CREATE TABLE IF NOT EXISTS member_daily_stats (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    member_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    present_flag BOOLEAN DEFAULT false,
+    total_minutes INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT uq_mds_member_library_date UNIQUE (member_id, library_id, date)
+);
+
+-- Leads Table (member-suggested new libraries; explore lead capture)
+CREATE TABLE IF NOT EXISTS leads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    library_name TEXT NOT NULL,
+    location TEXT,
+    owner_phone TEXT,
+    suggested_by_member_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Verification Requests Table (library "verified badge" submissions)
+CREATE TABLE IF NOT EXISTS verification_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    status TEXT DEFAULT 'pending',
+    reviewed_at TIMESTAMPTZ,
+    admin_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Draft Members Table (admin's in-progress "add member" drafts)
+CREATE TABLE IF NOT EXISTS draft_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    draft_data JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ------------------------------------------------------------
 -- 3. INDEXES
 -- ------------------------------------------------------------
 
@@ -450,6 +537,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
 
 -- Libraries Indexes
 CREATE INDEX IF NOT EXISTS idx_libraries_owner ON libraries(owner_id);
@@ -467,6 +555,13 @@ CREATE INDEX IF NOT EXISTS idx_seats_label ON seats(library_id, seat_label);
 CREATE INDEX IF NOT EXISTS idx_memberships_member ON memberships(member_id, status);
 CREATE INDEX IF NOT EXISTS idx_memberships_library ON memberships(library_id, status);
 CREATE INDEX IF NOT EXISTS idx_memberships_expiry ON memberships(end_date);
+-- Integrity: at most one live membership per (member, library); one seat per live membership.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_membership_active_per_member_library
+    ON memberships (member_id, library_id)
+    WHERE status IN ('active', 'trial', 'hold');
+CREATE UNIQUE INDEX IF NOT EXISTS uq_membership_active_seat
+    ON memberships (seat_id)
+    WHERE seat_id IS NOT NULL AND status IN ('active', 'trial');
 
 -- Attendance Indexes
 CREATE INDEX IF NOT EXISTS idx_attendance_member ON attendance(member_id, check_in_time);
@@ -492,6 +587,13 @@ CREATE INDEX IF NOT EXISTS idx_reviews_created ON reviews(created_at);
 
 -- Expenditures Indexes
 CREATE INDEX IF NOT EXISTS idx_expenditures_library_date ON expenditures(library_id, expense_date) WHERE is_deleted = false;
+
+-- Phase C table indexes
+CREATE INDEX IF NOT EXISTS idx_streaks_member_library ON streaks(member_id, library_id);
+CREATE INDEX IF NOT EXISTS idx_mds_member_library_date ON member_daily_stats(member_id, library_id, date);
+CREATE INDEX IF NOT EXISTS idx_verification_requests_library ON verification_requests(library_id);
+CREATE INDEX IF NOT EXISTS idx_draft_members_library_id ON draft_members(library_id);
+CREATE INDEX IF NOT EXISTS idx_draft_members_admin_id ON draft_members(admin_id);
 
 -- ------------------------------------------------------------
 -- 4. ROW LEVEL SECURITY (RLS) POLICIES
@@ -523,6 +625,12 @@ ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scheduled_closures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenditures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE streaks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE member_daily_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE verification_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE draft_members ENABLE ROW LEVEL SECURITY;
 
 -- 4.1 Users Policies
 CREATE POLICY "Users can view own profile" ON users
@@ -832,3 +940,39 @@ CREATE POLICY "admin_manage_expenditures" ON expenditures
   FOR ALL
   USING (library_id IN (SELECT id FROM libraries WHERE owner_id = auth.uid()))
   WITH CHECK (library_id IN (SELECT id FROM libraries WHERE owner_id = auth.uid()));
+
+-- 4.26 Settings Policies (Phase C)
+CREATE POLICY "Admin manage own settings" ON settings
+    FOR ALL USING (admin_id = auth.uid())
+    WITH CHECK (admin_id = auth.uid());
+
+-- 4.27 Streaks Policies (Phase C)
+CREATE POLICY "Member view own streaks" ON streaks
+    FOR SELECT USING (member_id = auth.uid());
+CREATE POLICY "Admin view library streaks" ON streaks
+    FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+
+-- 4.28 Member Daily Stats Policies (Phase C)
+CREATE POLICY "Member view own daily stats" ON member_daily_stats
+    FOR SELECT USING (member_id = auth.uid());
+CREATE POLICY "Admin view library daily stats" ON member_daily_stats
+    FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+
+-- 4.29 Leads Policies (Phase C)
+CREATE POLICY "Member submit lead" ON leads
+    FOR INSERT WITH CHECK (suggested_by_member_id = auth.uid());
+CREATE POLICY "Member view own leads" ON leads
+    FOR SELECT USING (suggested_by_member_id = auth.uid());
+
+-- 4.30 Verification Requests Policies (Phase C)
+CREATE POLICY "Owner manage verification requests" ON verification_requests
+    FOR ALL USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
+    WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+
+-- 4.31 Draft Members Policies (Phase C)
+CREATE POLICY "Admins full access on own drafts" ON draft_members
+    FOR ALL
+    USING (admin_id = auth.uid()
+           OR EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
+    WITH CHECK (admin_id = auth.uid()
+           OR EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));

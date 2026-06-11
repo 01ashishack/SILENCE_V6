@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../utils/audit_logger.dart';
+import '../../utils/error_messages.dart';
 
 class LayoutSubTab extends StatefulWidget {
   final String libraryId;
@@ -390,24 +392,201 @@ class LayoutSubTabState extends State<LayoutSubTab> {
   }
 
   // ── Seat Action Handlers ─────────────────────────────────────────────────
-  Future<void> _releaseSeatVacancy(String seatId, String label) async {
+  /// Release a seat to vacant. If it was occupied, also **unlinks the member's
+  /// membership** (`seat_id = null`) so the two never desync, and notifies them.
+  Future<void> _releaseSeat(Map<String, dynamic> seat) async {
+    final seatId = seat['id'].toString();
+    final label = (seat['seat_label'] ?? 'seat').toString();
+    final memberId = seat['occupied_by_member_id']?['id']?.toString();
     try {
       await supabase.from('seats').update({
         'status': 'vacant',
         'occupied_by_member_id': null,
       }).eq('id', seatId);
 
+      // Sync the membership so it no longer points at a now-vacant seat.
+      if (memberId != null) {
+        await supabase
+            .from('memberships')
+            .update({'seat_id': null})
+            .eq('member_id', memberId)
+            .eq('library_id', widget.libraryId)
+            .eq('seat_id', seatId);
+
+        await _notifySeatMember(
+          memberId,
+          'Seat released',
+          'Your seat ($label) was released by the admin. Please contact the '
+              'admin to be assigned a new seat.',
+          'seat_change',
+        );
+        await AuditLogger.instance.log(
+          action: 'seat_release',
+          category: AuditLogger.categoryMembers,
+          title: 'Released seat',
+          details: 'Seat $label released to vacant',
+          libraryId: widget.libraryId,
+        );
+      }
+
       _fetchSeatsAndSections();
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Released Seat $label to vacant successfully ✓')),
+        SnackBar(content: Text(memberId != null
+            ? 'Seat $label released. Member notified.'
+            : 'Seat $label set to vacant.')),
       );
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error releasing seat: $e')),
+        SnackBar(content: Text(friendlyError(e))),
+      );
+    }
+  }
+
+  Future<void> _notifySeatMember(
+      String memberId, String title, String message, String type) async {
+    try {
+      await supabase.from('notifications').insert({
+        'user_id': memberId,
+        'title': title,
+        'body': message,
+        'data': {'type': type},
+      });
+    } catch (e) {
+      debugPrint('seat notify failed: $e');
+    }
+  }
+
+  /// Reassign an occupied seat's member to another **vacant seat in the same
+  /// shift**: frees the old seat, occupies the new one, updates the membership's
+  /// `seat_id`, notifies the member, and audits. (Was a no-op that just opened
+  /// the layout editor.)
+  Future<void> _reassignSeat(Map<String, dynamic> seat) async {
+    final memberObj = seat['occupied_by_member_id'];
+    final memberId = memberObj?['id']?.toString();
+    final memberName = (memberObj?['full_name'] ?? 'Member').toString();
+    final oldSeatId = seat['id'].toString();
+    final oldLabel = (seat['seat_label'] ?? 'seat').toString();
+    final shiftId = seat['shift_id']?.toString();
+
+    if (memberId == null) return;
+
+    // Vacant seats in the SAME shift (a member can't move across shifts here).
+    final vacant = _seatsList
+        .where((s) =>
+            s['status'] == 'vacant' &&
+            (shiftId == null || s['shift_id']?.toString() == shiftId) &&
+            s['id'].toString() != oldSeatId)
+        .toList();
+
+    if (vacant.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No vacant seats available in this shift to reassign.')),
+      );
+      return;
+    }
+
+    final chosen = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Reassign $memberName — from seat $oldLabel',
+                  style: GoogleFonts.outfit(
+                      fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Pick a vacant seat in the same shift:',
+                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: vacant
+                    .map((s) => ListTile(
+                          leading: const Icon(Icons.event_seat, color: Color(0xFF22C55E)),
+                          title: Text('Seat ${s['seat_label']}',
+                              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                          trailing: const Icon(Icons.chevron_right, size: 16),
+                          onTap: () => Navigator.pop(ctx, s),
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+
+    if (chosen == null) return;
+    final newSeatId = chosen['id'].toString();
+    final newLabel = (chosen['seat_label'] ?? 'seat').toString();
+
+    try {
+      // Re-validate the target is still vacant (avoid a race).
+      final check = await supabase.from('seats').select('status').eq('id', newSeatId).single();
+      if (check['status'] != 'vacant') {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('That seat was just taken. Try another.')),
+        );
+        return;
+      }
+
+      // Free old, occupy new, sync membership.
+      await supabase.from('seats').update({
+        'status': 'vacant',
+        'occupied_by_member_id': null,
+      }).eq('id', oldSeatId);
+      await supabase.from('seats').update({
+        'status': 'occupied',
+        'occupied_by_member_id': memberId,
+      }).eq('id', newSeatId);
+      await supabase
+          .from('memberships')
+          .update({'seat_id': newSeatId})
+          .eq('member_id', memberId)
+          .eq('library_id', widget.libraryId)
+          .eq('seat_id', oldSeatId);
+
+      await _notifySeatMember(
+        memberId,
+        'Seat reassigned',
+        'Your seat has been changed from $oldLabel to $newLabel by the admin.',
+        'seat_reassigned',
+      );
+      await AuditLogger.instance.log(
+        action: 'seat_reassign',
+        category: AuditLogger.categoryMembers,
+        title: 'Reassigned seat',
+        details: '$memberName · $oldLabel → $newLabel',
+        libraryId: widget.libraryId,
+      );
+
+      _fetchSeatsAndSections();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$memberName moved to seat $newLabel. Member notified.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }
@@ -650,9 +829,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   trailing: const Icon(Icons.chevron_right, size: 16),
                   onTap: () {
                     Navigator.pop(ctx);
-                    if (mounted) {
-                      Navigator.pushNamed(context, '/admin/library/setup/2').then((_) => _fetchSeatsAndSections());
-                    }
+                    if (mounted) _reassignSeat(seat);
                   },
                 ),
                 ListTile(
@@ -682,7 +859,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
                   title: Text('Remove from Seat', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red)),
                   onTap: () {
-                    if (mounted) _releaseSeatVacancy(seat['id'], seat['seat_label']);
+                    if (mounted) _releaseSeat(seat);
                   },
                 ),
               ] else ...[

@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/image_optimizer.dart';
 import 'notifications_screen.dart';
+import 'contact_admin_screen.dart';
 import 'reservations/renewal_screen.dart';
 import 'reservations/join_flow_screen.dart';
 import 'library_public_profile_screen.dart';
@@ -1707,6 +1708,22 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
           ),
           child: Column(
             children: [
+              _buildRowItem(
+                icon: Icons.forum_outlined,
+                iconBg: const Color(0xFFFFEDD5),
+                iconColor: const Color(0xFFE65C00),
+                title: 'Contact Admin',
+                subtitle: 'Send queries & see admin replies',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ContactAdminScreen(),
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
               _buildRowItem(
                 icon: Icons.chat_bubble_outline,
                 iconBg: const Color(0xFFDBEAFE),

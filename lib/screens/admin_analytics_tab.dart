@@ -117,6 +117,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   int _checkedInCount = 0;
   int _checkedOutCount = 0;
   int _absentCount = 0;
+  int _holidaysThisMonth = 0;
   List<Map<String, dynamic>> _attendanceLogs = [];
   List<double> _leaderboardValues = [];
   List<String> _leaderboardLabels = [];
@@ -407,6 +408,37 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       });
     } catch (e) {
       debugPrint('Error fetching floors/shifts: $e');
+    }
+
+    // Holidays in the current month (range-aware: count each closed calendar
+    // day that falls inside this month, de-duplicated).
+    try {
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      final monthEnd = DateTime(now.year, now.month + 1, 0); // last day
+      String fmt(DateTime d) =>
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final rows = await _supabase
+          .from('scheduled_closures')
+          .select('start_date, end_date')
+          .eq('library_id', _filterLibraryId!)
+          .lte('start_date', fmt(monthEnd))
+          .gte('end_date', fmt(monthStart));
+      final days = <String>{};
+      for (final r in List<Map<String, dynamic>>.from(rows)) {
+        final s = DateTime.tryParse((r['start_date'] ?? '').toString().split('T').first);
+        final e = DateTime.tryParse((r['end_date'] ?? r['start_date'] ?? '').toString().split('T').first);
+        if (s == null) continue;
+        var d = s.isBefore(monthStart) ? monthStart : s;
+        final last = (e ?? s).isAfter(monthEnd) ? monthEnd : (e ?? s);
+        while (!d.isAfter(last)) {
+          days.add(fmt(d));
+          d = d.add(const Duration(days: 1));
+        }
+      }
+      if (mounted) setState(() => _holidaysThisMonth = days.length);
+    } catch (e) {
+      debugPrint('Error fetching holiday count: $e');
     }
   }
 
@@ -719,6 +751,36 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     _expiringThisMonthRevenue = monthRev;
   }
 
+  // Maps this screen's dropdown labels to the canonical lowercase expenditure
+  // category keys enforced by the DB CHECK (the other entry path,
+  // add_expense_bottom_sheet, already lowercases; these two aliases differ).
+  static const Map<String, String> _expenseCategoryToKey = {
+    'Electricity': 'electricity',
+    'Rent': 'rent',
+    'Water': 'water',
+    'Salaries': 'salary',
+    'Internet': 'internet',
+    'Maintenance': 'maintenance',
+    'Others': 'miscellaneous',
+  };
+
+  // Title-Case dropdown label -> canonical key (for writes).
+  static String _expenseCategoryKey(String label) =>
+      _expenseCategoryToKey[label] ?? label.toLowerCase();
+
+  // Canonical key -> a friendly display label (for reads/display).
+  static String _expenseCategoryLabel(String key) {
+    final k = key.toLowerCase();
+    switch (k) {
+      case 'salary':
+        return 'Salaries';
+      case 'miscellaneous':
+        return 'Others';
+      default:
+        return k.isEmpty ? 'Others' : k[0].toUpperCase() + k.substring(1);
+    }
+  }
+
   // Expenditures database actions
   Future<void> _addExpense(double amount, String category, String notes, DateTime date) async {
     if (_filterLibraryId == null) return;
@@ -912,7 +974,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       onPressed: () {
                         final amt = double.tryParse(amountController.text) ?? 0.0;
                         if (amt > 0) {
-                          _addExpense(amt, selectedCategory, noteController.text.trim(), selectedDate);
+                          _addExpense(amt, _expenseCategoryKey(selectedCategory), noteController.text.trim(), selectedDate);
                           Navigator.pop(ctx);
                         }
                       },
@@ -951,7 +1013,8 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     final amountController = TextEditingController(text: (exp['amount'] as num?)?.toDouble().toStringAsFixed(0));
     final noteController = TextEditingController(text: exp['notes'] ?? '');
     final List<String> categories = ['Electricity', 'Rent', 'Water', 'Salaries', 'Internet', 'Maintenance', 'Others'];
-    String selectedCategory = exp['category'] ?? 'Others';
+    // Stored value is a canonical lowercase key; map it back to a dropdown label.
+    String selectedCategory = _expenseCategoryLabel((exp['category'] ?? '').toString());
     if (!categories.contains(selectedCategory)) {
       selectedCategory = 'Others';
     }
@@ -1047,7 +1110,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       onPressed: () {
                         final amt = double.tryParse(amountController.text) ?? 0.0;
                         if (amt > 0) {
-                          _editExpense(exp['id'].toString(), amt, selectedCategory, noteController.text.trim(), selectedDate);
+                          _editExpense(exp['id'].toString(), amt, _expenseCategoryKey(selectedCategory), noteController.text.trim(), selectedDate);
                           Navigator.pop(ctx);
                         }
                       },
@@ -2087,6 +2150,58 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
 
 
   // --- Card Construction Helpers ---
+  Widget _buildHolidayCard() {
+    final monthName = DateFormat('MMMM').format(DateTime.now());
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFD1B3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: const BoxDecoration(
+              color: Color(0xFFE65C00),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.event_busy, color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _holidaysThisMonth == 1
+                      ? '1 holiday in $monthName'
+                      : '$_holidaysThisMonth holidays in $monthName',
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF9A3412),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _holidaysThisMonth == 0
+                      ? 'No closures scheduled this month.'
+                      : 'Closed days don’t count against attendance.',
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: const Color(0xFF9A3412),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatCard({
     required String title,
     required String value,
@@ -2708,7 +2823,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                     final exp = _allExpenses[index];
                     final String id = exp['id'].toString();
                     final double amt = (exp['amount'] as num?)?.toDouble() ?? 0.0;
-                    final String category = exp['category'] ?? 'Others';
+                    final String category = _expenseCategoryLabel((exp['category'] ?? '').toString());
                     final date = DateTime.parse(exp['expense_date']).toLocal();
 
                     return Container(
@@ -2821,7 +2936,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                     width: (MediaQuery.of(context).size.width - 64 - 10) / 2,
                     child: _buildReportBtn('Expense Report', () {
                       final data = _allExpenses.map((e) => {
-                        'category': e['category'],
+                        'category': _expenseCategoryLabel((e['category'] ?? '').toString()),
                         'amount': e['amount'],
                         'date': DateFormat('dd MMM yyyy').format(DateTime.parse(e['expense_date']).toLocal()),
                       }).toList();
@@ -3348,6 +3463,8 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        _buildHolidayCard(),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),

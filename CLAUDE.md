@@ -1,14 +1,19 @@
 # CLAUDE.md — SILENCE Project Memory & Audit Handoff
 
-> **Purpose of this file.** This is the single source of truth a *new* Claude Code session
-> reads first. It captures the full context of the 16-phase production-readiness audit
-> completed on **2026-06-08**, links to every detailed report, and states **exactly what to
-> do next**. If the chat session that produced the audit is deleted, this file lets the next
-> session pick up without re-deriving anything.
+> **Purpose of this file.** Single source of truth a *new* Claude Code session reads first. It
+> captures (a) the 16-phase production-readiness audit completed **2026-06-08**, and (b) the
+> **active remediation** that began **2026-06-09** (the 3-phase UI/UX → Flow → Schema overhaul).
+> If the chat session is deleted, this file + the `docs_fix/` docs let the next session continue
+> without re-deriving anything.
 >
-> **Read order for a fresh session:** (1) this file → (2) `docs_audit/AUDIT_PHASE_16.md`
-> (the consolidated verdict + roadmap) → (3) the specific phase report(s) for whatever you're
-> about to work on.
+> **Read order for a fresh session:**
+> 1. **This file** (status + what's done + what's next).
+> 2. **`docs_fix/UIUX_OVERHAUL_DECISIONS.md`** — every product/UX decision made with the user
+>    (the reframes; the golden rules). ⭐ READ THIS — several decisions OVERRIDE the old spec.
+> 3. **`docs_fix/IMPLEMENTATION_PLAN.md`** — the 3-phase plan + a running log of what's been built.
+> 4. **`docs_fix/AUDIT_CHECKLIST.md`** — ⭐ done/partial/pending checklist mapping the 16-phase audit
+>    (22 criticals + root causes + waves) to the remediation shipped. The fastest "what's left" view.
+> 5. `docs_audit/AUDIT_PHASE_16.md` + the specific phase report — for the *evidence* behind a defect.
 
 ---
 
@@ -17,25 +22,147 @@
 - **What this is:** SILENCE — a Flutter + Supabase library / study-space management app for
   Indian Tier-2/3 cities (admins manage seats/members/attendance/payments/analytics; members
   track attendance, streaks, leaderboard, membership).
-- **What just happened:** A full 17-report audit (Phases 0–16) was completed. **Audit only —
-  no application code was modified at any point.**
-- **The verdict:** **~2.5 / 10 production-readiness. NO-GO for public or paid release.**
-- **Findings:** **22 Critical · 68 High · 63 Medium · 22 Low** (175 defects) + 38 capability
-  gaps. ~90% of all findings trace to **5 root causes** (see §4).
-- **The next action (when the user says "continue" / "start fixing"):** Begin **Wave 0 —
-  Stop-the-bleeding** (see §5). It is mostly small RLS/storage/config changes and removes the
-  PII-breach + deploy-breaking + build blockers, unlocking a controlled pilot. **Wave 0 is the
-  first thing to do, and it is the cheapest high-impact work.**
-- **The one architectural investment that fixes most of the board:** build a **server-side
-  tier** (RPC / Supabase Edge Functions + precompute). This is Root Cause RC-1.
+- **Current mode: ACTIVE REMEDIATION (code IS being modified).** The 16-phase audit (the
+  *starting baseline*: **~2.5/10**, 22 C · 68 H · 63 M · 22 L) is complete and lives in
+  `docs_audit/`. Since **2026-06-09** we are executing a user-directed **3-phase overhaul**:
+  **(A) UI/UX layer → (B) Navigation/Flow/Functions → (C) Backend schema.**
+- **⚠️ The audit's "no code was modified" statements are now HISTORICAL.** Code in `lib/` is being
+  actively changed. Git diffs in `lib/` are *intended remediation*, not audit artifacts.
+- **⚠️ Source of truth = the EXISTING CODEBASE, not `silence_app/` spec.** The user added/removed
+  features after the spec was written. Several decisions in `docs_fix/UIUX_OVERHAUL_DECISIONS.md`
+  deliberately diverge from the spec/audit (see "Key reframes" below).
+- **Working rules (from the user):** refine current warm-orange Material-3 style (no redesign);
+  maintain UI consistency + color hierarchy; **no dishonest UI** (never show success/"paid"/
+  "notified" for something that didn't happen); **ask before adding** anything not already decided;
+  run `flutter analyze` after edits (target: 0 new errors; pre-existing infos are baseline).
 
-> ⚠️ **Before writing any code:** the audit was deliberately read-only. Starting remediation
-> means changing that mode. Confirm with the user which Wave / which findings to fix, then make
-> the change set small and reviewable (Wave 0 items are independent and can land one at a time).
+### Key reframes (these OVERRIDE the old spec/audit "fixes")
+- **Member ↔ library-admin payment is OUT OF APP.** Member taps a real UPI deep-link
+  (`upi://pay`) to the admin's configured UPI, pays externally, then taps **"I have paid"**; the
+  admin verifies in their own bank app and confirms. No in-app gateway, no screenshot-theatre.
+- **Razorpay is ONLY app-owner ↔ library-owner** (subscription gateway), integrated **last**.
+  First 1–2 months everyone is **free tier**. Subscription screen shows **mock plans (Free +
+  ₹499 + ₹799)** for now.
+- **Member-side "create hold" was REMOVED.** Only **admins** hold/resume a membership; members can
+  **request** an early resume (via the query inbox).
+- **Identity verification (email/phone OTP): screens/functions built but kept DISABLED** for now.
+- **Notifications:** in-app center is real now; **FCM push** still pending.
+
+### What's DONE so far (remediation) — details in `docs_fix/IMPLEMENTATION_PLAN.md`
+- **A0 foundation:** `lib/theme/app_colors.dart` (tokens), `lib/widgets/states/` (Loading/Empty/
+  Error/Offline reusable widgets), `lib/utils/error_messages.dart` (`friendlyError`),
+  `lib/utils/upi_launcher.dart` (UPI deep-link + app detection).
+- **Notification center** (real `notifications` table; fixed 2 broken insert sites).
+- **Join/Renewal payment reframe** (real UPI deep-links + "I have paid" + honest copy).
+- **Admin "Payment Methods" section** (+ fixed a social-links JSONB overwrite bug; deleted dead
+  `payment_setup.dart`).
+- **member_home revamp:** honest error/offline state; expiry "0 days left" bug fixed; bell → real
+  notifications + unread badge; **hold reframe**; **library card redesign** (bigger name, IST 12h
+  shift timing, joining date, Renew + ⋮ menu); **session cards** (previous-below-running, multi-
+  session aware, "Today's/Yesterday's Session"); **Recent Activities** times fixed to **IST** +
+  join/renewal events.
+- **Scanner:** multi-session per day enabled; 10-min checkout cooldown **temporarily disabled**
+  (`minCheckoutMinutes=0`).
+- **Admin Hold/Resume membership** (member_detail) + **seat-change Reject** path (requests_sub_tab).
+- **Holiday management** (rename "Close Today"): new canonical `lib/utils/holiday_service.dart`
+  (`scheduled_closures` with **`start_date`/`end_date`** range; add single/range, notify members,
+  remove). Rewrote `scheduled_closures.dart` → "Holidays & Closures" screen (single/range toggle,
+  honest states, **removed fake fallback data + dishonest success**). `admin_home`: Quick Action
+  "Close Library" → **"Holidays"** writing the correct table (was dead `library_closures`) + close-
+  today + **"Today is a holiday" dashboard banner**. `qr_scanner`: closure gate now **range-aware**
+  (was a non-existent `closed_date` column). `member_home`: **"Library closed today" card + disabled
+  check-in/FAB**. `admin_analytics_tab`: **"N holidays in <month>"** card. *Fixed a 3-way schema
+  conflict — all closure code now standardized on `scheduled_closures.start_date/end_date`.*
+- **Contact Admin / Queries loop** (was dead at both ends): new
+  `lib/screens/contact_admin_screen.dart` — member **"Contact Admin"** hub with **2 tabs (My Queries
+  + Replies)** and a **submit-form compose** (not chat) with a library picker. Member entry: **home
+  quick-action "Contact Admin"** (replaced the redundant Scan-QR quick action; FAB still scans) +
+  **profile tab**. `admin_home` Manage-Queries (kept as **"Queries"**) now **replies** (`admin_reply`
+  + `status='replied'` + `replied_at`) **and notifies the member** (`query_reply`). Canonical
+  `queries` columns. *Phase C: `queries` drift — `help_support` inserts `subject`/`type`; old status
+  `'resolved'` vs CHECK `open/replied/closed`.*
+- **Stats loading skeleton:** member_home's full-screen spinner → **layout-matching skeleton**
+  (`_buildHomeSkeleton`, Shimmer + SkeletonBox). member_analytics/admin already used skeletons.
+- **Offline cached membership card:** member_home caches memberships+profile; on a load failure
+  falls back to `_loadFromCache()` (renders the card from cache, forces not-checked-in — no fake
+  live state) + a tap-to-retry **OfflineBanner**, instead of a blocking error screen.
+- **Member home cards UI:** **streak card** → fixed **Sunday→Saturday** week (was rolling 7 days),
+  today ring-highlighted, future dimmed, + details row (This week N/7 · Best streak · Total days);
+  **Quick Actions** got a title + the set is now **Contact Admin · Refer & Earn · Renew · Find
+  Library** (Refer = honest `referral_code` + Copy + Share; Renew → real RenewalScreen; dropped
+  Join-with-Code/Seat-Change from the row — still reachable elsewhere; deleted dead
+  `_openJoinWithCodeSheet`); **Recent Activities** card is now height-bounded + internally scrollable.
+  *(Deferred, no data model — won't fake: dues banner, offline cached membership card.)*
+- **Member screens states-pass:** swept member-facing screens — replaced raw `$e` shown to users
+  with `friendlyError(e)` (profile_edit, privacy_security ×6, notification_prefs, help_support ×2,
+  member_help_support, history_tab, analytics_tab) and **killed member_explore's dishonest
+  "Suggestion submitted ✓" fallback** (showed success even when the `leads` insert failed → now
+  honest error + keeps form for retry).
+
+- **Phase B wiring (started):** **real payment amount** (approval derives shift-plan price + add-ons
+  − discount via `_computeApprovalAmount`; killed hardcoded 1500/4000/7500); **add-ons persist**
+  (join_flow writes `selected_addon_ids` gracefully; approval inserts `member_add_ons` + folds add-on
+  price into amount); **notify member** on join/renewal approve+reject and payment confirm/reject;
+  **central audit helper** `lib/utils/audit_logger.dart` (canonical `audit_log` with display fields in
+  `details` JSONB) + reader/`_logAudit` aligned. **B5 seat reassign/release sync** (layout_sub_tab:
+  real Reassign dialog with same-shift vacant seats → free old + occupy new + update
+  `memberships.seat_id` + notify + audit; Remove-from-Seat nulls membership.seat_id — no more desync).
+  **B6 honest subscription screen** (3 mock plans Free/₹499/₹799; removed Razorpay sim sheet,
+  `Future.delayed`, fake invoice, self-activation → "free during beta / coming soon").
+  *Phase C dep RESOLVED: `join_requests.selected_addon_ids` added in the Phase C migration.*
+- **Account deletion + UX polish:** member **and admin** account-deletion both require a **type-DELETE**
+  confirm + explicit warnings, set `scheduled_for_deletion` (honest request flag, no real purge —
+  server-tier later); **member_home reflects it** (red pending-deletion banner → Privacy, check-in
+  disabled via FAB hide + `_openQRScanner` guard). **Contact Admin** = single screen now (dropped the
+  redundant Replies tab; replies show inline). **Admin profile** got a **Subscription & Billing** entry
+  (`/admin/subscription`). **Global status-bar/top-bar consistency** (`SystemUiOverlayStyle` in `main()`
+  + `AppBarTheme.systemOverlayStyle` → orange + light icons everywhere). **Dup-prevention:** member
+  submit gated on `_isSubmitting`; admin approval has an `_isApproving` re-entrancy guard.
+- **Phase B client-doable closed (2026-06-11):** **admin referral-config** (profile → Operations →
+  Referral Rewards, honest "manual crediting for now"); **member transfer** (`member_transfer_screen.dart`
+  — move member between own libraries, expiry preserved, dup/seat-race guards, writes `transfers`);
+  **draft persistence** (`lib/utils/form_draft.dart` — join/renewal auto-save + Resume/Start-fresh,
+  clear-on-submit, scoped per-user+library).
+- **Phase C schema reconciliation AUTHORED (2026-06-11):** runnable migration
+  `silence_app/migrations/2026-06-11_phase_c_reconciliation.sql` + unified canonical
+  `supabase_schema.sql`. Added 6 missing tables (settings, streaks, member_daily_stats, leads,
+  verification_requests, draft_members) w/ RLS; columns `join_requests.selected_addon_ids`,
+  `queries.subject/type/screenshot_url`, `users.referral_code/scheduled_for_deletion/
+  deletion_scheduled_at`, `seat_change_requests.approved_at`; guarded partial-uniques (one live
+  membership per member/library; one seat per live membership) + attendance CHECKs; retired dead
+  `library_closures` (opt-in §E). **Code fix:** `admin_analytics_tab` expense categories → canonical
+  lowercase keys (+ label map) so both expense screens share one vocabulary. Loose
+  `expenditures.sql`/`draft_members.sql`/`indices.sql` marked SUPERSEDED. Decisions: **additive only**
+  (no existing-RLS changes), **guarded constraints**, **fix code to canonical**. ⛔ **NOT applied to a
+  live DB** — apply order + verification gate (VC-01…VC-06) in `docs_fix/PHASE_C_SCHEMA.md`.
+
+### Next action (when the user says "continue"/"GO")
+- **Apply Phase C to the live DB** (manual, per `docs_fix/PHASE_C_SCHEMA.md`): run §A pre-checks →
+  §B/§C/§D → §F if clean → optional §E. Then verify VC-01…VC-06.
+- **Security/RLS track (Wave 0/1, ⛔ needs live DB):** the dangerous policies Phase C deliberately did
+  NOT touch — P5-01 (`memberships` open UPDATE), P5-07 (`users` PII SELECT), P5-08 (`WITH CHECK(true)`
+  forged inserts on referrals/badges/notifications/audit_log) — plus storage scoping, build keystore +
+  INTERNET, iOS location crash.
+- **Phase B remaining (server/OTP-gated):** ⛔ FCM send · ⛔ claim/link (phone OTP, disabled) ·
+  🟡 referral auto-credit (server job) · owner-visibility of deletion requests (app-owner console).
+
+> The original audit roadmap below (Waves 0–4, root causes, the 22 criticals) remains the
+> **evidence base and longer-term security/architecture plan** — especially RC-1 (server tier),
+> storage/RLS (Wave 0 security), and real payments/account-deletion. The remediation above is the
+> user-prioritized **UI/flow/schema** track running ahead of the server-tier work.
 
 ---
 
-## 1. Project Snapshot (verified facts)
+## 0b. (Historical) Original audit verdict & roadmap
+
+> Everything from §1 onward is the **original 2026-06-08 audit** — the baseline and evidence base.
+> Some snapshot facts below (e.g. "payments mocked", "notifications stub") have since been
+> **partially remediated** — see §0 and `docs_fix/` for the current state. Treat §1–§9 as the
+> reference for *why* a defect existed and *where* the evidence is, not as the current status.
+
+---
+
+## 1. Project Snapshot (verified facts — as of the 2026-06-08 audit)
 
 | Attribute | Finding | Source of truth |
 |---|---|---|

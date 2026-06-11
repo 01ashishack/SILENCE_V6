@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../core/image_optimizer.dart';
+import '../utils/error_messages.dart';
 
 class MemberHelpSupportScreen extends StatefulWidget {
   const MemberHelpSupportScreen({super.key});
@@ -71,7 +72,8 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
       if (!mounted) return;
       }
     } catch (e) {
-      _showErrorSnackBar('Could not launch links: $e');
+      debugPrint('launchUrl failed: $e');
+      _showErrorSnackBar('Couldn’t open the link.');
     }
   }
 
@@ -163,7 +165,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
               });
               _showSuccessSnackBar('Screenshot attached! ✓');
             } catch (e) {
-              _showErrorSnackBar('Failed to upload screenshot: $e');
+              _showErrorSnackBar(friendlyError(e));
             } finally {
               setModalState(() => isUploadingFile = false);
             }
@@ -238,7 +240,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
                 Navigator.pop(ctx);
               }
             } catch (e) {
-              if (mounted) _showErrorSnackBar('Failed to submit issue report: $e');
+              if (mounted) _showErrorSnackBar(friendlyError(e));
             } finally {
               setModalState(() => isSubmitting = false);
             }

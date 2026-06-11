@@ -9,10 +9,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/image_optimizer.dart';
 import '../utils/pdf_exporter.dart';
 import 'notifications_screen.dart';
-import 'reservations/renewal_screen.dart';
 import 'reservations/join_flow_screen.dart';
 import 'past_library_detail_screen.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/error_messages.dart';
 
 class MemberHistoryTab extends StatefulWidget {
   const MemberHistoryTab({super.key});
@@ -166,7 +166,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       debugPrint('Error loading history tab: $e');
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -2754,7 +2754,7 @@ class _ReuploadProofBottomSheetState extends State<ReuploadProofBottomSheet> {
       debugPrint('Re-upload exception: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Re-submission failed: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     } finally {
@@ -3027,7 +3027,7 @@ class _ExportOptionsBottomSheetState extends State<ExportOptionsBottomSheet> {
     } catch (e) {
       debugPrint('Export failed: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to generate export file: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     } finally {
       if (mounted) {

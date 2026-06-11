@@ -1,0 +1,67 @@
+# .claudeignore — files Claude/agents should skip when searching/reading.
+# Goal: keep context lean (don't waste tokens on huge generated dumps or build
+# artifacts). Source of truth for the app is lib/ + docs_fix/ + silence_app/.
+#
+# NOTE: the always-honored ignore mechanism is .gitignore (Glob/Grep respect it)
+# and, for a hard Read-block, permissions.deny in .claude/settings*.json.
+# This file mirrors those intents and adds the big analyzer dumps that are NOT
+# in .gitignore. Keep it in sync with .gitignore.
+
+# ── Huge analyzer / log dumps at repo root (100–200 KB each, regenerated) ──
+analyze.log
+analyze_*.txt
+analyze_output*.txt
+extracted_raw_phase2.txt
+
+# ── Build / tooling artifacts (also in .gitignore) ──
+build/
+.dart_tool/
+.pub-cache/
+.pub/
+coverage/
+.flutter-plugins-dependencies
+graphify-out/
+scratch/
+**/doc/api/
+
+# ── Platform build folders (config lives elsewhere; these are noise) ──
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/.gradle/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework/
+ios/Flutter/Flutter.podspec
+macos/Pods/
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+web/
+
+# ── IDE / OS ──
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# ── Lockfiles / generated ──
+pubspec.lock
+*.g.dart
+*.freezed.dart
+app.*.symbols
+app.*.map.json
+
+# ── Assets (binary; reference by path, don't read) ──
+assets/**/*.png
+assets/**/*.jpg
+assets/**/*.jpeg
+assets/**/*.webp
+assets/**/*.ttf
+assets/**/*.otf
+
+# ── Keep (do NOT ignore) — listed for clarity, not active rules ──
+# lib/                  → the app (source of truth)
+# docs_fix/             → live remediation docs (plan, decisions, checklist)
+# CLAUDE.md             → session handoff
+# docs_audit/           → audit evidence (read on demand; large but useful)
+# silence_app/          → original spec (stale; reference only)

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/supabase_config.dart';
 import 'core/offline_db.dart';
@@ -56,6 +57,14 @@ import 'screens/admin/all_reviews_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Consistent status bar across all screens: orange background + light icons
+  // so the safe-area / top bar always matches the brand color.
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Color(0xFFE65C00),
+    statusBarIconBrightness: Brightness.light, // Android icons
+    statusBarBrightness: Brightness.dark, // iOS icons
+  ));
+
   // 1. Initialize Supabase Client
   await SupabaseConfig.initialize();
 
@@ -88,6 +97,19 @@ class SilenceApp extends StatelessWidget {
           secondary: const Color(0xFF0F172A), // Sleek Dark Slate
         ),
         scaffoldBackgroundColor: const Color(0xFFFBF5EE), // premium warm cream
+
+        // Keep every AppBar on-brand: orange bar + white foreground + light
+        // status-bar icons (so the top never looks different per screen).
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFE65C00),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Color(0xFFE65C00),
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+          ),
+        ),
         
         // Dialog and Bottom Sheet themes set to crisp white
         dialogTheme: const DialogThemeData(

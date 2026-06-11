@@ -2,25 +2,31 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:share_plus/share_plus.dart';
 import '../core/offline_sync.dart';
 import '../core/cache_service.dart';
 import '../utils/time_utils.dart';
+import '../utils/holiday_service.dart';
+import '../utils/error_messages.dart';
+import '../widgets/states/states.dart';
 import 'reservations/qr_scanner_screen.dart';
 import 'reservations/join_flow_screen.dart';
 import 'member_profile_edit.dart';
 import 'member_analytics_tab.dart';
 import 'library_public_profile_screen.dart';
 import 'member_history_tab.dart';
-import '../core/calendar_picker.dart';
 import '../widgets/seat_change_bottom_sheet.dart';
 import 'reservations/renewal_screen.dart';
 import 'reservations/library_query_screen.dart';
 import 'member_profile_tab.dart';
+import 'notifications_screen.dart';
+import 'contact_admin_screen.dart';
 
 enum MemberState {
   freshInstall,           // profile incomplete
@@ -46,6 +52,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   
   bool _isLoading = true;
   String? _errorMessage;
+  // True when the load failed (offline) but we rendered from cached memberships.
+  bool _isOfflineCached = false;
 
   // Domain data
   Map<String, dynamic>? _userProfile;
@@ -55,6 +63,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   Map<String, dynamic>? _pendingRequest;
   List<Map<String, dynamic>> _announcements = [];
   Set<String> _readAnnouncementIds = {};
+  int _unreadNotifications = 0; // unread rows in notifications table (header bell badge)
   Map<String, dynamic>? _activeAttendance;
   Map<String, dynamic>? _lastCompletedAttendance;
   
@@ -83,6 +92,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   // Previous session (for small extra card)
   Map<String, dynamic>? _previousSession;
+
+  // Today's holiday per joined library (libraryId -> Holiday). Empty = open.
+  Map<String, Holiday> _todayHolidays = {};
 
   // Timer
   Timer? _sessionTimer;
@@ -187,6 +199,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _isOfflineCached = false;
     });
 
     try {
@@ -257,6 +270,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
       final allMemberships = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
       _allMemberships = allMemberships;
+      // Cache memberships + profile so the card still renders when offline.
+      CacheService.instance.writeCache('member_memberships', allMemberships);
+      if (_userProfile != null) {
+        CacheService.instance.writeCache('member_profile', _userProfile);
+      }
 
       _activeAttendance = results[3] as Map<String, dynamic>?;
       _lastCompletedAttendance = results[4] as Map<String, dynamic>?;
@@ -319,6 +337,39 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         _readAnnouncementIds = {};
       }
 
+      // Unread in-app notifications (header bell badge).
+      try {
+        final notifRes = await supabase
+            .from('notifications')
+            .select('id')
+            .eq('user_id', currentUser.id)
+            .isFilter('read_at', null);
+        _unreadNotifications = (notifRes as List).length;
+      } catch (_) {
+        _unreadNotifications = 0;
+      }
+
+      // Today's holidays for joined libraries (range-aware). Drives the
+      // member dashboard "Closed today" state + disabled check-in.
+      _todayHolidays = {};
+      if (joinedLibIds.isNotEmpty) {
+        try {
+          final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+          final closureRes = await supabase
+              .from('scheduled_closures')
+              .select('library_id, reason, start_date, end_date')
+              .inFilter('library_id', joinedLibIds)
+              .lte('start_date', todayStr)
+              .gte('end_date', todayStr);
+          for (final row in List<Map<String, dynamic>>.from(closureRes)) {
+            final h = Holiday.fromRow(row);
+            _todayHolidays[h.libraryId] = h;
+          }
+        } catch (e) {
+          debugPrint('member holiday fetch failed: $e');
+        }
+      }
+
       // 6. Calculate Streak and Trophy Stats from full history
       final allAttendanceRes = await supabase
           .from('attendance')
@@ -354,6 +405,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         supabase.from('payments').select('payment_date, amount, status, libraries(name)').eq('member_id', currentUser.id).order('payment_date', ascending: false).limit(5),
         supabase.from('seat_change_requests').select('created_at, status, reason, libraries(name)').eq('member_id', currentUser.id).order('created_at', ascending: false).limit(5),
         supabase.from('hold_requests').select('created_at, status, start_date, end_date, libraries(name)').eq('member_id', currentUser.id).order('created_at', ascending: false).limit(5),
+        supabase.from('join_requests').select('created_at, status, plan_type, libraries(name)').eq('member_id', currentUser.id).order('created_at', ascending: false).limit(5),
       ]);
 
       List<Map<String, dynamic>> activities = [];
@@ -416,19 +468,48 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         final status = hr['status'] ?? 'pending';
         activities.add({
           'time': DateTime.parse(hr['created_at']),
-          'action': 'Membership Pause Request',
+          'action': 'Membership Hold',
           'details': 'Status: ${status.toString().toUpperCase()}',
           'location': libName,
           'color': status == 'approved' ? const Color(0xFF22C55E) : (status == 'rejected' ? const Color(0xFFEF4444) : const Color(0xFF3B82F6)),
         });
       }
 
+      // Join / Renewal requests
+      final jrList = List<Map<String, dynamic>>.from(activityFutures[4]);
+      for (var jr in jrList) {
+        final libName = jr['libraries']?['name'] ?? 'Library';
+        final status = (jr['status'] ?? 'pending').toString();
+        activities.add({
+          'time': DateTime.parse(jr['created_at']),
+          'action': status == 'approved'
+              ? 'Membership Approved'
+              : status == 'rejected'
+                  ? 'Membership Request Rejected'
+                  : 'Membership Request',
+          'details': 'Status: ${status.toUpperCase()}',
+          'location': libName,
+          'color': status == 'approved'
+              ? const Color(0xFF22C55E)
+              : (status == 'rejected' ? const Color(0xFFEF4444) : const Color(0xFF3B82F6)),
+        });
+      }
+
       activities.sort((a, b) => (b['time'] as DateTime).compareTo(a['time'] as DateTime));
-      _recentActivities = activities.take(8).toList();
+      _recentActivities = activities.take(15).toList();
 
     } catch (e) {
       debugPrint('Error loading member home data: $e');
-      _errorMessage = e.toString();
+      // Offline (or transient network) → try to render from cache instead of a
+      // blocking error screen. Only fall back to the error state if we have no
+      // cached membership to show.
+      final usedCache = await _loadFromCache();
+      if (usedCache) {
+        _isOfflineCached = true;
+        _errorMessage = null;
+      } else {
+        _errorMessage = friendlyError(e);
+      }
     } finally {
       debugPrint('[HOME] Attendance reload complete');
       if (mounted) {
@@ -436,6 +517,37 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Populates the home from locally cached membership/profile data. Returns
+  /// true if a cached membership was found (so the card can render offline).
+  Future<bool> _loadFromCache() async {
+    try {
+      final cachedProfile = await CacheService.instance.readCache('member_profile');
+      if (cachedProfile is Map) {
+        _userProfile = Map<String, dynamic>.from(cachedProfile);
+      }
+      final cached = await CacheService.instance.readCache('member_memberships');
+      if (cached is! List || cached.isEmpty) return false;
+
+      final all = cached
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+      _allMemberships = all;
+      _myMemberships = all
+          .where((m) => ['active', 'trial', 'hold', 'expired'].contains(m['status']))
+          .toList();
+      _pastMemberships = all.where((m) => m['status'] == 'exited').toList();
+      // We can't trust live attendance offline; show the not-checked-in card.
+      _activeAttendance = null;
+      _isCheckedIn = false;
+      _stopSessionTimer();
+      return _myMemberships.isNotEmpty;
+    } catch (e) {
+      debugPrint('Cache load failed: $e');
+      return false;
     }
   }
 
@@ -611,7 +723,12 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         final firstCheckInIst = toIST(firstCheckInUtc);
         final firstSessionDateStr = DateFormat('yyyy-MM-dd').format(firstCheckInIst);
 
-        if (firstSessionDateStr == todayStr) {
+        if (_isCheckedIn) {
+          // A session is currently running. Show the most recent COMPLETED
+          // session as the "previous" card below it (supports multiple
+          // sessions in one day).
+          _previousSession = _formatSessionMap(firstSession);
+        } else if (firstSessionDateStr == todayStr) {
           _hasSessionEndedToday = true;
           final checkInTime = DateTime.parse(firstSession['check_in_time'] as String);
           final checkOutTime = DateTime.parse(firstSession['check_out_time'] as String);
@@ -670,11 +787,24 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         'shift_name': shiftName,
         'seat_label': seatLabel,
         'date': DateFormat('E, d MMM').format(toIST(checkInTime)),
+        'title': _relativeDayLabel(toIST(checkInTime)),
         'streak': '$streakAtDate Day${streakAtDate == 1 ? "" : "s"} 🔥',
       };
     } catch (_) {
       return null;
     }
+  }
+
+  /// A relative, friendly title for a session based on its IST date:
+  /// "Today's Session" / "Yesterday's Session" / else the date ("Sun, 7 Jun").
+  String _relativeDayLabel(DateTime ist) {
+    final nowIst = toIST(DateTime.now().toUtc());
+    final day = DateTime(ist.year, ist.month, ist.day);
+    final today = DateTime(nowIst.year, nowIst.month, nowIst.day);
+    final diff = today.difference(day).inDays;
+    if (diff == 0) return "Today's Session";
+    if (diff == 1) return "Yesterday's Session";
+    return DateFormat('E, d MMM').format(ist);
   }
 
   int _calculateStreakAtDate(Set<String> studyDates, DateTime date) {
@@ -784,19 +914,30 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     return maxStreak;
   }
 
+  /// Current calendar week, Sunday → Saturday (fixed order, not a rolling 7
+  /// days). Each entry: dayLabel (S/M/T/W/T/F/S), attended, isToday, isFuture.
   List<Map<String, dynamic>> _getLast7DaysAttendance(Set<String> studyDates) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // weekday: Mon=1..Sun=7 → days since the most recent Sunday.
+    final sunday = today.subtract(Duration(days: today.weekday % 7));
     List<Map<String, dynamic>> list = [];
-    for (int i = 6; i >= 0; i--) {
-      final day = DateTime.now().subtract(Duration(days: i));
+    for (int i = 0; i < 7; i++) {
+      final day = sunday.add(Duration(days: i));
       final dateStr = DateFormat('yyyy-MM-dd').format(day);
-      final dayLabel = DateFormat('E').format(day)[0];
       list.add({
-        'dayLabel': dayLabel,
+        'dayLabel': DateFormat('E').format(day)[0], // S M T W T F S
         'attended': studyDates.contains(dateStr),
+        'isToday': day == today,
+        'isFuture': day.isAfter(today),
       });
     }
     return list;
   }
+
+  /// Count of days attended within the current Sunday→Saturday week.
+  int get _thisWeekCount =>
+      _streakLast7Days.where((d) => d['attended'] == true).length;
 
   bool _isProfileIncomplete() {
     final name = _userProfile?['full_name'] as String?;
@@ -971,8 +1112,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         top: true,
         child: Scaffold(
           backgroundColor: const Color(0xFFFBF5EE),
-          body: _isLoading 
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00)))
+          body: _isLoading
+              ? _buildHomeSkeleton()
               : _errorMessage != null
                   ? _buildErrorState()
                   : _buildCurrentTabContent(),
@@ -992,8 +1133,22 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
+  /// Today's holiday for the member's primary membership library, or null.
+  Holiday? get _primaryLibraryHoliday {
+    if (_todayHolidays.isEmpty || _myMemberships.isEmpty) return null;
+    final libId = _myMemberships.first['library_id']?.toString();
+    if (libId == null) return null;
+    return _todayHolidays[libId];
+  }
+
+  /// True when the member has requested account deletion (grace period).
+  bool get _isPendingDeletion => _userProfile?['scheduled_for_deletion'] == true;
+
   bool _shouldShowFAB() {
     if (_currentBottomTab != 0) return false;
+    // No check-in while pending deletion, or on a holiday (library closed).
+    if (_isPendingDeletion) return false;
+    if (_primaryLibraryHoliday != null) return false;
     final state = _getMemberState();
     if (state == MemberState.active || state == MemberState.trial || state == MemberState.expiringSoon) {
       return true;
@@ -1021,42 +1176,75 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
+    // Friendly, offline-aware error with retry (no raw exception text).
+    return ErrorState(error: _errorMessage, onRetry: _loadInitialData);
+  }
+
+  /// Skeleton placeholder shown while the dashboard + stats load — mirrors the
+  /// real layout (attendance, streak, quick actions, activities) so the page
+  /// doesn't jump when data arrives. Replaces the bare spinner.
+  Widget _buildHomeSkeleton() {
+    Widget block(double h) => SkeletonBox(
+          height: h,
+          borderRadius: const BorderRadius.all(Radius.circular(16)),
+        );
+    return Shimmer(
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
+            block(96), // header / greeting strip
             const SizedBox(height: 16),
-            Text(
-              'Failed to load dashboard',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage ?? 'Unknown error occurred.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
+            block(150), // today's attendance card
+            const SizedBox(height: 16),
+            block(170), // streak card
+            const SizedBox(height: 20),
+            const SkeletonBox(width: 120, height: 16), // "Quick Actions" title
+            const SizedBox(height: 12),
+            Row(
+              children: List.generate(
+                4,
+                (i) => Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: i == 3 ? 0 : 8),
+                    child: const SkeletonBox(
+                      height: 70,
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _loadInitialData,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try Again'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE65C00),
-                foregroundColor: Colors.white,
-              ),
-            )
+            const SkeletonBox(width: 140, height: 16), // "Recent Activities" title
+            const SizedBox(height: 12),
+            block(64),
+            const SizedBox(height: 12),
+            block(64),
+            const SizedBox(height: 12),
+            block(64),
           ],
         ),
       ),
     );
   }
 
+  /// Whole days from today (date-only, local) until [end]. 0 = ends today (still
+  /// the last active day), negative = already past. Avoids the `.inDays`
+  /// truncation that wrongly showed "0 days left" on the final active day.
+  int _daysLeftDateOnly(DateTime? end) {
+    if (end == null) return -1;
+    final e = end.toLocal();
+    final endDay = DateTime(e.year, e.month, e.day);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return endDay.difference(today).inDays;
+  }
+
   Widget _buildCurrentTabContent() {
-    return IndexedStack(
+    final content = IndexedStack(
       index: _currentBottomTab,
       children: [
         _buildHomeTab(),
@@ -1064,6 +1252,55 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         const MemberHistoryTab(),
         _buildProfileTab(),
       ],
+    );
+    final banners = <Widget>[
+      if (_isPendingDeletion) _buildDeletionBanner(),
+      if (_isOfflineCached)
+        InkWell(
+          onTap: _loadInitialData,
+          child: const OfflineBanner(
+            message: "You're offline — showing saved data. Tap to retry.",
+          ),
+        ),
+    ];
+    if (banners.isEmpty) return content;
+    return Column(
+      children: [
+        ...banners,
+        Expanded(child: content),
+      ],
+    );
+  }
+
+  /// Red banner shown while the account is scheduled for deletion. Tapping it
+  /// opens Privacy & Security where the member can cancel the request.
+  Widget _buildDeletionBanner() {
+    return Material(
+      color: const Color(0xFFFEF2F2),
+      child: InkWell(
+        onTap: () => Navigator.pushNamed(context, '/member/settings/privacy')
+            .then((_) => _loadInitialData()),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, size: 18, color: Color(0xFFDC2626)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Account scheduled for deletion. Check-in is disabled. Tap to cancel.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF991B1B),
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 18, color: Color(0xFFDC2626)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1096,7 +1333,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   // CURVED HEADERS FOR STAGES
   Widget _buildCurvedHeader({required String greeting, required String subtitle, required MemberState state, bool showLogo = true}) {
-    final unreadCount = _announcements.where((a) => !_readAnnouncementIds.contains(a['id'])).length;
+    final unreadCount = _unreadNotifications;
 
     return Container(
       width: double.infinity,
@@ -1126,11 +1363,12 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                 children: [
                   IconButton(
                     icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      await Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => _buildNotificationsScreen()),
+                        MaterialPageRoute(builder: (context) => const NotificationsScreen()),
                       );
+                      _refreshUnreadNotifications();
                     },
                   ),
                   if (unreadCount > 0)
@@ -1518,6 +1756,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   const SizedBox(height: 16),
 
                   // Quick actions row
+                  Text(
+                    'Quick Actions',
+                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  ),
+                  const SizedBox(height: 12),
                   _buildQuickActionsRow(),
                   const SizedBox(height: 24),
 
@@ -1647,13 +1890,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final expiringM = _allMemberships.firstWhere((m) => m['status'] == 'active', orElse: () => {});
     if (expiringM.isEmpty) return const SizedBox.shrink();
     
-    int daysLeft = 0;
-    if (expiringM['end_date'] != null) {
-      try {
-        daysLeft = DateTime.parse(expiringM['end_date']).difference(DateTime.now()).inDays;
-        if (daysLeft < 0) daysLeft = 0;
-      } catch (_) {}
-    }
+    int daysLeft = _daysLeftDateOnly(DateTime.tryParse(expiringM['end_date']?.toString() ?? ''));
+    if (daysLeft < 0) daysLeft = 0;
 
     return RefreshIndicator(
       onRefresh: _loadInitialData,
@@ -1665,7 +1903,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           children: [
             _buildCurvedHeader(
               greeting: "Hey ${_getGreetingName()}, renew soon ⏰",
-              subtitle: "Only $daysLeft days left on your plan",
+              subtitle: daysLeft <= 0
+                  ? "Your plan ends today — renew now"
+                  : "Only $daysLeft day${daysLeft == 1 ? '' : 's'} left on your plan",
               state: MemberState.expiringSoon,
             ),
             Padding(
@@ -1687,7 +1927,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Plan expiring in $daysLeft days. Renew now to keep your seat.',
+                            daysLeft <= 0
+                                ? 'Your plan ends today. Renew now to keep your seat.'
+                                : 'Plan expiring in $daysLeft day${daysLeft == 1 ? '' : 's'}. Renew now to keep your seat.',
                             style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFB45309)),
                           ),
                         )
@@ -1878,14 +2120,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final holdM = _allMemberships.firstWhere((m) => m['status'] == 'hold', orElse: () => {});
     if (holdM.isEmpty) return const SizedBox.shrink();
 
-    String resumeDate = 'soon';
-    if (holdM['end_date'] != null) {
-      try {
-        final dt = DateTime.parse(holdM['end_date']);
-        resumeDate = DateFormat('dd MMM yyyy').format(dt);
-      } catch (_) {}
-    }
-
     return RefreshIndicator(
       onRefresh: _loadInitialData,
       color: const Color(0xFFE65C00),
@@ -1896,7 +2130,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           children: [
             _buildCurvedHeader(
               greeting: "Membership on Pause ⏸",
-              subtitle: "Resumes on $resumeDate",
+              subtitle: "Your membership is paused",
               state: MemberState.onHold,
             ),
             Padding(
@@ -1922,15 +2156,43 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         const SizedBox(height: 8),
                         _buildHoldBulletInfo('Your assigned seat is reserved for you.'),
                         const SizedBox(height: 6),
-                        _buildHoldBulletInfo('Billing is paused and plan expiration is extended.'),
+                        _buildHoldBulletInfo('Billing is paused and the paused days are added back to your plan.'),
                         const SizedBox(height: 6),
                         _buildHoldBulletInfo('QR Scanner Check-in is NOT available during holds.'),
                         const SizedBox(height: 12),
                         Text(
-                          'Come back on $resumeDate to resume studying.',
+                          "You'll be notified the moment your membership resumes.",
                           style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF78350F)),
                         )
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Member can ask the admin to lift the hold early (admins own
+                  // holds now; this routes a request via the library query inbox).
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/member/query',
+                          arguments: {
+                            'libraryId': holdM['library_id'],
+                            'preFilledMessage':
+                                'I would like to resume my membership early. Please lift the hold on my account.',
+                          },
+                        );
+                      },
+                      icon: const Icon(Icons.play_circle_outline, size: 18),
+                      label: const Text('Request to resume early'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFE65C00),
+                        side: const BorderSide(color: Color(0xFFE65C00)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -2788,7 +3050,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     if (membership['end_date'] != null) {
       endDate = DateTime.parse(membership['end_date']);
     }
-    final remainingDays = endDate != null ? endDate.difference(DateTime.now()).inDays : -1;
+    final remainingDays = endDate != null ? _daysLeftDateOnly(endDate) : -1;
 
     switch (state) {
       case MemberState.trial:
@@ -3066,10 +3328,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           );
         case MemberState.active:
         default:
+          // Primary Renew action + a compact "more" menu (Change Seat / Exit).
           return Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: OutlinedButton.icon(
                   onPressed: () {
                     if (_isProfileIncomplete()) {
                       _showProfileIncompleteDialog();
@@ -3078,44 +3341,36 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => JoinFlowScreen(
-                          libraryId: library['id'],
+                        builder: (context) => RenewalScreen(
+                          libraryId: library['id'] ?? '',
                           initialShiftId: shift['id'],
+                          initialPlan: membership['plan_type'],
                         ),
                       ),
                     ).then((_) => _loadInitialData());
                   },
+                  icon: const Icon(Icons.autorenew_rounded, size: 18),
+                  label: Text('Renew Plan', style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    foregroundColor: const Color(0xFFE65C00),
                     side: const BorderSide(color: Color(0xFFE65C00)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: Text('Renew Plan', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _openSeatChangeSheet(membership),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    side: const BorderSide(color: Color(0xFFE65C00)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text('Seat Chg', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                 ),
               ),
               const SizedBox(width: 8),
               Container(
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 20),
+                  icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+                  tooltip: 'More options',
                   onPressed: () => _openMembershipMoreOptions(membership),
                 ),
-              )
+              ),
             ],
           );
       }
@@ -3131,32 +3386,38 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4)),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header: prominent library name + status chip
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Row(
                   children: [
-                    Text(
-                      library['name'] ?? 'SILENCE Zone',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    Flexible(
+                      child: Text(
+                        library['name'] ?? 'SILENCE Zone',
+                        style: GoogleFonts.outfit(fontSize: 21, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), height: 1.1),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     if (isVerified) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.verified, color: Colors.blue, size: 16),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.verified, color: Colors.blue, size: 18),
                     ]
                   ],
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: borderColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
+                  color: borderColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   statusLabel,
@@ -3165,43 +3426,71 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               )
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 18),
+          // Info grid (2 columns) — labeled, bigger values, overflow-safe
           Row(
             children: [
-              const Icon(Icons.event_seat, size: 16, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                seat.isNotEmpty ? (seat['seat_label'] ?? 'Pending') : 'Seat Pending',
-                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFFE65C00)),
+              Expanded(
+                child: _cardInfoItem(
+                  Icons.event_seat_outlined,
+                  'Seat',
+                  seat.isNotEmpty ? (seat['seat_label'] ?? 'Pending') : 'Pending',
+                  valueColor: const Color(0xFFE65C00),
+                ),
               ),
-              const SizedBox(width: 24),
-              const Icon(Icons.wb_sunny_outlined, size: 16, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                shift.isNotEmpty ? (shift['name'] ?? 'Shift') : 'Shift Pending',
-                style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700]),
+              Expanded(
+                child: _cardInfoItem(
+                  Icons.wb_sunny_outlined,
+                  'Shift',
+                  shift.isNotEmpty ? (shift['name'] ?? 'Shift') : 'Pending',
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Row(
             children: [
-              const Icon(Icons.receipt_long, size: 16, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                '${membership['plan_type'] == 'monthly' ? 'Monthly' : membership['plan_type'] == '3_month' ? '3-Month' : '6-Month'} Plan',
-                style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700]),
+              Expanded(
+                child: _cardInfoItem(Icons.schedule_rounded, 'Timing', _formatShiftRange(shift)),
               ),
-              const SizedBox(width: 24),
-              Text(
-                '₹${shift.isNotEmpty ? (membership['plan_type'] == 'monthly' ? (shift['price_monthly'] ?? 0) : membership['plan_type'] == '3_month' ? (shift['price_3month'] ?? 0) : (shift['price_6month'] ?? 0)) : 0}',
-                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              Expanded(
+                child: _cardInfoItem(
+                  Icons.calendar_today_outlined,
+                  'Joined',
+                  membership['start_date'] != null
+                      ? DateFormat('dd MMM yyyy').format(DateTime.parse(membership['start_date']))
+                      : '—',
+                ),
               ),
             ],
           ),
-          
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _cardInfoItem(
+                  Icons.receipt_long_outlined,
+                  'Plan',
+                  membership['plan_type'] == 'monthly'
+                      ? 'Monthly'
+                      : membership['plan_type'] == '3_month'
+                          ? '3-Month'
+                          : membership['plan_type'] == '6_month'
+                              ? '6-Month'
+                              : 'Trial',
+                ),
+              ),
+              Expanded(
+                child: _cardInfoItem(
+                  Icons.payments_outlined,
+                  'Price',
+                  '₹${shift.isNotEmpty ? (membership['plan_type'] == 'monthly' ? (shift['price_monthly'] ?? 0) : membership['plan_type'] == '3_month' ? (shift['price_3month'] ?? 0) : (shift['price_6month'] ?? 0)) : 0}',
+                ),
+              ),
+            ],
+          ),
           if (endDate != null && status != 'pending') ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
@@ -3211,27 +3500,82 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                 minHeight: 6,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Expires: ${DateFormat('dd MMM yyyy').format(endDate)}',
-                  style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
+                  style: GoogleFonts.inter(fontSize: 11.5, color: Colors.grey[500]),
                 ),
                 Text(
-                  remainingDays > 0 ? '$remainingDays days left' : remainingDays == 0 ? 'Expires today' : 'Expired',
-                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: remainingDays <= 7 ? Colors.redAccent : Colors.grey[600]),
+                  remainingDays > 0 ? '$remainingDays days left' : remainingDays == 0 ? 'Last day today' : 'Expired',
+                  style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: remainingDays <= 7 ? const Color(0xFFEF4444) : Colors.grey[600]),
                 ),
               ],
             ),
           ],
-          
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           buildButtons(),
         ],
       ),
     );
+  }
+
+  /// One labeled info cell for the membership card (icon + small label + bold
+  /// value). Wrapped in Expanded by callers; value ellipsizes to avoid overflow.
+  Widget _cardInfoItem(IconData icon, String label, String value, {Color? valueColor}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: Colors.grey[500]),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: GoogleFonts.inter(fontSize: 10.5, color: Colors.grey[500], fontWeight: FontWeight.w500)),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w700, color: valueColor ?? const Color(0xFF1E293B)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Formats a shift's start–end into IST 12-hour text, e.g. "9:00 AM – 9:00 PM".
+  /// Shift times are stored as wall-clock time-of-day, so no UTC offset is applied.
+  String _formatShiftRange(Map<String, dynamic> shift) {
+    if (shift.isEmpty) return '—';
+    final start = _formatShiftTime(shift['start_time']?.toString());
+    final end = _formatShiftTime(shift['end_time']?.toString());
+    if (start.isEmpty && end.isEmpty) return '—';
+    if (end.isEmpty) return start;
+    if (start.isEmpty) return end;
+    return '$start – $end';
+  }
+
+  String _formatShiftTime(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return '';
+    final s = raw.trim();
+    try {
+      if (s.toLowerCase().contains('am') || s.toLowerCase().contains('pm')) {
+        final dt = DateFormat('h:mm a').parse(s.toUpperCase());
+        return DateFormat('h:mm a').format(dt);
+      }
+      final parts = s.split(':');
+      final h = int.parse(parts[0]);
+      final m = parts.length > 1 ? int.parse(parts[1].split(' ').first) : 0;
+      return DateFormat('h:mm a').format(DateTime(2000, 1, 1, h, m));
+    } catch (_) {
+      return s;
+    }
   }
 
   Widget _buildTodayAttendanceCard() {
@@ -3247,7 +3591,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       mainCard = _buildNotCheckedInCard();
     }
 
-    final showPrev = _previousSession != null && !_isCheckedIn;
+    // Show the previous-session card below the main card in all states,
+    // including while a session is running (so members see their last session).
+    final showPrev = _previousSession != null;
 
     if (showPrev) {
       return Column(
@@ -3651,7 +3997,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          "Session Complete",
+                          "Today's Session",
                           style: GoogleFonts.outfit(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
@@ -3912,7 +4258,156 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
+  Widget _buildHolidayClosedCard(Holiday holiday) {
+    final dateLabel = holiday.isRange
+        ? '${DateFormat('dd MMM').format(holiday.startDate)} – ${DateFormat('dd MMM').format(holiday.endDate)}'
+        : DateFormat('EEEE, dd MMM').format(holiday.startDate);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(width: 4, color: const Color(0xFFE65C00)),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "TODAY'S SESSION",
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF94A3B8),
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    Text(
+                      formatDateIST(DateTime.now().toUtc()),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFFF3ED),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.event_busy,
+                          color: Color(0xFFE65C00), size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Library closed today',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF9A3412),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$dateLabel · ${holiday.reason}',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.shield_outlined,
+                          color: Color(0xFF15803D), size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Your study streak is protected for today.',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: const Color(0xFF15803D),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.block, size: 18),
+                    label: Text(
+                      'Check-in disabled (holiday)',
+                      style: GoogleFonts.inter(
+                          fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      disabledBackgroundColor: const Color(0xFFE2E8F0),
+                      disabledForegroundColor: const Color(0xFF94A3B8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNotCheckedInCard() {
+    final holiday = _primaryLibraryHoliday;
+    if (holiday != null) {
+      return _buildHolidayClosedCard(holiday);
+    }
     final membership = _myMemberships.isNotEmpty ? _myMemberships.first : null;
     final shift = membership != null ? (membership['shifts'] as Map<String, dynamic>?) : null;
     final seat = membership != null ? (membership['seats'] as Map<String, dynamic>?) : null;
@@ -4102,7 +4597,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "PREVIOUS SESSION",
+                (prev['title'] as String?)?.toUpperCase() ?? "PREVIOUS SESSION",
                 style: GoogleFonts.outfit(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -4197,44 +4692,106 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               ),
               const Spacer(),
               Text(
-                '$_currentStreak Days',
+                _currentStreak == 1 ? '1 Day' : '$_currentStreak Days',
                 style: GoogleFonts.spaceMono(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
               )
             ],
           ),
-          const SizedBox(height: 16),
-          // Last 7 days circles
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'This week',
+              style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.w500),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Current week, Sunday → Saturday.
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: _streakLast7Days.map((day) {
-              final active = day['attended'] as bool;
+              final attended = day['attended'] as bool;
+              final isToday = day['isToday'] as bool;
+              final isFuture = day['isFuture'] as bool;
+
+              Color circleColor;
+              Widget? inner;
+              if (attended) {
+                circleColor = const Color(0xFF22C55E);
+                inner = const Icon(Icons.check, color: Colors.white, size: 18);
+              } else if (isFuture) {
+                circleColor = const Color(0xFFF8FAFC);
+                inner = null;
+              } else {
+                circleColor = Colors.grey[200]!;
+                inner = null;
+              }
+
               return Column(
                 children: [
                   Container(
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: active ? const Color(0xFF22C55E) : Colors.grey[200],
+                      color: circleColor,
                       shape: BoxShape.circle,
+                      border: isToday
+                          ? Border.all(color: const Color(0xFFE65C00), width: 2)
+                          : (isFuture ? Border.all(color: Colors.grey[200]!) : null),
                     ),
                     alignment: Alignment.center,
-                    child: active
-                        ? const Icon(Icons.check, color: Colors.white, size: 18)
-                        : null,
+                    child: inner ??
+                        (isToday
+                            ? const Icon(Icons.circle, color: Color(0xFFE65C00), size: 7)
+                            : null),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     day['dayLabel'] as String,
-                    style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.w500),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: isToday ? const Color(0xFFE65C00) : Colors.grey[500],
+                      fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
+                    ),
                   )
                 ],
               );
             }).toList(),
-          )
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 12),
+          // Details row.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _streakStat('This week', '$_thisWeekCount/7'),
+              _streakDivider(),
+              _streakStat('Best streak', _bestStreak == 1 ? '1 day' : '$_bestStreak days'),
+              _streakDivider(),
+              _streakStat('Total days', '$_daysPresent'),
+            ],
+          ),
         ],
       ),
     );
   }
+
+  Widget _streakStat(String label, String value) {
+    return Column(
+      children: [
+        Text(value,
+            style: GoogleFonts.outfit(
+                fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+        const SizedBox(height: 2),
+        Text(label,
+            style: GoogleFonts.inter(fontSize: 10.5, color: Colors.grey[500])),
+      ],
+    );
+  }
+
+  Widget _streakDivider() =>
+      Container(width: 1, height: 26, color: const Color(0xFFF1F5F9));
 
   Widget _buildQuickActionsRow() {
     return SingleChildScrollView(
@@ -4242,9 +4799,21 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       child: Row(
         children: [
           _buildQuickActionButton(
-            label: 'Scan QR',
-            icon: Icons.qr_code_scanner,
-            onPressed: _openQRScanner,
+            label: 'Contact Admin',
+            icon: Icons.support_agent,
+            onPressed: _openContactAdmin,
+          ),
+          const SizedBox(width: 8),
+          _buildQuickActionButton(
+            label: 'Refer & Earn',
+            icon: Icons.card_giftcard_outlined,
+            onPressed: _openReferSheet,
+          ),
+          const SizedBox(width: 8),
+          _buildQuickActionButton(
+            label: 'Renew',
+            icon: Icons.autorenew,
+            onPressed: _openRenewForPrimary,
           ),
           const SizedBox(width: 8),
           _buildQuickActionButton(
@@ -4254,27 +4823,142 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
             },
           ),
-          const SizedBox(width: 8),
-          _buildQuickActionButton(
-            label: 'Join with Code',
-            icon: Icons.vpn_key_outlined,
-            onPressed: _openJoinWithCodeSheet,
-          ),
-          const SizedBox(width: 8),
-          _buildQuickActionButton(
-            label: 'Seat Change',
-            icon: Icons.event_seat,
-            onPressed: () {
-              if (_myMemberships.isNotEmpty) {
-                _openSeatChangeSheet(_myMemberships.first);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No active membership found to request seat change.')),
-                );
-              }
-            },
-          ),
         ],
+      ),
+    );
+  }
+
+  /// Renew the member's primary membership (opens the real renewal flow).
+  void _openRenewForPrimary() {
+    if (_myMemberships.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have no membership to renew yet. Join a library first.')),
+      );
+      return;
+    }
+    final m = _myMemberships.first;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RenewalScreen(
+          libraryId: m['library_id']?.toString() ?? '',
+          initialPlan: 'monthly',
+        ),
+      ),
+    ).then((_) => _loadInitialData());
+  }
+
+  /// Refer & earn: shows the member's referral code with copy + share.
+  /// Honest — reuses the real `referral_code` (generated/persisted if missing).
+  Future<void> _openReferSheet() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    var code = _userProfile?['referral_code']?.toString();
+    if ((code == null || code.isEmpty) && user != null) {
+      final shortId = user.id.length >= 5 ? user.id.substring(0, 5).toUpperCase() : 'XXXXX';
+      code = 'REF-$shortId';
+      try {
+        await Supabase.instance.client
+            .from('users')
+            .update({'referral_code': code}).eq('id', user.id);
+        _userProfile?['referral_code'] = code;
+      } catch (e) {
+        debugPrint('Could not persist referral_code: $e');
+        _userProfile?['referral_code'] = code;
+      }
+    }
+    final refCode = code ?? 'REF-XXXX';
+    final shareText =
+        'Join me at SILENCE Study Zone using my referral code: $refCode. Download the app here: https://silenceapp.in/download';
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const Icon(Icons.card_giftcard, color: Color(0xFFE65C00), size: 40),
+            const SizedBox(height: 10),
+            Text('Refer & Earn',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                    fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+            const SizedBox(height: 6),
+            Text(
+              'Share your code with friends. When they join SILENCE, you can earn membership extension days (if your library has rewards enabled).',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey[600], height: 1.4),
+            ),
+            const SizedBox(height: 18),
+            // Code chip
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFFD1B3)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(refCode,
+                      style: GoogleFonts.spaceMono(
+                          fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                  InkWell(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: refCode));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Referral code copied!'),
+                          backgroundColor: Color(0xFF22C55E),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        const Icon(Icons.copy, size: 16, color: Color(0xFFE65C00)),
+                        const SizedBox(width: 4),
+                        Text('Copy',
+                            style: GoogleFonts.inter(
+                                fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              onPressed: () => Share.share(shareText),
+              icon: const Icon(Icons.share, size: 18),
+              label: Text('Share code',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -4329,14 +5013,21 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 8)],
       ),
-      child: ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: _recentActivities.length,
-        itemBuilder: (context, index) {
+      // Bounded height so the card stops growing as activities accumulate;
+      // it scrolls internally past ~5 items.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 340),
+        child: Scrollbar(
+          child: ListView.builder(
+            shrinkWrap: true,
+            physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.zero,
+            itemCount: _recentActivities.length,
+            itemBuilder: (context, index) {
           final act = _recentActivities[index];
           final DateTime dt = act['time'] as DateTime;
-          final dateStr = DateFormat('dd MMM, hh:mm a').format(dt);
+          // Show in IST 12-hour (DB timestamps are UTC).
+          final dateStr = DateFormat('dd MMM, hh:mm a').format(toIST(dt));
           final color = act['color'] as Color;
 
           return IntrinsicHeight(
@@ -4386,7 +5077,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               ],
             ),
           );
-        },
+            },
+          ),
+        ),
       ),
     );
   }
@@ -4396,7 +5089,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       return const SizedBox.shrink();
     }
     final checkOutStr = _lastCompletedAttendance!['check_out_time'] as String;
-    final dt = DateTime.parse(checkOutStr).toLocal();
+    final dt = toIST(DateTime.parse(checkOutStr));
     final dateStr = DateFormat('dd MMM yyyy, h:mm a').format(dt);
     final libName = _lastCompletedAttendance!['libraries']?['name'] ?? 'Library';
     
@@ -4665,7 +5358,25 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     if (mounted) setState(() {});
   }
 
+  void _openContactAdmin() {
+    final libId = _myMemberships.isNotEmpty
+        ? _myMemberships.first['library_id']?.toString()
+        : null;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ContactAdminScreen(defaultLibraryId: libId),
+      ),
+    );
+  }
+
   Future<void> _openQRScanner() async {
+    if (_isPendingDeletion) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Check-in is disabled while your account is scheduled for deletion. Cancel the request to continue.')),
+      );
+      return;
+    }
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const QRScannerScreen()),
@@ -4705,15 +5416,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.pause_circle_outline, color: Color(0xFFD97706)),
-                title: Text('Hold / Pause', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _openHoldRequestSheet(membership);
-                },
-              ),
-              const Divider(),
-              ListTile(
                 leading: const Icon(Icons.event_seat, color: Color(0xFFE65C00)),
                 title: Text('Change Seat', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
                 onTap: () {
@@ -4749,224 +5451,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  void _openHoldRequestSheet(Map<String, dynamic> membership) {
-    final library = membership['libraries'] as Map<String, dynamic>? ?? {};
-    final reasonCtrl = TextEditingController();
-    
-    DateTime holdStart = DateTime.now().add(const Duration(days: 1)); // min tomorrow
-    DateTime holdEnd = holdStart.add(const Duration(days: 7)); // default 7 days
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-                left: 20, right: 20, top: 20
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Pause Membership', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                    ],
-                  ),
-                  Text(
-                    library['name'] ?? 'SILENCE Study Zone',
-                    style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
-                  ),
-                  const Divider(height: 24),
-                  
-                  Text('Reason *', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500])),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: reasonCtrl,
-                    maxLines: 2,
-                    decoration: const InputDecoration(hintText: 'e.g. Preparing for examinations at home...'),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Start Date *', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
-                            const SizedBox(height: 6),
-                            InkWell(
-                              onTap: () async {
-                                final picked = await showCalendarGridBottomSheet(
-                                  context,
-                                  initialDate: holdStart,
-                                  firstDate: DateTime.now().add(const Duration(days: 1)),
-                                  lastDate: DateTime.now().add(const Duration(days: 30)),
-                                );
-                                if (picked != null) {
-                                  setSheetState(() {
-                                    holdStart = picked;
-                                    if (holdEnd.isBefore(holdStart)) {
-                                      holdEnd = holdStart.add(const Duration(days: 7));
-                                    }
-                                  });
-                                }
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(border: Border.all(color: Colors.grey[300]!), borderRadius: BorderRadius.circular(8)),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(DateFormat('dd MMM yyyy').format(holdStart), style: GoogleFonts.inter(fontSize: 13)),
-                                    const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                                  ],
-                                ),
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('End Date *', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
-                            const SizedBox(height: 6),
-                            InkWell(
-                              onTap: () async {
-                                final picked = await showCalendarGridBottomSheet(
-                                  context,
-                                  initialDate: holdEnd,
-                                  firstDate: holdStart.add(const Duration(days: 1)),
-                                  lastDate: holdStart.add(const Duration(days: 30)),
-                                );
-                                if (picked != null) {
-                                  setSheetState(() {
-                                    holdEnd = picked;
-                                  });
-                                }
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(border: Border.all(color: Colors.grey[300]!), borderRadius: BorderRadius.circular(8)),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(DateFormat('dd MMM yyyy').format(holdEnd), style: GoogleFonts.inter(fontSize: 13)),
-                                    const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                                  ],
-                                ),
-                              ),
-                            )
-                          ],
-                        ),
-                      )
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: const Color(0xFFFBF5EE), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE65C00).withOpacity(0.3))),
-                    child: Column(
-                      children: [
-                        _buildHoldBullet('Seat stays reserved for you'),
-                        const SizedBox(height: 6),
-                        _buildHoldBullet('Billing parses and extends after pause'),
-                        const SizedBox(height: 6),
-                        _buildHoldBullet('Expiry extends automatically by pause length'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          child: const Text('Cancel'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (reasonCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please provide a reason.')),
-                              );
-                              return;
-                            }
-                            
-                            final navigator = Navigator.of(context);
-                            final messenger = ScaffoldMessenger.of(context);
-                            
-                            try {
-                              final supabase = Supabase.instance.client;
-                              await supabase.from('hold_requests').insert({
-                                'membership_id': membership['id'],
-                                'member_id': membership['member_id'],
-                                'library_id': library['id'],
-                                'start_date': DateFormat('yyyy-MM-dd').format(holdStart),
-                                'end_date': DateFormat('yyyy-MM-dd').format(holdEnd),
-                                'reason': reasonCtrl.text.trim(),
-                                'status': 'pending',
-                              });
-                              
-                              navigator.pop();
-                              messenger.showSnackBar(
-                                const SnackBar(content: Text('Hold Request submitted! ✓')),
-                              );
-                            } catch (e) {
-                              messenger.showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE65C00),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          child: const Text('Submit →'),
-                        ),
-                      )
-                    ],
-                  )
-                ],
-              ),
-            );
-          }
-        );
-      },
-    );
-  }
-
-  Widget _buildHoldBullet(String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.check, size: 16, color: Color(0xFF22C55E)),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[750]))),
-      ],
-    );
-  }
 
   void _openExitLibrarySheetFlow(Map<String, dynamic> membership) {
     final library = membership['libraries'] as Map<String, dynamic>? ?? {};
@@ -5218,117 +5702,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  void _openJoinWithCodeSheet() {
-    final codeCtrl = TextEditingController();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-            left: 20, right: 20, top: 20
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Join with Library Code', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              
-              TextField(
-                controller: codeCtrl,
-                textCapitalization: TextCapitalization.characters,
-                onChanged: (val) {
-                  String clean = val.replaceAll('-', '').toUpperCase();
-                  if (clean.length > 3) {
-                    clean = '${clean.substring(0, 3)}-${clean.substring(3)}';
-                  }
-                  if (clean.length > 10) {
-                    clean = '${clean.substring(0, 10)}-${clean.substring(10)}';
-                  }
-                  codeCtrl.value = TextEditingValue(
-                    text: clean,
-                    selection: TextSelection.fromPosition(TextPosition(offset: clean.length)),
-                  );
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Library Code',
-                  hintText: 'e.g. SIL-4K9M-2P',
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final code = codeCtrl.text.trim();
-                    if (code.isEmpty) return;
-                    
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-                    
-                    try {
-                      final supabase = Supabase.instance.client;
-                      final libRes = await supabase
-                          .from('libraries')
-                          .select()
-                          .eq('library_code', code)
-                          .maybeSingle();
-                      
-                      if (libRes == null) {
-                        messenger.showSnackBar(
-                          const SnackBar(content: Text('Library not found. Check code prefix or suffix.')),
-                        );
-                        return;
-                      }
-                      
-                      navigator.pop();
-                      navigator.push(
-                        MaterialPageRoute(
-                          builder: (context) => LibraryPublicProfileScreen(
-                            libraryId: libRes['id'],
-                            isAdmin: false,
-                            showProceedButton: true,
-                          ),
-                        ),
-                      ).then((_) {
-                        if (mounted) {
-                          _loadInitialData();
-                        }
-                      });
-                    } catch (e) {
-                      messenger.showSnackBar(
-                        SnackBar(content: Text('Error finding library: $e')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: const Text('Find Library'),
-                ),
-              )
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-
-
   Widget _buildExitBulletRow(bool isPositive, String text) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5352,33 +5725,17 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildNotificationsScreen() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            foregroundColor: Colors.white,
-            title: Text('Notifications', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-          ),
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.notifications_none, size: 64, color: Colors.grey),
-                const SizedBox(height: 16),
-                Text(
-                  "You're all caught up!",
-                  style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[700]),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  Future<void> _refreshUnreadNotifications() async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final res = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('user_id', user.id)
+          .isFilter('read_at', null);
+      if (mounted) setState(() => _unreadNotifications = (res as List).length);
+    } catch (_) {}
   }
 }

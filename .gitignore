@@ -44,3 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 graphify-out/
+
+# Large analyzer / scratch dumps (regenerated; not source) — also in .claudeignore
+analyze_*.txt
+analyze_output*.txt
+extracted_raw_phase2.txt
+scratch/

@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/image_optimizer.dart';
 import '../widgets/styled_dropdown_button.dart';
 import 'package:flutter/services.dart';
+import '../utils/error_messages.dart';
 
 
 class MemberProfileEditScreen extends StatefulWidget {
@@ -389,7 +390,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           _showSuccessSnackBar('$label uploaded successfully! ✓');
         }
       } catch (e) {
-        if (mounted) _showErrorSnackBar('Upload failed: $e');
+        if (mounted) _showErrorSnackBar(friendlyError(e));
       } finally {
         if (mounted) {
           setState(() {
@@ -532,7 +533,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                           }
                         } catch (e) {
                           setModalState(() {
-                            localError = 'Verification failed: $e';
+                            localError = friendlyError(e);
                           });
                         } finally {
                           setModalState(() => isVerifying = false);
@@ -619,7 +620,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _showErrorSnackBar('Error saving profile: $e');
+      _showErrorSnackBar(friendlyError(e));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

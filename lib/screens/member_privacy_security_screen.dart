@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/error_messages.dart';
 
 class MemberPrivacySecurityScreen extends StatefulWidget {
   const MemberPrivacySecurityScreen({super.key});
@@ -130,7 +131,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
       _showSuccessSnackBar('Privacy settings updated! ✓');
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      _showErrorSnackBar('Failed to save settings: $e');
+      _showErrorSnackBar(friendlyError(e));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -250,7 +251,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                         }
                       } catch (e) {
                         setModalState(() {
-                          localError = 'Failed to update password: $e';
+                          localError = friendlyError(e);
                         });
                       } finally {
                         setModalState(() => isUpdating = false);
@@ -302,7 +303,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                 setState(() => _hasGoogleIdentity = false);
                 _showSuccessSnackBar('Google Account disconnected successfully! ✓');
               } catch (e) {
-                _showErrorSnackBar('Disconnection failed: $e');
+                _showErrorSnackBar(friendlyError(e));
               } finally {
                 setState(() => _isLoading = false);
               }
@@ -367,30 +368,101 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        _showErrorSnackBar('Failed to compile data export: $e');
+        _showErrorSnackBar(friendlyError(e));
       }
     }
   }
 
   Future<void> _handleDeleteAccount() async {
+    final confirmCtrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete Your Account?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
-        content: Text(
-          'This action is scheduled with a 30-day grace period. During this period, your profile, study hours, and memberships will remain active but marked for removal. You can cancel this request anytime before the deletion is finalized.',
-          style: GoogleFonts.inter(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            child: Text('Cancel', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.grey[600])),
-            onPressed: () => Navigator.pop(ctx),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          final canDelete = confirmCtrl.text.trim().toUpperCase() == 'DELETE';
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Delete your account?',
+                      style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('This starts a 30-day deletion. After the grace period this is '
+                    'permanent and cannot be undone.',
+                    style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
+                const SizedBox(height: 10),
+                _delWarnRow('Your profile, study hours, streaks & history will be erased'),
+                _delWarnRow('Your memberships and seat will be released'),
+                _delWarnRow('You will be signed out and check-in will be disabled'),
+                const SizedBox(height: 8),
+                Text('You can cancel anytime before the 30 days end.',
+                    style: GoogleFonts.inter(
+                        fontSize: 11.5, color: const Color(0xFF64748B))),
+                const SizedBox(height: 14),
+                Text('Type DELETE to confirm:',
+                    style: GoogleFonts.inter(
+                        fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: confirmCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (_) => setDialog(() {}),
+                  decoration: const InputDecoration(hintText: 'DELETE'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                child: Text('Cancel',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.grey[600])),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  disabledBackgroundColor: const Color(0xFFFCA5A5),
+                ),
+                onPressed: canDelete ? () => Navigator.pop(ctx, true) : null,
+                child: Text('Schedule deletion',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    ).then((confirmed) async {
+      if (confirmed == true) await _scheduleDeletion();
+    });
+  }
+
+  Widget _delWarnRow(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.remove_circle_outline, size: 15, color: Color(0xFFEF4444)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569))),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
-            child: Text('Schedule Deletion', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
-            onPressed: () async {
-              Navigator.pop(ctx);
+        ],
+      ),
+    );
+  }
+
+  Future<void> _scheduleDeletion() async {
               setState(() => _isLoading = true);
               try {
                 final supabase = Supabase.instance.client;
@@ -417,15 +489,10 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                 });
                 _showSuccessSnackBar('Account deletion scheduled for ${deletionTime.day}/${deletionTime.month}/${deletionTime.year}! ⚠');
               } catch (e) {
-                _showErrorSnackBar('Failed to schedule deletion: $e');
+                _showErrorSnackBar(friendlyError(e));
               } finally {
-                setState(() => _isLoading = false);
+                if (mounted) setState(() => _isLoading = false);
               }
-            },
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _cancelDeletion() async {
@@ -454,7 +521,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
       });
       _showSuccessSnackBar('Account deletion cancelled! ✓');
     } catch (e) {
-      _showErrorSnackBar('Failed to cancel deletion: $e');
+      _showErrorSnackBar(friendlyError(e));
     } finally {
       setState(() => _isLoading = false);
     }

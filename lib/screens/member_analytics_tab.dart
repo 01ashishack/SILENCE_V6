@@ -5,6 +5,7 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/member_analytics_service.dart';
 import '../utils/csv_exporter.dart';
+import '../utils/error_messages.dart';
 // Import removed to avoid unused library dependency
 
 class MemberAnalyticsTab extends StatefulWidget {
@@ -1398,7 +1399,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                 height: 200,
                 child: Center(
                   child: Text(
-                    'Error loading session logs: ${snapshot.error}',
+                    friendlyError(snapshot.error),
                     style: GoogleFonts.inter(color: Colors.red),
                   ),
                 ),

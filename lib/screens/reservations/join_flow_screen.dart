@@ -1,12 +1,17 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/image_optimizer.dart';
 import '../../core/calendar_picker.dart';
+import '../../theme/app_colors.dart';
+import '../../utils/upi_launcher.dart';
+import '../../utils/form_draft.dart';
+import '../../widgets/states/states.dart';
 
 
 class JoinFlowScreen extends StatefulWidget {
@@ -63,26 +68,150 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
   final TextEditingController _upiSenderCtrl = TextEditingController();
   File? _proofImageFile;
   String? _proofUrl;
+  bool _paymentDeclared = false; // member confirms "I have paid" (UPI)
+
+  /// Admin-configured UPI IDs for this library (from libraries.social_links).
+  List<String> get _upiIds {
+    final sl = _library?['social_links'];
+    if (sl is Map && sl['upi_ids'] is List) {
+      return (sl['upi_ids'] as List)
+          .map((e) => e.toString())
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
+    }
+    return [];
+  }
 
   // Step 5: Review & Submit
   final TextEditingController _referralCtrl = TextEditingController();
   bool _isSubmitting = false;
   bool _submitSuccess = false;
 
+  // Draft persistence (survives app restart until submitted/discarded)
+  late final FormDraft _draft;
+  Timer? _draftTimer;
+  bool _restoringDraft = false;
+
   @override
   void initState() {
     super.initState();
+    _draft = FormDraft('join', widget.libraryId);
     _loadJoinDetails();
+    for (final c in [_fullNameCtrl, _phoneCtrl, _nicknameCtrl, _upiSenderCtrl, _referralCtrl]) {
+      c.addListener(_scheduleDraftSave);
+    }
   }
 
   @override
   void dispose() {
+    _draftTimer?.cancel();
     _fullNameCtrl.dispose();
     _phoneCtrl.dispose();
     _nicknameCtrl.dispose();
     _upiSenderCtrl.dispose();
     _referralCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Draft save / restore ────────────────────────────────────────────────────
+  void _scheduleDraftSave() {
+    if (_restoringDraft || _submitSuccess || _isSubmitting) return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 600), _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    if (_restoringDraft || _submitSuccess || _isSubmitting) return;
+    await _draft.save({
+      'currentStep': _currentStep,
+      'isExistingMember': _isExistingMember,
+      'existingJoinDate': _existingJoinDate?.toIso8601String(),
+      'fullName': _fullNameCtrl.text,
+      'phone': _phoneCtrl.text,
+      'nickname': _nicknameCtrl.text,
+      'selectedShiftId': _selectedShift?['id']?.toString(),
+      'selectedPlan': _selectedPlan,
+      'selectedAddOns': _selectedAddOns,
+      'paymentMethod': _paymentMethod,
+      'upiSender': _upiSenderCtrl.text,
+      'paymentDeclared': _paymentDeclared,
+      'referral': _referralCtrl.text,
+    });
+  }
+
+  Future<void> _maybeOfferRestore() async {
+    final raw = await _draft.load();
+    if (raw == null) return;
+    final step = (raw['currentStep'] as num?)?.toInt() ?? 1;
+    final hasText = ((raw['fullName'] ?? '') as String).trim().isNotEmpty ||
+        ((raw['phone'] ?? '') as String).trim().isNotEmpty;
+    // Nothing meaningful saved yet — drop it silently.
+    if (step <= 1 && !hasText) {
+      await _draft.clear();
+      return;
+    }
+    if (!mounted) return;
+    final resume = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Resume your application?',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        content: Text(
+          'You have an unfinished application for this library, saved ${FormDraft.savedAgo(raw['savedAt'])}. '
+          'Continue where you left off, or start fresh?',
+          style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Start fresh', style: GoogleFonts.inter(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            child: Text('Resume', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (resume == true) {
+      _applyDraft(raw);
+    } else if (resume == false) {
+      await _draft.clear();
+    }
+  }
+
+  void _applyDraft(Map<String, dynamic> raw) {
+    _restoringDraft = true;
+    setState(() {
+      _isExistingMember = raw['isExistingMember'] == true;
+      final jd = raw['existingJoinDate'];
+      _existingJoinDate = jd is String ? DateTime.tryParse(jd) : null;
+      _fullNameCtrl.text = (raw['fullName'] ?? '') as String;
+      _phoneCtrl.text = (raw['phone'] ?? '') as String;
+      _nicknameCtrl.text = (raw['nickname'] ?? '') as String;
+      final shiftId = raw['selectedShiftId']?.toString();
+      if (shiftId != null && _shifts.isNotEmpty) {
+        final match = _shifts.where((s) => s['id'].toString() == shiftId).toList();
+        if (match.isNotEmpty) _selectedShift = match.first;
+      }
+      _selectedPlan = (raw['selectedPlan'] ?? _selectedPlan) as String;
+      final addons = raw['selectedAddOns'];
+      if (addons is Map) {
+        addons.forEach((k, v) {
+          if (_selectedAddOns.containsKey(k)) _selectedAddOns[k.toString()] = v == true;
+        });
+      }
+      _paymentMethod = (raw['paymentMethod'] ?? _paymentMethod) as String;
+      _upiSenderCtrl.text = (raw['upiSender'] ?? '') as String;
+      _paymentDeclared = raw['paymentDeclared'] == true;
+      _referralCtrl.text = (raw['referral'] ?? '') as String;
+      final step = (raw['currentStep'] as num?)?.toInt();
+      if (step != null && step >= 1 && step <= 5) _currentStep = step;
+    });
+    _restoringDraft = false;
   }
 
   int _timeStringToMinutes(String timeStr) {
@@ -267,6 +396,11 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       if (_exitedMembershipToWelcome != null && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _showWelcomeBackBottomSheet();
+        });
+      } else if (_errorMessage == null && mounted) {
+        // Offer to restore a saved draft (skip when the welcome-back sheet shows).
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _maybeOfferRestore();
         });
       }
     }
@@ -528,11 +662,17 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         }
       }
 
-      // 2. Upload photo proof if UPI
+      // 2. UPI payment happens outside the app. The member confirms they paid;
+      // a screenshot is optional (uploaded only if one was attached).
       if (_paymentMethod == 'upi' && _selectedPlan != 'trial') {
-        final uploadOk = await _uploadProofImage();
-        if (!uploadOk) {
-          throw Exception('Payment screenshot upload is required for UPI payments.');
+        if (!_paymentDeclared) {
+          throw Exception("Please confirm you've made the payment.");
+        }
+        if (_proofImageFile != null) {
+          final uploadOk = await _uploadProofImage();
+          if (!uploadOk) {
+            throw Exception('Screenshot upload failed. Remove it or try again.');
+          }
         }
       }
 
@@ -541,8 +681,14 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         throw Exception('Please select a shift to proceed.');
       }
 
+      // Selected add-on ids (so the admin can persist them on approval).
+      final selectedAddOnIds = _addOns
+          .where((a) => _selectedAddOns[a['id']] == true)
+          .map((a) => a['id'].toString())
+          .toList();
+
       // 3. Construct join request
-      final requestPayload = {
+      final requestPayload = <String, dynamic>{
         'member_id': user.id,
         'library_id': widget.libraryId,
         'shift_id': shift['id'],
@@ -550,15 +696,28 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         'payment_method': _selectedPlan == 'trial' ? 'none' : _paymentMethod,
         'payment_proof_url': _proofUrl,
         'upi_sender_name': _paymentMethod == 'upi' && _selectedPlan != 'trial' ? _upiSenderCtrl.text.trim() : null,
-        'existing_member_join_date': _isExistingMember && _existingJoinDate != null 
-            ? DateFormat('yyyy-MM-dd').format(_existingJoinDate!) 
+        'existing_member_join_date': _isExistingMember && _existingJoinDate != null
+            ? DateFormat('yyyy-MM-dd').format(_existingJoinDate!)
             : null,
         'status': 'pending',
       };
+      if (selectedAddOnIds.isNotEmpty) {
+        requestPayload['selected_addon_ids'] = selectedAddOnIds;
+      }
 
-      await supabase
-          .from('join_requests')
-          .insert(requestPayload);
+      try {
+        await supabase.from('join_requests').insert(requestPayload);
+      } catch (e) {
+        // `selected_addon_ids` may not exist yet on older DBs (Phase C adds it).
+        // Retry without it so the join still works rather than failing.
+        if (selectedAddOnIds.isNotEmpty) {
+          debugPrint('join_requests insert retry without addon ids: $e');
+          requestPayload.remove('selected_addon_ids');
+          await supabase.from('join_requests').insert(requestPayload);
+        } else {
+          rethrow;
+        }
+      }
 
       // 4. Save optional referral
       final refCode = _referralCtrl.text.trim();
@@ -583,6 +742,8 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         }
       }
 
+      _draftTimer?.cancel();
+      await _draft.clear();
       setState(() {
         _submitSuccess = true;
       });
@@ -604,9 +765,9 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
-        body: const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00))),
+      return const Scaffold(
+        backgroundColor: Color(0xFFFBF5EE),
+        body: LoadingState(kind: SkeletonKind.spinner, message: 'Loading…'),
       );
     }
 
@@ -614,21 +775,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       return Scaffold(
         backgroundColor: const Color(0xFFFBF5EE),
         appBar: AppBar(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
-                const SizedBox(height: 16),
-                Text('Join Flow Error', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text(_errorMessage!, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13)),
-              ],
-            ),
-          ),
-        ),
+        body: ErrorState(error: _errorMessage, onRetry: _loadJoinDetails),
       );
     }
 
@@ -653,6 +800,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                   setState(() {
                     _currentStep--;
                   });
+                  _saveDraft();
                 } else {
                   Navigator.pop(context);
                 }
@@ -748,6 +896,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         return;
       }
       setState(() => _currentStep = 2);
+      _saveDraft();
     } else if (_currentStep == 2) {
       if (_selectedShift == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -755,22 +904,24 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         );
         return;
       }
-      
+
       if (_getConflictingActiveMembership(_selectedShift!) != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('The selected shift overlaps with an active membership. Please select another shift.')),
         );
         return;
       }
-      
+
       // Skip Add-ons step if none exist
       if (_addOns.isEmpty) {
         setState(() => _currentStep = _selectedPlan == 'trial' ? 5 : 4);
       } else {
         setState(() => _currentStep = 3);
       }
+      _saveDraft();
     } else if (_currentStep == 3) {
       setState(() => _currentStep = _selectedPlan == 'trial' ? 5 : 4);
+      _saveDraft();
     } else if (_currentStep == 4) {
       if (_paymentMethod == 'upi') {
         if (_upiSenderCtrl.text.trim().isEmpty) {
@@ -787,6 +938,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         }
       }
       setState(() => _currentStep = 5);
+      _saveDraft();
     } else if (_currentStep == 5) {
       _submitJoinRequest();
     }
@@ -1279,78 +1431,241 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
         _buildPaymentMethodOption('cash', '💵 Cash Payment', 'Pay the total amount in cash directly at the library.'),
         const SizedBox(height: 8),
-        _buildPaymentMethodOption('upi', '📱 UPI / Online Transfer', 'Pay securely using GPay, PhonePe or other UPI apps.'),
+        _buildPaymentMethodOption('upi', '📱 UPI / Online Transfer', 'Pay the admin via any UPI app, then confirm below.'),
 
         if (_paymentMethod == 'upi') ...[
           const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Admin UPI IDs', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                const SizedBox(height: 4),
-                SelectableText(
-                  'owner@upi\n9876543210@paytm',
-                  style: TextStyle(fontFamily: 'monospace', fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.bold),
-                ),
-                const Divider(height: 24),
-                
-                Text('Deep-link Payment Apps:', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _buildPaymentAppButton('GPay', Colors.blue),
-                    const SizedBox(width: 8),
-                    _buildPaymentAppButton('PhonePe', Colors.purple),
-                    const SizedBox(width: 8),
-                    _buildPaymentAppButton('Paytm', Colors.lightBlue),
-                  ],
-                ),
-                const Divider(height: 24),
-                
-                Text('Upload Screenshot *', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                
-                InkWell(
-                  onTap: _pickProofImage,
-                  child: Container(
-                    height: 120,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
-                      borderRadius: BorderRadius.circular(8),
-                      color: Colors.grey[50],
-                    ),
-                    alignment: Alignment.center,
-                    child: _proofImageFile != null
-                        ? Image.file(_proofImageFile!, fit: BoxFit.contain)
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.cloud_upload_outlined, size: 32, color: Colors.grey[400]),
-                              const SizedBox(height: 6),
-                              Text('Tap to select screenshot from gallery', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[600])),
-                            ],
-                          ),
-                  ),
-                ),
-                
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _upiSenderCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'UPI Sender Name *',
-                    hintText: 'Enter name used while transferring',
-                  ),
-                ),
-              ],
-            ),
-          )
+          _buildUpiCard(_calculateTotalPrice()),
         ],
       ],
     );
+  }
+
+  /// UPI card: admin's configured UPI IDs as tappable deep-link buttons (open
+  /// the payer's UPI app pre-filled), an honest note that payment happens
+  /// outside the app and the admin verifies it, the required "I have paid"
+  /// confirmation, and an OPTIONAL reference + screenshot.
+  Widget _buildUpiCard(double total) {
+    final ids = _upiIds;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (ids.isEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warningBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.warning),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "This library hasn't added a UPI ID yet. Please pay by cash, or contact the admin.",
+                      style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: AppColors.orangeText),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Text(
+              'Pay to the library',
+              style: GoogleFonts.outfit(
+                fontSize: 13.5,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Tap an app to pay ₹${total.toStringAsFixed(0)}, or copy the UPI ID.',
+              style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 10),
+            ...ids.map((id) => _buildUpiAppButton(id, total)),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.infoBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.info),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Payment happens in your UPI app. After paying, confirm below — the admin verifies it and activates your plan.',
+                      style: GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildDeclareCheck(),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _upiSenderCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Reference / sender name (optional)',
+                hintText: 'Helps the admin match your payment',
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildOptionalScreenshot(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpiAppButton(String upiId, double amount) {
+    final app = detectUpiApp(upiId);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => _payViaUpi(upiId, amount),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: app.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(app.icon, size: 18, color: app.color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pay with ${app.name}',
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                    ),
+                    Text(
+                      upiId,
+                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.textMuted),
+                tooltip: 'Copy UPI ID',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: upiId));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('UPI ID copied')),
+                  );
+                },
+              ),
+              const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeclareCheck() {
+    return InkWell(
+      onTap: () => setState(() => _paymentDeclared = !_paymentDeclared),
+      borderRadius: BorderRadius.circular(8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            _paymentDeclared ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+            color: _paymentDeclared ? AppColors.primary : AppColors.textMuted,
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "I have made this payment to the library's UPI.",
+              style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: AppColors.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionalScreenshot() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Add payment screenshot (optional)',
+          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _pickProofImage,
+          child: Container(
+            height: 110,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(8),
+              color: AppColors.surfaceMuted,
+            ),
+            alignment: Alignment.center,
+            child: _proofImageFile != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(_proofImageFile!, fit: BoxFit.contain),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.add_photo_alternate_outlined, size: 28, color: AppColors.textMuted),
+                      const SizedBox(height: 6),
+                      Text('Tap to attach a screenshot', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted)),
+                    ],
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _payViaUpi(String upiId, double amount) async {
+    final libName = (_library?['name'] as String?)?.trim();
+    final result = await launchUpiPayment(
+      payeeVpa: upiId,
+      payeeName: (libName == null || libName.isEmpty) ? 'SILENCE Library' : libName,
+      amount: amount,
+      note: 'Membership payment',
+    );
+    if (!mounted) return;
+    if (result == UpiLaunchResult.noApp) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No UPI app found. Copy the UPI ID and pay manually.')),
+      );
+    } else if (result == UpiLaunchResult.failed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open a UPI app. Copy the UPI ID and pay manually.')),
+      );
+    }
   }
 
   Widget _buildPaymentMethodOption(String key, String label, String desc) {
@@ -1382,26 +1697,6 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
             )
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentAppButton(String label, Color color) {
-    return Expanded(
-      child: ElevatedButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Simulated deep link: Opening $label app...')),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color.withOpacity(0.1),
-          foregroundColor: color,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        child: Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -1489,17 +1784,17 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: const Color(0xFFE65C00).withOpacity(0.1), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: const Color(0xFFE65C00).withValues(alpha: 0.1), shape: BoxShape.circle),
                 child: const Icon(Icons.assignment_turned_in, size: 64, color: Color(0xFFE65C00)),
               ),
               const SizedBox(height: 24),
               Text(
-                'Application Submitted!',
+                'Request sent',
                 style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
               ),
               const SizedBox(height: 12),
               Text(
-                'Your payment screenshot is under review by our admin. We typically verify and confirm spaces within 24 hours.',
+                "Your request has been sent to the library admin. They typically verify the payment and confirm your seat within 24 hours. You'll be notified once it's approved.",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600], height: 1.5),
               ),

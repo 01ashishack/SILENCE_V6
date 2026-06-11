@@ -1,3 +1,7 @@
+-- ⚠️ SUPERSEDED (2026-06-11, Phase C). DO NOT RUN.
+-- These indexes are now maintained in silence_app/supabase_schema.sql (§3).
+-- Kept for history only.
+-- ---------------------------------------------------------------------------
 -- Indexes for optimizing query performance on library_id fields
 
 -- Index on memberships table
