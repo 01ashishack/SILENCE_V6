@@ -189,7 +189,6 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
   void _showEditAddonSheet(AddonItem item) {
     final rateCtrl = TextEditingController(text: item.monthlyRate.toStringAsFixed(0));
     final depCtrl = TextEditingController(text: item.securityDeposit.toStringAsFixed(0));
-    final limitCtrl = TextEditingController(text: item.totalInventory.toString());
 
     showModalBottomSheet(
       context: context,
@@ -221,12 +220,6 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Security Deposit (₹)', prefixText: '₹ '),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: limitCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Total Available Inventory'),
-            ),
             const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -237,12 +230,10 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
               onPressed: () {
                 final rate = double.tryParse(rateCtrl.text) ?? item.monthlyRate;
                 final deposit = double.tryParse(depCtrl.text) ?? item.securityDeposit;
-                final total = int.tryParse(limitCtrl.text) ?? item.totalInventory;
-                
+
                 setState(() {
                   item.monthlyRate = rate;
                   item.securityDeposit = deposit;
-                  item.totalInventory = total;
                 });
                 Navigator.pop(context);
                 _saveAddonSettings(item);
@@ -259,7 +250,6 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
   void _showAddAddonSheet() {
     final nameCtrl = TextEditingController();
     final rateCtrl = TextEditingController();
-    final limitCtrl = TextEditingController();
     final depCtrl = TextEditingController(text: '0');
 
     showModalBottomSheet(
@@ -297,12 +287,6 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(hintText: 'Security Deposit (₹)', prefixText: '₹ '),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: limitCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(hintText: 'Total Available Inventory'),
-            ),
             const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -312,7 +296,6 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
               ),
               onPressed: () {
                 final rate = double.tryParse(rateCtrl.text) ?? 0;
-                final limit = int.tryParse(limitCtrl.text) ?? 0;
                 final deposit = double.tryParse(depCtrl.text) ?? 0;
                 final name = nameCtrl.text.trim();
 
@@ -335,7 +318,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
                     name: name,
                     monthlyRate: rate,
                     securityDeposit: deposit,
-                    totalInventory: limit,
+                    totalInventory: 0,
                     icon: icon,
                   );
                   

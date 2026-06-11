@@ -83,7 +83,16 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   // ── Fetch All Member Details ──────────────────────────────────────────────
   Future<void> _fetchMemberData() async {
     final mId = _memberId;
-    if (mId == null) return;
+    if (mId == null || mId.isEmpty) {
+      // No id was passed — show the error state instead of an endless spinner.
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'No member was selected. Please reopen this profile from the members list.';
+        });
+      }
+      return;
+    }
 
     try {
       if (mounted) setState(() => _isLoading = true);
@@ -1776,6 +1785,49 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   }
 
   // ── Build Method ───────────────────────────────────────────────────────────
+  // Build only the active tab, selected by NAME (so a removed tab in read-only
+  // mode can't cause an index mismatch). Any per-tab build error is caught and
+  // shown inline instead of blanking the whole screen.
+  Widget _buildTabContent() {
+    final String tab = (_activeTab >= 0 && _activeTab < _tabNames.length)
+        ? _tabNames[_activeTab]
+        : 'Overview';
+    try {
+      switch (tab) {
+        case 'Attendance':
+          return _buildAttendanceTab();
+        case 'Payments':
+          return _buildPaymentsTab();
+        case 'Activity':
+          return _buildActivityTab();
+        case 'Notes':
+          return _buildNotesTab();
+        case 'Overview':
+        default:
+          return _buildOverviewTab();
+      }
+    } catch (e) {
+      debugPrint('Error building "$tab" tab: $e');
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 40, color: Color(0xFFDC2626)),
+              const SizedBox(height: 12),
+              Text(
+                'Couldn\'t load the $tab tab.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -1962,17 +2014,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     ),
                   ),
 
-                  // 4. Tab Views
-                  IndexedStack(
-                    index: _activeTab,
-                    children: [
-                      _buildOverviewTab(),
-                      _buildAttendanceTab(),
-                      _buildPaymentsTab(),
-                      _buildActivityTab(),
-                      _buildNotesTab(),
-                    ],
-                  ),
+                  // 4. Tab View — build ONLY the active tab. Building all five
+                  // eagerly meant one bad tab's parse error blanked the whole
+                  // screen; this isolates each tab and is driven by _tabNames so
+                  // removing "Notes" in read-only mode can't index past children.
+                  _buildTabContent(),
                 ],
               ),
             ),

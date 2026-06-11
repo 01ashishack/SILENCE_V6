@@ -241,7 +241,7 @@ Trigger:  Floating scan button on Home OR notification tap
 │                             │
 │                             │
 │                             │
-│  [After 2 failed scans:]    │  ← CONDITIONAL: appears after 2 fails
+│  [After 3 failed scans:]    │  ← CONDITIONAL: appears after 2 fails
 │  ┌────────────────────────┐ │
 │  │[Contact Admin for      │ │  ← white outlined buttons
 │  │ Manual Check-in]       │ │

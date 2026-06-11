@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import '../../core/cache_service.dart';
 import '../../models/member_draft.dart';
 import '../../services/draft_service.dart';
+import '../../utils/error_messages.dart';
+import '../../utils/audit_logger.dart';
+import 'member_transfer_screen.dart';
 
 enum MemberListItemType {
   draft,
@@ -424,11 +427,18 @@ class _MembersSubTabState extends State<MembersSubTab> {
   }
 
   // ── Member Actions Bottom Sheet ─────────────────────────────────────────
-  void _showMemberActionsBottomSheet(String memberId, String name) {
+  void _showMemberActionsBottomSheet(Map<String, dynamic> membership) {
+    final member = membership['member_id'];
+    if (member == null) return;
+    final String memberId = member['id']?.toString() ?? '';
+    final String name = member['full_name']?.toString() ?? 'Member';
+    final String status = (membership['status'] ?? 'pending').toString();
+    final bool isHold = status == 'hold';
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (sheetCtx) {
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -451,20 +461,51 @@ class _MembersSubTabState extends State<MembersSubTab> {
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.visibility_outlined, color: Color(0xFFE65C00)),
-                title: Text('View Details', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                leading: const Icon(Icons.autorenew, color: Color(0xFFE65C00)),
+                title: Text('Renew', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                subtitle: Text('Open profile to renew', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
                 onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, '/admin/member', arguments: memberId);
+                  Navigator.pop(sheetCtx);
+                  Navigator.pushNamed(context, '/admin/member', arguments: memberId)
+                      .then((_) => _fetchMembers(isRefresh: true));
                 },
               ),
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.autorenew, color: Color(0xFFE65C00)),
-                title: Text('Renew', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                leading: Icon(isHold ? Icons.play_arrow_rounded : Icons.pause_rounded, color: const Color(0xFFD97706)),
+                title: Text(isHold ? 'Resume Membership' : 'Hold Membership', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
                 onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, '/admin/library/setup/3');
+                  Navigator.pop(sheetCtx);
+                  _holdOrResumeMember(membership, resume: isHold);
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF2563EB)),
+                title: Text('Transfer to another library', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MemberTransferScreen(
+                        memberId: memberId,
+                        memberName: name,
+                        fromMembership: membership,
+                      ),
+                    ),
+                  ).then((result) {
+                    if (result == true) _fetchMembers(isRefresh: true);
+                  });
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.person_remove_rounded, color: Color(0xFFDC2626)),
+                title: Text('Remove from library', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFFDC2626))),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _removeMember(membership);
                 },
               ),
             ],
@@ -472,6 +513,142 @@ class _MembersSubTabState extends State<MembersSubTab> {
         );
       },
     );
+  }
+
+  // Hold or resume a membership: flip status + the seat's status, notify, audit.
+  Future<void> _holdOrResumeMember(Map<String, dynamic> membership, {required bool resume}) async {
+    final member = membership['member_id'];
+    final String memberId = member?['id']?.toString() ?? '';
+    final String name = member?['full_name']?.toString() ?? 'Member';
+    final String membershipId = membership['id']?.toString() ?? '';
+    final String? seatId = membership['seat_id']?.toString();
+    final String libraryId = membership['library_id']?.toString() ?? '';
+    if (membershipId.isEmpty) return;
+
+    final confirmed = await _showCustomConfirmDialog(
+      context: context,
+      title: resume ? 'Resume membership?' : 'Hold membership?',
+      content: resume
+          ? 'Reactivate $name\'s membership and re-occupy their seat.'
+          : 'Pause $name\'s membership. Their seat will be marked on-hold.',
+      confirmLabel: resume ? 'Resume' : 'Hold',
+      cancelLabel: 'Cancel',
+      icon: resume ? Icons.play_arrow_rounded : Icons.pause_rounded,
+    );
+    if (confirmed != true) return;
+
+    try {
+      await supabase.from('memberships').update({
+        'status': resume ? 'active' : 'hold',
+      }).eq('id', membershipId);
+
+      if (seatId != null && seatId.isNotEmpty) {
+        await supabase.from('seats').update({
+          'status': resume ? 'occupied' : 'hold',
+        }).eq('id', seatId);
+      }
+
+      if (memberId.isNotEmpty) {
+        await supabase.from('notifications').insert({
+          'user_id': memberId,
+          'title': resume ? 'Membership resumed' : 'Membership on hold',
+          'body': resume
+              ? 'Your membership is active again.'
+              : 'Your membership has been put on hold by the admin.',
+          'data': {'type': resume ? 'membership_resumed' : 'membership_hold'},
+        });
+      }
+
+      await AuditLogger.instance.log(
+        action: resume ? 'resume_membership' : 'hold_membership',
+        category: AuditLogger.categoryMembers,
+        title: resume ? 'Resumed membership' : 'Held membership',
+        details: name,
+        libraryId: libraryId.isEmpty ? null : libraryId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(resume ? 'Membership resumed' : 'Membership put on hold'),
+            backgroundColor: const Color(0xFFE65C00),
+          ),
+        );
+        _fetchMembers(isRefresh: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red[600]),
+        );
+      }
+    }
+  }
+
+  // Remove a member from the library: exit membership + free their seat, notify, audit.
+  Future<void> _removeMember(Map<String, dynamic> membership) async {
+    final member = membership['member_id'];
+    final String memberId = member?['id']?.toString() ?? '';
+    final String name = member?['full_name']?.toString() ?? 'Member';
+    final String membershipId = membership['id']?.toString() ?? '';
+    final String? seatId = membership['seat_id']?.toString();
+    final String libraryId = membership['library_id']?.toString() ?? '';
+    if (membershipId.isEmpty) return;
+
+    final confirmed = await _showCustomConfirmDialog(
+      context: context,
+      title: 'Remove $name?',
+      content: 'This exits their membership and frees their seat. This cannot be undone.',
+      confirmLabel: 'Remove',
+      cancelLabel: 'Cancel',
+      icon: Icons.person_remove_rounded,
+    );
+    if (confirmed != true) return;
+
+    try {
+      await supabase.from('memberships').update({
+        'status': 'exited',
+        'seat_id': null,
+        'exited_at': DateTime.now().toIso8601String(),
+      }).eq('id', membershipId);
+
+      if (seatId != null && seatId.isNotEmpty) {
+        await supabase.from('seats').update({
+          'status': 'vacant',
+          'occupied_by_member_id': null,
+        }).eq('id', seatId);
+      }
+
+      if (memberId.isNotEmpty) {
+        await supabase.from('notifications').insert({
+          'user_id': memberId,
+          'title': 'Membership ended',
+          'body': 'Your membership at this library has been ended by the admin.',
+          'data': {'type': 'membership_exited'},
+        });
+      }
+
+      await AuditLogger.instance.log(
+        action: 'remove_member',
+        category: AuditLogger.categoryMembers,
+        title: 'Removed member',
+        details: name,
+        libraryId: libraryId.isEmpty ? null : libraryId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$name removed'), backgroundColor: const Color(0xFFE65C00)),
+        );
+        _fetchMembers(isRefresh: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red[600]),
+        );
+      }
+    }
   }
 
   // ── Custom Confirmation Dialog ──────────────────────────────────────────
@@ -1106,9 +1283,28 @@ class _MembersSubTabState extends State<MembersSubTab> {
           BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: _isSelectMode
+      child: Stack(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              if (_isSelectMode) {
+                setState(() {
+                  if (isSelected) {
+                    _selectedMemberIds.remove(memberId);
+                  } else {
+                    _selectedMemberIds.add(memberId);
+                  }
+                });
+              } else {
+                // Tapping the card opens the member's full profile.
+                Navigator.pushNamed(context, '/admin/member', arguments: memberId)
+                    .then((_) => _fetchMembers(isRefresh: true));
+              }
+            },
+            child: ListTile(
+              contentPadding: const EdgeInsets.fromLTRB(16, 8, 44, 8),
+              leading: _isSelectMode
             ? Checkbox(
                 value: isSelected,
                 activeColor: const Color(0xFFE65C00),
@@ -1176,13 +1372,21 @@ class _MembersSubTabState extends State<MembersSubTab> {
                 ),
             ],
           ),
-        ),
-        trailing: _isSelectMode
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.more_vert, size: 20),
-                onPressed: () => _showMemberActionsBottomSheet(memberId, name),
               ),
+            ),
+          ),
+          // 3-dot menu pinned to the top-right corner of the card.
+          if (!_isSelectMode)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                icon: const Icon(Icons.more_vert, size: 20, color: Color(0xFF64748B)),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _showMemberActionsBottomSheet(membership),
+              ),
+            ),
+        ],
       ),
     );
   }

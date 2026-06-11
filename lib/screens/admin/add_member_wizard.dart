@@ -8,6 +8,7 @@ import '../../models/member_data.dart';
 import '../../services/draft_service.dart';
 import '../../core/image_optimizer.dart';
 import '../../core/cache_service.dart';
+import '../../utils/error_messages.dart';
 import 'add_member_mode_selection.dart';
 import 'add_member_step1.dart';
 import 'add_member_step2.dart';
@@ -479,14 +480,18 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Member registration finalized successfully ✓'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Member added successfully ✓'), backgroundColor: Colors.green),
         );
+        // Close the wizard and signal members_sub_tab to refresh the member list.
         Navigator.pop(context, true);
       }
     } catch (e) {
+      // Log the exact exception (incl. PostgREST/RLS details) — do not swallow.
       debugPrint('Error finalizing registration: $e');
       if (mounted) {
-        _showErrorSnackBar('Registration failed: $e');
+        // Keep the wizard OPEN so the admin can correct and retry. Do NOT save a
+        // draft on error — that path is what produced duplicate member records.
+        _showErrorSnackBar(friendlyError(e));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

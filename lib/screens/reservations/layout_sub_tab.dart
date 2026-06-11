@@ -310,11 +310,57 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       final allShiftSeats = await allShiftSeatsQuery;
       print('All seats count: ${allShiftSeats.length}');
 
+      final seatsList = List<Map<String, dynamic>>.from(seatsRes);
+      final membershipsList = List<Map<String, dynamic>>.from(membershipsRes);
+
+      // ── Reconcile occupancy from memberships ──────────────────────────────
+      // The grid colours seats from seats.status / occupied_by_member_id. If a
+      // membership claims a seat (seat_id set, status active/trial/hold) but the
+      // seats row says vacant or has no member, the seat wrongly shows vacant.
+      // Fix the in-memory seat so the grid shows truth, and remember the rows to
+      // self-heal in the DB so the fix persists.
+      final Map<String, Map<String, dynamic>> seatToMembership = {};
+      for (final m in membershipsList) {
+        final sId = m['seat_id']?.toString();
+        final st = (m['status'] ?? '').toString();
+        if (sId != null && sId.isNotEmpty && (st == 'active' || st == 'trial' || st == 'hold')) {
+          seatToMembership[sId] = m;
+        }
+      }
+      final List<Map<String, String>> desynced = [];
+      for (final seat in seatsList) {
+        final sId = seat['id']?.toString();
+        if (sId == null) continue;
+        final claim = seatToMembership[sId];
+        if (claim == null) continue;
+        final seatStatus = (seat['status'] ?? 'vacant').toString();
+        final hasMember = seat['occupied_by_member_id'] != null;
+        if (seatStatus == 'vacant' || seatStatus == 'maintenance' || !hasMember) {
+          final memberId = claim['member_id'] is Map
+              ? claim['member_id']['id']?.toString()
+              : claim['member_id']?.toString();
+          final memberName = claim['member_id'] is Map
+              ? claim['member_id']['full_name']
+              : null;
+          final newStatus = claim['status'] == 'hold' ? 'hold' : 'occupied';
+          // Repair the in-memory seat used for rendering.
+          seat['status'] = newStatus;
+          seat['occupied_by_member_id'] = {
+            'id': memberId,
+            'full_name': memberName,
+            'photo_url': null,
+          };
+          if (memberId != null) {
+            desynced.add({'seat_id': sId, 'member_id': memberId, 'status': newStatus});
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
           _sectionsList = List<Map<String, dynamic>>.from(sectionsRes);
-          _seatsList = List<Map<String, dynamic>>.from(seatsRes);
-          _membershipsList = List<Map<String, dynamic>>.from(membershipsRes);
+          _seatsList = seatsList;
+          _membershipsList = membershipsList;
 
           _allSectionsCount = allSections.length;
           _totalSeatsCount = allShiftSeats.length;
@@ -323,6 +369,19 @@ class LayoutSubTabState extends State<LayoutSubTab> {
           _isLoading = false;
         });
         print('State set successfully. Sections size: ${_sectionsList.length}, Seats size: ${_seatsList.length}');
+      }
+
+      // Best-effort DB self-heal for genuinely desynced rows (no realtime loop:
+      // this only fires when a seat truly disagreed with its membership).
+      for (final d in desynced) {
+        try {
+          await supabase.from('seats').update({
+            'status': d['status'],
+            'occupied_by_member_id': d['member_id'],
+          }).eq('id', d['seat_id']!);
+        } catch (e) {
+          debugPrint('Seat self-heal failed for ${d['seat_id']}: $e');
+        }
       }
     } catch (e) {
       print('Error fetching seats/sections: $e');
@@ -591,6 +650,154 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     }
   }
 
+  /// Assign a **seatless active member of this seat's shift** onto a vacant seat:
+  /// occupies the seat, sets the membership's `seat_id`, notifies, and audits.
+  /// (Replaces the old dead-end that only pointed admins to the Requests tab.)
+  Future<void> _assignMemberToSeat(Map<String, dynamic> seat) async {
+    final seatId = seat['id'].toString();
+    final label = (seat['seat_label'] ?? 'seat').toString();
+    final shiftId = seat['shift_id']?.toString();
+    if (shiftId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This seat has no shift configured.')),
+      );
+      return;
+    }
+
+    // Members with a live membership in this shift who currently have no seat.
+    List<Map<String, dynamic>> candidates = [];
+    try {
+      final res = await supabase
+          .from('memberships')
+          .select('id, member_id(id, full_name, photo_url), status, seat_id')
+          .eq('library_id', widget.libraryId)
+          .eq('shift_id', shiftId)
+          .inFilter('status', ['active', 'trial', 'hold'])
+          .isFilter('seat_id', null);
+      candidates = List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e))),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(
+            'No seatless members in this shift. Approve a join request in the Requests tab first.')),
+      );
+      return;
+    }
+
+    final chosen = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Assign a member to seat $label',
+                  style: GoogleFonts.outfit(
+                      fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Members in this shift without a seat:',
+                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: candidates.map((m) {
+                  final mem = m['member_id'];
+                  final name = (mem?['full_name'] ?? 'Member').toString();
+                  final photo = (mem?['photo_url'] ?? '').toString();
+                  return ListTile(
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: const Color(0xFFFFF7F0),
+                      backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                      child: photo.isEmpty
+                          ? const Icon(Icons.person, color: Color(0xFFE65C00), size: 18)
+                          : null,
+                    ),
+                    title: Text(name, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                    trailing: const Icon(Icons.chevron_right, size: 16),
+                    onTap: () => Navigator.pop(ctx, m),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+
+    if (chosen == null) return;
+    final membershipId = chosen['id'].toString();
+    final mem = chosen['member_id'];
+    final memberId = mem?['id']?.toString();
+    final memberName = (mem?['full_name'] ?? 'Member').toString();
+    if (memberId == null) return;
+
+    try {
+      // Re-validate the seat is still vacant (avoid a race).
+      final check = await supabase.from('seats').select('status').eq('id', seatId).single();
+      if (check['status'] != 'vacant') {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('That seat was just taken. Try another.')),
+        );
+        return;
+      }
+
+      await supabase.from('seats').update({
+        'status': 'occupied',
+        'occupied_by_member_id': memberId,
+      }).eq('id', seatId);
+      await supabase.from('memberships').update({
+        'seat_id': seatId,
+      }).eq('id', membershipId);
+
+      await _notifySeatMember(
+        memberId,
+        'Seat assigned',
+        'You have been assigned seat $label by the admin.',
+        'seat_assigned',
+      );
+      await AuditLogger.instance.log(
+        action: 'seat_assign',
+        category: AuditLogger.categoryMembers,
+        title: 'Assigned seat',
+        details: '$memberName → seat $label',
+        libraryId: widget.libraryId,
+      );
+
+      _fetchSeatsAndSections();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$memberName assigned to seat $label. Member notified.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e))),
+      );
+    }
+  }
+
   Future<void> _markSeatStatus(String seatId, String label, String status) async {
     try {
       await supabase.from('seats').update({
@@ -838,8 +1045,9 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   trailing: const Icon(Icons.chevron_right, size: 16),
                   onTap: () {
                     Navigator.pop(ctx);
-                    if (mounted) {
-                      Navigator.pushNamed(context, '/admin/library/setup/3').then((_) => _fetchSeatsAndSections());
+                    if (member != null && mounted) {
+                      Navigator.pushNamed(context, '/admin/member', arguments: member['id'])
+                          .then((_) => _fetchSeatsAndSections());
                     }
                   },
                 ),
@@ -869,11 +1077,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   trailing: const Icon(Icons.chevron_right, size: 16),
                   onTap: () {
                     Navigator.pop(ctx);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please approve pending join requests in the Requests tab to assign members.')),
-                      );
-                    }
+                    if (mounted) _assignMemberToSeat(seat);
                   },
                 ),
                 ListTile(

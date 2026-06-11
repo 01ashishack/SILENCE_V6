@@ -170,6 +170,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
               widget.memberData.selectedShiftName = defShift['name'] ?? '';
               widget.memberData.selectedShiftPrice = price;
             }
+            _ensureValidPlanSelection();
           }
         });
         _calculateTotal();
@@ -179,7 +180,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
       try {
         final addonsRes = await _supabase
             .from('add_ons')
-            .select('id, name, price, refundable_deposit')
+            .select('id, name, price, refundable_deposit, price_type')
             .eq('library_id', libraryId)
             .eq('active', true);
 
@@ -215,6 +216,26 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
     final shift = _selectedShift;
     if (shift == null) return widget.memberData.selectedShiftPrice;
     return (shift['price_monthly'] as num?)?.toInt() ?? 1500;
+  }
+
+  // A duration plan is offered only when the shift has a real configured price.
+  bool get _has3MonthPlan {
+    final p = _selectedShift?['price_3month'];
+    return p is num && p > 0;
+  }
+
+  bool get _has6MonthPlan {
+    final p = _selectedShift?['price_6month'];
+    return p is num && p > 0;
+  }
+
+  // Keep planType valid for the current shift: if the admin had selected a
+  // duration the shift doesn't configure, fall back to Monthly (always present).
+  void _ensureValidPlanSelection() {
+    final pt = widget.memberData.planType;
+    if ((pt == '3_month' && !_has3MonthPlan) || (pt == '6_month' && !_has6MonthPlan)) {
+      widget.memberData.planType = 'monthly';
+    }
   }
 
   int get _planPrice {
@@ -418,6 +439,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                       widget.memberData.selectedShiftId = s['id'];
                       widget.memberData.selectedShiftName = s['name'] ?? '';
                       widget.memberData.selectedShiftPrice = price;
+                      _ensureValidPlanSelection();
                     });
                     _calculateTotal();
                   },
@@ -492,23 +514,24 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
             const SizedBox(height: 12),
             Row(
               children: [
+                // Monthly is always configured (price_monthly is required on a shift).
                 _buildPlanPill('monthly', 'Monthly', _basePrice),
-                const SizedBox(width: 10),
-                _buildPlanPill(
-                  '3_month',
-                  '3-Month',
-                  (_selectedShift != null && _selectedShift!['price_3month'] != null)
-                      ? (_selectedShift!['price_3month'] as num).toInt()
-                      : (_basePrice * 3 * 0.90).round(),
-                ),
-                const SizedBox(width: 10),
-                _buildPlanPill(
-                  '6_month',
-                  '6-Month',
-                  (_selectedShift != null && _selectedShift!['price_6month'] != null)
-                      ? (_selectedShift!['price_6month'] as num).toInt()
-                      : (_basePrice * 6 * 0.80).round(),
-                ),
+                if (_has3MonthPlan) ...[
+                  const SizedBox(width: 10),
+                  _buildPlanPill(
+                    '3_month',
+                    '3-Month',
+                    (_selectedShift!['price_3month'] as num).toInt(),
+                  ),
+                ],
+                if (_has6MonthPlan) ...[
+                  const SizedBox(width: 10),
+                  _buildPlanPill(
+                    '6_month',
+                    '6-Month',
+                    (_selectedShift!['price_6month'] as num).toInt(),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 24),
@@ -634,6 +657,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                   final isSelected = widget.memberData.selectedAddonIds.contains(addonId);
                   final price = (addOn['price'] as num?)?.toInt() ?? 0;
                   final deposit = (addOn['refundable_deposit'] as num?)?.toInt() ?? 0;
+                  final isMonthly = (addOn['price_type'] ?? 'one_time') == 'monthly';
 
                   return InkWell(
                     onTap: () {
@@ -702,6 +726,22 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: isMonthly ? const Color(0xFFFFF1E6) : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    isMonthly ? 'Monthly' : 'One-time',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: isMonthly ? const Color(0xFFE65C00) : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
