@@ -281,9 +281,9 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       // 3. Fetch active/trial memberships to determine expiry and payment status
       var membershipsQuery = supabase
           .from('memberships')
-          .select('*, member_id(full_name)')
+          .select('*, member_id(id, full_name, photo_url)')
           .eq('library_id', widget.libraryId)
-          .inFilter('status', ['active', 'trial', 'hold', 'expired']);
+          .inFilter('status', ['active', 'trial', 'hold', 'pending', 'expired']);
       if (_selectedShiftId != 'all') {
         membershipsQuery = membershipsQuery.eq('shift_id', _selectedShiftId!);
       }
@@ -312,6 +312,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
       final seatsList = List<Map<String, dynamic>>.from(seatsRes);
       final membershipsList = List<Map<String, dynamic>>.from(membershipsRes);
+      final allShiftSeatsList = List<Map<String, dynamic>>.from(allShiftSeats);
 
       // ── Reconcile occupancy from memberships ──────────────────────────────
       // The grid colours seats from seats.status / occupied_by_member_id. If a
@@ -323,7 +324,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       for (final m in membershipsList) {
         final sId = m['seat_id']?.toString();
         final st = (m['status'] ?? '').toString();
-        if (sId != null && sId.isNotEmpty && (st == 'active' || st == 'trial' || st == 'hold')) {
+        if (sId != null && sId.isNotEmpty && (st == 'active' || st == 'trial' || st == 'hold' || st == 'pending')) {
           seatToMembership[sId] = m;
         }
       }
@@ -355,6 +356,13 @@ class LayoutSubTabState extends State<LayoutSubTab> {
           }
         }
       }
+      for (final seat in allShiftSeatsList) {
+        final sId = seat['id']?.toString();
+        if (sId == null) continue;
+        final claim = seatToMembership[sId];
+        if (claim == null) continue;
+        seat['status'] = claim['status'] == 'hold' ? 'hold' : 'occupied';
+      }
 
       if (mounted) {
         setState(() {
@@ -363,8 +371,8 @@ class LayoutSubTabState extends State<LayoutSubTab> {
           _membershipsList = membershipsList;
 
           _allSectionsCount = allSections.length;
-          _totalSeatsCount = allShiftSeats.length;
-          _availableSeatsCount = allShiftSeats.where((s) => s['status'] == 'vacant').length;
+          _totalSeatsCount = allShiftSeatsList.length;
+          _availableSeatsCount = allShiftSeatsList.where((s) => s['status'] == 'vacant').length;
 
           _isLoading = false;
         });
@@ -394,7 +402,12 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     if (memberId == null) return null;
     try {
       return _membershipsList.firstWhere(
-        (m) => m['member_id'] == memberId,
+        (m) {
+          final mId = m['member_id'] is Map
+              ? m['member_id']['id']?.toString()
+              : m['member_id']?.toString();
+          return mId == memberId;
+        },
       );
     } catch (_) {
       return null;

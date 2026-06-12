@@ -642,6 +642,28 @@ CREATE POLICY "Admins can view all users (for member lists)" ON users
 CREATE POLICY "Users can update own profile" ON users
     FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
+-- A library owner records a member's photo / ID documents / details (Add-Member
+-- wizard + member profile edit). The member's row is owned by the member, not
+-- the owner, so the self-update policy above does not cover this. Scope it
+-- through memberships so an owner can only touch users who are members of one of
+-- their libraries. (see migrations/2026-06-12_users_owner_update_rls.sql)
+CREATE POLICY "Owner can update their library members" ON users
+    FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM memberships m
+            JOIN libraries l ON l.id = m.library_id
+            WHERE m.member_id = users.id AND l.owner_id = auth.uid()
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM memberships m
+            JOIN libraries l ON l.id = m.library_id
+            WHERE m.member_id = users.id AND l.owner_id = auth.uid()
+        )
+    );
+
 CREATE POLICY "Anyone can insert (signup)" ON users
     FOR INSERT WITH CHECK (true);
 

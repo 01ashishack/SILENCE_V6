@@ -181,11 +181,40 @@
   (owner-scoped INSERT policy) + folded into canonical `supabase_schema.sql`. **0 new analyze issues.**
   ⛔ **migration NOT yet applied to the live DB** — applying it is what actually clears the error and
   starts populating Payments (historical empty members won't backfill; not faked).
+- **Member photos + assigned-seat-vacant fixes (2026-06-12):** two RLS write-permission gaps (same
+  class as the payments hotfix). **(1) Member photos / ID docs never persisted** — `users` had only a
+  SELF-update policy (`auth.uid() = id`), so an admin's follow-up `users.update(photo_url/id_proof_url/
+  id_type/details)` on a *member's* row matched **0 rows silently** (the INSERT works, so basic fields
+  showed; only photo/ID were lost — also broke member-detail profile edits). Fix: new migration
+  `silence_app/migrations/2026-06-12_users_owner_update_rls.sql` (owner UPDATE on `users`, scoped via
+  `memberships`→`libraries`) + folded into canonical `supabase_schema.sql`. **`add_member_wizard`
+  reordered** so the membership+seat are created BEFORE the photo/ID/detail writes (that membership is
+  the link the new policy checks), and those writes moved into a best-effort `_writeMemberProfile`
+  helper so a media/upload hiccup can't roll back a valid (paid) registration. Display logic was already
+  correct (`silence_assets` is the app-wide public bucket; member_detail signs `silence_private` doc
+  URLs). **(2) Assigned seat showed vacant** = downstream of the unapplied payments migration: the
+  payment insert is RLS-rejected → the wizard rollback frees the seat. layout_sub_tab already
+  reconciles+self-heals from memberships, so once payments insert succeeds the seat stays occupied.
+  **0 new analyze issues** (2 pre-existing baseline: unused `cache_service` import, one
+  BuildContext-async info in `_initWizard`). ⛔ **both migrations NOT yet applied to the live DB.**
+- **Add-member image crash on Windows desktop (2026-06-12):** the wizard force-closed the moment you
+  tapped Camera/Gallery **when testing on the Windows build**. `add_member_step1._pickImage` gated the
+  permission + crop path behind `if (!kIsWeb)`, but `kIsWeb` is only true on web — so **desktop fell
+  into the mobile path** and calling `permission_handler` / `image_cropper` (both MOBILE-ONLY, no
+  Windows impl) threw `MissingPluginException` → native force-close. Fix: gate that path behind a real
+  `isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS)` check, skip the cropper on web/desktop,
+  and wrap `pickImage` in try/catch (camera capture is unsupported on desktop → friendly message, no
+  crash). Gallery-based upload now works on Windows for testing; **camera/crop/permissions remain
+  Android/iOS-only — real image testing must be on a device/emulator.** 0 new analyze issues.
 
 ### Next action (when the user says "continue"/"GO")
-- **Apply the payments RLS hotfix** — run `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql`
-  in the Supabase SQL editor. This clears the add-member "permission" error and populates Payments going
-  forward. (App code is already correct; this is a pure RLS gap.)
+- **Apply BOTH RLS hotfixes** in the Supabase SQL editor (each is additive, idempotent, owner-scoped):
+  - `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql` — clears the add-member
+    "permission" error, populates Payments, and (by letting the payment insert succeed) stops the
+    rollback that was leaving the **assigned seat showing vacant**.
+  - `silence_app/migrations/2026-06-12_users_owner_update_rls.sql` — lets member **photos + ID
+    documents** persist and lets admins **edit a member's profile**. (App code is already correct;
+    these are pure RLS gaps. A member already in a broken seat state should be re-added after applying.)
 - **Phase C is APPLIED to the live DB** (verified above). Remaining DB steps: optional §E
   `library_closures` drop + an on-device smoke test of the touched flows (reservation tab, add-member,
   amenities).

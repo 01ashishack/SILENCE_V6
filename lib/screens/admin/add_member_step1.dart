@@ -439,7 +439,15 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
 
     if (source == null) return;
 
-    if (!kIsWeb) {
+    // permission_handler, image_cropper and camera capture are MOBILE-ONLY
+    // plugins — on Windows/macOS/Linux desktop (and web) they have no platform
+    // implementation and throw a MissingPluginException, which is what
+    // force-closed the app while testing on Windows. Only run that path on
+    // Android/iOS; everywhere else fall straight through to image_picker's file
+    // selection (works for gallery on desktop) and skip cropping.
+    final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+    if (isMobile) {
       if (source == ImageSource.camera) {
         final status = await Permission.camera.request();
         if (!status.isGranted) {
@@ -466,11 +474,27 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
       }
     }
 
-    final pickedFile = await _picker.pickImage(source: source, maxWidth: 1024, imageQuality: 85);
+    XFile? pickedFile;
+    try {
+      pickedFile = await _picker.pickImage(source: source, maxWidth: 1024, imageQuality: 85);
+    } catch (e) {
+      // Most commonly on desktop: camera capture isn't available, or the
+      // platform's image_picker isn't wired up. Don't crash — tell the user.
+      debugPrint('pickImage failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(source == ImageSource.camera
+              ? 'Camera capture isn\'t supported on this device — choose from gallery/files instead.'
+              : 'Could not open the file picker on this device.')),
+        );
+      }
+      return;
+    }
     if (pickedFile == null) return;
 
     File? processedFile;
-    if (kIsWeb) {
+    if (kIsWeb || !isMobile) {
+      // No native cropper on web/desktop — use the picked file as-is.
       processedFile = File(pickedFile.path);
     } else {
       CroppedFile? croppedFile;

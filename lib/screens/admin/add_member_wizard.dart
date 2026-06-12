@@ -315,7 +315,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last.split('\\').last}';
     final path = 'library_members/$_libraryId/$subFolder/$fileName';
 
-    await _supabase.storage.from('silence_assets').uploadBinary(
+    await _supabase.storage.from('silence_private').uploadBinary(
       path,
       Uint8List.fromList(bytes),
       fileOptions: const FileOptions(
@@ -324,7 +324,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       ),
     );
 
-    return _supabase.storage.from('silence_assets').getPublicUrl(path);
+    return path;
   }
 
   Future<String?> _uploadProfilePhoto(File file, String memberId) async {
@@ -350,13 +350,20 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     String? createdMembershipId;
     String? occupiedSeatId;
     try {
-      // 1. Look up or insert user by phone or email
+      // 1. Look up or insert user by phone or email. For a NEW member we insert
+      // the basic profile now; the photo / ID documents are written LATER (step
+      // 4), AFTER the membership exists. RLS only lets an owner update a user
+      // who is a member of one of their libraries, so writing the member's
+      // photo/ID before the membership would be silently rejected — which is why
+      // those used to never persist (see
+      // migrations/2026-06-12_users_owner_update_rls.sql).
       var userObj = await _supabase
           .from('users')
           .select('id')
           .or('phone.eq.${_memberData.phone},email.eq.${_memberData.email}')
           .maybeSingle();
 
+      final bool isExistingUser = userObj != null;
       String memberUserId;
       if (userObj == null) {
         final newU = await _supabase.from('users').insert({
@@ -408,41 +415,13 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
           }
           return;
         }
-
-        await _supabase.from('users').update({
-          'full_name': _memberData.name,
-          'email': _memberData.email.isEmpty ? null : _memberData.email,
-          'gender': _memberData.gender,
-          'date_of_birth': _memberData.dob?.toIso8601String().substring(0, 10),
-          'address': _memberData.address,
-          'exam_category': _memberData.preparingFor,
-        }).eq('id', memberUserId);
+        // An existing member's detail refresh is also deferred to step 4 (it is
+        // an UPDATE on their row, which the same RLS link gates).
       }
 
-      // 2. Upload profile photo to silence_privatebucket
-      String? photoUrl;
-      if (_memberData.profilePhoto != null) {
-        photoUrl = await _uploadProfilePhoto(_memberData.profilePhoto!, memberUserId);
-        await _supabase.from('users').update({
-          'photo_url': photoUrl,
-        }).eq('id', memberUserId);
-      }
-
-      // 3. Upload other docs
-      String? docUrl;
-      if (_memberData.idProof1File != null) {
-        docUrl = await _uploadFileToStorage(_memberData.idProof1File!, 'documents');
-      } else if (_memberData.idProof2File != null) {
-        docUrl = await _uploadFileToStorage(_memberData.idProof2File!, 'documents');
-      }
-
-      if (docUrl != null) {
-        await _supabase.from('users').update({
-          'id_proof_url': docUrl,
-        }).eq('id', memberUserId);
-      }
-
-      // 4. Create membership
+      // 2. Create the membership FIRST. The membership is what links this member
+      // to the owner's library, and the users-table owner-update RLS policy
+      // checks for exactly that link before allowing the photo / ID writes below.
       final startStr = _calculatedPlanStart.toIso8601String().substring(0, 10);
       final endStr = _calculatedExpiry.toIso8601String().substring(0, 10);
 
@@ -460,7 +439,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       final membershipId = membership['id'] as String;
       createdMembershipId = membershipId;
 
-      // 5. Occupy the seat immediately after the membership is created, BEFORE
+      // 3. Occupy the seat immediately after the membership is created, BEFORE
       // the payment insert. If payment ever fails, the seat/membership stay in
       // sync (no "assigned but shows vacant"); the layout grid also self-heals.
       if (_memberData.selectedSeatId != null) {
@@ -471,7 +450,14 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         occupiedSeatId = _memberData.selectedSeatId;
       }
 
-      // 6. Create payment record
+      // 4. Persist the member's photo, ID documents, and (existing member only)
+      // refreshed contact details. The membership above grants RLS access to
+      // this member's row. Best-effort: a media/upload hiccup must NOT roll back
+      // an otherwise valid (and paid) registration — the admin can re-upload
+      // from the member's profile later.
+      await _writeMemberProfile(memberUserId, refreshDetails: isExistingUser);
+
+      // 5. Create payment record
       final finalPrice = (_memberData.totalBasePrice - _memberData.discount).clamp(0, double.infinity).toInt();
       await _supabase.from('payments').insert({
         'membership_id': membershipId,
@@ -484,7 +470,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         'confirmed_by_admin_id': _supabase.auth.currentUser?.id,
       });
 
-      // 7. Delete draft if loaded
+      // 6. Delete draft if loaded
       if (_draftId != null) {
         await DraftService.instance.deleteDraft(_draftId!, _libraryId);
       }
@@ -516,6 +502,82 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     }
   }
 
+  /// Writes the member's profile photo, ID documents, and (for an existing
+  /// member) refreshed contact details to their `users` row. Called AFTER the
+  /// membership exists so the owner-update RLS policy applies (see
+  /// migrations/2026-06-12_users_owner_update_rls.sql). Every write is
+  /// independent and swallowed — a single media/upload failure must not abort a
+  /// valid registration; without the RLS migration applied these silently
+  /// no-op (the member is still added, just without the media).
+  Future<void> _writeMemberProfile(String memberUserId, {required bool refreshDetails}) async {
+    // Refresh an existing member's contact details (deferred from step 1).
+    if (refreshDetails) {
+      try {
+        await _supabase.from('users').update({
+          'full_name': _memberData.name,
+          'email': _memberData.email.isEmpty ? null : _memberData.email,
+          'gender': _memberData.gender,
+          'date_of_birth': _memberData.dob?.toIso8601String().substring(0, 10),
+          'address': _memberData.address,
+          'exam_category': _memberData.preparingFor,
+        }).eq('id', memberUserId);
+      } catch (e) {
+        debugPrint('Existing-member detail refresh skipped: $e');
+      }
+    }
+
+    // Profile photo → public silence_assets bucket; store the public URL.
+    String? photoUrl = _memberData.existingPhotoUrl?.trim();
+    if (_memberData.profilePhoto != null) {
+      try {
+        photoUrl = await _uploadProfilePhoto(_memberData.profilePhoto!, memberUserId);
+      } catch (e) {
+        debugPrint('Profile photo upload skipped: $e');
+      }
+    }
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      try {
+        await _supabase.from('users').update({
+          'photo_url': photoUrl,
+        }).eq('id', memberUserId);
+      } catch (e) {
+        debugPrint('Profile photo save skipped: $e');
+      }
+    }
+
+    // ID documents → private silence_private bucket; store the storage path
+    // (member_detail resolves a short-lived signed URL to display them).
+    String? docUrl1;
+    String? docUrl2;
+    try {
+      if (_memberData.idProof1File != null) {
+        docUrl1 = await _uploadFileToStorage(_memberData.idProof1File!, 'documents');
+      }
+      if (_memberData.idProof2File != null) {
+        docUrl2 = await _uploadFileToStorage(_memberData.idProof2File!, 'documents');
+      }
+    } catch (e) {
+      debugPrint('ID document upload skipped: $e');
+    }
+    if (docUrl1 != null) {
+      try {
+        await _supabase.from('users').update({
+          'id_proof_url': docUrl1,
+        }).eq('id', memberUserId);
+      } catch (e) {
+        debugPrint('ID proof save skipped: $e');
+      }
+    }
+    final optionalUserFields = <String, dynamic>{};
+    if (_memberData.idProof1Type != null) {
+      optionalUserFields['id_type'] = _memberData.idProof1Type;
+    }
+    if (docUrl2 != null) {
+      optionalUserFields['id_proof_2_url'] = docUrl2;
+    }
+    await _updateOptionalUserFields(memberUserId, optionalUserFields);
+  }
+
   /// Best-effort undo of a half-finished registration (no DB transaction
   /// exists). Frees the seat we occupied and marks the just-created membership
   /// `exited` so it stops showing as an active member. Each step is independent
@@ -538,6 +600,16 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       }).eq('id', membershipId);
     } catch (e) {
       debugPrint('Rollback: cancel membership failed: $e');
+    }
+  }
+
+  Future<void> _updateOptionalUserFields(String memberUserId, Map<String, dynamic> fields) async {
+    for (final entry in fields.entries) {
+      try {
+        await _supabase.from('users').update({entry.key: entry.value}).eq('id', memberUserId);
+      } catch (e) {
+        debugPrint('Optional user field ${entry.key} update skipped: $e');
+      }
     }
   }
 

@@ -1265,6 +1265,39 @@ class _MembersSubTabState extends State<MembersSubTab> {
     );
   }
 
+  Widget _buildMemberAvatar(String photo) {
+    Widget fallback() {
+      return const CircleAvatar(
+        radius: 26,
+        backgroundColor: Color(0xFFFFF7F0),
+        child: Icon(Icons.person, color: Color(0xFFE65C00), size: 24),
+      );
+    }
+
+    final trimmedPhoto = photo.trim();
+    if (trimmedPhoto.isEmpty) return fallback();
+
+    return ClipOval(
+      child: CachedNetworkImage(
+        imageUrl: trimmedPhoto,
+        width: 52,
+        height: 52,
+        fit: BoxFit.cover,
+        memCacheWidth: 200,
+        placeholder: (context, url) => const CircleAvatar(
+          radius: 26,
+          backgroundColor: Color(0xFFFFF7F0),
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFE65C00)),
+          ),
+        ),
+        errorWidget: (context, url, error) => fallback(),
+      ),
+    );
+  }
+
   Widget _buildMemberCard(Map<String, dynamic> membership) {
     final member = membership['member_id'];
     if (member == null) return const SizedBox.shrink();
@@ -1323,14 +1356,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                   });
                 },
               )
-            : CircleAvatar(
-                radius: 26,
-                backgroundColor: const Color(0xFFFFF7F0),
-                backgroundImage: photo.isNotEmpty ? CachedNetworkImageProvider(photo, maxWidth: 200) : null,
-                child: photo.isEmpty
-                    ? const Icon(Icons.person, color: Color(0xFFE65C00), size: 24)
-                    : null,
-              ),
+            : _buildMemberAvatar(photo),
         title: Row(
           children: [
             Expanded(

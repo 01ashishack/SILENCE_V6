@@ -1213,6 +1213,141 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
+  Widget _buildProfilePhoto(String photo) {
+    Widget fallback() {
+      return const CircleAvatar(
+        radius: 36,
+        backgroundColor: Color(0xFFFFF7F0),
+        child: Icon(Icons.person, color: Color(0xFFE65C00), size: 36),
+      );
+    }
+
+    final trimmedPhoto = photo.trim();
+    if (trimmedPhoto.isEmpty) return fallback();
+
+    return ClipOval(
+      child: Image.network(
+        trimmedPhoto,
+        width: 72,
+        height: 72,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => fallback(),
+      ),
+    );
+  }
+
+  String? _privateStoragePath(String rawValue) {
+    final raw = rawValue.trim();
+    if (raw.isEmpty) return null;
+
+    final uri = Uri.tryParse(raw);
+    if (uri != null && uri.hasScheme) {
+      final decodedPath = Uri.decodeComponent(uri.path);
+      const bucketMarker = '/silence_private/';
+      final bucketIndex = decodedPath.indexOf(bucketMarker);
+      if (bucketIndex != -1) {
+        return decodedPath.substring(bucketIndex + bucketMarker.length);
+      }
+      return null;
+    }
+
+    var path = raw;
+    while (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+    const bucketPrefix = 'silence_private/';
+    if (path.startsWith(bucketPrefix)) {
+      path = path.substring(bucketPrefix.length);
+    }
+    return path.isEmpty ? null : path;
+  }
+
+  Future<String> _documentUrl(String rawValue) async {
+    final raw = rawValue.trim();
+    final storagePath = _privateStoragePath(raw);
+    if (storagePath == null) return raw;
+    return supabase.storage.from('silence_private').createSignedUrl(storagePath, 3600);
+  }
+
+  Widget _documentFallback() {
+    return Container(
+      height: 150,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7F0),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFEDD5)),
+      ),
+      child: const Center(
+        child: Icon(Icons.image_not_supported_outlined, color: Color(0xFFE65C00), size: 32),
+      ),
+    );
+  }
+
+  Widget _buildDocumentImage(String title, String rawUrl) {
+    return FutureBuilder<String>(
+      future: _documentUrl(rawUrl),
+      builder: (context, snapshot) {
+        final resolvedUrl = snapshot.data;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFBF5EE),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFF1F5F9)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                    ),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.open_in_new, size: 14, color: Color(0xFFE65C00)),
+                    label: Text('View', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                    onPressed: resolvedUrl == null
+                        ? null
+                        : () async {
+                            await launchUrl(Uri.parse(resolvedUrl), mode: LaunchMode.externalApplication);
+                          },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                Container(
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFF1F5F9)),
+                  ),
+                  child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFE65C00))),
+                )
+              else if (snapshot.hasError || resolvedUrl == null || resolvedUrl.isEmpty)
+                _documentFallback()
+              else
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    resolvedUrl,
+                    height: 150,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _documentFallback(),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // ── Tab 1: Overview ────────────────────────────────────────────────────────
   Widget _buildOverviewTab() {
     final user = _userProfile ?? {};
@@ -1303,80 +1438,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               if ((user['id_proof_url'] != null && user['id_proof_url'].toString().isNotEmpty) ||
                   (user['id_proof_2_url'] != null && user['id_proof_2_url'].toString().isNotEmpty)) ...[
                 if (user['id_proof_url'] != null && user['id_proof_url'].toString().isNotEmpty)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${user['id_type']?.toString().toUpperCase() ?? 'ID PROOF'} (FRONT)',
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
-                        ),
-                      ),
-                      TextButton.icon(
-                        icon: const Icon(Icons.open_in_new, size: 14, color: Color(0xFFE65C00)),
-                        label: Text('View', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                        onPressed: () async {
-                          var url = user['id_proof_url'].toString();
-                          if (url.isNotEmpty) {
-                            if (url.contains('silence_private') || url.contains('member_profiles/')) {
-                              try {
-                                final uri = Uri.parse(url);
-                                final pathIndex = uri.path.indexOf('member_profiles/');
-                                if (pathIndex != -1) {
-                                  final storagePath = Uri.decodeComponent(uri.path.substring(pathIndex));
-                                  final signedResult = await supabase.storage
-                                      .from('silence_private')
-                                      .createSignedUrl(storagePath, 3600);
-                                  url = signedResult;
-                                }
-                              } catch (e) {
-                                debugPrint('Error generating fresh signed URL: $e');
-                              }
-                            }
-                            await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                          }
-                        },
-                      ),
-                    ],
+                  _buildDocumentImage(
+                    '${user['id_type']?.toString().toUpperCase() ?? 'ID PROOF'} (FRONT)',
+                    user['id_proof_url'].toString(),
                   ),
                 if (user['id_proof_2_url'] != null && user['id_proof_2_url'].toString().isNotEmpty) ...[
-                  if (user['id_proof_url'] != null && user['id_proof_url'].toString().isNotEmpty)
-                    const Divider(height: 8, color: Color(0xFFF1F5F9)),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${user['id_type']?.toString().toUpperCase() ?? 'ID PROOF'} (BACK)',
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
-                        ),
-                      ),
-                      TextButton.icon(
-                        icon: const Icon(Icons.open_in_new, size: 14, color: Color(0xFFE65C00)),
-                        label: Text('View', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                        onPressed: () async {
-                          var url = user['id_proof_2_url'].toString();
-                          if (url.isNotEmpty) {
-                            if (url.contains('silence_private') || url.contains('member_profiles/')) {
-                              try {
-                                final uri = Uri.parse(url);
-                                final pathIndex = uri.path.indexOf('member_profiles/');
-                                if (pathIndex != -1) {
-                                  final storagePath = Uri.decodeComponent(uri.path.substring(pathIndex));
-                                  final signedResult = await supabase.storage
-                                      .from('silence_private')
-                                      .createSignedUrl(storagePath, 3600);
-                                  url = signedResult;
-                                }
-                              } catch (e) {
-                                debugPrint('Error generating fresh signed URL: $e');
-                              }
-                            }
-                            await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                          }
-                        },
-                      ),
-                    ],
+                  _buildDocumentImage(
+                    '${user['id_type']?.toString().toUpperCase() ?? 'ID PROOF'} (BACK)',
+                    user['id_proof_2_url'].toString(),
                   ),
                 ],
               ] else
@@ -2399,12 +2468,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                               width: 3,
                             ),
                           ),
-                          child: CircleAvatar(
-                            radius: 36,
-                            backgroundColor: const Color(0xFFFFF7F0),
-                            backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
-                            child: photo.isEmpty ? const Icon(Icons.person, color: Color(0xFFE65C00), size: 36) : null,
-                          ),
+                          child: _buildProfilePhoto(photo),
                         ),
                         const SizedBox(height: 12),
                         Text(name, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
