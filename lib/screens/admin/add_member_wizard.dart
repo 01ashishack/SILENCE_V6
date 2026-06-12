@@ -7,7 +7,6 @@ import '../../models/member_draft.dart';
 import '../../models/member_data.dart';
 import '../../services/draft_service.dart';
 import '../../core/image_optimizer.dart';
-import '../../core/cache_service.dart';
 import '../../utils/error_messages.dart';
 import 'add_member_mode_selection.dart';
 import 'add_member_step1.dart';

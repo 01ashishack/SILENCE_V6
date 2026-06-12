@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -96,6 +96,13 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
   }
 
   Future<bool> _requestPhotosPermission() async {
+    // permission_handler is a MOBILE-ONLY plugin — on Windows/macOS/Linux
+    // desktop (and web) it has no platform implementation and throws a
+    // MissingPluginException, which force-closes the app. Skip the request on
+    // those platforms; image_picker's gallery selection works without it.
+    final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+    if (!isMobile) return true;
+
     if (Platform.isAndroid) {
       final status = await Permission.photos.status;
       if (status.isGranted) return true;
@@ -139,7 +146,14 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
             }
 
             final picker = ImagePicker();
-            final XFile? image = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 75);
+            XFile? image;
+            try {
+              image = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 75);
+            } catch (e) {
+              debugPrint('pickImage failed: $e');
+              if (mounted) _showErrorSnackBar('Could not open the file picker on this device.');
+              return;
+            }
             if (image == null) return;
 
             setModalState(() => isUploadingFile = true);

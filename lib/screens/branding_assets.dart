@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -192,33 +192,57 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
 
     setState(() => _isLoading = true);
     try {
-      bool hasPermission = false;
-      if (source == ImageSource.camera) {
-        hasPermission = await _requestCameraPermission();
-      } else {
-        hasPermission = await _requestGalleryPermission();
-        if (!mounted) return;
-      }
+      // permission_handler, image_cropper and camera capture are MOBILE-ONLY
+      // plugins — on Windows/macOS/Linux desktop (and web) they have no platform
+      // implementation and throw a MissingPluginException, which force-closes the
+      // app. Only run that path on Android/iOS; everywhere else fall straight
+      // through to image_picker's file selection and skip cropping.
+      final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
-      if (!hasPermission) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Permission denied. Please grant permission in settings.'), backgroundColor: Colors.red),
-        );
-        return;
+      if (isMobile) {
+        bool hasPermission = false;
+        if (source == ImageSource.camera) {
+          hasPermission = await _requestCameraPermission();
+        } else {
+          hasPermission = await _requestGalleryPermission();
+          if (!mounted) return;
+        }
+
+        if (!hasPermission) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permission denied. Please grant permission in settings.'), backgroundColor: Colors.red),
+          );
+          return;
+        }
       }
 
       final picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: source,
-        maxWidth: 512,
-        imageQuality: 85,
-      );
+      XFile? image;
+      try {
+        image = await picker.pickImage(
+          source: source,
+          maxWidth: 512,
+          imageQuality: 85,
+        );
+      } catch (e) {
+        debugPrint('pickImage failed: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(source == ImageSource.camera
+                ? 'Camera capture isn\'t supported on this device — choose from gallery/files instead.'
+                : 'Could not open the file picker on this device.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
 
       if (image == null) return;
       if (!mounted) return;
 
       CroppedFile? croppedFile;
       bool cropSuccessOrCancel = false;
+      if (isMobile) {
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
@@ -245,6 +269,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
 
       if (cropSuccessOrCancel && croppedFile == null) return;
       if (!mounted) return;
+      } // end isMobile crop gate
 
       final String finalPath = croppedFile?.path ?? image.path;
 

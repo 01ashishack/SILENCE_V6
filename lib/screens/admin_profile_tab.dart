@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -288,61 +288,86 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
       final ImageSource? source = await _showImageSourceBottomSheet();
       if (source == null) return;
 
-      bool hasPermission = false;
-      if (source == ImageSource.camera) {
-        hasPermission = await _requestCameraPermission();
-      } else {
-        hasPermission = await _requestGalleryPermission();
+      // permission_handler, image_cropper and camera capture are MOBILE-ONLY
+      // plugins — on Windows/macOS/Linux desktop (and web) they have no platform
+      // implementation and throw a MissingPluginException, which force-closes the
+      // app. Only run that path on Android/iOS; everywhere else fall straight
+      // through to image_picker's file selection and skip cropping.
+      final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+      if (isMobile) {
+        bool hasPermission = false;
+        if (source == ImageSource.camera) {
+          hasPermission = await _requestCameraPermission();
+        } else {
+          hasPermission = await _requestGalleryPermission();
+        }
+        if (!hasPermission) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Permission denied. Please grant permission in settings.')),
+            );
+          }
+          return;
+        }
       }
-      if (!hasPermission) {
+
+      final picker = ImagePicker();
+      XFile? image;
+      try {
+        image = await picker.pickImage(
+          source: source,
+          maxWidth: 512,
+          imageQuality: 80,
+        );
+      } catch (e) {
+        debugPrint('pickImage failed: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Permission denied. Please grant permission in settings.')),
+            SnackBar(content: Text(source == ImageSource.camera
+                ? 'Camera capture isn\'t supported on this device — choose from gallery/files instead.'
+                : 'Could not open the file picker on this device.')),
           );
         }
         return;
       }
 
-      final picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: source,
-        maxWidth: 512,
-        imageQuality: 80,
-      );
-
       if (image == null) return;
 
-      // Crop Image to strict 1:1 square
-      final CroppedFile? croppedFile = await ImageCropper().cropImage(
-        sourcePath: image.path,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: 'Crop Profile Photo',
-            toolbarColor: const Color(0xFFE65C00),
-            toolbarWidgetColor: Colors.white,
-            initAspectRatio: CropAspectRatioPreset.square,
-            lockAspectRatio: true,
-            cropStyle: CropStyle.circle,
-          ),
-          IOSUiSettings(
-            title: 'Crop Profile Photo',
-            aspectRatioLockEnabled: true,
-            resetAspectRatioEnabled: false,
-            cropStyle: CropStyle.circle,
-          ),
-        ],
-      );
-      if (!mounted) return;
+      // Crop Image to strict 1:1 square (mobile only)
+      CroppedFile? croppedFile;
+      if (isMobile) {
+        croppedFile = await ImageCropper().cropImage(
+          sourcePath: image.path,
+          aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: 'Crop Profile Photo',
+              toolbarColor: const Color(0xFFE65C00),
+              toolbarWidgetColor: Colors.white,
+              initAspectRatio: CropAspectRatioPreset.square,
+              lockAspectRatio: true,
+              cropStyle: CropStyle.circle,
+            ),
+            IOSUiSettings(
+              title: 'Crop Profile Photo',
+              aspectRatioLockEnabled: true,
+              resetAspectRatioEnabled: false,
+              cropStyle: CropStyle.circle,
+            ),
+          ],
+        );
+        if (!mounted) return;
 
-      if (croppedFile == null) return;
+        if (croppedFile == null) return;
+      }
 
       setState(() => _isUploadingPhoto = true);
 
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      final bytes = await ImageOptimizer.compressImage(croppedFile.path);
+      final bytes = await ImageOptimizer.compressImage(croppedFile?.path ?? image.path);
       final path = 'admin_profiles/${user.id}/profile.jpg';
 
       // Try uploading to silence_private, fallback to silence_assets

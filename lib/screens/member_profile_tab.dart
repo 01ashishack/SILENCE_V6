@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -308,34 +309,57 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
 
     if (source == null) return;
 
-    bool hasPermission = false;
-    if (source == ImageSource.camera) {
-      hasPermission = await _requestCameraPermission();
-    } else {
-      hasPermission = await _requestGalleryPermission();
+    // permission_handler, image_cropper and camera capture are MOBILE-ONLY
+    // plugins — on Windows/macOS/Linux desktop (and web) they have no platform
+    // implementation and throw a MissingPluginException, which force-closes the
+    // app. Only run that path on Android/iOS; everywhere else fall straight
+    // through to image_picker's file selection and skip cropping.
+    final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+    if (isMobile) {
+      bool hasPermission = false;
+      if (source == ImageSource.camera) {
+        hasPermission = await _requestCameraPermission();
+      } else {
+        hasPermission = await _requestGalleryPermission();
+      }
+
+      if (!hasPermission) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Camera/Gallery permission denied. Please enable it in Settings.')),
+          );
+        }
+        return;
+      }
     }
 
-    if (!hasPermission) {
+    final picker = ImagePicker();
+    XFile? image;
+    try {
+      image = await picker.pickImage(
+        source: source,
+        preferredCameraDevice: CameraDevice.front,
+        maxWidth: 512,
+        imageQuality: 80,
+      );
+    } catch (e) {
+      debugPrint('pickImage failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Camera/Gallery permission denied. Please enable it in Settings.')),
+          SnackBar(content: Text(source == ImageSource.camera
+              ? 'Camera capture isn\'t supported on this device — choose from gallery/files instead.'
+              : 'Could not open the file picker on this device.')),
         );
       }
       return;
     }
 
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: source,
-      preferredCameraDevice: CameraDevice.front,
-      maxWidth: 512,
-      imageQuality: 80,
-    );
-
     if (image == null) return;
 
     // Crop Image 1:1
     CroppedFile? croppedFile;
+    if (isMobile) {
     try {
       croppedFile = await ImageCropper().cropImage(
         sourcePath: image.path,
@@ -361,6 +385,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
     } catch (e) {
       debugPrint('Cropping failed: $e');
     }
+    } // end isMobile crop gate
 
     final finalPath = croppedFile?.path ?? image.path;
 

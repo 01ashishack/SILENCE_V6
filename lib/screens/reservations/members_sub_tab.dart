@@ -8,6 +8,7 @@ import '../../models/member_draft.dart';
 import '../../services/draft_service.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/audit_logger.dart';
+import '../../utils/csv_exporter.dart';
 import 'member_transfer_screen.dart';
 
 enum MemberListItemType {
@@ -300,14 +301,10 @@ class _MembersSubTabState extends State<MembersSubTab> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
+              final msg = messageController.text.trim();
+              if (msg.isEmpty) return; // need a message before sending
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Announcement broadcasted successfully to selected members! 📢 ✓')),
-              );
-              setState(() {
-                _isSelectMode = false;
-                _selectedMemberIds.clear();
-              });
+              _broadcastAnnouncement(msg);
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
             child: const Text('Send', style: TextStyle(color: Colors.white)),
@@ -317,14 +314,80 @@ class _MembersSubTabState extends State<MembersSubTab> {
     );
   }
 
-  void _exportSelectedMembers() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Exported ${_selectedMemberIds.length} members details to CSV successfully! 📥 ✓')),
-    );
-    setState(() {
-      _isSelectMode = false;
-      _selectedMemberIds.clear();
-    });
+  // Insert a real notification for each selected member. Honest: success is
+  // shown only after the rows are written; a failure surfaces friendlyError.
+  Future<void> _broadcastAnnouncement(String message) async {
+    final ids = _selectedMemberIds.toList();
+    if (ids.isEmpty) return;
+    try {
+      final rows = ids
+          .map((id) => {
+                'user_id': id,
+                'title': 'Announcement',
+                'body': message,
+                'data': {'type': 'announcement'},
+              })
+          .toList();
+      await supabase.from('notifications').insert(rows);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Announcement sent to ${ids.length} member(s) 📢'),
+          backgroundColor: const Color(0xFFE65C00),
+        ),
+      );
+      setState(() {
+        _isSelectMode = false;
+        _selectedMemberIds.clear();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red[600]),
+      );
+    }
+  }
+
+  // Export the selected members to a real CSV (CsvExporter shares the file).
+  // Honest: the OS share/save sheet is the result — no fake "exported ✓".
+  Future<void> _exportSelectedMembers() async {
+    final selected = _membersList.where((m) {
+      final mid = m['member_id'] is Map
+          ? m['member_id']['id']?.toString()
+          : m['member_id']?.toString();
+      return mid != null && _selectedMemberIds.contains(mid);
+    }).map((m) {
+      final user = m['member_id'] is Map ? m['member_id'] as Map : null;
+      return <String, dynamic>{
+        'full_name': user?['full_name'],
+        'email': user?['email'],
+        'phone': user?['phone'],
+        'created_at': m['created_at'],
+        'expiry_date': m['end_date'],
+        'status': m['status'],
+      };
+    }).toList();
+
+    if (selected.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No members selected to export.')),
+      );
+      return;
+    }
+
+    try {
+      await CsvExporter.exportMembers(libraryName: 'Members', members: selected);
+      if (!mounted) return;
+      setState(() {
+        _isSelectMode = false;
+        _selectedMemberIds.clear();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red[600]),
+      );
+    }
   }
 
   // ── Add Member Wizard ────────────────────────────────────────────────────

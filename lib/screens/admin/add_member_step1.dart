@@ -7,7 +7,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../widgets/year_month_day_picker.dart';
 import '../../core/calendar_picker.dart';
 import '../../core/image_optimizer.dart';
 import '../../models/member_data.dart';

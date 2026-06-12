@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -373,34 +373,53 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
     setState(() => _isUploadingCover = true);
     try {
-      // 1. Request runtime permission
-      bool hasPermission = false;
-      if (source == ImageSource.camera) {
-        hasPermission = await _requestCameraPermission();
-      } else {
-        hasPermission = await _requestGalleryPermission();
-        if (!mounted) return;
-      }
+      // permission_handler, image_cropper and camera capture are MOBILE-ONLY
+      // plugins — on Windows/macOS/Linux desktop (and web) they have no platform
+      // implementation and throw a MissingPluginException, which force-closes the
+      // app. Only run that path on Android/iOS; everywhere else fall straight
+      // through to image_picker's file selection and skip cropping.
+      final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
-      if (!hasPermission) {
-        _showErrorSnackBar('Permission denied. Please grant permission in settings.');
-        return;
+      // 1. Request runtime permission
+      if (isMobile) {
+        bool hasPermission = false;
+        if (source == ImageSource.camera) {
+          hasPermission = await _requestCameraPermission();
+        } else {
+          hasPermission = await _requestGalleryPermission();
+          if (!mounted) return;
+        }
+
+        if (!hasPermission) {
+          _showErrorSnackBar('Permission denied. Please grant permission in settings.');
+          return;
+        }
       }
 
       // 2. Pick image
       final picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: source,
-        maxWidth: 1024,
-        imageQuality: 85,
-      );
+      XFile? image;
+      try {
+        image = await picker.pickImage(
+          source: source,
+          maxWidth: 1024,
+          imageQuality: 85,
+        );
+      } catch (e) {
+        debugPrint('pickImage failed: $e');
+        _showErrorSnackBar(source == ImageSource.camera
+            ? 'Camera capture isn\'t supported on this device — choose from gallery/files instead.'
+            : 'Could not open the file picker on this device.');
+        return;
+      }
 
       if (image == null) return;
       if (!mounted) return;
 
-      // Crop Image to landscape 16:9
+      // Crop Image to landscape 16:9 (mobile only)
       CroppedFile? croppedFile;
       bool cropSuccessOrCancel = false;
+      if (isMobile) {
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
@@ -429,6 +448,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
       if (cropSuccessOrCancel && croppedFile == null) return;
       if (!mounted) return;
+      } // end isMobile crop gate
 
       final String finalPath = croppedFile?.path ?? image.path;
 
@@ -498,34 +518,53 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
     setState(() => _isUploadingGallery = true);
     try {
-      // 1. Request runtime permission
-      bool hasPermission = false;
-      if (source == ImageSource.camera) {
-        hasPermission = await _requestCameraPermission();
-      } else {
-        hasPermission = await _requestGalleryPermission();
-        if (!mounted) return;
-      }
+      // permission_handler, image_cropper and camera capture are MOBILE-ONLY
+      // plugins — on Windows/macOS/Linux desktop (and web) they have no platform
+      // implementation and throw a MissingPluginException, which force-closes the
+      // app. Only run that path on Android/iOS; everywhere else fall straight
+      // through to image_picker's file selection and skip cropping.
+      final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
-      if (!hasPermission) {
-        _showErrorSnackBar('Permission denied. Please grant permission in settings.');
-        return;
+      // 1. Request runtime permission
+      if (isMobile) {
+        bool hasPermission = false;
+        if (source == ImageSource.camera) {
+          hasPermission = await _requestCameraPermission();
+        } else {
+          hasPermission = await _requestGalleryPermission();
+          if (!mounted) return;
+        }
+
+        if (!hasPermission) {
+          _showErrorSnackBar('Permission denied. Please grant permission in settings.');
+          return;
+        }
       }
 
       // 2. Pick image
       final picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: source,
-        maxWidth: 1024,
-        imageQuality: 85,
-      );
+      XFile? image;
+      try {
+        image = await picker.pickImage(
+          source: source,
+          maxWidth: 1024,
+          imageQuality: 85,
+        );
+      } catch (e) {
+        debugPrint('pickImage failed: $e');
+        _showErrorSnackBar(source == ImageSource.camera
+            ? 'Camera capture isn\'t supported on this device — choose from gallery/files instead.'
+            : 'Could not open the file picker on this device.');
+        return;
+      }
 
       if (image == null) return;
       if (!mounted) return;
 
-      // Crop Image to landscape 16:9
+      // Crop Image to landscape 16:9 (mobile only)
       CroppedFile? croppedFile;
       bool cropSuccessOrCancel = false;
+      if (isMobile) {
       try {
         croppedFile = await ImageCropper().cropImage(
           sourcePath: image.path,
@@ -554,6 +593,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
       if (cropSuccessOrCancel && croppedFile == null) return;
       if (!mounted) return;
+      } // end isMobile crop gate
 
       final String finalPath = croppedFile?.path ?? image.path;
 

@@ -178,9 +178,9 @@ class LayoutSubTabState extends State<LayoutSubTab> {
   // ── Fetch Shifts & Floors Selectors ─────────────────────────────────────────
   Future<void> _loadSelectors() async {
     try {
-      print('=== LayoutSubTab _loadSelectors START ===');
+      debugPrint('=== LayoutSubTab _loadSelectors START ===');
       await _checkOnboardingStatus();
-      print('libraryId passed: ${widget.libraryId}');
+      debugPrint('libraryId passed: ${widget.libraryId}');
 
       // 1. Fetch non-archived shifts
       final shiftsRes = await supabase
@@ -189,7 +189,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
           .eq('library_id', widget.libraryId)
           .eq('is_archived', false)
           .order('name');
-      print('Shifts fetched: ${shiftsRes.length}');
+      debugPrint('Shifts fetched: ${shiftsRes.length}');
       
       // 2. Fetch Floors
       final floorsRes = await supabase
@@ -197,9 +197,9 @@ class LayoutSubTabState extends State<LayoutSubTab> {
           .select('id, name')
           .eq('library_id', widget.libraryId)
           .order('order_index');
-      print('Floors fetched: ${floorsRes.length}');
+      debugPrint('Floors fetched: ${floorsRes.length}');
       for (var f in floorsRes) {
-        print(' - Floor ID: ${f['id']}, Name: ${f['name']}');
+        debugPrint(' - Floor ID: ${f['id']}, Name: ${f['name']}');
       }
 
       if (mounted) {
@@ -220,18 +220,18 @@ class LayoutSubTabState extends State<LayoutSubTab> {
             _selectedFloorId = _floorsList.isNotEmpty ? _floorsList.first['id'] : null;
           }
 
-          print('Selected Shift: $_selectedShiftId, Selected Floor: $_selectedFloorId');
+          debugPrint('Selected Shift: $_selectedShiftId, Selected Floor: $_selectedFloorId');
         });
 
         if (_selectedShiftId != null && _selectedFloorId != null) {
           _fetchSeatsAndSections();
         } else {
-          print('Cannot fetch seats/sections because selected shift or floor is null.');
+          debugPrint('Cannot fetch seats/sections because selected shift or floor is null.');
           setState(() => _isLoading = false);
         }
       }
     } catch (e) {
-      print('Error loading layout selectors: $e');
+      debugPrint('Error loading layout selectors: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -239,12 +239,12 @@ class LayoutSubTabState extends State<LayoutSubTab> {
   // ── Fetch Seats, Sections & Memberships ───────────────────────────────────
   Future<void> _fetchSeatsAndSections() async {
     if (_selectedShiftId == null || _selectedFloorId == null) {
-      print('Aborting _fetchSeatsAndSections: selected shift or floor is null.');
+      debugPrint('Aborting _fetchSeatsAndSections: selected shift or floor is null.');
       return;
     }
 
     try {
-      print('=== LayoutSubTab _fetchSeatsAndSections START ===');
+      debugPrint('=== LayoutSubTab _fetchSeatsAndSections START ===');
       final floorIds = _floorsList.map((f) => f['id'].toString()).toList();
 
       // 1. Fetch Sections
@@ -261,7 +261,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         sectionsQuery = sectionsQuery.eq('floor_id', _selectedFloorId!);
       }
       final sectionsRes = await sectionsQuery;
-      print('Sections fetched: ${sectionsRes.length}');
+      debugPrint('Sections fetched: ${sectionsRes.length}');
 
       // 2. Fetch Seats for selected Floor and Shift
       var seatsQuery = supabase
@@ -276,7 +276,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         seatsQuery = seatsQuery.eq('shift_id', _selectedShiftId!);
       }
       final seatsRes = await seatsQuery;
-      print('Seats fetched: ${seatsRes.length}');
+      debugPrint('Seats fetched: ${seatsRes.length}');
 
       // 3. Fetch active/trial memberships to determine expiry and payment status
       var membershipsQuery = supabase
@@ -288,7 +288,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         membershipsQuery = membershipsQuery.eq('shift_id', _selectedShiftId!);
       }
       final membershipsRes = await membershipsQuery;
-      print('Memberships fetched: ${membershipsRes.length}');
+      debugPrint('Memberships fetched: ${membershipsRes.length}');
 
       // 4. Fetch dynamic Overview Metrics for selected Library & Shift
       List<dynamic> allSections = [];
@@ -298,7 +298,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
             .select('id')
             .inFilter('floor_id', floorIds);
       }
-      print('All sections across all floors count: ${allSections.length}');
+      debugPrint('All sections across all floors count: ${allSections.length}');
 
       var allShiftSeatsQuery = supabase
           .from('seats')
@@ -308,7 +308,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         allShiftSeatsQuery = allShiftSeatsQuery.eq('shift_id', _selectedShiftId!);
       }
       final allShiftSeats = await allShiftSeatsQuery;
-      print('All seats count: ${allShiftSeats.length}');
+      debugPrint('All seats count: ${allShiftSeats.length}');
 
       final seatsList = List<Map<String, dynamic>>.from(seatsRes);
       final membershipsList = List<Map<String, dynamic>>.from(membershipsRes);
@@ -376,7 +376,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
           _isLoading = false;
         });
-        print('State set successfully. Sections size: ${_sectionsList.length}, Seats size: ${_seatsList.length}');
+        debugPrint('State set successfully. Sections size: ${_sectionsList.length}, Seats size: ${_seatsList.length}');
       }
 
       // Best-effort DB self-heal for genuinely desynced rows (no realtime loop:
@@ -392,7 +392,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         }
       }
     } catch (e) {
-      print('Error fetching seats/sections: $e');
+      debugPrint('Error fetching seats/sections: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
