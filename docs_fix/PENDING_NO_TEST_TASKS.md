@@ -7,6 +7,18 @@
 > **Tiers:** T1 = safe code fix, verify with `flutter analyze`. · T2 = SQL/config you apply (no app
 > test). · T3 = needs server work or a product decision (listed for completeness; not actionable now).
 
+> **Status (2026-06-12):** ✅ DONE & pushed —
+> **T1.1** honest bulk announce/export · **T1.2** desktop image-pick guard (7 screens; explore/home
+> correctly skipped — they use `geolocator` which supports desktop) · **T1.3** analyzer cleanups
+> (commit `193023b`); **T1.4** iOS location-crash fix · **T2.5** INTERNET permission + release
+> keystore scaffold (commit `828f948`).
+>
+> **Remaining and a caveat:** **T2.6** (security RLS) and **T2.7** (anon-key → dart-define) are NOT
+> zero-risk "no-test" items: T2.6 can break a working write if a policy is mis-scoped, and T2.7
+> changes how you must run the app (a missing `--dart-define` makes Supabase fail to init). Do these
+> as a careful, reviewed pass — ideally when you can verify a couple of flows. T3 = server/decision,
+> unchanged.
+
 ---
 
 ## T1 — Safe code fixes (verify with `flutter analyze`, no device)

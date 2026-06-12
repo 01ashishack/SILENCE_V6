@@ -206,6 +206,20 @@
   and wrap `pickImage` in try/catch (camera capture is unsupported on desktop → friendly message, no
   crash). Gallery-based upload now works on Windows for testing; **camera/crop/permissions remain
   Android/iOS-only — real image testing must be on a device/emulator.** 0 new analyze issues.
+- **No-test fix batches (2026-06-12, pushed):** worklist in `docs_fix/PENDING_NO_TEST_TASKS.md`.
+  **T1 (commit `193023b`):** honest bulk **Announce** (real `notifications` insert) + **Export**
+  (real `CsvExporter` CSV) in members_sub_tab — killed two fake-success snackbars; **desktop
+  image-pick guard** applied to 7 more upload screens (member_profile_edit/tab, admin_profile_tab,
+  admin_profile_complete, library_setup_stage1, branding_assets, member_help_support) via the same
+  `isMobile` gate — `member_explore`/`member_home` correctly skipped (they use `geolocator`, which
+  supports desktop); analyzer cleanups (unused imports, 17 `print`→`debugPrint` in layout_sub_tab).
+  **T1.4 + T2.5 (commit `828f948`):** iOS **location-crash fix** (added
+  `NSLocationWhenInUseUsageDescription` — Geolocator.requestPermission() hard-aborts on iOS with no
+  usage description, audit P14-03); Android **`INTERNET` permission** added (P1-01); **release
+  keystore scaffold** — `build.gradle.kts` reads gitignored `android/key.properties` with a
+  debug-signing fallback when absent (P1-02) + `key.properties.example`; verified `gradlew :app:tasks`
+  configures cleanly. **Still open (NOT zero-risk no-test):** T2.6 security RLS migrations
+  (P10-04 / P5-08 / P6-02·06 / storage scoping / P5-01-with-care) and T2.7 anon-key → `--dart-define`.
 
 ### Next action (when the user says "continue"/"GO")
 - **Apply BOTH RLS hotfixes** in the Supabase SQL editor (each is additive, idempotent, owner-scoped):
