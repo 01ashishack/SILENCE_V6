@@ -73,19 +73,20 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
 
 ## 5. Current state (keep this in sync)
 
-- Branch `main`. Latest committed: `3c78d4d` (docs sync + AGENTS.md + wizard seat-occupy-before-payment).
-  Earlier: `30da253` (reservation-tab + four-problem fix), `df70f7b` (UI honesty + Phase B + Phase C).
-  HEAD is **ahead of `origin/main`** (not pushed).
+- Branch `main`. Latest committed app/remediation checkpoint: `52493b4` (member-profile fixes +
+  payments RLS hotfix + GitLab Duo handoff docs). Earlier: `3c78d4d` (docs sync + AGENTS.md +
+  wizard seat-occupy-before-payment), `30da253` (reservation-tab + four-problem fix), `df70f7b`
+  (UI honesty + Phase B + Phase C).
+  HEAD matches `origin/main` as of that checkpoint.
 - **Phase C** schema reconciliation: authored AND **applied to the live DB** (6 new tables RLS-on) —
   see `docs_fix/PHASE_C_SCHEMA.md`.
 - **⛔ Pending live-DB action — payments RLS hotfix:** run
   `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql` (adds an owner-scoped INSERT policy
   on `payments`). Until applied, adding a member fails with "You don't have permission" (42501) and the
   Payments tab stays empty — a pure RLS gap; no app-side fix exists.
-- **Uncommitted working tree** (confirm with the user before committing): `add_member_wizard.dart`,
-  `member_detail_screen.dart`, `members_sub_tab.dart`, `reservations_tab.dart`, `supabase_schema.sql`,
-  plus the untracked migration above. These are the 2026-06-12 member-profile batch (Activity-freeze
-  fix, attendance analytics, per-member export, Transfer-hide, wizard rollback). Run `git status` first.
+- **Uncommitted working tree:** the 2026-06-12 member-profile batch is committed in `52493b4`.
+  Nothing is uncommitted except local-only `.claude/settings.local.json`, which is ignored and should
+  stay out of commits. Run `git status` first.
 - Next candidates (user-directed, NOT automatic — confirm scope first): apply the payments hotfix +
   on-device smoke test; then security/RLS Wave 0/1 (needs live DB), FCM push, real payments, OTP.
 
