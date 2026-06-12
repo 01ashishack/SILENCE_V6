@@ -136,9 +136,38 @@
   (no existing-RLS changes), **guarded constraints**, **fix code to canonical**. ⛔ **NOT applied to a
   live DB** — apply order + verification gate (VC-01…VC-06) in `docs_fix/PHASE_C_SCHEMA.md`.
 
+- **Phase C APPLIED to live DB (2026-06-11):** user ran the migration; §A/§D pre-checks returned
+  clean ("Success. No rows returned") and the RLS check returned all **6 new tables with
+  `relrowsecurity = true`**. Schema reconciliation is now live (optional §E `library_closures` drop
+  still pending; on-device smoke test pending).
+- **Add-member & amenities polish (2026-06-11):** **add-member wizard** — duplicate-member guard
+  returns before insert; failures now show `friendlyError(e)` and keep the wizard open (no false
+  success, no draft-save-on-error); success snackbar + `pop(true)` refreshes the members list;
+  **seat-occupy write moved before the payment insert** so a payment failure can't leave a claimed
+  seat showing vacant. **Amenities/add-ons:** removed the confusing "Total Available Inventory" box
+  from the add/edit add-on sheets (new add-ons default `total_inventory: 0`). **Add-member Step 3:**
+  add-on cards now show a **price-type chip** (orange "Monthly" / gray "One-time"); the 3-/6-month
+  plan pills only render when that duration's price is configured (> 0) — no dead/unconfigured options.
+- **Admin Reservation tab fix (2026-06-11):** **member_detail_screen** blank-screen bug fixed — the
+  eager `IndexedStack` (built all 5 tabs, so any one tab's error blanked the whole screen) replaced
+  with an **active-tab-only** build selected by tab name + a per-tab **error boundary**; null-`memberId`
+  guard (was an infinite spinner). **members_sub_tab** — the member **card is now tappable → opens the
+  full profile** (refreshes on return); the **⋮ menu moved to the top-right corner**; **"View Details"
+  removed** (the card does that now); menu = Renew · Hold/Resume · Transfer · Remove, each doing real
+  DB writes + member notify + audit + list-refresh, behind confirm dialogs + `friendlyError`.
+  **layout_sub_tab** — fixed "assigned seat still shows vacant" via **reconcile-from-memberships on
+  read + best-effort DB self-heal**; the vacant-seat **"Assign Member"** dead-end is now a real picker
+  of seatless members in that seat's shift (occupy + `memberships.seat_id` + notify + audit); occupied-
+  seat "Renew"/"View Member Details" now open the working profile. All four files: **0 new
+  `flutter analyze` issues**. Committed in `30da253`.
+- **Cross-agent handoff:** added **`AGENTS.md`** at repo root — a read-first onboarding for non-Claude
+  agents (e.g. Codex): read-order, golden rules, hard constraints, current git state. SpecKit marker
+  block preserved.
+
 ### Next action (when the user says "continue"/"GO")
-- **Apply Phase C to the live DB** (manual, per `docs_fix/PHASE_C_SCHEMA.md`): run §A pre-checks →
-  §B/§C/§D → §F if clean → optional §E. Then verify VC-01…VC-06.
+- **Phase C is APPLIED to the live DB** (verified above). Remaining DB steps: optional §E
+  `library_closures` drop + an on-device smoke test of the touched flows (reservation tab, add-member,
+  amenities).
 - **Security/RLS track (Wave 0/1, ⛔ needs live DB):** the dangerous policies Phase C deliberately did
   NOT touch — P5-01 (`memberships` open UPDATE), P5-07 (`users` PII SELECT), P5-08 (`WITH CHECK(true)`
   forged inserts on referrals/badges/notifications/audit_log) — plus storage scoping, build keystore +

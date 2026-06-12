@@ -13,8 +13,25 @@
 > **Holiday management (rename "Close Today")** · **Contact Admin / Queries loop** ·
 > **member screens states-pass (errors/honesty)**. Project-wide `flutter analyze` = **0 errors**
 > (remaining items are pre-existing infos/deprecations).
-> **NEXT:** member_home leftovers (dues banner / offline card / declutter) → Phase B wiring →
-> Phase C schema.
+> **NEXT:** Phase C **applied to live DB ✅** (2026-06-11) → optional §E `library_closures` drop +
+> on-device smoke test of the touched flows.
+>
+> **Reservation tab + add-member polish — done (2026-06-11):** **member_detail_screen** blank-screen
+> fixed (eager `IndexedStack` that built all 5 tabs → **active-tab-only** build selected by tab name +
+> a per-tab **error boundary**; null-`memberId` guard that was an infinite spinner). **members_sub_tab**
+> — member **card tappable → full profile** (refresh on return), **⋮ moved to top-right corner**,
+> **"View Details" removed**, menu = Renew / Hold-Resume / Transfer / Remove (real `memberships`+`seats`
+> writes + member notify + audit + list refresh, confirm dialogs, `friendlyError`). **layout_sub_tab**
+> — **reconcile-from-memberships on read + best-effort DB self-heal** (fixes "assigned seat shows
+> vacant"); vacant-seat **"Assign Member"** is now a real picker of seatless members in that shift;
+> occupied-seat "Renew"/"View Member Details" → working profile. **add_member_wizard** — seat-occupy
+> write **moved before the payment insert**; duplicate-guard + `friendlyError` keep the wizard open on
+> failure (no false success / no draft-save-on-error). **addon_services** — removed the "Total Available
+> Inventory" box (defaults `total_inventory: 0`). **add_member_step2 ("Step 3" plan UI)** — add-on
+> **price-type chip** (Monthly/One-time) + plan pills render only when that duration's price is
+> configured (> 0). **0 new `flutter analyze` issues** across all files. Committed `30da253`.
+> **`AGENTS.md`** added at repo root — cross-agent (e.g. Codex) onboarding: read-order + golden rules +
+> hard constraints + current git state (SpecKit marker block preserved).
 >
 > **Offline cached membership card — done (2026-06-10):** member_home now **caches memberships +
 > profile** (`member_memberships` / `member_profile` via `CacheService`) on every successful load.

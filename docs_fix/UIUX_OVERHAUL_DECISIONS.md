@@ -1,9 +1,13 @@
 # SILENCE — UI/UX Overhaul: Decisions Log
 
-> **Progress pointer (update me):** Last completed = **B6 subscription (mock plans) · account
+> **Progress pointer (update me):** Last completed = **Phase C APPLIED to live DB (6 tables RLS-on) ·
+> Admin Reservation tab fix (member_detail blank-screen → active-tab-only build; members_sub_tab card →
+> full profile + ⋮ to top-right + menu Renew/Hold-Resume/Transfer/Remove; layout seat-desync reconcile +
+> "Assign Member" picker) · add-member/amenities polish · `AGENTS.md` cross-agent onboarding** —
+> 2026-06-11. Before: **B6 subscription (mock plans) · account
 > deletion (member+admin, type-DELETE + dashboard banner) · global status-bar/top-bar consistency ·
 > dup-prevention (approval re-entrancy) · Contact Admin single-tab · admin subscription entry** —
-> 2026-06-10. Before: B1–B5 (real amount, add-ons, notify, audit, seat-sync); stats skeleton + offline
+> 2026-06-10. Earlier: B1–B5 (real amount, add-ons, notify, audit, seat-sync); stats skeleton + offline
 > cached card; member home cards UI; states-pass; Holiday/Queries.
 > **Admin referral-config screen ✅ wired (2026-06-11):** entry added in admin profile → Operations
 > → "Referral Rewards" → `/admin/settings/referrals` (screen + `AdminSettingsService` already existed,
@@ -134,6 +138,9 @@
 | Expired member access | **Always allow check-in with a warning** (no hard block; drop the `allow_expired_checkin` gate). Admin sees expired members in **red**. |
 | Member home improvements | (1) **Dues banner** on the membership card when dues pending; (2) **Declutter** — one primary CTA per state (trial/active/expiring/expired/hold), demote secondary cards; (3) **Offline** → show cached membership card + offline banner (no crash); (4) **Expiry copy fix** (no “0 days left” while active) + clear countdown. Must look **visually appealing**, maintaining color + UI hierarchy. |
 | Seat management UX | **Reassign** opens a dialog listing **vacant seats in the same shift** → choose → free old seat + occupy new + update `memberships.seat_id` + **notify member**. Release / maintenance / delete must **sync the membership** and notify (no more desync). (Currently reassign just navigates to setup = no-op.) |
+| Member card (admin Members tab) | **Card tap → opens the member's FULL profile** (member_detail). The **⋮ menu moves to the top-right corner** and **drops "View Details"** (the card does that now); menu keeps **Renew + quick actions: Hold/Resume · Transfer · Remove** — each a real DB write + notify + audit + list refresh. (Was: card not tappable, ⋮ centered, profile opened blank — decided 2026-06-11.) |
+| Vacant seat tap (admin Layout tab) | **Assign a seatless member now** — tap a vacant seat → picker of active members in that seat's shift who have no seat → occupy + set `memberships.seat_id` + notify + audit. (Was a no-op snackbar.) Occupied-seat "Renew" / "View Member Details" → **open the member profile**. |
+| Seat-occupancy truth | Layout grid **reconciles occupancy from `memberships.seat_id`** (not only `seats.status`) on read + a best-effort DB self-heal, so an assigned seat never renders vacant. The add-member wizard writes the seat row **before** the payment insert so a payment failure can't desync it. |
 
 ### Misc UX / utility decisions (cont.)
 
@@ -157,7 +164,7 @@
 
 ## Still OPEN (to ask next)
 - Subscription mock plan **names / prices / feature bullets** (user will provide the values).
-- ✅ ~~Phase C schema reconciliation specifics~~ — **DECIDED + authored 2026-06-11** (additive-only, guarded constraints, fix-code-to-canonical for expenditures). See `PHASE_C_SCHEMA.md`. **Remaining open:** apply to live DB; then the **security/RLS track** (P5-01 membership open-UPDATE, P5-07 users PII SELECT, P5-08 forged inserts) which Phase C deliberately did NOT touch.
+- ✅ ~~Phase C schema reconciliation specifics~~ — **DECIDED + authored 2026-06-11** (additive-only, guarded constraints, fix-code-to-canonical for expenditures). See `PHASE_C_SCHEMA.md`. **APPLIED to live DB ✅ (2026-06-11)** — 6 tables RLS-on. **Remaining open:** the **security/RLS track** (P5-01 membership open-UPDATE, P5-07 users PII SELECT, P5-08 forged inserts) which Phase C deliberately did NOT touch.
 
 ---
 

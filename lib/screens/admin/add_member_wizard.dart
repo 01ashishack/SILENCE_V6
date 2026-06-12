@@ -454,7 +454,17 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
 
       final membershipId = membership['id'] as String;
 
-      // 5. Create payment record
+      // 5. Occupy the seat immediately after the membership is created, BEFORE
+      // the payment insert. If payment ever fails, the seat/membership stay in
+      // sync (no "assigned but shows vacant"); the layout grid also self-heals.
+      if (_memberData.selectedSeatId != null) {
+        await _supabase.from('seats').update({
+          'status': 'occupied',
+          'occupied_by_member_id': memberUserId,
+        }).eq('id', _memberData.selectedSeatId!);
+      }
+
+      // 6. Create payment record
       final finalPrice = (_memberData.totalBasePrice - _memberData.discount).clamp(0, double.infinity).toInt();
       await _supabase.from('payments').insert({
         'membership_id': membershipId,
@@ -466,12 +476,6 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         'payment_date': DateTime.now().toIso8601String(),
         'confirmed_by_admin_id': _supabase.auth.currentUser?.id,
       });
-
-      // 6. Update seat occupation status
-      await _supabase.from('seats').update({
-        'status': 'occupied',
-        'occupied_by_member_id': memberUserId,
-      }).eq('id', _memberData.selectedSeatId!);
 
       // 7. Delete draft if loaded
       if (_draftId != null) {

@@ -19,11 +19,11 @@
 |---|---|---|---|
 | Member↔admin payments (out-of-app reframe) | UPI deep-links, real amount, verify→confirm notify | subscription (Razorpay) | account-of-record polish |
 | Honest UI / trust (Phase 9) | notifications real, dishonest successes killed, friendly errors, states | a few admin screens left | — |
-| Holidays / closures (3-way schema conflict) | ✅ reconciled in code + ✅ Phase C migration retires dead `library_closures` (opt-in §E) | — | apply migration to live DB |
-| Queries loop | ✅ Contact Admin + admin reply + notify + ✅ Phase C adds `subject`/`type`/`screenshot_url` | — | apply migration |
+| Holidays / closures (3-way schema conflict) | ✅ reconciled in code + ✅ Phase C migration **applied** (dead `library_closures` retired via opt-in §E) | — | optional §E drop |
+| Queries loop | ✅ Contact Admin + admin reply + notify + ✅ Phase C (`subject`/`type`/`screenshot_url`) **applied** | — | — |
 | Audit log | ✅ central helper + reader aligned | — | broaden to every mutating action |
 | Security (RLS / storage / identity) | — | — | ⛔ **entire Wave 0** (needs live DB) |
-| Schema deploy (missing/conflicting tables) | ✅ **Phase C authored** (migration + canonical schema unified; 6 tables, columns, constraints) | — | ⛔ apply + verify on live DB |
+| Schema deploy (missing/conflicting tables) | ✅ **Phase C applied to live DB** (migration run; 6 tables RLS-on, columns, guarded constraints) | — | optional §E drop + smoke test |
 | Server tier (RPC/Edge) | — | — | ⛔ Wave 1 (large) |
 | Perf precompute (analytics/badges) | — | — | ⬜ Wave 2 |
 | Build / store readiness | — | — | ⛔ keystore, INTERNET, iOS crash |
@@ -49,22 +49,22 @@
 | 13 | P4-03 | Approval hardcodes amount | ✅ | **B1** — `_computeApprovalAmount` (plan price + add-ons − discount) |
 | 14 | P4-02 | Audit log broken on write AND read | ✅ | **B4** — `lib/utils/audit_logger.dart` canonical + reader aligned |
 | 15 | P9-01 | Notifications hardcoded "all caught up" stub | ✅ | real notification center + notify on approve/reject/hold/seat/holiday/query/payment |
-| 16 | P5-03 | 7 code tables missing from schema | 🟡 | **Phase C authored** — all 6 folded into canonical schema + migration (`settings`,`streaks`,`member_daily_stats`,`leads`,`verification_requests`,`draft_members`); ⛔ apply+verify on live DB |
-| 17 | P5-02 | 4 conflicting `expenditures` schemas | 🟡 | **Phase C** — canonical schema unified, loose files superseded, `admin_analytics_tab` normalized to lowercase keys, existing rows migrated (§D); ⛔ apply on live DB |
+| 16 | P5-03 | 7 code tables missing from schema | ✅ | **Phase C applied to live DB** — all 6 tables created with RLS (`settings`,`streaks`,`member_daily_stats`,`leads`,`verification_requests`,`draft_members`); RLS check = `relrowsecurity=true` for all 6 |
+| 17 | P5-02 | 4 conflicting `expenditures` schemas | ✅ | **Phase C applied** — canonical schema unified, loose files superseded, `admin_analytics_tab` normalized to lowercase keys, existing rows migrated (§D) |
 | 18 | P8-01 | Three contradictory "which day" defs (TZ) | 🟡 | one IST clock used in member_home / activities / holidays; full reconcile + precompute pending |
 | 19 | P11-01 | Analytics fast-path tables absent | ⬜ | Wave 2 precompute |
 | 20 | P11-02 | Badge engine N+1 | ⬜ | Wave 2 |
 | 21 | P1-01/P1-02 | Release manifest missing INTERNET + debug-signed | ⛔ | build config — needs keystore |
 | 22 | P14-03 | iOS crashes on location screen | ⛔ | needs device/iOS build |
 
-**Criticals closed: 7 ✅ · 5 🟡 (incl. P5-02/P5-03 authored, pending live-DB apply) · 10 open (mostly security/server/build).**
+**Criticals closed: 9 ✅ (incl. P5-02/P5-03 now applied to live DB) · 3 🟡 (P6-03, P0-01, P8-01) · 10 open (mostly security/server/build).**
 
 ---
 
 ## 2. Five Root Causes
 
 1. **RC-4 — Self-asserted identity & permissive RLS/storage** → ⛔ pending (Wave 0, live DB).
-2. **RC-3 — Schema drift / missing tables & constraints** → 🟡 closures reconciled in code; ⬜ rest is Phase C.
+2. **RC-3 — Schema drift / missing tables & constraints** → ✅ **Phase C applied to live DB** (6 tables + columns + guarded constraints; closures reconciled); concurrency-safe seats deferred (server tier).
 3. **RC-1 — No server-side tier** → ⛔ pending (Wave 1, large).
 4. **RC-2 — Money is mocked** → 🟡 member↔admin made **real & honest** (out-of-app UPI + derived amount); app-owner↔library Razorpay deferred.
 5. **RC-5 — Dishonest UX + silent failure** → ✅ **largely addressed** (real notifications, honest states, friendly errors, killed false-success fallbacks, one IST clock on touched surfaces).
@@ -108,6 +108,8 @@
 - [x] **B5** seat reassign/release sync · **B6** honest subscription screen (Free/₹499/₹799)
 - [x] Subscription & Billing entry in admin profile · **account deletion** (admin danger zone, type-DELETE)
 - [x] Dup-prevention (admin approval re-entrancy guard) · global status-bar/top-bar consistency
+- [x] **Reservation tab fix (2026-06-11)** — member_detail blank-screen (active-tab-only build + per-tab error boundary + null-id guard); members_sub_tab card → full profile + ⋮ to top-right + "View Details" removed + Renew/Hold-Resume/Transfer/Remove (real writes + notify + audit); layout_sub_tab seat-desync reconcile + self-heal + real "Assign Member" picker
+- [x] **Add-member / amenities polish (2026-06-11)** — wizard dup-guard + honest error (keeps open) + seat-occupy before payment; removed add-on "Total Available Inventory" box; Step-3 add-on price-type chip + configured-only plan pills
 
 ---
 
@@ -135,7 +137,7 @@
 
 ---
 
-## 5. Phase C (schema reconciliation) — ✅ AUTHORED 2026-06-11, ⛔ apply to live DB
+## 5. Phase C (schema reconciliation) — ✅ AUTHORED + APPLIED to live DB 2026-06-11
 
 > Deliverables: `silence_app/migrations/2026-06-11_phase_c_reconciliation.sql` (runnable) +
 > unified `silence_app/supabase_schema.sql` + `admin_analytics_tab` code fix + superseded loose
@@ -151,7 +153,7 @@
 - [x] Attendance validity CHECKs (checkout ≥ checkin, duration ≥ 0) — added `NOT VALID` in migration, inline in canonical schema
 - [x] Added `users.referral_code` / `scheduled_for_deletion` / `deletion_scheduled_at` + `seat_change_requests.approved_at`
 - [ ] ⛔ **Concurrency-safe seats** (conditional update / version column) — deferred (needs server tier / Wave 2)
-- [ ] ⛔ **Apply + verify on live DB** — see `PHASE_C_SCHEMA.md` §5 (VC-01…VC-06)
+- [x] **Applied + verified on live DB (2026-06-11)** — §A/§D pre-checks clean ("Success. No rows returned"); RLS check = all 6 new tables `relrowsecurity=true`. *(optional §E `library_closures` drop + on-device smoke test still pending)*
 
 ---
 
