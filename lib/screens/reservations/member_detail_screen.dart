@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/audit_logger.dart';
+import '../../utils/pdf_exporter.dart';
+import '../../utils/csv_exporter.dart';
 import 'member_transfer_screen.dart';
 
 class MemberDetailScreen extends StatefulWidget {
@@ -38,8 +40,16 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   List<Map<String, dynamic>> _paymentsList = [];
   List<Map<String, dynamic>> _allMemberships = [];
 
+  // Number of libraries this admin owns — used to hide the "Transfer to another
+  // library" action when there is nowhere to transfer to (only one library).
+  int _ownedLibraryCount = 0;
+
   // Calendar State
   DateTime _calendarMonth = DateTime.now();
+
+  // Attendance analytics date-range (null = default to the current month).
+  DateTime? _attnRangeStart;
+  DateTime? _attnRangeEnd;
 
   // Notes controller
   final _notesController = TextEditingController();
@@ -130,6 +140,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             .select('*')
             .eq('member_id', mId)
             .order('payment_date', ascending: false),
+        // 6. Owned-library count — gates the Transfer action (hidden when 1).
+        supabase
+            .from('libraries')
+            .select('id')
+            .eq('owner_id', supabase.auth.currentUser?.id ?? ''),
       ]);
 
       if (!mounted) return;
@@ -140,6 +155,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         _allMemberships = List<Map<String, dynamic>>.from(results[2] as List);
         _attendanceList = List<Map<String, dynamic>>.from(results[3] as List);
         _paymentsList = List<Map<String, dynamic>>.from(results[4] as List);
+        _ownedLibraryCount = (results[5] as List).length;
 
         // Pre-populate private note
         final String userNote = _userProfile?['nickname'] ?? '';
@@ -547,8 +563,243 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
   bool _canTransfer() {
     if (_membershipData == null || _membershipData!['library_id'] == null) return false;
+    // Nowhere to transfer to if the admin owns only this one library.
+    if (_ownedLibraryCount <= 1) return false;
     final s = _membershipData?['status'];
     return s == 'active' || s == 'trial' || s == 'expiring' || s == 'hold' || s == 'expired';
+  }
+
+  // ── Per-member export (CSV / PDF) ──────────────────────────────────────────
+  String _fmt(String? iso, String pattern) {
+    if (iso == null) return '';
+    try {
+      return DateFormat(pattern).format(DateTime.parse(iso).toLocal());
+    } catch (_) {
+      return '';
+    }
+  }
+
+  void _showExportSheet() {
+    final now = DateTime.now();
+    DateTime rStart = DateTime(now.year, now.month, 1);
+    DateTime rEnd = DateTime(now.year, now.month + 1, 0);
+    bool expAttendance = true;
+    bool expPayments = true;
+    bool busy = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          Future<void> pickRange() async {
+            final picked = await showDateRangePicker(
+              context: ctx,
+              initialDateRange: DateTimeRange(start: rStart, end: rEnd),
+              firstDate: DateTime(2024, 1, 1),
+              lastDate: DateTime(now.year + 1, 12, 31),
+              builder: (c, child) => Theme(
+                data: Theme.of(c).copyWith(
+                  colorScheme: const ColorScheme.light(
+                      primary: Color(0xFFE65C00), onPrimary: Colors.white, onSurface: Color(0xFF1E293B)),
+                ),
+                child: child!,
+              ),
+            );
+            if (picked != null) setSheet(() { rStart = picked.start; rEnd = picked.end; });
+          }
+
+          Future<void> run(String format) async {
+            if (!expAttendance && !expPayments) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select at least one section to export.')));
+              return;
+            }
+            // Capture before the await so we don't touch a BuildContext across
+            // the async gap (and don't setState the sheet after it's popped).
+            final messenger = ScaffoldMessenger.of(context);
+            final nav = Navigator.of(sheetCtx);
+            setSheet(() => busy = true);
+            try {
+              final ok = await _runMemberExport(
+                format: format, start: rStart, end: rEnd,
+                includeAttendance: expAttendance, includePayments: expPayments);
+              if (ok) {
+                nav.pop();
+                return;
+              }
+              setSheet(() => busy = false); // empty range: keep the sheet open
+            } catch (e) {
+              messenger.showSnackBar(
+                SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
+              setSheet(() => busy = false);
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 20,
+              bottom: 20 + MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.ios_share_rounded, color: Color(0xFFE65C00)),
+                  const SizedBox(width: 10),
+                  Text('Export member data', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                ]),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: const Color(0xFFE65C00),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: expAttendance,
+                  onChanged: busy ? null : (v) => setSheet(() => expAttendance = v ?? false),
+                  title: Text('Attendance ledger', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: const Color(0xFFE65C00),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: expPayments,
+                  onChanged: busy ? null : (v) => setSheet(() => expPayments = v ?? false),
+                  title: Text('Payments ledger', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: busy ? null : pickRange,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7F0),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFFD8BE)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.date_range_rounded, size: 18, color: Color(0xFFE65C00)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${DateFormat('dd MMM yyyy').format(rStart)}  –  ${DateFormat('dd MMM yyyy').format(rEnd)}',
+                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                        ),
+                      ),
+                      Text('Change', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (busy)
+                  const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)))))
+                else
+                  Row(children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => run('csv'),
+                        icon: const Icon(Icons.table_chart_outlined, size: 18, color: Color(0xFFE65C00)),
+                        label: Text('CSV (Excel)', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFE65C00)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => run('pdf'),
+                        icon: const Icon(Icons.picture_as_pdf_outlined, size: 18, color: Colors.white),
+                        label: Text('PDF', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE65C00),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ]),
+                const SizedBox(height: 4),
+              ],
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  /// Exports the selected sections for THIS member, filtered to [start, end],
+  /// reusing the shared CSV/PDF utilities. Returns false (with an honest
+  /// snackbar) when the range has nothing — so we never share an empty file.
+  Future<bool> _runMemberExport({
+    required String format,
+    required DateTime start,
+    required DateTime end,
+    required bool includeAttendance,
+    required bool includePayments,
+  }) async {
+    final sDay = DateTime(start.year, start.month, start.day);
+    final eDay = DateTime(end.year, end.month, end.day);
+    bool inRange(String? iso) {
+      if (iso == null) return false;
+      try {
+        final d = DateTime.parse(iso).toLocal();
+        final day = DateTime(d.year, d.month, d.day);
+        return !day.isBefore(sDay) && !day.isAfter(eDay);
+      } catch (_) {
+        return false;
+      }
+    }
+
+    final attn = includeAttendance ? _attendanceList.where((a) => inRange(a['check_in_time'])).toList() : <Map<String, dynamic>>[];
+    final pays = includePayments ? _paymentsList.where((p) => inRange(p['payment_date'])).toList() : <Map<String, dynamic>>[];
+
+    if (attn.isEmpty && pays.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nothing to export in this date range.')));
+      }
+      return false;
+    }
+
+    final memberName = (_userProfile?['full_name'] ?? 'Member').toString();
+    final nickname = (_userProfile?['nickname'] ?? memberName).toString();
+    final seat = _membershipData?['seats']?['seat_label']?.toString() ?? '';
+    final rangeLabel = '${DateFormat('dd MMM yyyy').format(sDay)} - ${DateFormat('dd MMM yyyy').format(eDay)}';
+
+    if (format == 'csv') {
+      if (attn.isNotEmpty) {
+        final logs = attn.map((a) => {
+              'date': _fmt(a['check_in_time'], 'dd MMM yyyy'),
+              'check_in': _fmt(a['check_in_time'], 'hh:mm a'),
+              'check_out': a['check_out_time'] != null ? _fmt(a['check_out_time'], 'hh:mm a') : 'Open',
+              'duration': a['duration_minutes'] != null ? _fmtStudyMinutes((a['duration_minutes'] as num).toInt()) : '',
+              'session_type': a['session_type'] ?? 'normal',
+              'library': '',
+              'seat': seat,
+            }).toList();
+        await CsvExporter.exportMemberAttendance(nickname: nickname, dateRangeLabel: rangeLabel, logs: logs);
+      }
+      if (pays.isNotEmpty) {
+        final withName = pays.map((p) => {...p, 'member_name': memberName}).toList();
+        await CsvExporter.exportPayments(libraryName: memberName, payments: withName);
+      }
+    } else {
+      if (attn.isNotEmpty) {
+        await PdfExporter.exportAttendance(libraryName: memberName, libraryAddress: 'Member report', dateRange: rangeLabel, logs: attn);
+      }
+      if (pays.isNotEmpty) {
+        final withName = pays.map((p) => {...p, 'member_name': memberName}).toList();
+        await PdfExporter.exportPayments(libraryName: memberName, libraryAddress: 'Member report', dateRange: rangeLabel, payments: withName);
+      }
+    }
+    return true;
   }
 
   Future<void> _openTransfer() async {
@@ -1332,7 +1583,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: _buildSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSectionCard(
         title: 'Attendance Heatmap',
         icon: Icons.calendar_month_rounded,
         children: [
@@ -1430,7 +1684,197 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             ],
           ),
         ],
+          ),
+          const SizedBox(height: 16),
+          _buildAttendanceRangeAnalytics(),
+        ],
       ),
+    );
+  }
+
+  // Date-wise attendance analytics for an arbitrary range (defaults to the
+  // current month). Computed from the already-loaded _attendanceList — no extra
+  // query. Lets the admin see check-in / check-out / study-time per day.
+  Future<void> _pickAttendanceRange() async {
+    final now = DateTime.now();
+    final start = _attnRangeStart ?? DateTime(now.year, now.month, 1);
+    final end = _attnRangeEnd ?? DateTime(now.year, now.month + 1, 0);
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: DateTimeRange(start: start, end: end),
+      firstDate: DateTime(2024, 1, 1),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(
+              primary: Color(0xFFE65C00), onPrimary: Colors.white, onSurface: Color(0xFF1E293B)),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _attnRangeStart = picked.start;
+        _attnRangeEnd = picked.end;
+      });
+    }
+  }
+
+  String _fmtStudyMinutes(int minutes) {
+    if (minutes <= 0) return '0m';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h == 0) return '${m}m';
+    if (m == 0) return '${h}h';
+    return '${h}h ${m}m';
+  }
+
+  Widget _buildAttendanceRangeAnalytics() {
+    final now = DateTime.now();
+    final rangeStart = _attnRangeStart ?? DateTime(now.year, now.month, 1);
+    final rangeEnd = _attnRangeEnd ?? DateTime(now.year, now.month + 1, 0);
+    final sDay = DateTime(rangeStart.year, rangeStart.month, rangeStart.day);
+    final eDay = DateTime(rangeEnd.year, rangeEnd.month, rangeEnd.day);
+
+    // Group in-range sessions by day.
+    final Map<String, List<Map<String, dynamic>>> byDay = {};
+    for (final a in _attendanceList) {
+      try {
+        final ci = DateTime.parse(a['check_in_time']).toLocal();
+        final d = DateTime(ci.year, ci.month, ci.day);
+        if (d.isBefore(sDay) || d.isAfter(eDay)) continue;
+        byDay.putIfAbsent(DateFormat('yyyy-MM-dd').format(d), () => []).add(a);
+      } catch (_) {}
+    }
+    final dayKeys = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    int totalSessions = 0, totalMinutes = 0, longest = 0;
+    for (final list in byDay.values) {
+      totalSessions += list.length;
+      for (final s in list) {
+        final d = (s['duration_minutes'] as num?)?.toInt() ?? 0;
+        totalMinutes += d;
+        if (d > longest) longest = d;
+      }
+    }
+    final daysPresent = byDay.length;
+    final avg = daysPresent > 0 ? (totalMinutes / daysPresent).round() : 0;
+
+    return _buildSectionCard(
+      title: 'Attendance Details',
+      icon: Icons.insights_rounded,
+      children: [
+        // Range selector
+        InkWell(
+          onTap: _pickAttendanceRange,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7F0),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFFD8BE)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.date_range_rounded, size: 18, color: Color(0xFFE65C00)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${DateFormat('dd MMM yyyy').format(sDay)}  –  ${DateFormat('dd MMM yyyy').format(eDay)}',
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                  ),
+                ),
+                Text('Change', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (dayKeys.isEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Column(children: [
+              Icon(Icons.event_busy_rounded, size: 44, color: Colors.grey[300]),
+              const SizedBox(height: 10),
+              Text('No attendance in this range.', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6B7280))),
+            ]),
+          ),
+        ] else ...[
+          // Summary
+          Row(
+            children: [
+              Expanded(child: _buildStatColumn('$daysPresent', 'Days present')),
+              Expanded(child: _buildStatColumn('$totalSessions', 'Sessions')),
+              Expanded(child: _buildStatColumn(_fmtStudyMinutes(totalMinutes), 'Study time')),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: _buildStatColumn(_fmtStudyMinutes(avg), 'Avg / day')),
+              Expanded(child: _buildStatColumn(_fmtStudyMinutes(longest), 'Longest')),
+            ],
+          ),
+          const Divider(height: 28),
+          // Per-day breakdown (tap → full session detail sheet)
+          ...dayKeys.map((key) {
+            final list = byDay[key]!;
+            DateTime? firstIn, lastOut;
+            int dayMinutes = 0;
+            for (final s in list) {
+              try {
+                final ci = DateTime.parse(s['check_in_time']).toLocal();
+                if (firstIn == null || ci.isBefore(firstIn)) firstIn = ci;
+              } catch (_) {}
+              if (s['check_out_time'] != null) {
+                try {
+                  final co = DateTime.parse(s['check_out_time']).toLocal();
+                  if (lastOut == null || co.isAfter(lastOut)) lastOut = co;
+                } catch (_) {}
+              }
+              dayMinutes += (s['duration_minutes'] as num?)?.toInt() ?? 0;
+            }
+            final date = DateTime.parse(key);
+            return InkWell(
+              onTap: () => _showAttendanceDayDetailSheet(date: date, sessions: list),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Column(
+                      children: [
+                        Text(DateFormat('dd').format(date), style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                        Text(DateFormat('MMM').format(date), style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF94A3B8))),
+                      ],
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${firstIn != null ? DateFormat('hh:mm a').format(firstIn) : '—'}  →  ${lastOut != null ? DateFormat('hh:mm a').format(lastOut) : 'Open'}',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                          ),
+                          const SizedBox(height: 2),
+                          Text('${list.length} session${list.length > 1 ? 's' : ''}', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(color: const Color(0xFFFFF7F0), borderRadius: BorderRadius.circular(8)),
+                      child: Text(_fmtStudyMinutes(dayMinutes), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ],
     );
   }
 
@@ -1533,6 +1977,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
+      // Shrink-wrap: this list lives inside the screen's outer
+      // SingleChildScrollView, so it must size to its content (an unbounded
+      // ListView here threw a layout error and froze the tab).
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: _paymentsList.length,
       itemBuilder: (ctx, index) {
         final payment = _paymentsList[index];
@@ -1709,6 +2158,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(20),
+      // Shrink-wrap inside the outer SingleChildScrollView — an unbounded list
+      // here threw a layout exception (after build, so the tab's try/catch
+      // couldn't catch it) and froze the screen.
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: events.length,
       itemBuilder: (ctx, index) {
         final ev = events[index];
@@ -1908,7 +2362,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   Text('Member Details', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
                 ]),
                 if (!_isReadOnly)
-                  IconButton(icon: const Icon(Icons.edit_rounded, color: Colors.white), onPressed: _showEditMemberDialog),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(icon: const Icon(Icons.ios_share_rounded, color: Colors.white), tooltip: 'Export', onPressed: _showExportSheet),
+                    IconButton(icon: const Icon(Icons.edit_rounded, color: Colors.white), onPressed: _showEditMemberDialog),
+                  ]),
               ],
             ),
           ),

@@ -16,6 +16,21 @@
 > **NEXT:** Phase C **applied to live DB ✅** (2026-06-11) → optional §E `library_closures` drop +
 > on-device smoke test of the touched flows.
 >
+> **Member-profile fixes + payments RLS hotfix — done (2026-06-12):** **member_detail_screen** —
+> fixed the **Activity-tab freeze** (Activity/Payments were a bare `ListView.builder` inside a
+> `SingleChildScrollView` → unbounded-height layout crash after build; now `shrinkWrap` +
+> `NeverScrollableScrollPhysics`, which also renders the Payments list when rows exist); added
+> **date-wise attendance analytics** (range picker default = this month + summary + per-day
+> check-in/checkout/study-time, computed from loaded data); added a **per-member export** (header
+> Export → Attendance/Payments checkboxes + date range + CSV & PDF, reusing `PdfExporter`/`CsvExporter`).
+> **Transfer** action hidden when the admin owns one library (`member_detail._canTransfer` +
+> `members_sub_tab` `ownedLibraryCount` from `reservations_tab`). **add_member_wizard** — compensating
+> rollback (free seat + exit the new membership) so a failed step leaves no ghost member; dup-guard now
+> also blocks `pending`. **Payments RLS hotfix:** `payments` had no admin-INSERT policy → admin
+> add/approve inserts were RLS-rejected (42501 = "You don't have permission"), which also left Payments
+> tabs empty. New `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql` + folded into
+> canonical schema. **0 new analyze issues.** ⛔ migration NOT yet applied to live DB (the real fix).
+>
 > **Reservation tab + add-member polish — done (2026-06-11):** **member_detail_screen** blank-screen
 > fixed (eager `IndexedStack` that built all 5 tabs → **active-tab-only** build selected by tab name +
 > a per-tab **error boundary**; null-`memberId` guard that was an infinite spinner). **members_sub_tab**

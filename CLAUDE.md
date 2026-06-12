@@ -160,11 +160,32 @@
   of seatless members in that seat's shift (occupy + `memberships.seat_id` + notify + audit); occupied-
   seat "Renew"/"View Member Details" now open the working profile. All four files: **0 new
   `flutter analyze` issues**. Committed in `30da253`.
-- **Cross-agent handoff:** added **`AGENTS.md`** at repo root — a read-first onboarding for non-Claude
-  agents (e.g. Codex): read-order, golden rules, hard constraints, current git state. SpecKit marker
-  block preserved.
+- **Cross-agent handoff:** added **`AGENTS.md`** at repo root + **`.gitlab/duo/chat-rules.md`** — a
+  read-first onboarding (read-order, golden rules, hard constraints, current git state) for any agent.
+  GitLab Duo Agent Platform auto-reads BOTH (the root `AGENTS.md` is always in context; `chat-rules.md`
+  is Duo's workspace-rules file). SpecKit marker block preserved.
+- **Member-profile fixes + payments RLS hotfix (2026-06-12):** **member_detail_screen** — fixed the
+  **Activity-tab freeze** (Activity/Payments returned a bare `ListView.builder` inside a
+  `SingleChildScrollView` → unbounded-height layout crash *after* build, uncatchable by the per-tab
+  try/catch; now `shrinkWrap` + `NeverScrollableScrollPhysics` — this also lets the Payments list render
+  when rows exist); added **date-wise attendance analytics** (range picker, default = this month +
+  summary + per-day check-in/checkout/study-time, computed from already-loaded data); added a
+  **per-member export** (header Export → Attendance/Payments checkboxes + date range + CSV & PDF, reusing
+  `PdfExporter`/`CsvExporter`). **Transfer** action now hidden when the admin owns one library
+  (member_detail `_canTransfer` + members_sub_tab via `ownedLibraryCount` from reservations_tab).
+  **add_member_wizard** — added a **compensating rollback** (free seat + exit the just-created
+  membership) so a failed step can't leave a ghost member; dup-guard now also blocks `pending`.
+  **Payments RLS hotfix** (root cause of the add-member "You don't have permission" error AND the empty
+  Payments tab): `payments` had **no admin-INSERT policy**, so admin add/approve payment inserts were
+  RLS-rejected (42501). New migration `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql`
+  (owner-scoped INSERT policy) + folded into canonical `supabase_schema.sql`. **0 new analyze issues.**
+  ⛔ **migration NOT yet applied to the live DB** — applying it is what actually clears the error and
+  starts populating Payments (historical empty members won't backfill; not faked).
 
 ### Next action (when the user says "continue"/"GO")
+- **Apply the payments RLS hotfix** — run `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql`
+  in the Supabase SQL editor. This clears the add-member "permission" error and populates Payments going
+  forward. (App code is already correct; this is a pure RLS gap.)
 - **Phase C is APPLIED to the live DB** (verified above). Remaining DB steps: optional §E
   `library_closures` drop + an on-device smoke test of the touched flows (reservation tab, add-member,
   amenities).

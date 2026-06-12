@@ -29,7 +29,9 @@ class MemberListItem {
 
 class MembersSubTab extends StatefulWidget {
   final String libraryId;
-  const MembersSubTab({super.key, required this.libraryId});
+  // How many libraries this admin owns — the Transfer action is hidden when 1.
+  final int ownedLibraryCount;
+  const MembersSubTab({super.key, required this.libraryId, this.ownedLibraryCount = 0});
 
   @override
   State<MembersSubTab> createState() => _MembersSubTabState();
@@ -479,26 +481,29 @@ class _MembersSubTabState extends State<MembersSubTab> {
                   _holdOrResumeMember(membership, resume: isHold);
                 },
               ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF2563EB)),
-                title: Text('Transfer to another library', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MemberTransferScreen(
-                        memberId: memberId,
-                        memberName: name,
-                        fromMembership: membership,
+              // Transfer only makes sense with 2+ owned libraries.
+              if (widget.ownedLibraryCount > 1) ...[
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF2563EB)),
+                  title: Text('Transfer to another library', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MemberTransferScreen(
+                          memberId: memberId,
+                          memberName: name,
+                          fromMembership: membership,
+                        ),
                       ),
-                    ),
-                  ).then((result) {
-                    if (result == true) _fetchMembers(isRefresh: true);
-                  });
-                },
-              ),
+                    ).then((result) {
+                      if (result == true) _fetchMembers(isRefresh: true);
+                    });
+                  },
+                ),
+              ],
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.person_remove_rounded, color: Color(0xFFDC2626)),

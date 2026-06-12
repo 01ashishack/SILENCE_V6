@@ -345,6 +345,10 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
 
   Future<void> _finalizeRegistration() async {
     setState(() => _isLoading = true);
+    // Track partial writes so we can roll them back if a later step fails —
+    // there is no server-side transaction (see _rollbackPartialRegistration).
+    String? createdMembershipId;
+    String? occupiedSeatId;
     try {
       // 1. Look up or insert user by phone or email
       var userObj = await _supabase
@@ -370,13 +374,14 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       } else {
         memberUserId = userObj['id'] as String;
 
-        // Prevent duplicate active memberships
+        // Prevent duplicate active memberships (incl. 'pending' — a member
+        // awaiting payment confirmation must not be added a second time).
         final activeMemberships = await _supabase
             .from('memberships')
             .select('id')
             .eq('member_id', memberUserId)
             .eq('library_id', _libraryId)
-            .inFilter('status', ['active', 'trial', 'hold']);
+            .inFilter('status', ['active', 'trial', 'hold', 'pending']);
 
         if (activeMemberships.isNotEmpty) {
           if (mounted) {
@@ -453,6 +458,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       }).select('id').single();
 
       final membershipId = membership['id'] as String;
+      createdMembershipId = membershipId;
 
       // 5. Occupy the seat immediately after the membership is created, BEFORE
       // the payment insert. If payment ever fails, the seat/membership stay in
@@ -462,6 +468,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
           'status': 'occupied',
           'occupied_by_member_id': memberUserId,
         }).eq('id', _memberData.selectedSeatId!);
+        occupiedSeatId = _memberData.selectedSeatId;
       }
 
       // 6. Create payment record
@@ -492,6 +499,13 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     } catch (e) {
       // Log the exact exception (incl. PostgREST/RLS details) — do not swallow.
       debugPrint('Error finalizing registration: $e');
+      // Compensating rollback: a later step (commonly the payment insert) can
+      // fail AFTER the membership + seat were written, leaving a "ghost" member
+      // in the list. Undo those writes so the admin can cleanly retry. There is
+      // no server transaction; this is best-effort.
+      if (createdMembershipId != null) {
+        await _rollbackPartialRegistration(createdMembershipId, occupiedSeatId);
+      }
       if (mounted) {
         // Keep the wizard OPEN so the admin can correct and retry. Do NOT save a
         // draft on error — that path is what produced duplicate member records.
@@ -499,6 +513,31 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Best-effort undo of a half-finished registration (no DB transaction
+  /// exists). Frees the seat we occupied and marks the just-created membership
+  /// `exited` so it stops showing as an active member. Each step is independent
+  /// and swallowed — a cleanup failure must not mask the original error.
+  Future<void> _rollbackPartialRegistration(String membershipId, String? seatId) async {
+    if (seatId != null) {
+      try {
+        await _supabase.from('seats').update({
+          'status': 'vacant',
+          'occupied_by_member_id': null,
+        }).eq('id', seatId);
+      } catch (e) {
+        debugPrint('Rollback: free seat failed: $e');
+      }
+    }
+    try {
+      await _supabase.from('memberships').update({
+        'status': 'exited',
+        'seat_id': null,
+      }).eq('id', membershipId);
+    } catch (e) {
+      debugPrint('Rollback: cancel membership failed: $e');
     }
   }
 

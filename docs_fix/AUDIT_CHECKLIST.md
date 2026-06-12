@@ -110,6 +110,7 @@
 - [x] Dup-prevention (admin approval re-entrancy guard) · global status-bar/top-bar consistency
 - [x] **Reservation tab fix (2026-06-11)** — member_detail blank-screen (active-tab-only build + per-tab error boundary + null-id guard); members_sub_tab card → full profile + ⋮ to top-right + "View Details" removed + Renew/Hold-Resume/Transfer/Remove (real writes + notify + audit); layout_sub_tab seat-desync reconcile + self-heal + real "Assign Member" picker
 - [x] **Add-member / amenities polish (2026-06-11)** — wizard dup-guard + honest error (keeps open) + seat-occupy before payment; removed add-on "Total Available Inventory" box; Step-3 add-on price-type chip + configured-only plan pills
+- [x] **Member-profile fixes + payments RLS hotfix (2026-06-12)** — fixed Activity-tab freeze (shrink-wrapped the unbounded Activity/Payments lists); date-wise attendance analytics (range + per-day check-in/out/study-time); per-member CSV/PDF export; Transfer hidden when admin owns 1 library; add_member_wizard compensating rollback + `pending` dup-guard. **Payments RLS hotfix** authored (`migrations/2026-06-12_payments_admin_insert_rls.sql` — owner-scoped INSERT on `payments`; was the cause of the add-member 42501 error + empty Payments tab). ⛔ not yet applied to live DB.
 
 ---
 

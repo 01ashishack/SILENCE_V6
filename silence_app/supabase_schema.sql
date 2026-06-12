@@ -747,6 +747,12 @@ CREATE POLICY "Admin view all payments of their libraries" ON payments
 CREATE POLICY "Member insert (upload proof)" ON payments
     FOR INSERT WITH CHECK (member_id = auth.uid());
 
+-- Owner records a member's payment via the Add-Member wizard / approval flow.
+-- (member_id is the member, not the owner, so the member-insert policy above
+-- does not cover this — see migrations/2026-06-12_payments_admin_insert_rls.sql)
+CREATE POLICY "Admin insert payments for their libraries" ON payments
+    FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+
 CREATE POLICY "Admin update status" ON payments
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
     WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));

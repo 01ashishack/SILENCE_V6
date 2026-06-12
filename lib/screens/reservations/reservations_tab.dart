@@ -558,6 +558,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                     ), // Layout Sub-tab
                     MembersSubTab(
                       libraryId: _selectedLibraryId!,
+                      ownedLibraryCount: _myLibraries.length,
                     ), // Members Sub-tab
                     RequestsSubTab(
                       key: ValueKey('requests_tab_${_activeSubTab == 2}_$_selectedLibraryId'),
