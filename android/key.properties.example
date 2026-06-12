@@ -1,0 +1,19 @@
+# ── Android release signing ─────────────────────────────────────────────────
+# Copy this file to  android/key.properties  (which is GITIGNORED) and fill in
+# your real values. NEVER commit key.properties or the keystore (*.jks) itself.
+#
+# When android/key.properties is absent, the release build falls back to debug
+# signing automatically (see android/app/build.gradle.kts), so local builds work
+# without this file.
+#
+# Generate an upload keystore once (keep the .jks somewhere safe, outside git):
+#   keytool -genkey -v -keystore upload-keystore.jks \
+#           -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# storeFile: use an ABSOLUTE path to the .jks (a relative path resolves from
+# android/app/). On Windows, forward slashes are fine, e.g. C:/keys/upload.jks
+#
+storePassword=your-store-password
+keyPassword=your-key-password
+keyAlias=upload
+storeFile=C:/absolute/path/to/upload-keystore.jks
