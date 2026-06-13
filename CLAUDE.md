@@ -179,7 +179,7 @@
   Payments tab): `payments` had **no admin-INSERT policy**, so admin add/approve payment inserts were
   RLS-rejected (42501). New migration `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql`
   (owner-scoped INSERT policy) + folded into canonical `supabase_schema.sql`. **0 new analyze issues.**
-  ⛔ **migration NOT yet applied to the live DB** — applying it is what actually clears the error and
+  ✅ **Migration APPLIED to the live DB** — this clears the add-member "permission" error and
   starts populating Payments (historical empty members won't backfill; not faked).
 - **Member photos + assigned-seat-vacant fixes (2026-06-12):** two RLS write-permission gaps (same
   class as the payments hotfix). **(1) Member photos / ID docs never persisted** — `users` had only a
@@ -196,7 +196,7 @@
   payment insert is RLS-rejected → the wizard rollback frees the seat. layout_sub_tab already
   reconciles+self-heals from memberships, so once payments insert succeeds the seat stays occupied.
   **0 new analyze issues** (2 pre-existing baseline: unused `cache_service` import, one
-  BuildContext-async info in `_initWizard`). ⛔ **both migrations NOT yet applied to the live DB.**
+  BuildContext-async info in `_initWizard`). ✅ **Both migrations APPLIED to the live DB.**
 - **Add-member image crash on Windows desktop (2026-06-12):** the wizard force-closed the moment you
   tapped Camera/Gallery **when testing on the Windows build**. `add_member_step1._pickImage` gated the
   permission + crop path behind `if (!kIsWeb)`, but `kIsWeb` is only true on web — so **desktop fell
@@ -258,13 +258,9 @@
   URL+anon key must be updated.
 
 ### Next action (when the user says "continue"/"GO")
-- **Apply BOTH RLS hotfixes** in the Supabase SQL editor (each is additive, idempotent, owner-scoped):
-  - `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql` — clears the add-member
-    "permission" error, populates Payments, and (by letting the payment insert succeed) stops the
-    rollback that was leaving the **assigned seat showing vacant**.
-  - `silence_app/migrations/2026-06-12_users_owner_update_rls.sql` — lets member **photos + ID
-    documents** persist and lets admins **edit a member's profile**. (App code is already correct;
-    these are pure RLS gaps. A member already in a broken seat state should be re-added after applying.)
+- **Both RLS hotfixes are now APPLIED** to the live DB:
+  - `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql` — cleared the add-member "permission" error.
+  - `silence_app/migrations/2026-06-12_users_owner_update_rls.sql` — allowed member photos + ID docs to persist.
 - **Phase C is APPLIED to the live DB** (verified above). Remaining DB steps: optional §E
   `library_closures` drop + an on-device smoke test of the touched flows (reservation tab, add-member,
   amenities).
