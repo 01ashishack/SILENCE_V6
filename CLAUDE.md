@@ -232,7 +232,19 @@
   `silence_app/migrations/2026-06-12_harden_open_insert_policies.sql` — the 4 open
   `WITH CHECK(true)` insert policies → `WITH CHECK (auth.uid() IS NOT NULL)` (blocks unauthenticated
   forgery, breaks nothing) + folded into canonical schema. ⛔ not yet applied to live DB; verify =
-  any in-app notification still arrives.
+  any in-app notification still arrives. *(Applied to live DB 2026-06-12 — user ran it + the payments
+  + users-owner-update migrations; all returned success.)*
+- **Server tier (RC-1) kickoff (2026-06-12):** plan in **`docs_fix/SERVER_TIER_PLAN.md`** — decision:
+  Postgres `SECURITY DEFINER` RPCs applied as migrations + called via `supabase.rpc()` (Edge Functions
+  only later for Razorpay/FCM); a security template + an "adopt-then-tighten" loop (ship RPC additive →
+  wire client → verify one flow → tighten the replaced RLS → re-verify) + a prioritized RPC backlog
+  mapping each RPC to the RLS tightening it unlocks. **RPC #1 drafted & ready:**
+  `silence_app/migrations/2026-06-12_rpc_find_user_by_contact.sql` (owner-only, SECURITY DEFINER,
+  pinned search_path, exact-match LIMIT 1, EXECUTE→authenticated only) — replaces the add-member
+  cross-library phone/email `users.select`, the prerequisite to tenant-scoping the broad `users` SELECT
+  (P10-04). Additive/safe; nothing calls it yet. **Next (needs 1 on-device test):** wire the 3
+  add-member lookup call sites to the RPC, verify autofill + dup-guard, THEN author the users-SELECT
+  tenant-scope migration.
 
 ### Next action (when the user says "continue"/"GO")
 - **Apply BOTH RLS hotfixes** in the Supabase SQL editor (each is additive, idempotent, owner-scoped):
