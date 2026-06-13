@@ -14,6 +14,8 @@
   - This creates ALL tables + RLS + triggers, and **already includes** every recent policy fix
     (Phase C reconciliation, payments admin-insert, users owner-update, the hardened
     `auth.uid() IS NOT NULL` insert policies). You do **NOT** run those migration files separately.
+  - **Safe to re-run:** the file now clears existing policies/triggers first, so if a previous/partial
+    run left objects behind (e.g. error `42710 "trigger ... already exists"`), just run it again.
   - `[exp]` "Success. No rows returned." If it errors, paste me the error.
 
 ### A2. Add the server-tier RPC (not folded into the schema)

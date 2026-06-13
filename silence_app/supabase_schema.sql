@@ -22,6 +22,32 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ------------------------------------------------------------
+-- 1b. MAKE THIS SCRIPT RE-RUNNABLE (idempotent)
+-- ------------------------------------------------------------
+-- CREATE TRIGGER and CREATE POLICY are NOT idempotent, so re-running this file
+-- on a database that already has some objects fails with errors like
+-- 42710 "trigger ... already exists". This block clears the existing app
+-- policies + triggers first; everything below then recreates them cleanly.
+-- Tables use CREATE TABLE IF NOT EXISTS, so existing tables (and any rows) are
+-- preserved. It does NOT drop the schema, so Supabase's role grants stay intact.
+DO $$
+DECLARE r record;
+BEGIN
+    -- Drop every Row-Level-Security policy on public tables.
+    FOR r IN SELECT schemaname, tablename, policyname
+             FROM pg_policies WHERE schemaname = 'public' LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I',
+                       r.policyname, r.schemaname, r.tablename);
+    END LOOP;
+    -- Drop every trigger on public tables (the updated_at triggers below
+    -- get recreated).
+    FOR r IN SELECT event_object_table AS tbl, trigger_name AS trg
+             FROM information_schema.triggers WHERE trigger_schema = 'public' LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON public.%I', r.trg, r.tbl);
+    END LOOP;
+END $$;
+
+-- ------------------------------------------------------------
 -- 2. TABLE DEFINITIONS
 -- ------------------------------------------------------------
 
