@@ -858,7 +858,7 @@ CREATE POLICY "Admin view referrals" ON referrals
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
 CREATE POLICY "System insert referrals" ON referrals
-    FOR INSERT WITH CHECK (true);
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 -- 4.17 Badges Policies
 CREATE POLICY "Member view own badges" ON badges
@@ -868,7 +868,7 @@ CREATE POLICY "Admin view member badges" ON badges
     FOR SELECT USING (EXISTS (SELECT 1 FROM memberships WHERE memberships.member_id = badges.member_id AND library_id = badges.library_id AND EXISTS (SELECT 1 FROM libraries WHERE id = memberships.library_id AND owner_id = auth.uid())));
 
 CREATE POLICY "System insert badges" ON badges
-    FOR INSERT WITH CHECK (true);
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 -- 4.18 Announcements Policies
 CREATE POLICY "Admin insert announcements" ON announcements
@@ -909,7 +909,7 @@ CREATE POLICY "User view own notifications" ON notifications
     FOR SELECT USING (user_id = auth.uid());
 
 CREATE POLICY "System insert notifications" ON notifications
-    FOR INSERT WITH CHECK (true);
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 CREATE POLICY "User update read status" ON notifications
     FOR UPDATE USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
@@ -919,7 +919,7 @@ CREATE POLICY "Admin view own audit log" ON audit_log
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
 CREATE POLICY "System insert audit log" ON audit_log
-    FOR INSERT WITH CHECK (true);
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 -- 4.23 Scheduled Closures Policies
 CREATE POLICY "Admin manage scheduled closures" ON scheduled_closures

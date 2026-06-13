@@ -220,6 +220,19 @@
   debug-signing fallback when absent (P1-02) + `key.properties.example`; verified `gradlew :app:tasks`
   configures cleanly. **Still open (NOT zero-risk no-test):** T2.6 security RLS migrations
   (P10-04 / P5-08 / P6-02·06 / storage scoping / P5-01-with-care) and T2.7 anon-key → `--dart-define`.
+- **Security RLS investigation (T2.6, 2026-06-12):** attempted to author the Wave-0/1 RLS tightenings
+  as safe standalone migrations — found **all but one collide with a live client-side flow** (the
+  audit's RC-1 in action: the fat client does privileged + cross-actor writes, so the permissive RLS
+  is load-bearing). Evidence + the server-tier sequencing in **`docs_fix/SECURITY_RLS_ANALYSIS.md`**.
+  Blocked: lock `role`/`subscription_*`/`*_verified` (role-switch + trial + verify are client-side),
+  actor-scope the 4 inserts (join_flow writes owner-attributed audit/notif as the member;
+  `_awardBadge` cross-actor), drop `memberships` `true/true` (member_home:5670 member-side update),
+  tenant-scope `users` SELECT (add-member cross-library phone/email lookup), storage scoping (current
+  storage.objects policies not in repo). **Shipped the one safe interim:**
+  `silence_app/migrations/2026-06-12_harden_open_insert_policies.sql` — the 4 open
+  `WITH CHECK(true)` insert policies → `WITH CHECK (auth.uid() IS NOT NULL)` (blocks unauthenticated
+  forgery, breaks nothing) + folded into canonical schema. ⛔ not yet applied to live DB; verify =
+  any in-app notification still arrives.
 
 ### Next action (when the user says "continue"/"GO")
 - **Apply BOTH RLS hotfixes** in the Supabase SQL editor (each is additive, idempotent, owner-scoped):
