@@ -1,49 +1,41 @@
 # SILENCE — From-Scratch Setup + Full App Test Checklist
 
-> You deleted the Supabase DB **and** storage. Nothing works until the backend is rebuilt, so this doc
-> is two parts: **Part A — rebuild the backend** (do in order), then **Part B — test the whole app**
-> from a clean slate. Tick boxes as you go; log issues in the table at the bottom.
-> (Supersedes `TESTING_CHECKLIST.md` for the wiped-DB scenario.)
+> You cleared the app **data** (user rows + uploaded files) but kept the tables, RLS, functions and
+> storage buckets — so there is **nothing to rebuild**. **Part A** is a quick verify; **Part B is the
+> full app test checklist** to walk through one-by-one from a clean (empty) state, and **Part C** lists
+> this week's fixes to confirm. Tick boxes as you go; log issues in the table at the bottom.
+> (Supersedes `TESTING_CHECKLIST.md`.)
 
 ---
 
-# PART A — Rebuild the backend (in this exact order)
+# PART A — You only cleared DATA → verify (NO rebuild)
 
-### A1. Recreate the database schema
-- [ ] Open Supabase → SQL Editor → paste & run **`silence_app/supabase_schema.sql`** (whole file).
-  - This creates ALL tables + RLS + triggers, and **already includes** every recent policy fix
-    (Phase C reconciliation, payments admin-insert, users owner-update, the hardened
-    `auth.uid() IS NOT NULL` insert policies). You do **NOT** run those migration files separately.
-  - **Safe to re-run:** the file now clears existing policies/triggers first, so if a previous/partial
-    run left objects behind (e.g. error `42710 "trigger ... already exists"`), just run it again.
-  - `[exp]` "Success. No rows returned." If it errors, paste me the error.
+You deleted the *rows* (app user data) and the uploaded *files*, but kept the tables, RLS, functions and
+buckets. **Do NOT re-run `supabase_schema.sql`** — the `42710 "trigger ... already exists"` error you saw
+is EXPECTED and confirms your structure is intact. Just confirm a few things, then test on empty tables.
 
-### A2. Add the server-tier RPC (not folded into the schema)
-- [ ] Run **`silence_app/migrations/2026-06-12_rpc_find_user_by_contact.sql`**.
-  - `[exp]` Success. (It's only *used* after the client is wired to it — currently optional, but
-    harmless to create now.)
-
-### A3. Recreate storage (buckets + policies)
-- [ ] Run **`silence_app/migrations/2026-06-12_storage_buckets_setup.sql`**.
-  - Creates `silence_assets` (public) + `silence_private` (private) + functional policies.
-  - `[exp]` Success. Then Storage tab shows both buckets.
-
-### A4. Verify the backend (quick SQL checks)
+### A1. Confirm the structure is intact (SQL Editor)
 - [ ] `select count(*) from information_schema.tables where table_schema='public';` → ~30 tables.
-- [ ] `select id, public from storage.buckets;` → `silence_assets=true`, `silence_private=false`.
-- [ ] In Auth → confirm there are **no users** yet (you'll create them by signing up).
+- [ ] `select id, public from storage.buckets;` → `silence_assets` (public=`true`) **and**
+      `silence_private` (public=`false`) both present.
+  - **Only if a bucket is missing:** run `silence_app/migrations/2026-06-12_storage_buckets_setup.sql`
+    (idempotent — safe even if the buckets already exist; it just re-asserts the policies).
+- [ ] (Optional) the server-tier RPC isn't used yet — you can run
+      `silence_app/migrations/2026-06-12_rpc_find_user_by_contact.sql` now or later; skip if unsure.
 
-### A5. Point the app at the project & build
-- [ ] Confirm `lib/core/supabase_config.dart` URL + anon key match THIS project. **If you recreated the
-      project (new ref)**, update both, or the app can't connect.
-- [ ] `flutter pub get` → `flutter analyze` (expect only the known baseline infos) → launch.
-- [ ] Device choice: use an **Android emulator/phone** for camera/crop/permissions/location/QR. The
+### A2. App config & build
+- [ ] `lib/core/supabase_config.dart` URL + anon key still match your project (unchanged if you only
+      cleared data).
+- [ ] `flutter pub get` → `flutter analyze` (only the known baseline infos) → launch.
+- [ ] Device: **Android emulator/phone** for camera / crop / permissions / location / QR; the
       **Windows** build is fine for everything else (gallery upload works; camera shows a friendly
       message by design).
 
+> If you also cleared the **Auth** users, your old logins won't work — sign up fresh accounts (the first
+> one becomes your Admin in B1).
+>
 > ⚠️ **Mocked/disabled — do NOT log as bugs:** Razorpay subscription (mock plans), email/phone OTP
-> (disabled), FCM push (pending), Members-tab bulk Announce/Export is real now but other "coming soon"
-> labels are intentional.
+> (disabled), FCM push (pending).
 
 ---
 
@@ -157,10 +149,10 @@
 
 ---
 
-## Reminder: migrations to run for a from-scratch DB
-1. `silence_app/supabase_schema.sql`  *(all tables + RLS + folded fixes)*
-2. `silence_app/migrations/2026-06-12_rpc_find_user_by_contact.sql`  *(server-tier RPC #1)*
-3. `silence_app/migrations/2026-06-12_storage_buckets_setup.sql`  *(buckets + policies)*
-
-You do **not** need to run the individual payments / users-owner-update / hardened-insert / Phase-C
-migration files — they're already inside `supabase_schema.sql`.
+## Reminder: you only cleared DATA — nothing to rebuild
+- **Do NOT re-run `supabase_schema.sql`** — your tables / RLS / triggers are intact (that's exactly why
+  it said "already exists"). It IS now safe to re-run if you ever truly drop tables, but you don't need
+  to here.
+- Storage buckets/policies persist; run `migrations/2026-06-12_storage_buckets_setup.sql` **only if a
+  bucket is missing** (it's idempotent).
+- `migrations/2026-06-12_rpc_find_user_by_contact.sql` is optional (not used yet).
