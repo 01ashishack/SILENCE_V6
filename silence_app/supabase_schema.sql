@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS users (
     phone TEXT UNIQUE,
     full_name TEXT NOT NULL,
     nickname TEXT,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
+    role TEXT CHECK (role IN ('admin', 'member')), -- nullable until /role-select sets it (signup inserts role=null)
     gender TEXT CHECK (gender IN ('male', 'female', 'other', 'prefer_not_to_say')),
     date_of_birth DATE,
     photo_url TEXT,

@@ -1,0 +1,28 @@
+-- ============================================================================
+-- 2026-06-13 — Fix: signup fails with "null value in column \"role\""
+-- ============================================================================
+--
+-- SYMPTOM
+--   Creating an account shows "Signup failed: null value in column \"role\" of
+--   relation \"users\" violates not-null constraint". The Supabase Auth user is
+--   created anyway, so tapping Create Account again says "already registered",
+--   but no public.users profile row exists.
+--
+-- ROOT CAUSE
+--   The signup flow (auth_screen.dart:_handleSignup) creates the auth user, then
+--   inserts public.users with role = NULL on purpose, and routes to /role-select
+--   where the user picks Admin or Member (which UPDATEs role). But users.role was
+--   declared NOT NULL, so the profile insert is rejected.
+--
+-- FIX
+--   Allow role to be NULL until /role-select sets it. The CHECK
+--   (role IN ('admin','member')) is kept — a NULL passes a CHECK, and once a
+--   value is set it must be 'admin' or 'member'. Idempotent.
+--
+-- AFTER APPLYING (to recover the stuck account from before this fix):
+--   In Supabase → Authentication → Users, delete the auth user that has no
+--   profile (e.g. puni1t@gmail.com), then sign up again. New signups work
+--   without any cleanup.
+-- ============================================================================
+
+ALTER TABLE users ALTER COLUMN role DROP NOT NULL;
