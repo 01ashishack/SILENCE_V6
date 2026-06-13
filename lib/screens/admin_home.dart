@@ -11,6 +11,7 @@ import 'admin_analytics_tab.dart';
 import 'admin_profile_tab.dart';
 import 'scheduled_closures.dart';
 import '../utils/holiday_service.dart';
+import '../widgets/states/shimmer_box.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final bool startInSetupMode;
@@ -79,6 +80,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _totalActiveMembers = 0;
   int _expiringTodayCount = 0;
   int _newJoiningsToday = 0;
+  int _exitsToday = 0; // members who left the library today
   int _vacantSeatsCount = 0;
   int _holdSeatsCount = 0;
   int _maintenanceSeatsCount = 0;
@@ -578,6 +580,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       _newJoiningsThisMonth = joinMonth;
       _newJoiningsToday = joinToday;
 
+      // 4b. Exits today: memberships that left (status 'exited') today.
+      try {
+        final exitsRes = await supabase
+            .from('memberships')
+            .select('id')
+            .eq('library_id', libId)
+            .eq('status', 'exited')
+            .gte('exited_at', todayMidnightIso);
+        _exitsToday = (exitsRes as List).length;
+      } catch (e) {
+        debugPrint('Error loading exits today: $e');
+        _exitsToday = 0;
+      }
+
       // 5. Expiring Soon: memberships end_date between tomorrow and today+7 days
       final expiringSoonRes = await supabase
           .from('memberships')
@@ -1070,55 +1086,99 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   // TAB 0: HOME / DASHBOARD TAB
   Widget _buildHomeTab() {
     if (!_initialLoadDone) {
-      return Center(
+      return SingleChildScrollView(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+            Shimmer(
+              child: Container(
+                height: 180,
+                color: Colors.white,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: const [
+                    SkeletonBox(width: 150, height: 24),
+                    SizedBox(height: 8),
+                    SkeletonBox(width: 250, height: 16),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Loading your dashboard...',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: const Color(0xFF6B7280),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Shimmer(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SkeletonBox(height: 120),
+                    const SizedBox(height: 16),
+                    const SkeletonBox(width: 120, height: 20),
+                    const SizedBox(height: 12),
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.5,
+                      children: const [
+                        SkeletonBox(),
+                        SkeletonBox(),
+                        SkeletonBox(),
+                        SkeletonBox(),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    const SkeletonBox(width: 140, height: 20),
+                    const SizedBox(height: 12),
+                    const SkeletonBox(height: 80),
+                    const SizedBox(height: 12),
+                    const SkeletonBox(height: 80),
+                  ],
+                ),
               ),
             ),
           ],
         ),
       );
     }
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 1. Curved Gradient Banner Header (Matching Image 2)
-          _buildCurvedHeader(),
+    return RefreshIndicator(
+      onRefresh: () => _loadInitialData(),
+      color: const Color(0xFFE65C00),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Curved Gradient Banner Header (Matching Image 2)
+            _buildCurvedHeader(),
 
-          // 2. Onboarding Setup Card OR Operational Dashboard (Below Banner)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_inSetupMode) ...[
-                  // Checklist Onboarding Card
-                  _buildSetupOnboardingCard(),
-                  const SizedBox(height: 16),
-                  // Monospaced Code Card
-                  _buildInvitationCodeCard(),
-                  const SizedBox(height: 20),
-                  // Stats Grid showing zeros as per spec S010-A
-                  _buildOperationalStatsSection(),
-                ] else ...[
-                  // S010-B Operational Dashboard
-                  _buildOperationalDashboard(),
+            // 2. Onboarding Setup Card OR Operational Dashboard (Below Banner)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_inSetupMode) ...[
+                    // Checklist Onboarding Card
+                    _buildSetupOnboardingCard(),
+                    const SizedBox(height: 16),
+                    // Monospaced Code Card
+                    _buildInvitationCodeCard(),
+                    const SizedBox(height: 20),
+                    // Stats Grid showing zeros as per spec S010-A
+                    _buildOperationalStatsSection(),
+                  ] else ...[
+                    // S010-B Operational Dashboard
+                    _buildOperationalDashboard(),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1693,7 +1753,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     icon: Icon(
                       Icons.notifications_none_rounded,
                       color: Colors.white.withOpacity(0.9),
-                      size: 20,
+                      size: 28,
                     ),
                     onPressed: () {
                       Navigator.pushNamed(
@@ -2064,9 +2124,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         _buildPhotoCarousel(),
         const SizedBox(height: 16),
 
-        // 2. Library Code Card
-        _buildInvitationCodeCard(),
-        const SizedBox(height: 20),
+        // 2. Library Code Card — only once a library has been created/activated
+        // (no code exists during setup, so the card is hidden then).
+        if (!_inSetupMode) ...[
+          _buildInvitationCodeCard(),
+          const SizedBox(height: 20),
+        ],
 
         // 3. Stats Section (Revenue, 2x2 grid, Live Occupancy)
         _buildOperationalStatsSection(),
@@ -2634,8 +2697,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           child: Text(
             'Overview',
             style: GoogleFonts.outfit(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
               color: const Color(0xFF1A1A2E),
             ),
           ),
@@ -2654,7 +2717,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.4,
+                childAspectRatio: 1.2,
                 children: [
                   _buildSkeletonCard(),
                   _buildSkeletonCard(),
@@ -2668,9 +2731,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.4,
+                childAspectRatio: 1.2,
                 children: [
                   _buildOperationalStatCard(
+                    index: 0,
                     label: 'Active Today',
                     value: '$_activeTodayCount / $_totalActiveMembers',
                     subtext:
@@ -2679,6 +2743,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     iconColor: const Color(0xFF3B82F6),
                   ),
                   _buildOperationalStatCard(
+                    index: 1,
                     label: 'Expired',
                     value: '$_expiredCount',
                     subtext: '$_expiringTodayCount Expiring Today',
@@ -2686,13 +2751,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     iconColor: const Color(0xFFEF4444),
                   ),
                   _buildOperationalStatCard(
+                    index: 2,
                     label: 'New Joinings',
                     value: '$_newJoiningsThisMonth',
-                    subtext: 'Today: $_newJoiningsToday',
+                    subtext: '+$_newJoiningsToday today · $_exitsToday exits',
                     icon: Icons.person_add,
                     iconColor: const Color(0xFF10B981),
                   ),
                   _buildOperationalStatCard(
+                    index: 3,
                     label: 'Expiring Soon',
                     value: '$_expiringSoonCount',
                     subtext: 'Within 7 Days',
@@ -2715,6 +2782,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     required String subtext,
     required IconData icon,
     required Color iconColor,
+    int index = 0,
   }) {
     final Color finalIconColor = _inSetupMode
         ? const Color(0xFF9CA3AF)
@@ -2723,70 +2791,95 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ? const Color(0xFF9CA3AF)
         : const Color(0xFF1A1A2E);
 
+    final Widget card = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Icon in a soft tinted circle (no chevron — cards aren't tappable).
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: finalIconColor.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: finalIconColor, size: 22),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.outfit(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: finalValueColor,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF475569),
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                subtext,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    // Entrance animation: fade + slide-up + subtle scale, staggered per card.
+    // Cards are NOT tappable (tapping does nothing) except the setup-mode hint.
     return GestureDetector(
-      onTap: () {
-        if (_inSetupMode) {
-          _showSuccessSnackBar('Complete setup to activate dashboard stats.');
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+      onTap: _inSetupMode
+          ? () => _showSuccessSnackBar('Complete setup to activate dashboard stats.')
+          : null,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: Duration(milliseconds: 400 + index * 90),
+        curve: Curves.easeOutCubic,
+        builder: (context, t, child) {
+          return Opacity(
+            opacity: t.clamp(0.0, 1.0),
+            child: Transform.translate(
+              offset: Offset(0, 16 * (1 - t)),
+              child: Transform.scale(
+                scale: 0.96 + 0.04 * t,
+                child: child,
+              ),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(icon, color: finalIconColor, size: 20),
-                const Icon(
-                  Icons.chevron_right,
-                  size: 16,
-                  color: Color(0xFF9CA3AF),
-                ),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: GoogleFonts.outfit(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: finalValueColor,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF6B7280),
-                  ),
-                ),
-                Text(
-                  subtext,
-                  style: GoogleFonts.inter(
-                    fontSize: 9,
-                    color: const Color(0xFF9CA3AF),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          );
+        },
+        child: card,
       ),
     );
   }
@@ -3274,12 +3367,30 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       ),
                       const SizedBox(height: 20),
                       if (snapshot.connectionState == ConnectionState.waiting)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: CircularProgressIndicator(
-                              color: Color(0xFF06B6D4),
-                            ),
+                        Shimmer(
+                          child: Column(
+                            children: List.generate(3, (index) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SkeletonBox(width: 40, height: 40, borderRadius: BorderRadius.all(Radius.circular(20))),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: const [
+                                        SkeletonBox(width: 120, height: 16),
+                                        SizedBox(height: 6),
+                                        SkeletonBox(height: 14),
+                                        SizedBox(height: 4),
+                                        SkeletonBox(width: 180, height: 12),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
                           ),
                         )
                       else if (snapshot.hasError ||
