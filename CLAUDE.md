@@ -245,6 +245,17 @@
   (P10-04). Additive/safe; nothing calls it yet. **Next (needs 1 on-device test):** wire the 3
   add-member lookup call sites to the RPC, verify autofill + dup-guard, THEN author the users-SELECT
   tenant-scope migration.
+- **DB + storage wiped → from-scratch bring-up (2026-06-12):** user deleted ALL Supabase tables +
+  storage to restart clean. Full rebuild + end-to-end test plan in
+  **`docs_fix/FROM_SCRATCH_SETUP_AND_TEST.md`**. Setup order: (1) run `supabase_schema.sql` (self-
+  contained — pgcrypto, `update_updated_at_column()`, all tables + RLS + every folded fix), (2) run
+  `migrations/2026-06-12_rpc_find_user_by_contact.sql`, (3) run new
+  `migrations/2026-06-12_storage_buckets_setup.sql` (creates `silence_assets` public + `silence_private`
+  private + **functional** authenticated read/write policies — NOT yet owner/path-scoped; that's the
+  P10-01/02/03 hardening). The individual payments/users-owner-update/hardened-insert/Phase-C migration
+  files do NOT need separate runs — all folded into `supabase_schema.sql`. Auth users were wiped too →
+  fresh signups. ⚠️ if the user recreated the project (new ref), `lib/core/supabase_config.dart`
+  URL+anon key must be updated.
 
 ### Next action (when the user says "continue"/"GO")
 - **Apply BOTH RLS hotfixes** in the Supabase SQL editor (each is additive, idempotent, owner-scoped):
