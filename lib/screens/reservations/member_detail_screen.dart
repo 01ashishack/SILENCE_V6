@@ -1262,6 +1262,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     return path.isEmpty ? null : path;
   }
 
+  // Memoize signed-URL futures per raw value so returning to the Overview tab
+  // (or any setState) doesn't re-sign the ID document URLs on every rebuild.
+  final Map<String, Future<String>> _docUrlFutures = {};
+
   Future<String> _documentUrl(String rawValue) async {
     final raw = rawValue.trim();
     final storagePath = _privateStoragePath(raw);
@@ -1285,7 +1289,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
   Widget _buildDocumentImage(String title, String rawUrl) {
     return FutureBuilder<String>(
-      future: _documentUrl(rawUrl),
+      future: _docUrlFutures.putIfAbsent(rawUrl, () => _documentUrl(rawUrl)),
       builder: (context, snapshot) {
         final resolvedUrl = snapshot.data;
         return Container(

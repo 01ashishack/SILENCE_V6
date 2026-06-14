@@ -212,6 +212,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       if (cached != null && cached is Map) {
         if (mounted) {
           setState(() {
+            _hasCachedStats = true;
             _shiftsCount = cached['shiftsCount'] ?? 0;
             _totalSeats = cached['totalSeats'] ?? 0;
             _occupiedSeatsCount = cached['occupiedSeatsCount'] ?? 0;
@@ -440,8 +441,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
+  bool _hasCachedStats = false; // true once cached dashboard stats are hydrated
+
   Future<void> _fetchRealStats(String libId) async {
-    if (mounted) {
+    // Only blank the stat cards to skeletons when we have no cached values to
+    // show; otherwise keep the cached numbers and refresh silently.
+    if (mounted && !_hasCachedStats) {
       setState(() => _isStatsLoading = true);
     }
     final supabase = Supabase.instance.client;
@@ -3069,16 +3074,19 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
+        // Hoist the query so incidental sheet rebuilds don't re-run it; only an
+        // explicit refresh (after a reply) reassigns it.
+        Future buildQuery() => Supabase.instance.client
+            .from('queries')
+            .select('*')
+            .eq('library_id', _libraryId!)
+            .order('created_at', ascending: false)
+            .limit(30);
+        var queriesFuture = buildQuery();
         return StatefulBuilder(
           builder: (ctx, setSheet) {
-            final future = Supabase.instance.client
-                .from('queries')
-                .select('*')
-                .eq('library_id', _libraryId!)
-                .order('created_at', ascending: false)
-                .limit(30);
             return FutureBuilder(
-              future: future,
+              future: queriesFuture,
               builder: (context, AsyncSnapshot snapshot) {
                 return Padding(
                   padding: const EdgeInsets.all(20),
@@ -3202,8 +3210,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                   (q['admin_reply'] ?? '').toString().isNotEmpty;
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
-                                onTap: () =>
-                                    _openReplyToQuery(q, () => setSheet(() {})),
+                                onTap: () => _openReplyToQuery(q,
+                                    () => setSheet(() => queriesFuture = buildQuery())),
                                 leading: CircleAvatar(
                                   backgroundColor: const Color(0xFFF0FDFA),
                                   child: Icon(

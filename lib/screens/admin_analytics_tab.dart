@@ -39,6 +39,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   late TabController _tabController;
 
   bool _isLoading = false;
+  bool _hasFetchedOnce = false; // gates the full-screen skeleton to the first load only
   bool _isProfileComplete = true;
   bool _noLibrary = false;
 
@@ -452,7 +453,10 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     required String? shiftId,
   }) async {
     setState(() {
-      _isLoading = true;
+      // Stale-while-revalidate: only blank to the skeleton on the first load;
+      // later fetches (sub-tab switch, filter/date change) keep the current
+      // numbers visible and refresh quietly instead of flashing a skeleton.
+      if (!_hasFetchedOnce) _isLoading = true;
     });
 
     try {
@@ -499,6 +503,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
             _processAttendanceData(floorId, shiftId);
             _processShiftsAndPlansData(floorId, shiftId);
             _isLoading = false;
+            _hasFetchedOnce = true;
           });
         }
         return;
@@ -576,6 +581,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
 
       setState(() {
         _isLoading = false;
+        _hasFetchedOnce = true;
       });
     } catch (e) {
       debugPrint('Error fetching analytics data: $e');

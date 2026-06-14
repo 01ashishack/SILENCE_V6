@@ -115,7 +115,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     super.initState();
     _checkRoleGuard();
     _loadCachedLibraries();
-    _loadInitialData();
+    _hydrateFromCacheThenLoad();
     _requestLocation();
     
     // Start listening for internet status to sync offline scans
@@ -193,11 +193,28 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     }
   }
 
+  /// Render instantly from cached profile/memberships, then refresh in the
+  /// background. Avoids a full-screen skeleton on app open when we already have
+  /// data cached from a previous session (stale-while-revalidate).
+  Future<void> _hydrateFromCacheThenLoad() async {
+    final used = await _loadFromCache();
+    if (used && mounted) {
+      setState(() {}); // paint the cached membership card immediately
+    }
+    await _loadInitialData();
+  }
+
   Future<void> _loadInitialData() async {
     debugPrint('[Home Refresh Audit] Attendance reload initiated');
     if (!mounted) return;
+    // Stale-while-revalidate: only blank to the full-screen skeleton when there
+    // is nothing to show yet. Refreshes (navigation-return, pull-to-refresh)
+    // keep the current content visible and reload silently.
+    final hasContent = _userProfile != null ||
+        _myMemberships.isNotEmpty ||
+        _pendingRequest != null;
     setState(() {
-      _isLoading = true;
+      if (!hasContent) _isLoading = true;
       _errorMessage = null;
       _isOfflineCached = false;
     });

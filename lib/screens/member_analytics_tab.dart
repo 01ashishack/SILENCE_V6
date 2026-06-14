@@ -261,13 +261,21 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     _loadAllData();
   }
 
+  bool _hasLoadedOnce = false;
+  String? _lastBadgeSyncLib;
+
   Future<void> _loadAllData() async {
     if (widget.userProfile == null) {
       setState(() => _isLoading = false);
       return;
     }
 
-    setState(() => _isLoading = true);
+    // Stale-while-revalidate: only show the full shimmer on the first load;
+    // filter/library changes and pull-to-refresh keep the current cards visible
+    // and refresh quietly instead of blanking the screen.
+    if (!_hasLoadedOnce) {
+      setState(() => _isLoading = true);
+    }
 
     final String memberId = widget.userProfile!['id'];
     final uniqueLibs = _getUniqueLibraries();
@@ -322,22 +330,35 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
       // 5. Fetch Heatmap Data (using selected library & period)
       await _loadHeatmapDataOnlyInternal(memberId);
 
-      // 6. Fetch Badges (sync and get earned list)
-      if (_streakLibraryId != null) {
-        try {
-          _earnedBadges = await MemberAnalyticsService.instance.syncAndFetchBadges(memberId, _streakLibraryId!);
-        } catch (e) {
-          debugPrint('Error syncing badges: $e');
-          _earnedBadges = [];
-        }
-      }
-
     } catch (e) {
       debugPrint('Error loading member analytics data: $e');
     }
 
     if (mounted) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _hasLoadedOnce = true;
+      });
+    }
+
+    // Badge sync is an N+1-heavy job (full-history scans + nested loops). Run it
+    // OFF the critical path so it never blocks first paint, and only once per
+    // streak-library (not on every filter change / pull-to-refresh).
+    _maybeSyncBadges(memberId);
+  }
+
+  Future<void> _maybeSyncBadges(String memberId) async {
+    final lib = _streakLibraryId;
+    if (lib == null) return;
+    // Already synced for this library this session — skip the heavy job.
+    if (lib == _lastBadgeSyncLib && _earnedBadges.isNotEmpty) return;
+    try {
+      final badges =
+          await MemberAnalyticsService.instance.syncAndFetchBadges(memberId, lib);
+      _lastBadgeSyncLib = lib;
+      if (mounted) setState(() => _earnedBadges = badges);
+    } catch (e) {
+      debugPrint('Error syncing badges: $e');
     }
   }
 
