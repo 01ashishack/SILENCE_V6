@@ -164,48 +164,22 @@
   read-first onboarding (read-order, golden rules, hard constraints, current git state) for any agent.
   GitLab Duo Agent Platform auto-reads BOTH (the root `AGENTS.md` is always in context; `chat-rules.md`
   is Duo's workspace-rules file). SpecKit marker block preserved.
-- **Member-profile fixes + payments RLS hotfix (2026-06-12):** **member_detail_screen** — fixed the
-  **Activity-tab freeze** (Activity/Payments returned a bare `ListView.builder` inside a
-  `SingleChildScrollView` → unbounded-height layout crash *after* build, uncatchable by the per-tab
-  try/catch; now `shrinkWrap` + `NeverScrollableScrollPhysics` — this also lets the Payments list render
-  when rows exist); added **date-wise attendance analytics** (range picker, default = this month +
-  summary + per-day check-in/checkout/study-time, computed from already-loaded data); added a
-  **per-member export** (header Export → Attendance/Payments checkboxes + date range + CSV & PDF, reusing
-  `PdfExporter`/`CsvExporter`). **Transfer** action now hidden when the admin owns one library
-  (member_detail `_canTransfer` + members_sub_tab via `ownedLibraryCount` from reservations_tab).
-  **add_member_wizard** — added a **compensating rollback** (free seat + exit the just-created
-  membership) so a failed step can't leave a ghost member; dup-guard now also blocks `pending`.
-  **Payments RLS hotfix** (root cause of the add-member "You don't have permission" error AND the empty
-  Payments tab): `payments` had **no admin-INSERT policy**, so admin add/approve payment inserts were
-  RLS-rejected (42501). New migration `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql`
-  (owner-scoped INSERT policy) + folded into canonical `supabase_schema.sql`. **0 new analyze issues.**
-  ✅ **Migration APPLIED to the live DB** — this clears the add-member "permission" error and
-  starts populating Payments (historical empty members won't backfill; not faked).
-- **Member photos + assigned-seat-vacant fixes (2026-06-12):** two RLS write-permission gaps (same
-  class as the payments hotfix). **(1) Member photos / ID docs never persisted** — `users` had only a
-  SELF-update policy (`auth.uid() = id`), so an admin's follow-up `users.update(photo_url/id_proof_url/
-  id_type/details)` on a *member's* row matched **0 rows silently** (the INSERT works, so basic fields
-  showed; only photo/ID were lost — also broke member-detail profile edits). Fix: new migration
-  `silence_app/migrations/2026-06-12_users_owner_update_rls.sql` (owner UPDATE on `users`, scoped via
-  `memberships`→`libraries`) + folded into canonical `supabase_schema.sql`. **`add_member_wizard`
-  reordered** so the membership+seat are created BEFORE the photo/ID/detail writes (that membership is
-  the link the new policy checks), and those writes moved into a best-effort `_writeMemberProfile`
-  helper so a media/upload hiccup can't roll back a valid (paid) registration. Display logic was already
-  correct (`silence_assets` is the app-wide public bucket; member_detail signs `silence_private` doc
-  URLs). **(2) Assigned seat showed vacant** = downstream of the unapplied payments migration: the
-  payment insert is RLS-rejected → the wizard rollback frees the seat. layout_sub_tab already
-  reconciles+self-heals from memberships, so once payments insert succeeds the seat stays occupied.
-  **0 new analyze issues** (2 pre-existing baseline: unused `cache_service` import, one
-  BuildContext-async info in `_initWizard`). ✅ **Both migrations APPLIED to the live DB.**
-- **Add-member image crash on Windows desktop (2026-06-12):** the wizard force-closed the moment you
-  tapped Camera/Gallery **when testing on the Windows build**. `add_member_step1._pickImage` gated the
-  permission + crop path behind `if (!kIsWeb)`, but `kIsWeb` is only true on web — so **desktop fell
-  into the mobile path** and calling `permission_handler` / `image_cropper` (both MOBILE-ONLY, no
-  Windows impl) threw `MissingPluginException` → native force-close. Fix: gate that path behind a real
-  `isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS)` check, skip the cropper on web/desktop,
-  and wrap `pickImage` in try/catch (camera capture is unsupported on desktop → friendly message, no
-  crash). Gallery-based upload now works on Windows for testing; **camera/crop/permissions remain
-  Android/iOS-only — real image testing must be on a device/emulator.** 0 new analyze issues.
+- **Member-profile + payments/users RLS hotfixes (2026-06-12):** fixed member_detail Activity/Payments
+  freeze (unbounded `ListView` in a scroll view → `shrinkWrap` + `NeverScrollableScrollPhysics`); added
+  date-wise attendance analytics + per-member CSV/PDF export; Transfer hidden when the admin owns one
+  library. Two RLS write-gaps (same class): **payments** had no admin-INSERT policy (42501 → add-member
+  "permission" error + empty Payments tab) and **users** had only a self-update policy (admin's photo/ID
+  update on a *member* row hit **0 rows silently**). Fixed via owner-scoped migrations
+  (`2026-06-12_payments_admin_insert_rls.sql`, `2026-06-12_users_owner_update_rls.sql`, both folded into
+  canonical schema) + `add_member_wizard` reordered (membership+seat BEFORE media/profile writes via
+  best-effort `_writeMemberProfile`) with a compensating rollback (no ghost members). Display logic was
+  already correct (`silence_assets` public, `silence_private` signed). ✅ **Both APPLIED to live DB.**
+- **Add-member image crash on Windows desktop (2026-06-12):** `add_member_step1._pickImage` gated the
+  permission/crop path behind `if (!kIsWeb)`, so **desktop** fell into the mobile path and
+  `permission_handler`/`image_cropper` (mobile-only) threw `MissingPluginException` → force-close. Fixed
+  with a real `isMobile = !kIsWeb && (Platform.isAndroid||isIOS)` gate + try/catch (camera unsupported on
+  desktop → friendly msg). Gallery upload works on Windows; camera/crop/permissions stay Android/iOS-only
+  — real image testing needs a device/emulator.
 - **No-test fix batches (2026-06-12, pushed):** worklist in `docs_fix/PENDING_NO_TEST_TASKS.md`.
   **T1 (commit `193023b`):** honest bulk **Announce** (real `notifications` insert) + **Export**
   (real `CsvExporter` CSV) in members_sub_tab — killed two fake-success snackbars; **desktop
@@ -220,42 +194,26 @@
   debug-signing fallback when absent (P1-02) + `key.properties.example`; verified `gradlew :app:tasks`
   configures cleanly. **Still open (NOT zero-risk no-test):** T2.6 security RLS migrations
   (P10-04 / P5-08 / P6-02·06 / storage scoping / P5-01-with-care) and T2.7 anon-key → `--dart-define`.
-- **Security RLS investigation (T2.6, 2026-06-12):** attempted to author the Wave-0/1 RLS tightenings
-  as safe standalone migrations — found **all but one collide with a live client-side flow** (the
-  audit's RC-1 in action: the fat client does privileged + cross-actor writes, so the permissive RLS
-  is load-bearing). Evidence + the server-tier sequencing in **`docs_fix/SECURITY_RLS_ANALYSIS.md`**.
-  Blocked: lock `role`/`subscription_*`/`*_verified` (role-switch + trial + verify are client-side),
-  actor-scope the 4 inserts (join_flow writes owner-attributed audit/notif as the member;
-  `_awardBadge` cross-actor), drop `memberships` `true/true` (member_home:5670 member-side update),
-  tenant-scope `users` SELECT (add-member cross-library phone/email lookup), storage scoping (current
-  storage.objects policies not in repo). **Shipped the one safe interim:**
-  `silence_app/migrations/2026-06-12_harden_open_insert_policies.sql` — the 4 open
+- **Security RLS investigation (T2.6, 2026-06-12):** every Wave-0/1 RLS tightening collides with a live
+  client flow (RC-1: the fat client does privileged + cross-actor writes, so permissive RLS is
+  load-bearing) — evidence + server-tier sequencing in **`docs_fix/SECURITY_RLS_ANALYSIS.md`**. Only the
+  safe interim shipped: `silence_app/migrations/2026-06-12_harden_open_insert_policies.sql` — the 4 open
   `WITH CHECK(true)` insert policies → `WITH CHECK (auth.uid() IS NOT NULL)` (blocks unauthenticated
-  forgery, breaks nothing) + folded into canonical schema. ⛔ not yet applied to live DB; verify =
-  any in-app notification still arrives. *(Applied to live DB 2026-06-12 — user ran it + the payments
-  + users-owner-update migrations; all returned success.)*
-- **Server tier (RC-1) kickoff (2026-06-12):** plan in **`docs_fix/SERVER_TIER_PLAN.md`** — decision:
-  Postgres `SECURITY DEFINER` RPCs applied as migrations + called via `supabase.rpc()` (Edge Functions
-  only later for Razorpay/FCM); a security template + an "adopt-then-tighten" loop (ship RPC additive →
-  wire client → verify one flow → tighten the replaced RLS → re-verify) + a prioritized RPC backlog
-  mapping each RPC to the RLS tightening it unlocks. **RPC #1 drafted & ready:**
-  `silence_app/migrations/2026-06-12_rpc_find_user_by_contact.sql` (owner-only, SECURITY DEFINER,
-  pinned search_path, exact-match LIMIT 1, EXECUTE→authenticated only) — replaces the add-member
-  cross-library phone/email `users.select`, the prerequisite to tenant-scoping the broad `users` SELECT
-  (P10-04). Additive/safe; nothing calls it yet. **Next (needs 1 on-device test):** wire the 3
-  add-member lookup call sites to the RPC, verify autofill + dup-guard, THEN author the users-SELECT
-  tenant-scope migration.
-- **DB + storage wiped → from-scratch bring-up (2026-06-12):** user deleted ALL Supabase tables +
-  storage to restart clean. Full rebuild + end-to-end test plan in
-  **`docs_fix/FROM_SCRATCH_SETUP_AND_TEST.md`**. Setup order: (1) run `supabase_schema.sql` (self-
-  contained — pgcrypto, `update_updated_at_column()`, all tables + RLS + every folded fix), (2) run
-  `migrations/2026-06-12_rpc_find_user_by_contact.sql`, (3) run new
-  `migrations/2026-06-12_storage_buckets_setup.sql` (creates `silence_assets` public + `silence_private`
-  private + **functional** authenticated read/write policies — NOT yet owner/path-scoped; that's the
-  P10-01/02/03 hardening). The individual payments/users-owner-update/hardened-insert/Phase-C migration
-  files do NOT need separate runs — all folded into `supabase_schema.sql`. Auth users were wiped too →
-  fresh signups. ⚠️ if the user recreated the project (new ref), `lib/core/supabase_config.dart`
-  URL+anon key must be updated.
+  forgery, breaks nothing) + folded into canonical schema. *(Applied to live DB 2026-06-12 with the
+  payments + users-owner-update migrations.)*
+- **Server tier (RC-1) kickoff (2026-06-12):** plan in **`docs_fix/SERVER_TIER_PLAN.md`** — Postgres
+  `SECURITY DEFINER` RPCs applied as migrations + called via `supabase.rpc()` (Edge Functions only later
+  for Razorpay/FCM); adopt-then-tighten loop + a prioritized RPC backlog. **RPC #1 ready:**
+  `silence_app/migrations/2026-06-12_rpc_find_user_by_contact.sql` (owner-only, pinned search_path,
+  EXECUTE→authenticated) — replaces the add-member cross-library `users.select`; prerequisite to
+  tenant-scoping the broad `users` SELECT (P10-04). Additive/safe; nothing calls it yet. **Next (needs 1
+  device test):** wire the 3 add-member lookup sites to the RPC, verify autofill + dup-guard, THEN author
+  the users-SELECT tenant-scope migration.
+- **DB row-data + storage wipe (2026-06-12, CORRECTED):** user deleted only **row DATA + uploaded files**,
+  NOT tables/structure — structure is intact, do **NOT** rebuild (a 42710 "trigger already exists" on
+  re-running the schema confirms this). Bring-up + E2E plan in **`docs_fix/FROM_SCRATCH_SETUP_AND_TEST.md`**.
+  Canonical `supabase_schema.sql` is self-contained + idempotent (re-runnable; drops policies/triggers
+  first). If the project ref changed, update `lib/core/supabase_config.dart` URL+anon key.
 
 ### Next action (when the user says "continue"/"GO")
 - **Both RLS hotfixes are now APPLIED** to the live DB:

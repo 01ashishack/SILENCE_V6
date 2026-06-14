@@ -51,7 +51,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
     'Washroom'
   ];
 
-  List<String> _availableAmenities = [
+  final List<String> _availableAmenities = [
     'Air Conditioning (AC)',
     'High-Speed Wi-Fi',
     'Personal Lockers',
@@ -760,7 +760,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
                         ],
                       ),
                       child: Column(
@@ -831,7 +831,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                             style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
                             decoration: InputDecoration(
                               hintText: 'Enter library name',
-                              hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withOpacity(0.5)),
+                              hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
                               prefixIcon: const Icon(Icons.store_outlined, size: 20),
                             ),
                             validator: (v) => v == null || v.isEmpty ? 'Required' : null,
@@ -845,7 +845,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                             style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
                             decoration: InputDecoration(
                               hintText: 'Enter street address',
-                              hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withOpacity(0.5)),
+                              hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
                               prefixIcon: const Icon(Icons.map_outlined, size: 20),
                             ),
                           ),
@@ -865,7 +865,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                       style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
                                       decoration: InputDecoration(
                                         hintText: 'Enter city',
-                                        hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withOpacity(0.5)),
+                                        hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
                                       ),
                                       validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                                     ),
@@ -881,7 +881,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                     const SizedBox(height: 6),
                                     DropdownButtonFormField<String>(
                                       isExpanded: true,
-                                      value: _stateController.text.isNotEmpty && _indianStates.contains(_stateController.text)
+                                      initialValue: _stateController.text.isNotEmpty && _indianStates.contains(_stateController.text)
                                           ? _stateController.text
                                           : null,
                                       hint: Text('Select State', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
@@ -917,7 +917,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                             style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
                             decoration: InputDecoration(
                               hintText: 'Enter PIN code',
-                              hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withOpacity(0.5)),
+                              hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
                               prefixIcon: const Icon(Icons.pin_drop_outlined, size: 20),
                             ),
                           ),
@@ -931,7 +931,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                             style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
                             decoration: InputDecoration(
                               hintText: 'Enter emergency phone',
-                              hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withOpacity(0.5)),
+                              hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
                               prefixIcon: const Icon(Icons.emergency_outlined, size: 20),
                             ),
                             validator: (v) => v == null || v.isEmpty ? 'Required' : null,
@@ -949,7 +949,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
                         ],
                       ),
                       child: Column(
@@ -1020,7 +1020,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                         decoration: BoxDecoration(
                                           color: Colors.white,
                                           borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: const Color(0xFFE65C00).withOpacity(0.4), style: BorderStyle.solid),
+                                          border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.4), style: BorderStyle.solid),
                                         ),
                                         child: const Center(
                                           child: Column(
@@ -1065,7 +1065,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
                         ],
                       ),
                       child: Column(

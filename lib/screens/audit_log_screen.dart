@@ -208,7 +208,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                             decoration: BoxDecoration(
-                                              color: badgeColor.withOpacity(0.1),
+                                              color: badgeColor.withValues(alpha: 0.1),
                                               borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: Row(

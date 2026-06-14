@@ -126,7 +126,7 @@ class _AnnouncementsHistoryScreenState
                       : ListView.separated(
                           padding: const EdgeInsets.all(16),
                           itemCount: _announcements.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final item = _announcements[index];
                             final title = item['title'] ?? 'Announcement';

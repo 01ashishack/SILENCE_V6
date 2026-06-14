@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/cache_service.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -23,7 +22,6 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   late bool _inSetupMode;
-  bool _isLoading = false;
   bool _initialLoadDone = false;
   int _currentTab = 0; // Stateful Bottom Navigation Bar index
 
@@ -62,13 +60,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _totalMembers = 0;
   int _activeMembers = 0;
   int _totalSeats = 0;
-  int _todayBookings = 0;
-  int _pendingBookings = 0;
 
   // Dynamic metrics (reflecting actual DB state)
   int _revenueThisMonth = 0;
   int _revenueToday = 0;
-  int _revenuePending = 0;
+  final int _revenuePending = 0;
   int _expiredCount = 0;
   int _newJoiningsThisMonth = 0;
   int _expiringSoonCount = 0;
@@ -83,7 +79,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _exitsToday = 0; // members who left the library today
   int _vacantSeatsCount = 0;
   int _holdSeatsCount = 0;
-  int _maintenanceSeatsCount = 0;
   double _occupancyPercentage = 0.0;
   bool _isStatsLoading = false;
 
@@ -95,14 +90,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   // Form Controllers & State
   // Step 1: Profile
-  final _profileFormKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  String _gender = 'male';
-  DateTime? _dob;
 
   // Step 2: Library Stage 1
-  final _libFormKey = GlobalKey<FormState>();
   final _libNameController = TextEditingController();
   final _libStreetController = TextEditingController();
   final _libCityController = TextEditingController();
@@ -111,33 +102,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final _libRulesController = TextEditingController();
   final _libAboutController = TextEditingController();
   final _libEmergencyPhoneController = TextEditingController();
-  List<String> _selectedAmenities = [];
-  final List<String> _availableAmenities = [
-    'High Speed Wi-Fi',
-    'Air Conditioning',
-    'Personal Lockers',
-    'RO Drinking Water',
-    'CCTV Surveillance',
-    'Power Backup',
-    'Daily Newspaper',
-  ];
 
   // Step 3: Floor, Section & Seats
-  int _floorsCount = 1;
-  int _sectionsCount = 1;
-  int _seatsCount = 30;
 
   // Step 4: Shifts & Plans
-  final _shiftFormKey = GlobalKey<FormState>();
   final _shiftNameController = TextEditingController(text: 'General Shift');
-  TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
-  TimeOfDay _endTime = const TimeOfDay(hour: 20, minute: 0);
   final _priceController = TextEditingController(text: '1000');
   final _trialDaysController = TextEditingController(text: '0');
-  bool _shiftOverlapWarning = false;
 
   // Step 4a: Payments
-  bool _cashEnabled = true;
   final _upiPaytmController = TextEditingController();
   final _upiPhonePeController = TextEditingController();
   final _upiGPayController = TextEditingController();
@@ -285,7 +258,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   Future<void> _loadInitialData() async {
     if (_myLibraries.isEmpty) {
-      setState(() => _isLoading = true);
+      setState(() {});
     }
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
@@ -307,10 +280,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         if (userData != null) {
           _nameController.text = userData['full_name'] ?? '';
           _phoneController.text = userData['phone'] ?? '';
-          if (userData['gender'] != null) _gender = userData['gender'];
-          if (userData['date_of_birth'] != null) {
-            _dob = DateTime.parse(userData['date_of_birth']);
-          }
           final String name = userData['full_name'] ?? '';
           final String phone = userData['phone'] ?? '';
           final String gender = userData['gender'] ?? '';
@@ -350,7 +319,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           _libraryAddress = 'Setup your library details to activate';
         }
       } catch (e) {
-        print('Error loading admin setup data: $e');
+        debugPrint('Error loading admin setup data: $e');
       }
     } else {
       _inSetupMode = true;
@@ -358,7 +327,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
     if (mounted) {
       setState(() {
-        _isLoading = false;
         _initialLoadDone = true;
       });
     }
@@ -399,9 +367,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         _libRulesController.text = libData['rules'] ?? '';
         _libAboutController.text = libData['about_text'] ?? '';
         _libEmergencyPhoneController.text = libData['emergency_phone'] ?? '';
-        if (libData['amenities'] != null) {
-          _selectedAmenities = List<String>.from(libData['amenities']);
-        }
 
         // Step 2 Complete if basic fields are set
         final String state = libData['address_state'] ?? '';
@@ -643,9 +608,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       _holdSeatsCount = activeSeats
           .where((seat) => seat['status'] == 'hold')
           .length;
-      _maintenanceSeatsCount = activeSeats
-          .where((seat) => seat['status'] == 'maintenance')
-          .length;
       _occupancyPercentage = _totalSeats > 0
           ? (_occupiedSeatsCount / _totalSeats) * 100
           : 0.0;
@@ -874,7 +836,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -980,7 +942,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {});
     try {
       final supabase = Supabase.instance.client;
       final uniqueCode = _generateLibraryCode();
@@ -1008,7 +970,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     } catch (e) {
       _showErrorSnackBar('Failed to launch library space: $e');
     } finally {
-      setState(() => _isLoading = false);
+      setState(() {});
     }
   }
 
@@ -1183,207 +1145,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  // TAB 4: MORE / LIBRARY SETTINGS & PROFILE TAB (Inspired by Image 1)
-  Widget _buildMoreTab() {
-    final currentUser = Supabase.instance.client.auth.currentUser;
-    final String adminEmail = currentUser?.email ?? 'admin@silence.com';
-    final String adminName = _getAdminName();
-    final String adminPhone = _phoneController.text.isNotEmpty
-        ? _phoneController.text
-        : '+91 XXXXX XXXXX';
-
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Covers Photo, Profile Pic, Title & Badges
-          _buildLibraryProfileCard(),
-
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Quick Action Outline Buttons
-                _buildProfileActionsRow(),
-                const SizedBox(height: 20),
-
-                // Admin Account details card
-                _buildAdminDetailsCard(adminName, adminEmail, adminPhone),
-                const SizedBox(height: 20),
-
-                // Progress Card
-                _buildProfileCompletionCard(),
-                const SizedBox(height: 20),
-
-                // About Library Section
-                _buildAboutLibraryCard(),
-                const SizedBox(height: 20),
-
-                // Micro stats row (Members, Occupancy, etc.)
-                _buildMicroStatsRow(),
-                const SizedBox(height: 24),
-
-                // 1. Business Settings Section
-                Text(
-                  'Business Settings',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: const Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildSettingListItem(
-                  icon: Icons.info_outline,
-                  title: 'Library Information',
-                  subtitle: 'Edit name, address, and contact details',
-                  color: Colors.blue[400]!,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/admin/library/setup/1',
-                  ).then((_) => _loadInitialData()),
-                ),
-                _buildSettingListItem(
-                  icon: Icons.checklist_rtl_rounded,
-                  title: 'Amenities & Facilities',
-                  subtitle: 'Manage desk features and library facilities',
-                  color: Colors.amber[600]!,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/admin/library/setup/1',
-                  ).then((_) => _loadInitialData()),
-                ),
-                _buildSettingListItem(
-                  icon: Icons.access_time_outlined,
-                  title: 'Shift Configuration',
-                  subtitle:
-                      'Modify operational timings and hours configuration',
-                  color: Colors.orange[400]!,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/admin/library/setup/3',
-                  ).then((_) => _loadInitialData()),
-                ),
-                _buildSettingListItem(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Membership Seat Pricing',
-                  subtitle: 'Add pricing configuration and subscription rules',
-                  color: Colors.teal[400]!,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/admin/library/setup/3',
-                  ).then((_) => _loadInitialData()),
-                ),
-                _buildSettingListItem(
-                  icon: Icons.rule_outlined,
-                  title: 'Membership Rules & Guidelines',
-                  subtitle: 'Enforce study library code of conduct',
-                  color: Colors.pink[400]!,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/admin/library/setup/1',
-                  ).then((_) => _loadInitialData()),
-                ),
-
-                const SizedBox(height: 24),
-
-                // 2. Account Settings Section
-                Text(
-                  'Account Settings',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: const Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildSettingListItem(
-                  icon: Icons.stars_outlined,
-                  title: 'Pro Plan Subscription',
-                  subtitle: 'Manage Razorpay subscription details',
-                  color: Colors.purple[400]!,
-                  onTap: () =>
-                      Navigator.pushNamed(context, '/admin/subscription'),
-                ),
-                _buildSettingListItem(
-                  icon: Icons.history_edu_outlined,
-                  title: 'Audit Log & History',
-                  subtitle: 'Secure ledger of admin and check-in actions',
-                  color: Colors.grey[600]!,
-                  onTap: () => Navigator.pushNamed(context, '/admin/audit-log'),
-                ),
-                _buildSettingListItem(
-                  icon: Icons.share_arrival_time_outlined,
-                  title: 'Referral Settings',
-                  subtitle: 'Configure member referral bonuses',
-                  color: Colors.indigo[400]!,
-                  onTap: () =>
-                      Navigator.pushNamed(context, '/admin/settings/referrals'),
-                ),
-
-                const SizedBox(height: 24),
-
-                // 3. Support & Updates Section
-                Text(
-                  'Support & Updates',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: const Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildSettingListItem(
-                  icon: Icons.campaign_outlined,
-                  title: 'Announcements Board',
-                  subtitle: 'Broadcast alerts to student dashboards',
-                  color: Colors.red[400]!,
-                  onTap: _showAnnouncementComposer,
-                ),
-                _buildSettingListItem(
-                  icon: Icons.help_outline_outlined,
-                  title: 'Manage Queries & Support',
-                  subtitle: 'Respond to student issues and requests',
-                  color: Colors.green[400]!,
-                  onTap: _showManageQueries,
-                ),
-
-                const SizedBox(height: 32),
-
-                // Red Logout Button
-                OutlinedButton.icon(
-                  onPressed: _handleLogout,
-                  icon: const Icon(
-                    Icons.logout,
-                    color: Colors.redAccent,
-                    size: 18,
-                  ),
-                  label: Text(
-                    'Logout Account',
-                    style: GoogleFonts.inter(
-                      color: Colors.redAccent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.redAccent, width: 1.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // --- SUB-WIDGETS BUILDERS ---
 
   void _showLibrarySwitcherPopup(BuildContext context) {
@@ -1391,7 +1152,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Library Switcher',
-      barrierColor: Colors.black.withOpacity(0.15),
+      barrierColor: Colors.black.withValues(alpha: 0.15),
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, anim1, anim2) {
         return Align(
@@ -1405,7 +1166,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.12),
+                    color: Colors.black.withValues(alpha: 0.12),
                     blurRadius: 16,
                     offset: const Offset(0, 8),
                   ),
@@ -1435,13 +1196,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         Navigator.pop(context);
                         setState(() {
                           _libraryId = lib['id'];
-                          _isLoading = true;
                         });
                         await _loadLibrarySpecificData(lib['id']);
                         if (mounted) {
-                          setState(() {
-                            _isLoading = false;
-                          });
+                          setState(() {});
                         }
                       },
                       child: Container(
@@ -1654,7 +1412,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                   _libraryAddress,
                                   style: GoogleFonts.inter(
                                     fontSize: 10.5,
-                                    color: Colors.white.withOpacity(0.85),
+                                    color: Colors.white.withValues(alpha: 0.85),
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -1705,7 +1463,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                     _libraryAddress,
                                     style: GoogleFonts.inter(
                                       fontSize: 10.5,
-                                      color: Colors.white.withOpacity(0.85),
+                                      color: Colors.white.withValues(alpha: 0.85),
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -1730,11 +1488,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withValues(alpha: 0.5),
                         width: 1.0,
                       ),
                       borderRadius: BorderRadius.circular(20),
-                      color: Colors.white.withOpacity(0.12),
+                      color: Colors.white.withValues(alpha: 0.12),
                     ),
                     child: Text(
                       todayFormatted,
@@ -1752,7 +1510,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     constraints: const BoxConstraints(),
                     icon: Icon(
                       Icons.notifications_none_rounded,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       size: 28,
                     ),
                     onPressed: () {
@@ -1783,7 +1541,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             "Here's what's happening today.",
             style: GoogleFonts.inter(
               fontSize: 13,
-              color: Colors.white.withOpacity(0.85),
+              color: Colors.white.withValues(alpha: 0.85),
             ),
           ),
         ],
@@ -1801,7 +1559,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -2045,7 +1803,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -2090,7 +1848,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               ),
             ),
             style: OutlinedButton.styleFrom(
-              side: BorderSide(color: const Color(0xFFE65C00).withOpacity(0.3)),
+              side: BorderSide(color: const Color(0xFFE65C00).withValues(alpha: 0.3)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -2192,7 +1950,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -2222,7 +1980,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -2248,7 +2006,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             'Premium ergonomically designed desking space',
                             style: GoogleFonts.inter(
                               fontSize: 11,
-                              color: Colors.white.withOpacity(0.85),
+                              color: Colors.white.withValues(alpha: 0.85),
                             ),
                           ),
                         ],
@@ -2289,7 +2047,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -2343,7 +2101,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -2382,7 +2140,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -2473,7 +2231,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -2528,7 +2286,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -2798,7 +2556,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -2812,7 +2570,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: finalIconColor.withOpacity(0.12),
+              color: finalIconColor.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: finalIconColor, size: 22),
@@ -2940,7 +2698,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           boxShadow: [
             BoxShadow(
               // ignore: deprecated_member_use
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -3038,7 +2796,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.3),
+                  color: color.withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
@@ -3780,7 +3538,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         style: GoogleFonts.inter(
                             fontSize: 13, fontWeight: FontWeight.w600)),
                     value: notify,
-                    activeColor: const Color(0xFFE65C00),
+                    activeThumbColor: const Color(0xFFE65C00),
                     onChanged: (v) => setSheet(() => notify = v),
                   ),
                 ],
@@ -4038,7 +3796,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -4053,7 +3811,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 color: const Color(0xFFFFF3ED),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: const Color(0xFFE65C00).withOpacity(0.2),
+                  color: const Color(0xFFE65C00).withValues(alpha: 0.2),
                 ),
               ),
               child: Icon(icon, color: const Color(0xFFE65C00), size: 24),
@@ -4110,7 +3868,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       style: OutlinedButton.styleFrom(
                         padding: EdgeInsets.zero,
                         side: BorderSide(
-                          color: const Color(0xFFE65C00).withOpacity(0.3),
+                          color: const Color(0xFFE65C00).withValues(alpha: 0.3),
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6),
@@ -4299,7 +4057,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                     shape: BoxShape.circle,
                                     color: const Color(
                                       0xFFEF4444,
-                                    ).withOpacity(0.4),
+                                    ).withValues(alpha: 0.4),
                                   ),
                                   child: const Center(
                                     child: Icon(
@@ -4376,7 +4134,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
@@ -4410,12 +4168,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   children: _recentActivities.map((act) {
                     Color dotColor = const Color(0xFFE5E7EB);
                     if (act['type'] == 'in') dotColor = const Color(0xFF22C55E);
-                    if (act['type'] == 'out')
+                    if (act['type'] == 'out') {
                       dotColor = const Color(0xFFEF4444);
-                    if (act['type'] == 'req')
+                    }
+                    if (act['type'] == 'req') {
                       dotColor = const Color(0xFF3B82F6);
-                    if (act['type'] == 'pay')
+                    }
+                    if (act['type'] == 'pay') {
                       dotColor = const Color(0xFFF59E0B);
+                    }
 
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -4453,83 +4214,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 ),
         ),
       ],
-    );
-  }
-
-  Widget _buildAdminDetailsCard(String name, String email, String phone) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: const Color(0xFFFFF3ED),
-            child: const Icon(
-              Icons.person_outline,
-              size: 24,
-              color: Color(0xFFE65C00),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.outfit(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  email,
-                  style: GoogleFonts.inter(
-                    fontSize: 11.5,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  phone,
-                  style: GoogleFonts.inter(
-                    fontSize: 11.5,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF3ED),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              'Super Admin',
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFFE65C00),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -4579,7 +4263,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     if (!mounted) return;
 
     if (confirm == true) {
-      setState(() => _isLoading = true);
+      setState(() {});
       try {
         await Supabase.instance.client.auth.signOut();
         if (mounted) {
@@ -4591,521 +4275,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         }
       } finally {
         if (mounted) {
-          setState(() => _isLoading = false);
+          setState(() {});
         }
       }
     }
-  }
-
-  Widget _buildLibraryProfileCard() {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // Cover Banner Image – shows library cover photo if available
-        Container(
-          height: 180,
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
-                  ? NetworkImage(_coverPhotoUrl!) as ImageProvider
-                  : const AssetImage('assets/images/horizontal app logo.png'),
-              fit: BoxFit.cover,
-            ),
-          ),
-          child: Container(
-            color: Colors.black.withOpacity(0.4),
-            alignment: Alignment.topRight,
-            padding: const EdgeInsets.all(16),
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                '/admin/library/setup/1',
-              ).then((_) => _loadInitialData()),
-              icon: const Icon(Icons.camera_alt, size: 14, color: Colors.black),
-              label: Text(
-                'Edit Cover',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.9),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // Profile pic overlapping cover image
-        Positioned(
-          bottom: -50,
-          left: 20,
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.rectangle,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white, width: 3),
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              image: const DecorationImage(
-                image: AssetImage('assets/images/LOGO.png'),
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-        ),
-
-        // Space padding placeholder to offset overlapping logo
-        const SizedBox(height: 230),
-
-        // Open Indicator Pill badge
-        Positioned(
-          bottom: -32,
-          right: 20,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withOpacity(0.12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF10B981),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Open',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF10B981),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProfileActionsRow() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Library Title, verified indicator and statistics description text below
-        Text(
-          _libraryName,
-          style: GoogleFonts.outfit(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF1E293B),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Row(
-          children: [
-            Text(
-              _inSetupMode ? 'New Setup' : 'Active Branch',
-              style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              _inSetupMode ? Icons.circle_outlined : Icons.verified,
-              color: const Color(0xFFE65C00),
-              size: 16,
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            const Icon(Icons.star_border, color: Colors.amber, size: 18),
-            const SizedBox(width: 4),
-            Text(
-              '0.0',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
-            Text(
-              ' (0 Reviews)',
-              style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
-            ),
-            const SizedBox(width: 16),
-            const Icon(
-              Icons.people_outline,
-              color: Color(0xFFE65C00),
-              size: 18,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '$_totalMembers Members',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: const Color(0xFFE65C00),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-
-        // Row of outline action buttons
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionIconButton(Icons.share_outlined, 'Share'),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildActionIconButton(
-                Icons.remove_red_eye_outlined,
-                'Preview',
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildActionIconButton(
-                Icons.qr_code_2,
-                'QR Codes',
-                onTap: () => _openQRModal('join'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildActionIconButton(
-                Icons.edit_outlined,
-                'Customise',
-                color: const Color(0xFFE65C00),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionIconButton(
-    IconData icon,
-    String label, {
-    Color color = const Color(0xFF1E293B),
-    VoidCallback? onTap,
-  }) {
-    return OutlinedButton(
-      onPressed:
-          onTap ?? () => _showSuccessSnackBar('$label panel coming soon!'),
-      style: OutlinedButton.styleFrom(
-        side: BorderSide(color: color.withOpacity(0.2)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        backgroundColor: Colors.white,
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileCompletionCard() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Profile Completion',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[700],
-                ),
-              ),
-              Text(
-                '80% Completed',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFFE65C00),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: const LinearProgressIndicator(
-              value: 0.80,
-              minHeight: 6,
-              backgroundColor: Color(0xFFF1F5F9),
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAboutLibraryCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'About Library',
-                style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: const Color(0xFF1E293B),
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  '/admin/library/setup/1',
-                ).then((_) => _loadInitialData()),
-                child: Text(
-                  'Edit',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFFE65C00),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Text(
-            'Silence Study Zone is designed for serious learners who value peace, discipline and productivity. Well-equipped study space with comfortable seating and a calm environment.',
-            style: GoogleFonts.inter(
-              fontSize: 12.5,
-              color: Colors.grey[600],
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMicroStatsRow() {
-    final String occupancyText = _totalSeats == 0
-        ? '0%'
-        : '${((_occupiedSeatsCount / _totalSeats) * 100).toStringAsFixed(0)}%';
-
-    return Row(
-      children: [
-        Expanded(child: _buildMicroStatCard('$_totalMembers', 'Members')),
-        const SizedBox(width: 8),
-        Expanded(child: _buildMicroStatCard(occupancyText, 'Occupancy')),
-        const SizedBox(width: 8),
-        Expanded(child: _buildMicroStatCard('$_shiftsCount', 'Shifts')),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _buildMicroStatCard(
-            _inSetupMode ? 'Setup' : 'Active',
-            'Status',
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMicroStatCard(String value, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.01),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: const Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 9.5,
-              color: Colors.grey[500],
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingListItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      elevation: 0,
-      color: Colors.white,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              // Beautiful Custom Color Rounded Square Box (Inspired by Image 1)
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.outfit(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: Colors.grey[500],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPlaceholderTab(String title, IconData icon) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE65C00).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 48, color: const Color(0xFFE65C00)),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: GoogleFonts.outfit(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Operational screen view is being customized under Milestone 3.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -5114,7 +4287,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       _buildHomeTab(),
       ReservationsTab(
         key: ValueKey(
-          'reservations_${_libraryId}_${_step3Complete}_${_step4Complete}',
+          'reservations_${_libraryId}_${_step3Complete}_$_step4Complete',
         ),
         libraryId: _libraryId,
         libraryName: _libraryName,

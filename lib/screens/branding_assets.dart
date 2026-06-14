@@ -175,7 +175,6 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
         );
       },
     ) ?? false;
-    if (!mounted) return false;
   }
 
   Future<void> _uploadLogo() async {
@@ -209,6 +208,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
         }
 
         if (!hasPermission) {
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Permission denied. Please grant permission in settings.'), backgroundColor: Colors.red),
           );
@@ -226,6 +226,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
         );
       } catch (e) {
         debugPrint('pickImage failed: $e');
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(source == ImageSource.camera
@@ -322,7 +323,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
       libraryId: _libId,
       value: {
         'logo_url': _logoUrl,
-        'accent_color': _selectedAccent.value,
+        'accent_color': _selectedAccent.toARGB32(),
       },
     );
     if (!mounted) return;
@@ -451,7 +452,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: _brandPalette.map((color) {
-                                final isSelected = color.value == _selectedAccent.value;
+                                final isSelected = color.toARGB32() == _selectedAccent.toARGB32();
                                 return GestureDetector(
                                   onTap: () {
                                     setState(() => _selectedAccent = color);
@@ -469,7 +470,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                                       boxShadow: [
                                         if (isSelected)
                                           BoxShadow(
-                                            color: color.withOpacity(0.4),
+                                            color: color.withValues(alpha: 0.4),
                                             blurRadius: 8,
                                             spreadRadius: 1,
                                           ),

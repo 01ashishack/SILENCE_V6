@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../core/member_analytics_service.dart';
 import '../utils/pdf_exporter.dart';
 import 'member_history_tab.dart';
@@ -356,7 +355,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: log['session_type'] == 'manual' ? Colors.amber[100] : const Color(0xFFE65C00).withOpacity(0.1),
+                                    color: log['session_type'] == 'manual' ? Colors.amber[100] : const Color(0xFFE65C00).withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -456,8 +455,6 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
     final allItems = [...formattedAttendance, ...formattedClosures];
     allItems.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
-    final libName = _membership!['libraries']?['name'] ?? 'Library';
-    final plan = _membership!['plan_type'] ?? 'N/A';
     final rangeLabel = '${DateFormat('dd MMM yyyy').format(DateTime.parse(_membership!['start_date']))} to ${DateFormat('dd MMM yyyy').format(DateTime.parse(_membership!['exited_at'] ?? _membership!['end_date']))}';
 
     showModalBottomSheet(
@@ -660,7 +657,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),
@@ -828,7 +825,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                 ),
                 Text(
                   cityState.isNotEmpty ? cityState : 'SILENCE Group',
-                  style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withOpacity(0.7)),
+                  style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.7)),
                 ),
               ],
             ),
@@ -856,7 +853,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 3))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 3))],
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
@@ -940,7 +937,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
@@ -1018,7 +1015,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4)],
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4)],
                 ),
                 child: Row(
                   children: [
@@ -1177,7 +1174,6 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
     final start = DateTime.parse(_membership!['start_date']);
     final end = DateTime.parse(_membership!['exited_at'] ?? _membership!['end_date']);
 
-    final startDateKey = DateFormat('yyyy-MM-dd').format(start);
     final endDateKey = DateFormat('yyyy-MM-dd').format(end);
 
     for (int i = 1; i <= lastDay.day; i++) {
@@ -1234,7 +1230,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
               borderRadius: BorderRadius.circular(6),
               border: showStreakBorder
                   ? Border.all(color: const Color(0xFFE65C00), width: 1.8)
-                  : (inRange ? Border.all(color: Colors.grey.withOpacity(0.08), width: 0.5) : null),
+                  : (inRange ? Border.all(color: Colors.grey.withValues(alpha: 0.08), width: 0.5) : null),
             ),
             child: Center(
               child: centerChild,
@@ -1450,6 +1446,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                           );
                           if (!mounted) return;
                         } catch (e) {
+                          if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to download receipt: $e')));
                         }
                       },

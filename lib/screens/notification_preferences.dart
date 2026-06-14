@@ -199,7 +199,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
           ),
         ),
         value: value,
-        activeColor: const Color(0xFFE65C00),
+        activeThumbColor: const Color(0xFFE65C00),
         onChanged: onChanged,
       ),
     );

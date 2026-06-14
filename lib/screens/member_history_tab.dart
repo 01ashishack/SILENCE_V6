@@ -13,6 +13,8 @@ import 'reservations/join_flow_screen.dart';
 import 'past_library_detail_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/error_messages.dart';
+import '../widgets/states/shimmer_box.dart';
+
 
 class MemberHistoryTab extends StatefulWidget {
   const MemberHistoryTab({super.key});
@@ -28,7 +30,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
   // Loading & Error states
   bool _isLoading = true;
   String? _errorMessage;
-  bool _isLoadingMoreSessions = false;
+  final bool _isLoadingMoreSessions = false;
 
   // Filter States
   String _selectedLibraryId = 'All'; // 'All' or libraryId
@@ -619,7 +621,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
           const SizedBox(height: 4),
           Text(
             'Your complete study record',
-            style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withOpacity(0.7)),
+            style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.7)),
           ),
         ],
       ),
@@ -667,7 +669,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -698,7 +700,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       context: context,
       barrierDismissible: true,
       barrierLabel: 'LibrarySwitcher',
-      barrierColor: Colors.black.withOpacity(0.15),
+      barrierColor: Colors.black.withValues(alpha: 0.15),
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, anim1, anim2) {
         return Align(
@@ -711,7 +713,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 16, offset: const Offset(0, 8))],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 8))],
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Column(
@@ -797,7 +799,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1023,7 +1025,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
       ),
       child: Row(
         children: [
@@ -1222,7 +1224,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4, offset: const Offset(0, 2))],
         ),
         child: Row(
           children: [
@@ -1656,7 +1658,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4, offset: const Offset(0, 2))],
         ),
         child: Row(
           children: [
@@ -1882,7 +1884,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       decoration: BoxDecoration(
         color: const Color(0xFF0F172A),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2082,7 +2084,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     return Card(
       color: Colors.white,
       elevation: 2,
-      shadowColor: Colors.black.withOpacity(0.04),
+      shadowColor: Colors.black.withValues(alpha: 0.04),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: cardBorderColor, width: status == 'active' ? 2 : 1),
@@ -2108,7 +2110,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: cardBorderColor.withOpacity(0.12),
+                      color: cardBorderColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -2535,32 +2537,84 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
   // SKELETON LOADERS & ERRORS
   // ───────────────────────────────────────────────────────────────────────────
   Widget _buildSkeletonLoader() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            height: 64,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.builder(
-              itemCount: 4,
-              itemBuilder: (context, index) {
-                return Container(
-                  height: 80,
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                );
-              },
+    return Shimmer(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SkeletonBox(
+              height: 64,
+              borderRadius: BorderRadius.circular(12),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.builder(
+                itemCount: 4,
+                physics: const NeverScrollableScrollPhysics(),
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        SkeletonBox(
+                          width: 32,
+                          height: 32,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  SkeletonBox(
+                                    width: 120,
+                                    height: 14,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  SkeletonBox(
+                                    width: 50,
+                                    height: 12,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              SkeletonBox(
+                                width: 180,
+                                height: 10,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              const SizedBox(height: 4),
+                              SkeletonBox(
+                                width: 80,
+                                height: 10,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
 
   Widget _buildErrorWidget() {
     return Center(
@@ -3003,7 +3057,7 @@ class _ExportOptionsBottomSheetState extends State<ExportOptionsBottomSheet> {
           for (var m in widget.memberships) {
             pdfMembers.add({
               'full_name': nickname,
-              'email': user?.email ?? 'N/A',
+              'email': user.email ?? 'N/A',
               'phone': m['phone'] ?? 'N/A',
               'created_at': m['created_at'],
               'expiry_date': m['end_date'],

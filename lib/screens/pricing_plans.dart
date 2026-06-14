@@ -78,9 +78,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
     final user = _supabase.auth.currentUser;
     if (user != null) {
       try {
-        if (_libId == null) {
-          _libId = widget.libraryId;
-        }
+        _libId ??= widget.libraryId;
         if (_libId == null) {
           final libRes = await _supabase.from('libraries').select('id').eq('owner_id', user.id).maybeSingle();
           if (libRes != null) {
@@ -265,7 +263,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: selectedDuration,
+                initialValue: selectedDuration,
                 decoration: const InputDecoration(labelText: 'Duration'),
                 items: ['1 Day', '1 Week', '1 Month', '3 Months', '6 Months', '12 Months']
                     .map((d) => DropdownMenuItem(value: d, child: Text(d)))
@@ -352,7 +350,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
                         border: Border.all(color: plan.isPopular ? const Color(0xFFFFD0B8) : const Color(0xFFE2E8F0), width: plan.isPopular ? 1.5 : 1.0),
                         boxShadow: [
                           if (plan.isPopular)
-                            BoxShadow(color: const Color(0xFFE65C00).withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+                            BoxShadow(color: const Color(0xFFE65C00).withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
                         ],
                       ),
                       child: Column(
@@ -404,7 +402,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
                               ),
                               Switch(
                                 value: plan.isActive,
-                                activeColor: const Color(0xFFE65C00),
+                                activeThumbColor: const Color(0xFFE65C00),
                                 onChanged: (val) {
                                   _togglePlanActive(plan.id, val);
                                 },

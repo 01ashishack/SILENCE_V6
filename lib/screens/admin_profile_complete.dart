@@ -10,8 +10,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../core/image_optimizer.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/styled_dropdown_button.dart';
 
 
 
@@ -444,7 +442,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
                             ],
                           ),
                           child: Column(
@@ -512,7 +510,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
                           ],
                         ),
                         child: Column(

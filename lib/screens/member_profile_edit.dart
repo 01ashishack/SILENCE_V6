@@ -58,8 +58,6 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
 
   bool _isLoading = false;
   bool _isUploadingPhoto = false;
-  bool _isUploadingDoc = false;
-  bool _isUploadingDoc2 = false;
   bool _isSaving = false;
 
   final List<String> _examCategories = [
@@ -340,10 +338,6 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       setState(() {
         if (uploadType == 'profile') {
           _isUploadingPhoto = true;
-        } else if (uploadType == 'id_doc_1') {
-          _isUploadingDoc = true;
-        } else {
-          _isUploadingDoc2 = true;
         }
       });
 
@@ -418,10 +412,6 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           setState(() {
             if (uploadType == 'profile') {
               _isUploadingPhoto = false;
-            } else if (uploadType == 'id_doc_1') {
-              _isUploadingDoc = false;
-            } else {
-              _isUploadingDoc2 = false;
             }
           });
         }
@@ -550,7 +540,9 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                                 _lastVerifiedEmail = emailVal;
                               });
                             }
+                            if (!mounted) return;
                             _showSuccessSnackBar('Verified successfully! ✓');
+                            if (!ctx.mounted) return;
                             Navigator.pop(ctx);
                           }
                         } catch (e) {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseConfig {
@@ -13,7 +14,7 @@ class SupabaseConfig {
       );
     } catch (e) {
       // Catch initialization errors (e.g. if already initialized or if credentials are empty during testing)
-      print('Supabase initialization warning/error: $e');
+      debugPrint('Supabase initialization warning/error: $e');
     }
   }
 }

@@ -90,7 +90,7 @@ Future<DateTime?> showYearMonthDayPicker(
                     Expanded(
                       flex: 2,
                       child: DropdownButtonFormField<int>(
-                        value: selectedDay,
+                        initialValue: selectedDay,
                         decoration: InputDecoration(
                           labelText: 'Day',
                           labelStyle: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),
@@ -118,7 +118,7 @@ Future<DateTime?> showYearMonthDayPicker(
                     Expanded(
                       flex: 4,
                       child: DropdownButtonFormField<int>(
-                        value: selectedMonth,
+                        initialValue: selectedMonth,
                         decoration: InputDecoration(
                           labelText: 'Month',
                           labelStyle: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),
@@ -149,7 +149,7 @@ Future<DateTime?> showYearMonthDayPicker(
                     Expanded(
                       flex: 3,
                       child: DropdownButtonFormField<int>(
-                        value: selectedYear,
+                        initialValue: selectedYear,
                         decoration: InputDecoration(
                           labelText: 'Year',
                           labelStyle: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),

@@ -367,7 +367,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(color: const Color(0xFFE2E8F0)),
                                     boxShadow: [
-                                      BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4),
+                                      BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4),
                                     ],
                                   ),
                                   child: Column(
@@ -463,7 +463,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.01),
+            color: Colors.black.withValues(alpha: 0.01),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

@@ -217,7 +217,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                     style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted),
                   ),
                   value: notify,
-                  activeColor: AppColors.primary,
+                  activeThumbColor: AppColors.primary,
                   onChanged: (v) => setSheet(() => notify = v),
                 ),
                 const SizedBox(height: 12),

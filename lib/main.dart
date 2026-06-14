@@ -71,9 +71,9 @@ void main() async {
   // 2. Initialize Local SQLite Offline Database Groundwork
   try {
     await OfflineDatabase.instance.database;
-    print('SQLite Offline Database initialized successfully.');
+    debugPrint('SQLite Offline Database initialized successfully.');
   } catch (e) {
-    print('SQLite Database initialization failed: $e');
+    debugPrint('SQLite Database initialization failed: $e');
   }
 
   runApp(const SilenceApp());

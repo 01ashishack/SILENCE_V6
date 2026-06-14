@@ -211,7 +211,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
               decoration: InputDecoration(
                 labelText: 'Floor Name',
                 hintText: 'e.g. Ground Floor, First Floor...',
-                hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _orange)),
               ),
@@ -260,37 +260,6 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     );
   }
 
-  void _showFloorMenu(FloorModel floor, int index) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Column(mainAxisSize: MainAxisSize.min, children: [
-        const SizedBox(height: 8),
-        Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
-        const SizedBox(height: 16),
-        ListTile(
-          leading: const Icon(Icons.edit_outlined, color: _orange),
-          title: Text('Rename Floor', style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
-          onTap: () { Navigator.pop(ctx); _showRenameFloorSheet(floor); },
-        ),
-        ListTile(
-          leading: Icon(Icons.delete_outline, color: (floor.sections.isEmpty && floor.floorSeats.isEmpty) ? Colors.red : _grey),
-          title: Text('Delete Floor',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w500,
-              color: (floor.sections.isEmpty && floor.floorSeats.isEmpty) ? Colors.red : _grey,
-            ),
-          ),
-          onTap: (floor.sections.isEmpty && floor.floorSeats.isEmpty)
-              ? () { Navigator.pop(ctx); _deleteFloor(index); }
-              : () { Navigator.pop(ctx); _showError('Remove all sections and seats before deleting this floor.'); },
-        ),
-        const SizedBox(height: 16),
-      ]),
-    );
-  }
-
   void _showRenameFloorSheet(FloorModel floor) {
     final ctrl = TextEditingController(text: floor.name);
     showModalBottomSheet(
@@ -308,7 +277,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
             autofocus: true,
             decoration: InputDecoration(
               hintText: 'e.g. Ground Floor, First Floor...',
-              hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+              hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _orange)),
             ),
@@ -344,80 +313,6 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
   }
 
   // ── section operations ────────────────────────────────────────────────────
-
-  void _showAddSectionSheet(FloorModel floor) {
-    final nameCtrl = TextEditingController();
-    String selectedTag = 'general';
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx2, setS) => Padding(
-          padding: EdgeInsets.only(left: 24, right: 24, top: 24, bottom: MediaQuery.of(ctx2).viewInsets.bottom + 24),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Add Section', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: _dark)),
-            const SizedBox(height: 16),
-            Text('Section Name', style: GoogleFonts.inter(fontSize: 12, color: _grey, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 6),
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: 'e.g. General Study, Girls Section...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _orange)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Section Type', style: GoogleFonts.inter(fontSize: 12, color: _grey, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8, runSpacing: 8,
-              children: [
-                for (final t in ['general', 'boys', 'girls', 'premium'])
-                  GestureDetector(
-                    onTap: () => setS(() => selectedTag = t),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: selectedTag == t ? _orange : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: selectedTag == t ? _orange : const Color(0xFFE5E7EB)),
-                      ),
-                      child: Text(
-                        _tagLabel(t),
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: selectedTag == t ? Colors.white : _grey),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  final name = nameCtrl.text.trim();
-                  if (name.isEmpty) return;
-                  setState(() => floor.sections.add(SectionModel(name: name, tag: selectedTag)));
-                  Navigator.pop(ctx);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _orange, foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: Text('Add Section', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
 
   void _showRenameSectionSheet(SectionModel section) {
     final ctrl = TextEditingController(text: section.name);
@@ -507,40 +402,6 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     );
   }
 
-  void _showAddSeatSheet({SectionModel? section, FloorModel? floor}) {
-    final prefix = section != null ? _sectionPrefix(section.name) : 'FL';
-    final existingCount = section != null ? section.seats.length : floor!.floorSeats.length;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return _AddSeatSheetContent(
-          section: section,
-          floor: floor,
-          defaultPrefix: prefix,
-          existingSeatsCount: existingCount,
-          onSeatsAdded: (labels) {
-            setState(() {
-              for (final label in labels) {
-                if (section != null) {
-                  section.seats.add(SeatModel(label: label));
-                } else {
-                  floor!.floorSeats.add(SeatModel(label: label));
-                }
-              }
-            });
-            Navigator.pop(ctx);
-          },
-        );
-      },
-    );
-  }
-
   void _showSeatActionSheet(SeatModel seat, {SectionModel? section, FloorModel? floor}) {
     showModalBottomSheet(
       context: context,
@@ -571,8 +432,11 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
             contentPadding: EdgeInsets.zero,
             onTap: () {
               setState(() {
-                if (section != null) section.seats.remove(seat);
-                else floor!.floorSeats.remove(seat);
+                if (section != null) {
+                  section.seats.remove(seat);
+                } else {
+                  floor!.floorSeats.remove(seat);
+                }
               });
               Navigator.pop(ctx);
             },
@@ -593,18 +457,6 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
       case 'premium': return '⭐ Premium';
       default: return tag;
     }
-  }
-
-  String _sectionPrefix(String name) {
-    // derive short prefix from name, e.g. "General Study" → "GS"
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) return 'FL';
-    final words = trimmed.split(RegExp(r'\s+'));
-    if (words.length == 1) {
-      final w = words[0];
-      return w.substring(0, w.length.clamp(1, 3)).toUpperCase();
-    }
-    return words.take(2).map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').join();
   }
 
   Color _seatColor(String status) {
@@ -993,7 +845,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Colors.black.withValues(alpha: 0.02),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -1263,7 +1115,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
             border: Border.all(color: const Color(0xFFF1F5F9)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -1274,7 +1126,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _orange.withOpacity(0.1),
+                color: _orange.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.layers, color: _orange, size: 20),
@@ -1389,44 +1241,6 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     );
   }
 
-  Widget _buildEmptySectionState(FloorModel floor) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(children: [
-        const Text('📦', style: TextStyle(fontSize: 32)),
-        const SizedBox(height: 8),
-        Text('No sections added.', style: GoogleFonts.inter(fontSize: 14, color: _grey, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 12),
-        GestureDetector(
-          onTap: () => _showAddSectionSheet(floor),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _orange),
-            ),
-            child: Text('+ Add First Section', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _orange, fontSize: 13)),
-          ),
-        ),
-      ]),
-    );
-  }
-
   Widget _buildFloorSeatGenerator(FloorModel floor) {
     return Container(
       margin: const EdgeInsets.only(top: 16),
@@ -1488,7 +1302,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1520,7 +1334,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF7F0),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _orange.withOpacity(0.4)),
+                  border: Border.all(color: _orange.withValues(alpha: 0.4)),
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(Icons.add, size: 16, color: _orange),
@@ -1544,7 +1358,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF7F0),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _orange.withOpacity(0.4)),
+                  border: Border.all(color: _orange.withValues(alpha: 0.4)),
                 ),
                 child: Text('+ Add More Seats', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: _orange)),
               ),
@@ -1620,11 +1434,11 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
   }
 
   Widget _buildSectionCard(FloorModel floor, SectionModel section) {
-    const _pageSize = 30;
+    const pageSize = 30;
     return _SectionCardWidget(
       section: section,
       floor: floor,
-      pageSize: _pageSize,
+      pageSize: pageSize,
       orange: _orange,
       grey: _grey,
       dark: _dark,
@@ -1889,7 +1703,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
               controller: _inlinePrefixCtrl,
               decoration: InputDecoration(
                 hintText: 'e.g. A',
-                hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: widget.orange)),
@@ -1970,7 +1784,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           decoration: InputDecoration(
                             hintText: 'e.g. 1',
-                            hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                            hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),
@@ -1995,7 +1809,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           decoration: InputDecoration(
                             hintText: 'e.g. 10',
-                            hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                            hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),
@@ -2031,7 +1845,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
               controller: _inlineSingleCtrl,
               decoration: InputDecoration(
                 hintText: 'e.g. 1, 2, 5A',
-                hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: widget.orange)),
@@ -2088,7 +1902,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -2170,7 +1984,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF7F0),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: widget.orange.withOpacity(0.4)),
+                  border: Border.all(color: widget.orange.withValues(alpha: 0.4)),
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.add, size: 16, color: widget.orange),
@@ -2195,7 +2009,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF7F0),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: widget.orange.withOpacity(0.5), style: BorderStyle.solid),
+                      border: Border.all(color: widget.orange.withValues(alpha: 0.5), style: BorderStyle.solid),
                     ),
                     child: Icon(Icons.add, size: 18, color: widget.orange),
                   ),
@@ -2255,291 +2069,6 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
           ],
         ],
       ]),
-    );
-  }
-}
-
-class _AddSeatSheetContent extends StatefulWidget {
-  final SectionModel? section;
-  final FloorModel? floor;
-  final String defaultPrefix;
-  final int existingSeatsCount;
-  final Function(List<String> labels) onSeatsAdded;
-
-  const _AddSeatSheetContent({
-    super.key,
-    this.section,
-    this.floor,
-    required this.defaultPrefix,
-    required this.existingSeatsCount,
-    required this.onSeatsAdded,
-  });
-
-  @override
-  State<_AddSeatSheetContent> createState() => _AddSeatSheetContentState();
-}
-
-class _AddSeatSheetContentState extends State<_AddSeatSheetContent> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final _singleCtrl = TextEditingController();
-
-  final _prefixCtrl = TextEditingController();
-  final _startNumCtrl = TextEditingController(text: '1');
-  final _endNumCtrl = TextEditingController(text: '10');
-  String _numFormat = '01'; // '01' for padding, '1' for no padding
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _prefixCtrl.text = widget.defaultPrefix;
-    _prefixCtrl.addListener(_updatePreview);
-    _startNumCtrl.addListener(_updatePreview);
-    _endNumCtrl.addListener(_updatePreview);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _singleCtrl.dispose();
-    _prefixCtrl.dispose();
-    _startNumCtrl.dispose();
-    _endNumCtrl.dispose();
-    super.dispose();
-  }
-
-  void _updatePreview() {
-    setState(() {});
-  }
-
-  String _getPreviewText() {
-    final prefix = _prefixCtrl.text.trim();
-    final int? start = int.tryParse(_startNumCtrl.text.trim());
-    final int? end = int.tryParse(_endNumCtrl.text.trim());
-
-    if (start == null || end == null || start > end || end - start > 100) {
-      return 'Invalid range (max 100 seats)';
-    }
-
-    final List<String> samples = [];
-    for (int i = start; i <= end; i++) {
-      final numStr = _numFormat == '01' ? i.toString().padLeft(2, '0') : i.toString();
-      samples.add('$prefix-$numStr');
-      if (samples.length >= 3) break;
-    }
-
-    final total = end - start + 1;
-    if (total <= 3) {
-      return 'Will generate: ${samples.join(", ")}';
-    } else {
-      final lastNumStr = _numFormat == '01' ? end.toString().padLeft(2, '0') : end.toString();
-      return 'Will generate: ${samples.join(", ")}, ..., $prefix-$lastNumStr ($total seats total)';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Add Seat / Generator',
-            style: GoogleFonts.outfit(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF1A1A2E),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            widget.section != null
-                ? 'In section: ${widget.section!.name}'
-                : 'Directly on floor (no section)',
-            style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF6B7280)),
-          ),
-          const SizedBox(height: 12),
-          TabBar(
-            controller: _tabController,
-            indicatorColor: const Color(0xFFE65C00),
-            labelColor: const Color(0xFFE65C00),
-            unselectedLabelColor: const Color(0xFF6B7280),
-            labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
-            tabs: const [
-              Tab(text: 'Single Seat'),
-              Tab(text: 'Bulk Generator'),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 250,
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // Single seat tab
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextField(
-                      controller: _singleCtrl,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        labelText: 'Seat Label',
-                        hintText: 'e.g. G-A-01',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE65C00)),
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    ElevatedButton(
-                      onPressed: () {
-                        final val = _singleCtrl.text.trim();
-                        if (val.isNotEmpty) {
-                          widget.onSeatsAdded([val]);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE65C00),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: Text('Add Seat', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-
-                // Bulk Generator tab
-                SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _prefixCtrl,
-                              decoration: InputDecoration(
-                                labelText: 'Prefix',
-                                hintText: 'e.g. FL',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE65C00)),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: _numFormat,
-                              decoration: InputDecoration(
-                                labelText: 'Format',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: '01', child: Text('01, 02...')),
-                                DropdownMenuItem(value: '1', child: Text('1, 2...')),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() {
-                                    _numFormat = val;
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _startNumCtrl,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                              decoration: InputDecoration(
-                                labelText: 'Start No.',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: _endNumCtrl,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                              decoration: InputDecoration(
-                                labelText: 'End No.',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      // Range Preview
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3ED),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _getPreviewText(),
-                          style: GoogleFonts.inter(
-                            fontSize: 11.5,
-                            color: const Color(0xFFD97706),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          final prefix = _prefixCtrl.text.trim();
-                          final int? start = int.tryParse(_startNumCtrl.text.trim());
-                          final int? end = int.tryParse(_endNumCtrl.text.trim());
-
-                          if (start != null && end != null && start <= end && end - start <= 100) {
-                            final List<String> list = [];
-                            for (int i = start; i <= end; i++) {
-                              final numStr = _numFormat == '01' ? i.toString().padLeft(2, '0') : i.toString();
-                              list.add('$prefix-$numStr');
-                            }
-                            widget.onSeatsAdded(list);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE65C00),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: Text('Generate Seats', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

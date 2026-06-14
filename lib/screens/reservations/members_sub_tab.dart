@@ -10,6 +10,7 @@ import '../../utils/error_messages.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/csv_exporter.dart';
 import 'member_transfer_screen.dart';
+import '../../widgets/states/shimmer_box.dart';
 
 enum MemberListItemType {
   draft,
@@ -972,7 +973,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1195,7 +1196,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 8, offset: const Offset(0, 2)),
         ],
         border: Border.all(color: Colors.grey[200]!),
       ),
@@ -1303,7 +1304,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
+                        backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.5),
                         foregroundColor: Colors.white,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1381,7 +1382,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Stack(
@@ -1726,48 +1727,91 @@ class _MembersSubTabState extends State<MembersSubTab> {
 
           // 2. Members Scrollable List
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))))
-                : listItems.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.people_outline_rounded, size: 64, color: Colors.grey[300]),
-                        const SizedBox(height: 16),
-                        Text('No members added yet', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
-                        const SizedBox(height: 8),
-                        Text('Add your first member using the + button above.', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: listItems.length + (_hasMore ? 1 : 0),
-                    itemBuilder: (ctx, index) {
-                      if (index == listItems.length) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16.0),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+            child: RefreshIndicator(
+              onRefresh: () => _fetchMembers(isRefresh: true),
+              color: const Color(0xFFE65C00),
+              child: _isLoading
+                  ? Shimmer(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: 6,
+                        itemBuilder: (context, index) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Row(
+                              children: [
+                                const SkeletonBox(width: 52, height: 52, borderRadius: BorderRadius.all(Radius.circular(26))),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: const [
+                                      SkeletonBox(width: 140, height: 16),
+                                      SizedBox(height: 8),
+                                      SkeletonBox(width: 80, height: 12),
+                                      SizedBox(height: 6),
+                                      SkeletonBox(width: 100, height: 12),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  : listItems.isEmpty
+                      ? SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: Container(
+                            height: MediaQuery.of(context).size.height * 0.5,
+                            alignment: Alignment.center,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.people_outline_rounded, size: 64, color: Colors.grey[300]),
+                                const SizedBox(height: 16),
+                                Text('No members added yet', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                                const SizedBox(height: 8),
+                                Text('Add your first member using the + button above.', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
+                              ],
                             ),
                           ),
-                        );
-                      }
-                      
-                      final item = listItems[index];
-                      switch (item.type) {
-                        case MemberListItemType.header:
-                          return _buildSectionHeader(item.headerText!);
-                        case MemberListItemType.draft:
-                          return _buildDraftCard(item.draft!);
-                        case MemberListItemType.member:
-                          return _buildMemberCard(item.membership!);
-                      }
-                    },
-                  ),
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: listItems.length + (_hasMore ? 1 : 0),
+                          itemBuilder: (ctx, index) {
+                            if (index == listItems.length) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16.0),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                                  ),
+                                ),
+                              );
+                            }
+                            
+                            final item = listItems[index];
+                            switch (item.type) {
+                              case MemberListItemType.header:
+                                return _buildSectionHeader(item.headerText!);
+                              case MemberListItemType.draft:
+                                return _buildDraftCard(item.draft!);
+                              case MemberListItemType.member:
+                                return _buildMemberCard(item.membership!);
+                            }
+                          },
+                        ),
+            ),
           ),
 
           // 3. Sliding Bottom Select Bar (Announce / Export / Cancel)

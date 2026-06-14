@@ -64,6 +64,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       
       _ownedLibraries = List<Map<String, dynamic>>.from(res);
 
+      if (!mounted) return;
       final Object? routeArgs = ModalRoute.of(context)?.settings.arguments;
       String? parsedLibId;
       if (routeArgs is Map<String, dynamic>) {

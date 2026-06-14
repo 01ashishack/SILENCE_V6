@@ -100,11 +100,13 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
         } catch (_) {}
       }
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Business rules saved successfully! ✓'), backgroundColor: Color(0xFFE65C00)),
       );
       Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving rules: $e'), backgroundColor: Colors.red),
       );
@@ -270,7 +272,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                               style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
                             ),
                             value: _allowExpiredCheckIn,
-                            activeColor: const Color(0xFFE65C00),
+                            activeThumbColor: const Color(0xFFE65C00),
                             onChanged: (val) {
                               setState(() => _allowExpiredCheckIn = val);
                             },

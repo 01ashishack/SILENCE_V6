@@ -292,7 +292,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
                     Text('Issue Category', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
-                      value: issueType,
+                      initialValue: issueType,
                       decoration: const InputDecoration(
                         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),

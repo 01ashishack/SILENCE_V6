@@ -646,7 +646,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                   decoration: BoxDecoration(
                     color: Colors.red[50],
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                    border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
@@ -775,7 +775,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       debugPrint('[QR Scan Audit] Supabase response received: $updateResponse');
       debugPrint('[QR Scan] Check-out database response: $updateResponse');
 
-      if (updateResponse == null || (updateResponse as List).isEmpty) {
+      if ((updateResponse as List).isEmpty) {
         throw Exception('Database update returned empty list (0 rows updated). Check activeSession id: ${activeSession['id']}');
       }
 
@@ -1022,7 +1022,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
                 child: Icon(
                   isCheckIn ? Icons.check : Icons.logout,
                   size: 48,
@@ -1063,7 +1063,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                   decoration: BoxDecoration(
                     color: Colors.orange[50],
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,

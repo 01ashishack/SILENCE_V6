@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/error_messages.dart';
+import '../../widgets/states/shimmer_box.dart';
 
 class LayoutSubTab extends StatefulWidget {
   final String libraryId;
@@ -17,8 +18,6 @@ class LayoutSubTab extends StatefulWidget {
 class LayoutSubTabState extends State<LayoutSubTab> {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
-  bool _isProfileComplete = true;
-  bool _noLibrary = false;
 
   // Dropdowns Lists
   List<Map<String, dynamic>> _shiftsList = [];
@@ -30,35 +29,8 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     final user = supabase.auth.currentUser;
     if (user != null) {
       try {
-        final userData = await supabase.from('users').select().eq('id', user.id).maybeSingle();
-        if (userData != null) {
-          final String name = userData['full_name'] ?? '';
-          final String phone = userData['phone'] ?? '';
-          final String gender = userData['gender'] ?? '';
-          final String dob = userData['date_of_birth'] ?? '';
-          final String address = userData['address'] ?? '';
-          final String photoUrl = userData['photo_url'] ?? '';
-
-          final bool isComplete = name.isNotEmpty &&
-              phone.isNotEmpty &&
-              gender.isNotEmpty &&
-              dob.isNotEmpty &&
-              address.isNotEmpty &&
-              photoUrl.isNotEmpty;
-          
-          if (mounted) {
-            setState(() {
-              _isProfileComplete = isComplete;
-            });
-          }
-        }
-
-        final libsRes = await supabase.from('libraries').select('id').eq('owner_id', user.id);
-        if (mounted) {
-          setState(() {
-            _noLibrary = libsRes.isEmpty;
-          });
-        }
+        await supabase.from('users').select().eq('id', user.id).maybeSingle();
+        await supabase.from('libraries').select('id').eq('owner_id', user.id);
       } catch (e) {
         debugPrint('Error in _checkOnboardingStatus: $e');
       }
@@ -1275,7 +1247,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                 boxShadow: [
                   BoxShadow(
                     // ignore: deprecated_member_use
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -1633,12 +1605,88 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     );
   }
 
+  Widget _buildShimmerLoader() {
+    return Shimmer(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Stats Row shimmer
+            Row(
+              children: [
+                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))),
+                const SizedBox(width: 8),
+                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))),
+                const SizedBox(width: 8),
+                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))),
+                const SizedBox(width: 8),
+                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // Section Card shimmer
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SkeletonBox(width: 120, height: 18),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: const [
+                      SkeletonBox(width: 70, height: 12),
+                      SizedBox(width: 8),
+                      SkeletonBox(width: 80, height: 12),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // Seat grid shimmer
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: 12,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 0.76,
+                    ),
+                    itemBuilder: (context, index) {
+                      return Column(
+                        children: const [
+                          Expanded(
+                            child: AspectRatio(
+                              aspectRatio: 1.0,
+                              child: SkeletonBox(
+                                borderRadius: BorderRadius.all(Radius.circular(30)),
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          SkeletonBox(width: 32, height: 10),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))),
-      );
+      return _buildShimmerLoader();
     }
 
     if (_floorsList.isEmpty && _shiftsList.isEmpty) {
@@ -1996,9 +2044,13 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
         // ── 3. Scrollable Cards Area (Case A: Sections vs. Case B: Direct Floor) ────
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: _sectionsList.isNotEmpty
+          child: RefreshIndicator(
+            onRefresh: _loadSelectors,
+            color: const Color(0xFFE65C00),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: _sectionsList.isNotEmpty
                 ? Column(
                     // Case A: Grouped by Sections
                     children: _sectionsList.map((section) {
@@ -2136,6 +2188,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                       ],
                     ),
                   ),
+            ),
           ),
         ),
       ],
@@ -2156,7 +2209,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -2207,10 +2260,10 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       margin: const EdgeInsets.only(right: 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: color.withOpacity(0.3),
+          color: color.withValues(alpha: 0.3),
           width: 1.0,
         ),
       ),
@@ -2289,7 +2342,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               style: GoogleFonts.inter(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
-                color: themeColor.withOpacity(0.8),
+                color: themeColor.withValues(alpha: 0.8),
               ),
             ),
           ],
@@ -2431,10 +2484,12 @@ void showAddFloorBottomSheet({
                               'name': name,
                               'order_index': floorCount,
                             });
+                            if (!context.mounted) return;
                             Navigator.pop(ctx);
                             onCompleted();
                           } catch (e) {
                             setState(() => isLoading = false);
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Error adding floor: $e')),
                             );
@@ -2553,10 +2608,12 @@ void showRenameFloorBottomSheet({
                           setState(() => isLoading = true);
                           try {
                             await supabase.from('floors').update({'name': name}).eq('id', floorId);
+                            if (!context.mounted) return;
                             Navigator.pop(ctx);
                             onCompleted();
                           } catch (e) {
                             setState(() => isLoading = false);
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Error renaming floor: $e')),
                             );
@@ -2673,10 +2730,12 @@ void showAddSectionBottomSheet({
                               'floor_id': floorId,
                               'name': name,
                             });
+                            if (!context.mounted) return;
                             Navigator.pop(ctx);
                             onCompleted();
                           } catch (e) {
                             setState(() => isLoading = false);
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Error adding section: $e')),
                             );
@@ -2796,10 +2855,12 @@ void showEditSectionBottomSheet({
                             await supabase.from('sections').update({
                               'name': name,
                             }).eq('id', section['id']);
+                            if (!context.mounted) return;
                             Navigator.pop(ctx);
                             onCompleted();
                           } catch (e) {
                             setState(() => isLoading = false);
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Error updating section: $e')),
                             );
@@ -2835,7 +2896,7 @@ class ManageLayoutTreeSheet extends StatefulWidget {
   final String? selectedShiftId;
   final VoidCallback onRefreshParent;
 
-  const ManageLayoutTreeSheet({
+  const ManageLayoutTreeSheet({super.key, 
     required this.libraryId,
     required this.selectedShiftId,
     required this.onRefreshParent,
@@ -3002,6 +3063,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                   widget.onRefreshParent();
                 } catch (e) {
                   setState(() => _isLoading = false);
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating seat: $e')));
                 }
               },
@@ -3124,6 +3186,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       await supabase.from('sections').delete().eq('floor_id', floorId);
       await supabase.from('floors').delete().eq('id', floorId);
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Floor "$name" and all its sections/seats deleted successfully! ✓')),
       );
@@ -3132,6 +3195,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       widget.onRefreshParent();
     } catch (e) {
       setState(() => _isLoading = false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting floor: $e')));
     }
   }
@@ -3153,6 +3217,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       await supabase.from('seats').delete().eq('section_id', sectionId);
       await supabase.from('sections').delete().eq('id', sectionId);
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Section "$name" and all its seats deleted successfully! ✓')),
       );
@@ -3161,6 +3226,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       widget.onRefreshParent();
     } catch (e) {
       setState(() => _isLoading = false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting section: $e')));
     }
   }
@@ -3181,6 +3247,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
     try {
       await supabase.from('seats').delete().eq('id', seatId);
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Seat "$label" deleted successfully! ✓')),
       );
@@ -3189,6 +3256,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       widget.onRefreshParent();
     } catch (e) {
       setState(() => _isLoading = false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting seat: $e')));
     }
   }
@@ -4061,7 +4129,7 @@ class _AddSeatBottomSheetState extends State<_AddSeatBottomSheet> with SingleTic
             )
           else if (_sections.isNotEmpty) ...[
             DropdownButtonFormField<String?>(
-              value: (_selectedSectionId == null || _sections.any((sec) => sec['id'] == _selectedSectionId)) ? _selectedSectionId : null,
+              initialValue: (_selectedSectionId == null || _sections.any((sec) => sec['id'] == _selectedSectionId)) ? _selectedSectionId : null,
               decoration: const InputDecoration(
                 labelText: 'Select Section',
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),

@@ -143,6 +143,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
                                     if (!mounted) return;
                                   } catch (_) {}
                                 }
+                                if (!context.mounted) return;
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('QR Code regenerated successfully! ✓'), backgroundColor: Color(0xFFE65C00)),
@@ -235,7 +236,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4)),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 10, offset: const Offset(0, 4)),
               ],
             ),
             child: Column(
@@ -250,7 +251,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
                       height: 250,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE65C00).withOpacity(0.2), width: 1),
+                        border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.2), width: 1),
                       ),
                     ),
                     // Accent corner markers

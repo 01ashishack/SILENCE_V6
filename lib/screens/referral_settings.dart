@@ -145,7 +145,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                             style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
                           ),
                           value: _isEnabled,
-                          activeColor: const Color(0xFFE65C00),
+                          activeThumbColor: const Color(0xFFE65C00),
                           onChanged: (val) {
                             setState(() => _isEnabled = val);
                           },

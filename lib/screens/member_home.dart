@@ -1398,7 +1398,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withOpacity(0.85)),
+            style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.85)),
           ),
         ],
       ),
@@ -2039,7 +2039,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8)],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2289,7 +2289,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: const Border(left: BorderSide(color: Color(0xFF9CA3AF), width: 4)), // gray
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8)],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2399,7 +2399,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8)],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2481,7 +2481,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: const Border(left: BorderSide(color: Color(0xFFE65C00), width: 4)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 4))],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -2599,7 +2599,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: const Border(left: BorderSide(color: Color(0xFFF59E0B), width: 4)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8)],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -3383,7 +3383,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         borderRadius: BorderRadius.circular(16),
         border: Border(left: BorderSide(color: borderColor, width: 4)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 4)),
         ],
       ),
       padding: const EdgeInsets.all(18),
@@ -3416,7 +3416,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: borderColor.withOpacity(0.12),
+                  color: borderColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -4678,7 +4678,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
       ),
       child: Column(
         children: [
@@ -4970,7 +4970,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4)],
       ),
       child: Material(
         color: Colors.transparent,
@@ -5011,7 +5011,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 8)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 8)],
       ),
       // Bounded height so the card stops growing as activities accumulate;
       // it scrolls internally past ~5 items.
@@ -5098,7 +5098,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4)],
       ),
       child: Row(
         children: [
@@ -5153,7 +5153,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                 )
               ),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2)),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2)),
               ],
             ),
             padding: const EdgeInsets.all(12),

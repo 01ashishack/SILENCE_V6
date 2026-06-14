@@ -180,7 +180,7 @@ class _SeatGenerationInlineWidgetState extends State<SeatGenerationInlineWidget>
                 controller: _sectionNameCtrl,
                 decoration: InputDecoration(
                   hintText: 'e.g. Boys Room, General Area',
-                  hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                  hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: orange)),
@@ -200,7 +200,7 @@ class _SeatGenerationInlineWidgetState extends State<SeatGenerationInlineWidget>
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                 hintText: 'e.g. G, FL',
-                hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: orange)),
@@ -283,7 +283,7 @@ class _SeatGenerationInlineWidgetState extends State<SeatGenerationInlineWidget>
                           onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
                             hintText: 'e.g. 1',
-                            hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                            hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: orange)),
@@ -309,7 +309,7 @@ class _SeatGenerationInlineWidgetState extends State<SeatGenerationInlineWidget>
                           onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
                             hintText: 'e.g. 10',
-                            hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                            hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: orange)),
@@ -346,7 +346,7 @@ class _SeatGenerationInlineWidgetState extends State<SeatGenerationInlineWidget>
               controller: _singleSeatsCtrl,
               decoration: InputDecoration(
                 hintText: 'e.g. 1, 2, 5A, 10B',
-                hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: orange)),

@@ -49,7 +49,6 @@ class AdminProfileTab extends StatefulWidget {
 
 class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
-  bool _isLoading = false;
   bool _isUploadingPhoto = false;
   bool _isProfileComplete = true;
 
@@ -57,8 +56,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   String _adminName = '';
   String? _adminPhotoUrl;
   String _subscriptionPlan = 'trial';
-  String _subscriptionStatus = 'trial';
-  DateTime? _subscriptionExpiry;
   List<Map<String, dynamic>> _myLibrariesList = [];
   bool? _currentLibraryVerified;
   DateTime? _currentLibraryVerifiedAt;
@@ -113,7 +110,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
 
   Future<void> _loadProfileData() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    setState(() {});
 
     final user = _supabase.auth.currentUser;
     if (user != null) {
@@ -140,10 +137,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
             _adminName = userData['full_name'] ?? widget.adminName;
             _adminPhotoUrl = userData['photo_url'];
             _subscriptionPlan = userData['subscription_plan'] ?? 'trial';
-            _subscriptionStatus = userData['subscription_status'] ?? 'trial';
-            if (userData['subscription_expiry'] != null) {
-              _subscriptionExpiry = DateTime.tryParse(userData['subscription_expiry'].toString());
-            }
           });
         }
 
@@ -216,7 +209,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     }
 
     if (mounted) {
-      setState(() => _isLoading = false);
+      setState(() {});
     }
   }
 
@@ -415,12 +408,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     }
   }
 
-  int _getTrialDaysLeft() {
-    if (_subscriptionExpiry == null) return 14; // Default/Fallback
-    final diff = _subscriptionExpiry!.difference(DateTime.now()).inDays;
-    return diff < 0 ? 0 : diff;
-  }
-
   void _showLogoutConfirmation() {
     showDialog(
       context: context,
@@ -509,7 +496,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              setState(() => _isLoading = true);
+              setState(() {});
               try {
                 final user = _supabase.auth.currentUser;
                 if (user != null) {
@@ -528,7 +515,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                   );
                 }
               } finally {
-                if (mounted) setState(() => _isLoading = false);
+                if (mounted) setState(() {});
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
@@ -549,7 +536,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
 
 
     final String dateStr = DateFormat('EEE dd/MM').format(DateTime.now()).toUpperCase();
-    final bool isTrial = _subscriptionPlan == 'trial' || _subscriptionPlan == 'free' || _subscriptionStatus == 'trial';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -686,7 +672,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                                 'Admin • ${_myLibrariesList.length} ${_myLibrariesList.length == 1 ? 'Library' : 'Libraries'}',
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
-                                  color: Colors.white.withOpacity(0.85),
+                                  color: Colors.white.withValues(alpha: 0.85),
                                   fontWeight: FontWeight.w500,
                                 ),
                                 maxLines: 1,
@@ -694,15 +680,14 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                (_subscriptionPlan == null ||
-                                        _subscriptionPlan.isEmpty ||
+                                (_subscriptionPlan.isEmpty ||
                                         _subscriptionPlan.toLowerCase() == 'trial' ||
                                         _subscriptionPlan.toLowerCase() == 'free')
                                     ? 'Free Tier'
                                     : (_subscriptionPlan.toLowerCase() == 'pro' || _subscriptionPlan.toLowerCase() == 'pro_plan' ? 'Premium' : _subscriptionPlan[0].toUpperCase() + _subscriptionPlan.substring(1)),
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
-                                  color: Colors.white.withOpacity(0.70),
+                                  color: Colors.white.withValues(alpha: 0.70),
                                   fontWeight: FontWeight.w500,
                                 ),
                                 maxLines: 1,
@@ -725,7 +710,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                                       'All systems operational',
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
-                                        color: Colors.white.withOpacity(0.8),
+                                        color: Colors.white.withValues(alpha: 0.8),
                                         fontWeight: FontWeight.w500,
                                       ),
                                       maxLines: 1,
@@ -769,7 +754,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.01),
+                                color: Colors.black.withValues(alpha: 0.01),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -802,7 +787,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                                   );
                                 },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
+                                  backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.5),
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
@@ -892,7 +877,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                         tileColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.red.withOpacity(0.2)),
+                          side: BorderSide(color: Colors.red.withValues(alpha: 0.2)),
                         ),
                         leading: const Icon(Icons.logout, color: Colors.redAccent),
                         title: Text(
@@ -911,7 +896,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                         tileColor: const Color(0xFFFEF2F2),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.red.withOpacity(0.25)),
+                          side: BorderSide(color: Colors.red.withValues(alpha: 0.25)),
                         ),
                         leading: const Icon(Icons.delete_forever, color: Color(0xFFDC2626)),
                         title: Text(
@@ -1108,7 +1093,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.01),
+              color: Colors.black.withValues(alpha: 0.01),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1248,7 +1233,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1461,7 +1446,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
             if (_myLibrariesList.length > 1) ...[
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _myLibrariesList.any((lib) => lib['id'] == _selectedLibraryIdToManage) ? _selectedLibraryIdToManage : (_myLibrariesList.isNotEmpty ? _myLibrariesList.first['id'] : null),
+                initialValue: _myLibrariesList.any((lib) => lib['id'] == _selectedLibraryIdToManage) ? _selectedLibraryIdToManage : (_myLibrariesList.isNotEmpty ? _myLibrariesList.first['id'] : null),
                 dropdownColor: Colors.white,
                 style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 13, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
@@ -1864,7 +1849,8 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       _loadProfileData();
                       widget.onLibraryUpdated?.call();
                     } catch (e) {
-                      if (ctx.mounted) Navigator.pop(ctx);
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
                       ScaffoldMessenger.of(ctx).showSnackBar(
                         SnackBar(content: Text('Error updating: $e')),
                       );
@@ -2005,7 +1991,8 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           _loadProfileData();
                           widget.onLibraryUpdated?.call();
                         } catch (e) {
-                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
                           ScaffoldMessenger.of(ctx).showSnackBar(
                             SnackBar(content: Text('Error saving rules: $e')),
                           );
@@ -2070,6 +2057,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 final image = await picker.pickImage(source: source, maxWidth: 800, imageQuality: 85);
                 if (image == null) return;
 
+                if (!ctx.mounted) return;
                 showDialog(
                   context: ctx,
                   barrierDismissible: false,
@@ -2094,7 +2082,8 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 });
                 await updatePhotosInDB();
               } catch (e) {
-                if (ctx.mounted) Navigator.pop(ctx);
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
                 ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Error uploading: $e')));
               }
             }
@@ -2369,7 +2358,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: ['monthly', 'one_time'].contains(priceType) ? priceType : 'monthly',
+                            initialValue: ['monthly', 'one_time'].contains(priceType) ? priceType : 'monthly',
                             dropdownColor: Colors.white,
                             decoration: const InputDecoration(labelText: 'Price Type'),
                             items: const [
@@ -2411,7 +2400,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                     SwitchListTile(
                       title: Text('Active / Available', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
                       value: isActive,
-                      activeColor: const Color(0xFFE65C00),
+                      activeThumbColor: const Color(0xFFE65C00),
                       contentPadding: EdgeInsets.zero,
                       onChanged: (val) {
                         setSheetState(() {

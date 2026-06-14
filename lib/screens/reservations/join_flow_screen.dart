@@ -417,8 +417,8 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return WillPopScope(
-          onWillPop: () async => false,
+        return PopScope(
+          canPop: false,
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(

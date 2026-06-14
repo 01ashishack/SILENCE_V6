@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'offline_db.dart';
 
@@ -18,6 +17,7 @@ class OfflineSyncManager {
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
       final bool hasInternet = !results.contains(ConnectivityResult.none) && results.isNotEmpty;
       if (hasInternet) {
+        if (!context.mounted) return;
         syncPendingScans(context);
       }
     });
@@ -54,7 +54,6 @@ class OfflineSyncManager {
         final String type = scan['type']; // 'checkin' or 'checkout'
         final String memberId = scan['member_id'];
         final String libraryId = scan['library_id'];
-        final String shiftId = scan['shift_id'];
         final String timestamp = scan['timestamp'];
         final int qrVersion = scan['qr_version'];
         final String? deviceId = scan['device_id'];

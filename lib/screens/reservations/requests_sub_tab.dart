@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/error_messages.dart';
+import '../../widgets/states/shimmer_box.dart';
 
 class RequestsSubTab extends StatefulWidget {
   final String libraryId;
@@ -432,7 +433,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
       _fetchRequests();
       if (!mounted) return;
-      Navigator.pop(sheetContext); // Close seat picker bottom sheet
+      if (sheetContext.mounted) Navigator.pop(sheetContext); // Close seat picker bottom sheet
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -864,6 +865,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                               ) ?? false;
 
                               if (confirmAssign) {
+                                if (!ctx.mounted) return;
                                 _approveJoinRequestTransaction(ctx, request, seat);
                               }
                             },
@@ -965,7 +967,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -1069,7 +1071,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                         image: DecorationImage(image: NetworkImage(upiProof), fit: BoxFit.cover),
                       ),
                       child: Container(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         child: const Icon(Icons.zoom_in, color: Colors.white, size: 16),
                       ),
                     ),
@@ -1134,7 +1136,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isProfileComplete
                         ? (isPaymentConfirmed ? const Color(0xFFE65C00) : Colors.grey[200])
-                        : const Color(0xFFE65C00).withOpacity(0.5),
+                        : const Color(0xFFE65C00).withValues(alpha: 0.5),
                     disabledBackgroundColor: Colors.grey[200],
                     elevation: 0,
                   ),
@@ -1145,7 +1147,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                       fontWeight: FontWeight.bold,
                       color: _isProfileComplete
                           ? (isPaymentConfirmed ? Colors.white : Colors.grey[400])
-                          : Colors.white.withOpacity(0.5),
+                          : Colors.white.withValues(alpha: 0.5),
                     ),
                   ),
                 ),
@@ -1160,6 +1162,78 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerLoader() {
+    return Shimmer(
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: 3,
+        itemBuilder: (context, index) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const SkeletonBox(
+                      width: 40,
+                      height: 40,
+                      borderRadius: BorderRadius.all(Radius.circular(20)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          SkeletonBox(width: 120, height: 16),
+                          SizedBox(height: 6),
+                          SkeletonBox(width: 180, height: 12),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const SkeletonBox(width: double.infinity, height: 1),
+                const SizedBox(height: 16),
+                Row(
+                  children: const [
+                    SkeletonBox(width: 80, height: 14),
+                    SizedBox(width: 16),
+                    SkeletonBox(width: 100, height: 14),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SkeletonBox(
+                        height: 36,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SkeletonBox(
+                        height: 36,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -1187,166 +1261,188 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         // 2. Active Tab Screen List Container
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))))
-              : Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: IndexedStack(
-                    index: _activeRequestTab,
-                    children: [
-                      // Toggle 0: Join Requests list
-                      _joinRequests.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.assignment_turned_in_outlined, size: 64, color: Colors.grey[300]),
-                                  const SizedBox(height: 16),
-                                  Text('No pending join requests.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: _joinRequests.length,
-                              itemBuilder: (ctx, index) => _buildJoinRequestCard(_joinRequests[index]),
-                            ),
-
-                      // Toggle 1: Seat Changes list (Placeholder / simple Empty matching specs)
-                      _seatChangeRequests.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.swap_horiz_rounded, size: 64, color: Colors.grey[300]),
-                                  const SizedBox(height: 16),
-                                  Text('No pending seat changes.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: _seatChangeRequests.length,
-                              itemBuilder: (ctx, index) {
-                                final r = _seatChangeRequests[index];
-                                return Card(
-                                  child: ListTile(
-                                    title: Text(r['member_id']?['full_name'] ?? 'Member'),
-                                    subtitle: Text('Change from ${r['current_seat']?['seat_label']} to Preferred section: ${r['preferred_section']}'),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        TextButton(
-                                          onPressed: () => _rejectSeatChangeRequest(r),
-                                          style: TextButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                                            minimumSize: const Size(0, 36),
-                                          ),
-                                          child: Text('Reject', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
-                                        ),
-                                        const SizedBox(width: 2),
-                                        ElevatedButton(
-                                          onPressed: _isProfileComplete ? () => _approveSeatChangeRequest(r) : () {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(
-                                                content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
-                                                backgroundColor: const Color(0xFFE65C00),
-                                              ),
-                                            );
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                                          ),
-                                          child: const Text('Approve'),
-                                        ),
-                                      ],
-                                    ),
+              ? _buildShimmerLoader()
+              : RefreshIndicator(
+                  onRefresh: _fetchRequests,
+                  color: const Color(0xFFE65C00),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: IndexedStack(
+                      index: _activeRequestTab,
+                      children: [
+                        // Toggle 0: Join Requests list
+                        _joinRequests.isEmpty
+                            ? SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Container(
+                                  height: MediaQuery.of(context).size.height * 0.5,
+                                  alignment: Alignment.center,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.assignment_turned_in_outlined, size: 64, color: Colors.grey[300]),
+                                      const SizedBox(height: 16),
+                                      Text('No pending join requests.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
+                                    ],
                                   ),
-                                );
-                              },
-                            ),
-
-                      // Toggle 2: Holds list
-                      _holdRequests.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.pause_circle_outline, size: 64, color: Colors.grey[300]),
-                                  const SizedBox(height: 16),
-                                  Text('No pending hold requests.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
-                                ],
+                                ),
+                              )
+                            : ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                itemCount: _joinRequests.length,
+                                itemBuilder: (ctx, index) => _buildJoinRequestCard(_joinRequests[index]),
                               ),
-                            )
-                          : ListView.builder(
-                              itemCount: _holdRequests.length,
-                              itemBuilder: (ctx, index) {
-                                final r = _holdRequests[index];
-                                return Card(
-                                  child: ListTile(
-                                    title: Text(r['member_id']?['full_name'] ?? 'Member'),
-                                    subtitle: Text('Hold from ${r['start_date']} to ${r['end_date']}'),
-                                    trailing: ElevatedButton(
-                                      onPressed: _isProfileComplete ? () async {
-                                        final holdReq = await supabase
-                                            .from('hold_requests')
-                                            .select('*, membership_id, start_date, end_date')
-                                            .eq('id', r['id'])
-                                            .single();
-                                        if (!mounted) return;
-                                        
-                                        final membership = await supabase
-                                            .from('memberships')
-                                            .select('id, end_date, seat_id, member_id')
-                                            .eq('id', holdReq['membership_id'])
-                                            .single();
-                                        if (!mounted) return;
-                                        
-                                        final startDate = DateTime.parse(holdReq['start_date']);
-                                        final endDate = DateTime.parse(holdReq['end_date']);
-                                        final holdDays = endDate.difference(startDate).inDays;
-                                        
-                                        final currentEnd = DateTime.parse(membership['end_date']);
-                                        final newEnd = currentEnd.add(Duration(days: holdDays));
-                                        
-                                        await supabase.from('memberships').update({
-                                          'status': 'hold',
-                                          'end_date': newEnd.toIso8601String().substring(0, 10),
-                                        }).eq('id', membership['id']);
-                                        if (!mounted) return;
-                                        
-                                        await supabase.from('hold_requests').update({
-                                          'status': 'approved'
-                                        }).eq('id', r['id']);
-                                        if (!mounted) return;
-                                        
-                                        await supabase.from('notifications').insert({
-                                          'user_id': membership['member_id'],
-                                          'title': 'Hold approved',
-                                          'body': 'Your hold request has been approved. Your membership is paused until ${endDate.toLocal().toString().substring(0, 10)}. Your seat is reserved.',
-                                          'data': {'type': 'hold_approved', 'membership_id': membership['id']},
-                                        });
-                                        if (!mounted) return;
-                                        
-                                        _fetchRequests();
-                                      } : () {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
-                                            backgroundColor: const Color(0xFFE65C00),
+
+                        // Toggle 1: Seat Changes list (Placeholder / simple Empty matching specs)
+                        _seatChangeRequests.isEmpty
+                            ? SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Container(
+                                  height: MediaQuery.of(context).size.height * 0.5,
+                                  alignment: Alignment.center,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.swap_horiz_rounded, size: 64, color: Colors.grey[300]),
+                                      const SizedBox(height: 16),
+                                      Text('No pending seat changes.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                itemCount: _seatChangeRequests.length,
+                                itemBuilder: (ctx, index) {
+                                  final r = _seatChangeRequests[index];
+                                  return Card(
+                                    child: ListTile(
+                                      title: Text(r['member_id']?['full_name'] ?? 'Member'),
+                                      subtitle: Text('Change from ${r['current_seat']?['seat_label']} to Preferred section: ${r['preferred_section']}'),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          TextButton(
+                                            onPressed: () => _rejectSeatChangeRequest(r),
+                                            style: TextButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                                              minimumSize: const Size(0, 36),
+                                            ),
+                                            child: Text('Reject', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
                                           ),
-                                        );
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
-                                        foregroundColor: Colors.white,
+                                          const SizedBox(width: 2),
+                                          ElevatedButton(
+                                            onPressed: _isProfileComplete ? () => _approveSeatChangeRequest(r) : () {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
+                                                  backgroundColor: const Color(0xFFE65C00),
+                                                ),
+                                              );
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.5),
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                                            ),
+                                            child: const Text('Approve'),
+                                          ),
+                                        ],
                                       ),
-                                      child: const Text('Approve'),
                                     ),
+                                  );
+                                },
+                              ),
+
+                        // Toggle 2: Holds list
+                        _holdRequests.isEmpty
+                            ? SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Container(
+                                  height: MediaQuery.of(context).size.height * 0.5,
+                                  alignment: Alignment.center,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.pause_circle_outline, size: 64, color: Colors.grey[300]),
+                                      const SizedBox(height: 16),
+                                      Text('No pending hold requests.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
+                                    ],
                                   ),
-                                );
-                              },
-                            ),
-                    ],
+                                ),
+                              )
+                            : ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                itemCount: _holdRequests.length,
+                                itemBuilder: (ctx, index) {
+                                  final r = _holdRequests[index];
+                                  return Card(
+                                    child: ListTile(
+                                      title: Text(r['member_id']?['full_name'] ?? 'Member'),
+                                      subtitle: Text('Hold from ${r['start_date']} to ${r['end_date']}'),
+                                      trailing: ElevatedButton(
+                                        onPressed: _isProfileComplete ? () async {
+                                          final holdReq = await supabase
+                                              .from('hold_requests')
+                                              .select('*, membership_id, start_date, end_date')
+                                              .eq('id', r['id'])
+                                              .single();
+                                          if (!mounted) return;
+                                          
+                                          final membership = await supabase
+                                              .from('memberships')
+                                              .select('id, end_date, seat_id, member_id')
+                                              .eq('id', holdReq['membership_id'])
+                                              .single();
+                                          if (!mounted) return;
+                                          
+                                          final startDate = DateTime.parse(holdReq['start_date']);
+                                          final endDate = DateTime.parse(holdReq['end_date']);
+                                          final holdDays = endDate.difference(startDate).inDays;
+                                          
+                                          final currentEnd = DateTime.parse(membership['end_date']);
+                                          final newEnd = currentEnd.add(Duration(days: holdDays));
+                                          
+                                          await supabase.from('memberships').update({
+                                            'status': 'hold',
+                                            'end_date': newEnd.toIso8601String().substring(0, 10),
+                                          }).eq('id', membership['id']);
+                                          if (!mounted) return;
+                                          
+                                          await supabase.from('hold_requests').update({
+                                            'status': 'approved'
+                                          }).eq('id', r['id']);
+                                          if (!mounted) return;
+                                          
+                                          await supabase.from('notifications').insert({
+                                            'user_id': membership['member_id'],
+                                            'title': 'Hold approved',
+                                            'body': 'Your hold request has been approved. Your membership is paused until ${endDate.toLocal().toString().substring(0, 10)}. Your seat is reserved.',
+                                            'data': {'type': 'hold_approved', 'membership_id': membership['id']},
+                                          });
+                                          if (!mounted) return;
+                                          
+                                          _fetchRequests();
+                                        } : () {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
+                                              backgroundColor: const Color(0xFFE65C00),
+                                            ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.5),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('Approve'),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ],
+                    ),
                   ),
                 ),
         ),

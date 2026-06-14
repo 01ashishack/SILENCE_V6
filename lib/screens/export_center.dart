@@ -696,12 +696,14 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                     ),
                   ),
 
-                  // Export Options List
                   Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.all(16),
-                      physics: const BouncingScrollPhysics(),
-                      children: [
+                    child: RefreshIndicator(
+                      onRefresh: () => Future.delayed(const Duration(milliseconds: 500)),
+                      color: const Color(0xFFE65C00),
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
                         _buildExportCard(
                           title: 'Members Roster',
                           description: 'Active & registered member details, seats, and expiry dates.',
@@ -747,13 +749,14 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
 
               // Full Screen compiling overlay
               if (_isExporting)
                 Container(
-                  color: Colors.black.withOpacity(0.4),
+                  color: Colors.black.withValues(alpha: 0.4),
                   child: Center(
                     child: Card(
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

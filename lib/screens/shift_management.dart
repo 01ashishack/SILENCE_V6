@@ -105,9 +105,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
 
     if (user != null) {
       try {
-        if (_libraryId == null) {
-          _libraryId = widget.libraryId;
-        }
+        _libraryId ??= widget.libraryId;
         if (_libraryId == null) {
           final libData = await _supabase.from('libraries').select().eq('owner_id', user.id).maybeSingle();
           if (libData != null) {
@@ -420,7 +418,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: _shifts.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 16),
+                            separatorBuilder: (_, _) => const SizedBox(height: 16),
                             itemBuilder: (_, index) => _buildShiftCard(index),
                           ),
                     const SizedBox(height: 16),
@@ -479,9 +477,9 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: _orange.withOpacity(0.08),
+        color: _orange.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _orange.withOpacity(0.15)),
+        border: Border.all(color: _orange.withValues(alpha: 0.15)),
       ),
       child: Text(title,
           style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: _orange)),
@@ -502,7 +500,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -649,7 +647,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                       style: GoogleFonts.inter(fontSize: 15, color: _dark),
                       decoration: InputDecoration(
                         hintText: 'e.g. Morning Shift',
-                        hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                        hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                         contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
                         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _orange)),
@@ -791,7 +789,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFFFF7F0),
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: _orange.withOpacity(0.3)),
+                                  border: Border.all(color: _orange.withValues(alpha: 0.3)),
                                 ),
                                 child: Text(
                                   '${shift.hoursPerDay} hrs',
@@ -947,7 +945,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         labelText: label,
         labelStyle: const TextStyle(fontSize: 11),
         hintText: 'e.g. 700',
-        hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+        hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
         contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _orange)),
@@ -965,7 +963,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -982,8 +980,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         Switch(
           value: _cashEnabled,
           onChanged: (v) => setState(() => _cashEnabled = v),
-          activeThumbColor: _orange,
-          activeColor: Colors.white,
+          activeThumbColor: Colors.white,
           activeTrackColor: _orange,
         ),
       ]),
@@ -1005,7 +1002,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1025,7 +1022,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
               style: GoogleFonts.inter(fontSize: 14, color: _dark),
               decoration: InputDecoration(
                 hintText: 'e.g. yourname@paytm',
-                hintStyle: TextStyle(color: Colors.grey.withOpacity(0.6)),
+                hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.6)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
                 focusedBorder: OutlineInputBorder(
@@ -1080,7 +1077,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color: _upiAppColor(app).withOpacity(0.08),
+                  color: _upiAppColor(app).withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(_upiAppIcon(app), size: 22, color: _upiAppColor(app)),

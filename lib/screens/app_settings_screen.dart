@@ -319,7 +319,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       border: Border.all(color: const Color(0xFFE2E8F0)),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.01),
+          color: Colors.black.withValues(alpha: 0.01),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),
@@ -396,7 +396,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       ),
       trailing: Switch(
         value: value,
-        activeColor: const Color(0xFFE65C00),
+        activeThumbColor: const Color(0xFFE65C00),
         activeTrackColor: const Color(0xFFFFF3ED),
         onChanged: onChanged,
       ),

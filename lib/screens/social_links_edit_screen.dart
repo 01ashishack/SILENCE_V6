@@ -154,7 +154,7 @@ class _SocialLinksEditScreenState extends State<SocialLinksEditScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
                           ],
                         ),
                         child: Column(
@@ -239,7 +239,7 @@ class _SocialLinksEditScreenState extends State<SocialLinksEditScreen> {
           style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1A1A2E)),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withOpacity(0.5)),
+            hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
             prefixIcon: Icon(icon, size: 20, color: const Color(0xFFE65C00)),
           ),
         ),

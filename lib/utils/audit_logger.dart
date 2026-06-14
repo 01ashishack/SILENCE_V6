@@ -39,7 +39,7 @@ class AuditLogger {
     try {
       await _supabase.from('audit_log').insert({
         'admin_id': admin.id,
-        if (libraryId != null) 'library_id': libraryId,
+        'library_id': ?libraryId,
         'action': action,
         'details': {
           'category': category,
@@ -47,8 +47,8 @@ class AuditLogger {
           'details': details,
           'performer_name': admin.email ?? 'Admin',
         },
-        if (previousValue != null) 'previous_value': previousValue,
-        if (newValue != null) 'new_value': newValue,
+        'previous_value': ?previousValue,
+        'new_value': ?newValue,
       });
     } catch (e) {
       debugPrint('AuditLogger.log failed: $e');

@@ -230,7 +230,7 @@ class _AddExpenseBottomSheetState extends State<AddExpenseBottomSheet> {
 
             // Category Dropdown
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               decoration: const InputDecoration(
                 labelText: 'Category (required)',
                 border: OutlineInputBorder(),
@@ -360,7 +360,7 @@ class _AddExpenseBottomSheetState extends State<AddExpenseBottomSheet> {
                 style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E293B)),
               ),
               value: _isRecurring,
-              activeColor: const Color(0xFFE65C00),
+              activeThumbColor: const Color(0xFFE65C00),
               onChanged: (val) {
                 setState(() => _isRecurring = val);
               },
@@ -379,7 +379,7 @@ class _AddExpenseBottomSheetState extends State<AddExpenseBottomSheet> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  disabledBackgroundColor: const Color(0xFFE65C00).withOpacity(0.5),
+                  disabledBackgroundColor: const Color(0xFFE65C00).withValues(alpha: 0.5),
                 ),
                 child: _isSaving
                     ? const CircularProgressIndicator(color: Colors.white)

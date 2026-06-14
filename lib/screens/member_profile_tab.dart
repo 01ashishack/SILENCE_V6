@@ -611,7 +611,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                     ),
                     child: CircleAvatar(
                       radius: 36,
-                      backgroundColor: Colors.white.withOpacity(0.1),
+                      backgroundColor: Colors.white.withValues(alpha: 0.1),
                       backgroundImage: photoUrl != null && photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null,
                       child: photoUrl == null || photoUrl.isEmpty
                           ? const Icon(Icons.person, size: 36, color: Colors.white)
@@ -661,7 +661,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -690,7 +690,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
           // Stats Strip (Glass Card)
           Container(
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(16),
             ),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -727,7 +727,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
           const SizedBox(height: 2),
           Text(
             label,
-            style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.6)),
+            style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.6)),
           ),
         ],
       ),
@@ -738,7 +738,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
     return Container(
       width: 1,
       height: 24,
-      color: Colors.white.withOpacity(0.15),
+      color: Colors.white.withValues(alpha: 0.15),
     );
   }
 
@@ -750,7 +750,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         borderRadius: BorderRadius.circular(14),
         border: const Border(left: BorderSide(color: Color(0xFFE65C00), width: 4)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 3)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 3)),
         ],
       ),
       padding: const EdgeInsets.all(16),
@@ -906,7 +906,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         borderRadius: BorderRadius.circular(16),
         border: Border(left: BorderSide(color: borderColor, width: 4)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 4)),
         ],
       ),
       child: Material(
@@ -954,7 +954,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: borderColor.withOpacity(0.1),
+                        color: borderColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -1242,7 +1242,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       padding: const EdgeInsets.all(16),

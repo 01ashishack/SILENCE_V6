@@ -767,7 +767,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
 
               // Gender Dropdown
               DropdownButtonFormField<String>(
-                value: widget.memberData.gender,
+                initialValue: widget.memberData.gender,
                 decoration: const InputDecoration(labelText: 'Gender *'),
                 style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 14),
                 items: const [
@@ -853,7 +853,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
 
               // Preparing For Dropdown
               DropdownButtonFormField<String>(
-                value: widget.memberData.preparingFor,
+                initialValue: widget.memberData.preparingFor,
                 decoration: const InputDecoration(labelText: 'Preparing For *'),
                 style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 14),
                 items: const [
@@ -995,7 +995,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: selectedType ?? (slotNum == 1 ? 'Aadhaar' : 'PAN'),
+                  initialValue: selectedType ?? (slotNum == 1 ? 'Aadhaar' : 'PAN'),
                   decoration: InputDecoration(
                     labelText: 'Doc $slotNum Type',
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

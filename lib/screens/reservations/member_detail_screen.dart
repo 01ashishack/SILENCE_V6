@@ -529,11 +529,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           });
                         }
                         await _fetchMemberData();
-                        if (mounted) {
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Attendance saved successfully! ✓')));
                         }
                       } catch (e) {
-                        if (mounted) {
+                        if (context.mounted) {
                           setState(() => _isLoading = false);
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving attendance: $e')));
                         }
@@ -2166,7 +2166,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         try {
           events.add(_ActivityEventItem(
             timestamp: DateTime.parse(createdAt).toLocal(),
-            title: mStatus == 'active' ? 'Membership activated' : 'Membership ${mStatus}',
+            title: mStatus == 'active' ? 'Membership activated' : 'Membership $mStatus',
             subtitle: 'Seat: $seatLabel, Shift: $shiftName',
             icon: Icons.chair_alt_rounded,
             color: const Color(0xFFE65C00),

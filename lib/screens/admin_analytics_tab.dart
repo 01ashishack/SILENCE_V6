@@ -12,6 +12,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'reservations/member_detail_screen.dart';
+import '../widgets/states/shimmer_box.dart';
+
 
 class AdminAnalyticsTab extends StatefulWidget {
   final String? libraryId;
@@ -2128,23 +2130,45 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }
 
   Widget _buildSkeletonLoader() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: const [
-        Row(
-          children: [
-            Expanded(child: SkeletonWidget(width: double.infinity, height: 100)),
-            SizedBox(width: 16),
-            Expanded(child: SkeletonWidget(width: double.infinity, height: 100)),
-          ],
-        ),
-        SizedBox(height: 16),
-        SkeletonWidget(width: double.infinity, height: 120),
-        SizedBox(height: 16),
-        SkeletonWidget(width: double.infinity, height: 150),
-        SizedBox(height: 16),
-        SkeletonWidget(width: double.infinity, height: 200),
-      ],
+    return Shimmer(
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: SkeletonBox(
+                  height: 100,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: SkeletonBox(
+                  height: 100,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SkeletonBox(
+            height: 120,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          const SizedBox(height: 16),
+          SkeletonBox(
+            height: 150,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          const SizedBox(height: 16),
+          SkeletonBox(
+            height: 200,
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2791,7 +2815,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   ),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: (_isProfileComplete && !_noLibrary) ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withOpacity(0.5),
+                      backgroundColor: (_isProfileComplete && !_noLibrary) ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.5),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       elevation: 0,

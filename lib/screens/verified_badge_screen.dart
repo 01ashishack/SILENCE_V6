@@ -266,7 +266,7 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFE65C00).withOpacity(0.15),
+                              color: const Color(0xFFE65C00).withValues(alpha: 0.15),
                               blurRadius: 20,
                               offset: const Offset(0, 10),
                             ),
@@ -307,7 +307,7 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF10B981).withOpacity(0.2),
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(30),
                                   border: Border.all(color: const Color(0xFF10B981)),
                                 ),

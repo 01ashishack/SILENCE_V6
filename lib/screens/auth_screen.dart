@@ -188,7 +188,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             }).eq('id', response.user!.id);
             if (!mounted) return;
           } catch (updateErr) {
-            print('DB user update failed: $updateErr');
+            debugPrint('DB user update failed: $updateErr');
             if (updateErr is PostgrestException) {
               rethrow;
             }
@@ -201,7 +201,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       }
     } on PostgrestException catch (e) {
       if (!mounted) return;
-      if (e.code == '23505' && e.message?.contains('users_email_key') == true) {
+      if (e.code == '23505' && e.message.contains('users_email_key') == true) {
         // Duplicate email
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -312,6 +312,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                 _showSuccessSnackBar('Password reset link sent to your email.');
                               }
                             } catch (e) {
+                              if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('Error: $e')),
                               );
@@ -380,7 +381,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 4)),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 4)),
                   ],
                 ),
                 child: Column(
@@ -729,7 +730,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           color: Colors.white,
           shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
           ],
           border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
         ),

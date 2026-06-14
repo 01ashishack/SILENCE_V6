@@ -705,7 +705,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   height: 250,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Colors.black.withOpacity(0.6), Colors.transparent],
+                      colors: [Colors.black.withValues(alpha: 0.6), Colors.transparent],
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                     ),
@@ -742,19 +742,19 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                         "$addressStreet, $addressCity",
                         style: GoogleFonts.inter(
                           fontSize: 13,
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                         ),
                       ),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Icon(Icons.access_time, size: 14, color: Colors.white.withOpacity(0.8)),
+                          Icon(Icons.access_time, size: 14, color: Colors.white.withValues(alpha: 0.8)),
                           const SizedBox(width: 6),
                           Text(
                             _getOperatingHours(_shifts),
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -765,7 +765,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                             _reviewCount > 0 ? "${_avgRating.toStringAsFixed(1)} ★ ($_reviewCount reviews)" : "No reviews yet",
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1053,7 +1053,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                     else
                       Column(
                         children: [
-                          ...reviewsToShow.map((r) => _buildReviewCard(r)).toList(),
+                          ...reviewsToShow.map((r) => _buildReviewCard(r)),
                           if (showLoadMore)
                             Padding(
                               padding: const EdgeInsets.only(top: 8.0),
@@ -1130,7 +1130,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

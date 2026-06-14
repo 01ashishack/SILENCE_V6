@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/member_analytics_service.dart';
 import '../utils/csv_exporter.dart';
 import '../utils/error_messages.dart';
+import '../widgets/states/shimmer_box.dart';
+
 // Import removed to avoid unused library dependency
 
 class MemberAnalyticsTab extends StatefulWidget {
@@ -501,13 +503,13 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFFE65C00).withOpacity(0.15),
+                        color: const Color(0xFFE65C00).withValues(alpha: 0.15),
                         width: 1.5,
                         // dashed border effect via custom paint is heavy; use solid here
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
+                          color: Colors.black.withValues(alpha: 0.04),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -522,7 +524,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                           decoration: BoxDecoration(
                             color: const Color(0xFFFFF3ED),
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFFE65C00).withOpacity(0.2)),
+                            border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.2)),
                           ),
                           child: const Icon(Icons.menu_book_rounded, size: 36, color: Color(0xFFE65C00)),
                         ),
@@ -701,7 +703,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.2),
+                color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Center(
@@ -749,7 +751,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.2),
+                color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Center(
@@ -793,7 +795,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFE65C00).withOpacity(0.3),
+              color: const Color(0xFFE65C00).withValues(alpha: 0.3),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -816,7 +818,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -874,7 +876,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
               'Best ever: $_bestStreak days',
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -904,9 +906,9 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.5)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
                     ),
                     child: const Center(
                       child: Text('❄', style: TextStyle(fontSize: 16, color: Colors.white)),
@@ -987,7 +989,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(
                       fontSize: 10,
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -1105,7 +1107,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -1128,7 +1130,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     ),
                   ),
                 ),
-                if (rightWidget != null) rightWidget,
+                ?rightWidget,
               ],
             ),
             Column(
@@ -1651,7 +1653,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
           ],
         ),
         child: Column(
@@ -1694,7 +1696,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF3ED),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFE65C00).withOpacity(0.3)),
+                      border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1748,9 +1750,13 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                 final isMe = entry['member_id'] == widget.userProfile?['id'];
                 
                 String rankIcon = '$rank';
-                if (rank == 1) rankIcon = '🥇';
-                else if (rank == 2) rankIcon = '🥈';
-                else if (rank == 3) rankIcon = '🥉';
+                if (rank == 1) {
+                  rankIcon = '🥇';
+                } else if (rank == 2) {
+                  rankIcon = '🥈';
+                } else if (rank == 3) {
+                  rankIcon = '🥉';
+                }
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -1759,7 +1765,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     color: isMe ? const Color(0xFFFFF3ED) : const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isMe ? const Color(0xFFE65C00).withOpacity(0.3) : const Color(0xFFF1F5F9),
+                      color: isMe ? const Color(0xFFE65C00).withValues(alpha: 0.3) : const Color(0xFFF1F5F9),
                     ),
                   ),
                   child: Row(
@@ -1810,7 +1816,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF3ED),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE65C00).withOpacity(0.3)),
+                    border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
@@ -1924,7 +1930,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
           ],
         ),
         child: Column(
@@ -1995,11 +2001,11 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(8),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 4,
                               offset: const Offset(0, 2),
                             ),
@@ -2042,7 +2048,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   // 8. Calendar Heatmaps
   // ---------------------------------------------------------
   Widget _buildHeatmap() {
-    return Container(
+    return SizedBox(
       key: _calendarKey,
       width: double.infinity,
       child: _dateFilter == 'all_time' ? _buildYearHeatmap() : _buildMonthHeatmap(),
@@ -2065,7 +2071,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
           ],
         ),
         child: Column(
@@ -2121,7 +2127,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                               border: Border.all(
                                 color: dateStr == todayStrLocal
                                     ? const Color(0xFFE65C00)
-                                    : Colors.grey.withOpacity(0.15),
+                                    : Colors.grey.withValues(alpha: 0.15),
                                 width: dateStr == todayStrLocal ? 1.5 : 0.8,
                               ),
                             ),
@@ -2205,11 +2211,11 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
               color: color,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isToday ? const Color(0xFFE65C00) : Colors.grey.withOpacity(0.15),
+                color: isToday ? const Color(0xFFE65C00) : Colors.grey.withValues(alpha: 0.15),
                 width: isToday ? 2.0 : 0.8,
               ),
               boxShadow: isToday
-                  ? [BoxShadow(color: const Color(0xFFE65C00).withOpacity(0.15), blurRadius: 4, spreadRadius: 1)]
+                  ? [BoxShadow(color: const Color(0xFFE65C00).withValues(alpha: 0.15), blurRadius: 4, spreadRadius: 1)]
                   : null,
             ),
             child: Stack(
@@ -2249,7 +2255,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
           ],
         ),
         child: Column(
@@ -2336,7 +2342,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: Colors.grey.withOpacity(0.2), width: 0.5),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.2), width: 0.5),
           ),
         ),
         const SizedBox(width: 4),
@@ -2352,73 +2358,59 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   // 9. Shimmer Loading Skeleton
   // ---------------------------------------------------------
   Widget _buildShimmerLoading() {
-    return SingleChildScrollView(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 100, top: 16),
-      child: Column(
-        children: [
-          // Streak card skeleton
-          _shimmerCard(height: 200),
-          const SizedBox(height: 16),
-          // Summary grid skeleton
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: [
-                Expanded(child: _shimmerCard(height: 100)),
-                const SizedBox(width: 16),
-                Expanded(child: _shimmerCard(height: 100)),
-              ],
+    return Shimmer(
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 100, top: 16),
+        child: Column(
+          children: [
+            // Streak card skeleton
+            _shimmerCard(height: 200),
+            const SizedBox(height: 16),
+            // Summary grid skeleton
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                children: [
+                  Expanded(child: _shimmerCard(height: 100, padding: EdgeInsets.zero)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _shimmerCard(height: 100, padding: EdgeInsets.zero)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: [
-                Expanded(child: _shimmerCard(height: 100)),
-                const SizedBox(width: 16),
-                Expanded(child: _shimmerCard(height: 100)),
-              ],
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                children: [
+                  Expanded(child: _shimmerCard(height: 100, padding: EdgeInsets.zero)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _shimmerCard(height: 100, padding: EdgeInsets.zero)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          // Badges skeleton
-          _shimmerCard(height: 80),
-          const SizedBox(height: 24),
-          // Leaderboard skeleton
-          _shimmerCard(height: 200),
-          const SizedBox(height: 24),
-          // Chart skeleton
-          _shimmerCard(height: 180),
-        ],
+            const SizedBox(height: 24),
+            // Badges skeleton
+            _shimmerCard(height: 80),
+            const SizedBox(height: 24),
+            // Leaderboard skeleton
+            _shimmerCard(height: 200),
+            const SizedBox(height: 24),
+            // Chart skeleton
+            _shimmerCard(height: 180),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _shimmerCard({required double height}) {
+  Widget _shimmerCard({required double height, EdgeInsetsGeometry? padding}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Container(
+      padding: padding ?? const EdgeInsets.symmetric(horizontal: 16.0),
+      child: SkeletonBox(
         width: double.infinity,
         height: height,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [
-              Colors.grey[200]!,
-              Colors.grey[100]!,
-              Colors.grey[200]!,
-            ],
-            stops: const [0.0, 0.5, 1.0],
-          ),
-        ),
-        child: Center(
-          child: CircularProgressIndicator(
-            color: const Color(0xFFE65C00).withOpacity(0.3),
-            strokeWidth: 2,
-          ),
-        ),
+        borderRadius: BorderRadius.circular(16),
       ),
     );
   }
@@ -2446,7 +2438,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
           ],
         ),
         child: Column(
@@ -2471,7 +2463,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: _allBadgeDefinitions.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   final badgeDef = _allBadgeDefinitions[index];
                   final String type = badgeDef['type']!;
@@ -2504,7 +2496,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                                 width: isEarned ? 2.0 : 1.0,
                               ),
                               boxShadow: isEarned
-                                  ? [BoxShadow(color: const Color(0xFFE65C00).withOpacity(0.15), blurRadius: 6, spreadRadius: 1)]
+                                  ? [BoxShadow(color: const Color(0xFFE65C00).withValues(alpha: 0.15), blurRadius: 6, spreadRadius: 1)]
                                   : null,
                             ),
                             child: Center(
@@ -2652,7 +2644,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: const Color(0xFFE65C00).withOpacity(0.6),
+                    color: const Color(0xFFE65C00).withValues(alpha: 0.6),
                   ),
                 )
               : const Icon(Icons.file_download_outlined, size: 18),
@@ -2662,7 +2654,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           ),
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFFE65C00),
-            side: BorderSide(color: const Color(0xFFE65C00).withOpacity(0.5)),
+            side: BorderSide(color: const Color(0xFFE65C00).withValues(alpha: 0.5)),
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -2907,7 +2899,7 @@ class _StackedBarChartPainter extends CustomPainter {
         if (segmentHeight <= 0.0) return;
 
         final Color baseColor = _getLibraryColor(libId);
-        final Color segmentColor = isToday ? baseColor.withOpacity(0.9) : baseColor;
+        final Color segmentColor = isToday ? baseColor.withValues(alpha: 0.9) : baseColor;
 
         final segmentPaint = Paint()..color = segmentColor;
 

@@ -92,7 +92,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
       barrierDismissible: true,
       barrierLabel: 'Library Switcher',
       // ignore: deprecated_member_use
-      barrierColor: Colors.black.withOpacity(0.15),
+      barrierColor: Colors.black.withValues(alpha: 0.15),
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, anim1, anim2) {
         return Align(
@@ -107,7 +107,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                 boxShadow: [
                   BoxShadow(
                     // ignore: deprecated_member_use
-                    color: Colors.black.withOpacity(0.12),
+                    color: Colors.black.withValues(alpha: 0.12),
                     blurRadius: 16,
                     offset: const Offset(0, 8),
                   ),
@@ -443,7 +443,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                                   _getLibraryAddress(),
                                   style: GoogleFonts.inter(
                                     fontSize: 10.5,
-                                    color: Colors.white.withOpacity(0.85),
+                                    color: Colors.white.withValues(alpha: 0.85),
                                   ),
                                 ),
                               ],
@@ -463,11 +463,11 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withValues(alpha: 0.5),
                         width: 1.0,
                       ),
                       borderRadius: BorderRadius.circular(20),
-                      color: Colors.white.withOpacity(0.12),
+                      color: Colors.white.withValues(alpha: 0.12),
                     ),
                     child: Row(
                       children: [
