@@ -86,8 +86,9 @@ subscription_status TEXT DEFAULT 'active'
     CHECK (subscription_status IN ('active','grace','readonly','locked','cancelled')),
 subscription_expiry TIMESTAMPTZ,
 ```
-> Note: plan keys abhi `starter/basic/pro/trial` hain, par UI Free/₹499/₹799 dikhata hai. Ek baar
-> final naam decide karke dono jagah same rakhna (mapping §5). Iske liye CHECK update karni padegi.
+> Note: plan keys abhi `starter/basic/pro/trial` hain. **Final (2026-06-14): `free` / `pro` /
+> `premium`** — CHECK update karni hai dono jagah same rakhne ke liye. `subscription_status` me
+> `readonly` already hai (yahi Free/Expired floor); `locked` ab use nahi hoga.
 
 ### Add karna hoga (jab implement karein)
 1. **`subscription_events`** table — har webhook event ka record (idempotency + audit):
@@ -143,35 +144,78 @@ class PlanService {
 
 Phir har feature bas `if (PlanService.canUse(Feature.analytics)) {...} else showUpgrade();`.
 
-### 🔢 Decide karna hai — kaun se plan mein kya (ye AAP batao)
-Niche **sirf example** hai, final aap decide karoge. Isi se PlanService ki body banegi:
+### 🔢 FINAL plan spec (decided 2026-06-14)
 
-| Feature | Free | ₹499 | ₹799 |
-|---|---|---|---|
-| Members add (limit) | 50? | 200? | Unlimited? |
-| Libraries (branches) | 1 | 1 | Many? |
-| Analytics tab | Basic? | Full | Full |
-| CSV/PDF export | ❌? | ✅ | ✅ |
-| Branding (logo/cover) | ❌? | ✅ | ✅ |
-| Verified badge | ❌ | ✅ | ✅ |
-| Holidays/closures | ✅ | ✅ | ✅ |
+**Plans:** `free` · `pro` (₹499) · `premium` (₹799). **Period:** monthly + yearly (dono).
+**Trial:** naye signup ko **2 mahine FULL access** (premium jaisa, sab unlocked). Trial khatam +
+pay na kare → `free` (restricted) pe gir jaata hai.
 
-> Jab tak ye table aap final nahi karte, PlanService ko **sab kuch free/unlocked** rakhenge (CLAUDE.md:
-> "First 1-2 months everyone is free tier"). Structure ready rahega, switch baad mein.
+**Pro vs Premium — sirf EK farak (user decision):**
+- **Pro (₹499):** **1 library** + SAARE features.
+- **Premium (₹799):** **multiple libraries (branches)** + SAARE features.
+- Feature-wise Pro = Premium. Bas Premium me multi-branch.
+
+**Free / Expired = "restricted floor" (ye koi khareedne wala feature-subset NAHI hai):**
+Jab trial khatam ho ya paid plan lapse ho jaye (aur pay na karein), account `free` pe girta hai
+(`subscription_status = 'readonly'`). User rule:
+> "Process sabhi chalti rahe background me, members ko dikkat na ho, data loss na ho — bas admin
+>  control na kar paye. Bahut zaroori task (request accept, query reply, etc.) allow rahein."
+
+To gating **2-level** hai: (A) **active vs expired** = admin ka management control on/off,
+(B) **Pro vs Premium** = library count (1 vs many).
+
+| Action | 🆓 Free / Expired (readonly) | 💼 Pro / 👑 Premium / Trial (active) |
+|---|---|---|
+| Member QR check-in + attendance (auto) | ✅ chalu | ✅ |
+| Saara data dekhna (members, ledger, layout, history) | ✅ read-only | ✅ |
+| **Join request accept/reject** | ✅ (essential) | ✅ |
+| **Seat-change request accept/reject** | ✅ (essential) | ✅ |
+| **Member query reply** | ✅ (essential) | ✅ |
+| Holidays / closures mark | ✅ (essential) | ✅ |
+| Hold/Resume + Renew existing member | ✅ (member service) | ✅ |
+| Notifications send/receive | ✅ | ✅ |
+| Background processes (streak, expiry, etc.) | ✅ | ✅ |
+| ── Admin "control" / management (lock jab expired) ── | | |
+| Add Member (admin wizard) | ❌ → upgrade | ✅ |
+| Analytics — full (trends/ranges/charts) | ❌ (basic counts dikhein) | ✅ |
+| CSV / PDF export | ❌ | ✅ |
+| Branding (logo/cover/colors) | ❌ | ✅ |
+| Verified badge | ❌ | ✅ |
+| Announcements broadcast | ❌ | ✅ |
+| Referral rewards config | ❌ | ✅ |
+| Pricing / Shift / Layout editing | ❌ | ✅ |
+| Add-ons / amenities manage | ❌ | ✅ |
+| Expenditure tracking | ❌ | ✅ |
+| Audit log | ❌ | ✅ |
+| ── Premium-only ── | | |
+| Multiple libraries (branches) | 1 (Free/Pro) | ✅ unlimited (Premium) |
+
+> **Important:** Expired state me kabhi bhi member ko dikkat nahi, data delete nahi. Sirf admin ke
+> proactive management buttons lock. Library din-pratidin chalti rahti hai (requests/queries/attendance).
+>
+> **Borderline (aap baad me flip kar sakte ho):** "Add Member wizard" abhi expired me LOCKED hai
+> (upgrade ka reason). Par members public **join-request** se aa sakte hain + admin **accept** kar
+> sakta hai → growth rukti nahi. Chaho to add-member-wizard ko bhi essential me daal sakte hain.
+>
+> Beta period (launch ke pehle 1-2 mahine, CLAUDE.md): sabko **active/full** treat karenge —
+> PlanService ek flag se sab unlock. Switch baad me.
 
 ---
 
 ## 6. Expiry / lifecycle (status machine)
 
-`subscription_status` ki value app ke behaviour ko control karti hai:
+`subscription_status` ki value app ke behaviour ko control karti hai. **Golden rule:** member-side
+aur background processes HAMESHA chalti rahein; sirf admin ka management gate ho; data kabhi delete na ho.
 
 | status | Matlab | App behaviour |
 |---|---|---|
-| `active` | Plan chालू, expiry future me | Sab features plan ke hisaab se |
-| `grace` | Expiry nikal gayi, thoda time diya | Warn karo "renew karo", features abhi chalu |
-| `readonly` | Grace bhi khatam | Purana data dikhe, naya add NA ho |
-| `locked` | Aur aage | Sirf "renew" screen |
-| `cancelled` | Owner ne band kiya | Free tier pe wapas |
+| `active` | Plan chalu (trial/pro/premium), expiry future me | Sab features (Pro=1 lib, Premium=multi) |
+| `grace` | Expiry abhi nikli, thoda time diya | Sab abhi chalu + "renew karo" warning banner |
+| `readonly` (= **Free/Expired**) | Grace bhi khatam / unpaid | Admin management LOCK (add-member, analytics-full, export, branding, etc.). Member check-in, request-accept, query-reply, holidays, data view — sab **chalu**. Koi data loss nahi. |
+| `cancelled` | Owner ne khud band kiya | `readonly` jaisa hi (Free floor) |
+
+> Koi hard "full lock" nahi hai — member kabhi block nahi hota, data kabhi delete nahi. "Free" plan =
+> `readonly` floor jo hamesha free milta hai. Admin upgrade karte hi management wapas.
 
 **Expiry kaun decide kare?** Best: ek roz chalne wala server job (Edge Function + cron) jo
 `expiry < now` waale ko `grace`/`readonly` kare. App side bhi ek safety check rakho (expiry past →
@@ -232,11 +276,15 @@ degi). Wo trial-set bhi server-side jana chahiye (signup par ek `set_trial` RPC,
 
 ---
 
-## 10. Aapse pending decisions
-1. **Plan-wise feature list** (§5 table) — har plan me kya milega? (Members limit, branches, analytics,
-   export, branding — number/✅❌ daal do.)
-2. **Plan period** — monthly / yearly / dono?
-3. **Final plan keys** — `free/pro/premium`? (DB CHECK + UI dono update karne ke liye.)
-4. **Trial** — rakhna hai? Kitne din? (Abhi 14-day client-side hai.)
+## 10. Product decisions — ✅ RESOLVED (2026-06-14)
+1. **Feature list** — ✅ §5 FINAL spec. Pro & Premium dono me SAARE features; farak = library count.
+   Free/Expired = restricted floor (essential ops + read-only, members unaffected).
+2. **Period** — ✅ **monthly + yearly dono**.
+3. **Plan keys** — ✅ `free` / `pro` / `premium`. *(DB CHECK update karni hai: abhi
+   `starter/basic/pro/trial` hai → `free/pro/premium`; `subscription_status` me `readonly` already hai,
+   `locked` ab use nahi hota.)*
+4. **Trial** — ✅ **2 mahine (60 din) FULL access** naye signup ko, phir `free` (readonly) pe.
 
-> In 4 ka jawab aate hi Phase 1 (PlanService) ka concrete code likh sakte hain.
+> Sab decided. Ab Phase 1 (PlanService) ka concrete code likha ja sakta hai jab GO milega.
+> PlanService me 2 cheez chahiye: (a) `active vs readonly` gate (admin management), (b) Pro vs Premium
+> = `maxLibraries` (1 vs unlimited).
