@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/cache_service.dart';
+import '../core/plan_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'reservations/reservations_tab.dart';
@@ -279,6 +280,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             .eq('id', user.id)
             .maybeSingle();
         if (userData != null) {
+          // Keep PlanService in sync so feature gates read the right plan.
+          PlanService.instance.hydrateFromRow(userData);
           _nameController.text = userData['full_name'] ?? '';
           _phoneController.text = userData['phone'] ?? '';
           final String name = userData['full_name'] ?? '';

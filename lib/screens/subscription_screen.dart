@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/plan_service.dart';
 
 /// Library-owner subscription screen.
 ///
@@ -64,7 +64,6 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  final _supabase = Supabase.instance.client;
   bool _isLoading = true;
   // Current plan name as a source-of-truth read (defaults to Free in beta).
   String _currentPlan = 'Free';
@@ -77,24 +76,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Future<void> _fetchSubscriptionState() async {
     setState(() => _isLoading = true);
-    final user = _supabase.auth.currentUser;
-    if (user != null) {
-      try {
-        final userData =
-            await _supabase.from('users').select('subscription_plan').eq('id', user.id).maybeSingle();
-        final plan = userData?['subscription_plan']?.toString().toLowerCase();
-        if (plan == 'pro' || plan == 'pro_plan') {
-          _currentPlan = 'Pro';
-        } else if (plan == 'premium') {
-          _currentPlan = 'Premium';
-        } else {
-          _currentPlan = 'Free';
-        }
-      } catch (e) {
-        debugPrint('subscription state load failed: $e');
-        _currentPlan = 'Free';
-      }
-    }
+    // Single source of truth for the current plan (see core/plan_service.dart).
+    await PlanService.instance.load();
+    _currentPlan = PlanService.instance.displayPlanName;
     if (mounted) setState(() => _isLoading = false);
   }
 

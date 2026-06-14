@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import '../../core/cache_service.dart';
+import '../../core/plan_service.dart';
+import '../../widgets/upgrade_sheet.dart';
 import '../../models/member_draft.dart';
 import '../../services/draft_service.dart';
 import '../../utils/error_messages.dart';
@@ -392,7 +394,12 @@ class _MembersSubTabState extends State<MembersSubTab> {
   }
 
   // ── Add Member Wizard ────────────────────────────────────────────────────
-  void _showAddMemberWizard() {
+  void _showAddMemberWizard() async {
+    // Management gate (inert during beta — see core/plan_service.dart).
+    if (!await ensurePlan(context, AdminFeature.addMember, featureLabel: 'Adding members')) {
+      return;
+    }
+    if (!mounted) return;
     Navigator.pushNamed(
       context,
       '/admin/member/add',
