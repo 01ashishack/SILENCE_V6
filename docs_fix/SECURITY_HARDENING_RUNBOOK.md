@@ -40,20 +40,23 @@ Today any library owner can `SELECT` the **entire** `users` table. RPC #1 is alr
    Then fold the tightened policy into `supabase_schema.sql` (replace the ⚠️ P10-04 block).
 
 ### 🥈 Cycle 2 — Storage owner-scoping (P10-01/02/03) — *DPDP legal blocker (exposed ID docs)*
-Today any authenticated user can read `silence_private` (member ID docs + payment proofs). Path families found:
-- `library_members/<library_id>/<sub>/<file>` — ID docs (admin add-member, member self-upload).
-- `payment_proofs/<user_id>/<file>` — payment proofs (member uploads; **admin must read**).
-1. **Enumerate ALL silence_private writers first** (confirm every path family) — currently:
-   `add_member_wizard.dart:316`, `join_flow_screen.dart:526`, `member_profile_edit.dart:363`,
-   `admin_profile_tab.dart:369`. Confirm member_profile_edit's exact path before writing policy.
-2. **Author** `migrations/2026-06-14_storage_private_owner_scoping.sql` replacing the baseline
-   `silence_private` policies with path-scoped ones:
-   - `library_members/<lib>/…`: read/write/delete if `auth.uid()` owns `<lib>` (join `libraries`), OR the owning member (self).
-   - `payment_proofs/<uid>/…`: write/read by `<uid>` self; read by the admin who owns the library the member belongs to (join `memberships`→`libraries`).
-   - Keep `silence_assets` public-read (it's intentionally public for photos/logos).
-3. **Verify on device** (critical — easy to over-lock): admin can still open a member's ID via signed URL;
-   member can still upload ID + payment proof; admin can still view payment proof. Rollback = restore baseline policies.
-> ⚠️ Do NOT apply blind — a wrong policy silently breaks signed-URL reads. Verify each read path.
+Today any authenticated user can read `silence_private` (member ID docs + payment proofs).
+1. ✅ **Enumerated all 4 path families** (writers in `lib/`):
+   - `library_members/<library_id>/…` — member ID doc, admin-uploaded (`add_member_wizard.dart:316`)
+   - `member_profiles/<user_id>/…` — member ID doc, self-uploaded (`member_profile_edit.dart:363`)
+   - `payment_proofs/<user_id>/…` — payment proof, member-uploaded (`join_flow_screen.dart:526`)
+   - `admin_profiles/<user_id>/…` — admin's own photo (`admin_profile_tab.dart:369`)
+2. ✅ **Authored** `migrations/2026-06-14_storage_private_owner_scoping.sql` (gated, NOT applied):
+   read = self for own-id folders + library owner for `library_members`/their members' `member_profiles`/`payment_proofs`;
+   write = self for own-id folders + library owner for `library_members`. Uses `storage.foldername(name)`.
+   Includes a per-path VERIFY block + a one-paste ROLLBACK to the functional baseline.
+3. ⏭️ **Verify on device (USER, critical — easy to over-lock):** run the migration's VERIFY block —
+   admin uploads + views a member ID; member uploads + views own ID; payment-proof upload + both reads.
+   If any image goes blank → run the ROLLBACK. Only fold into canonical after a clean device pass.
+> ⚠️ Do NOT apply blind — a wrong policy silently breaks signed-URL reads (blank images, no error).
+> 🐛 Tangential: `admin_profile_tab.dart:374` calls `getPublicUrl` on the **private** bucket — that
+>   returns an unsigned URL that won't load regardless of RLS. Admin photos probably belong in the
+>   public `silence_assets` bucket; fix separately (not part of this migration).
 
 ### 🥉 Cycle 3 — Actor-scope the 4 forgeable inserts (P5-08)
 `auth.uid() IS NOT NULL` is already shipped (blocks anon forgery). Full actor-scoping needs RPCs first:
