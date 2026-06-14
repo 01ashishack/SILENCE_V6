@@ -357,11 +357,19 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       // photo/ID before the membership would be silently rejected — which is why
       // those used to never persist (see
       // migrations/2026-06-12_users_owner_update_rls.sql).
-      var userObj = await _supabase
-          .from('users')
-          .select('id')
-          .or('phone.eq.${_memberData.phone},email.eq.${_memberData.email}')
-          .maybeSingle();
+      // Owner-only server-side resolver (replaces a broad cross-library
+      // users.select; see migrations/2026-06-12_rpc_find_user_by_contact.sql).
+      final lookupRows = await _supabase.rpc(
+        'find_user_by_contact',
+        params: {
+          'p_phone': _memberData.phone,
+          'p_email': _memberData.email,
+        },
+      );
+      final lookupList = lookupRows is List ? lookupRows : const [];
+      final Map<String, dynamic>? userObj = lookupList.isNotEmpty
+          ? Map<String, dynamic>.from(lookupList.first as Map)
+          : null;
 
       final bool isExistingUser = userObj != null;
       String memberUserId;

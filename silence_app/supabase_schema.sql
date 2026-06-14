@@ -662,6 +662,11 @@ ALTER TABLE draft_members ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own profile" ON users
     FOR SELECT USING (auth.uid() = id);
 
+-- ⚠️ P10-04: this lets ANY library owner SELECT the ENTIRE users table (largest
+-- PII exposure). The tenant-scoped replacement is authored in
+-- migrations/2026-06-14_users_select_tenant_scope.sql but is GATED on verifying
+-- the add-member RPC wiring on a device first (adopt-then-tighten,
+-- docs_fix/SECURITY_HARDENING_RUNBOOK.md Cycle 1). Fold it in here after verify.
 CREATE POLICY "Admins can view all users (for member lists)" ON users
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE owner_id = auth.uid()));
 

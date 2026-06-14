@@ -209,11 +209,16 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
 
   Future<void> _lookupUserByEmail(String email) async {
     try {
-      final userObj = await _supabase
-          .from('users')
-          .select('id, full_name, phone, email, gender, date_of_birth, address, exam_category, photo_url')
-          .eq('email', email)
-          .maybeSingle();
+      // Owner-only server-side resolver (replaces a broad cross-library
+      // users.select; see migrations/2026-06-12_rpc_find_user_by_contact.sql).
+      final rows = await _supabase.rpc(
+        'find_user_by_contact',
+        params: {'p_email': email},
+      );
+      final list = rows is List ? rows : const [];
+      final userObj = list.isNotEmpty
+          ? Map<String, dynamic>.from(list.first as Map)
+          : null;
 
       if (userObj != null && mounted) {
         // Query memberships to check if they already have an active/trial/hold membership
@@ -259,11 +264,16 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
 
   Future<void> _lookupUserByPhone(String phone) async {
     try {
-      final userObj = await _supabase
-          .from('users')
-          .select('id, full_name, phone, email, gender, date_of_birth, address, exam_category, photo_url')
-          .eq('phone', phone)
-          .maybeSingle();
+      // Owner-only server-side resolver (replaces a broad cross-library
+      // users.select; see migrations/2026-06-12_rpc_find_user_by_contact.sql).
+      final rows = await _supabase.rpc(
+        'find_user_by_contact',
+        params: {'p_phone': phone},
+      );
+      final list = rows is List ? rows : const [];
+      final userObj = list.isNotEmpty
+          ? Map<String, dynamic>.from(list.first as Map)
+          : null;
 
       if (userObj != null && mounted) {
         // Query memberships to check if they already have an active/trial/hold membership

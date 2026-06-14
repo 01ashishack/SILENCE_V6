@@ -222,9 +222,11 @@
 - **Phase C is APPLIED to the live DB** (verified above). Remaining DB steps: optional §E
   `library_closures` drop + an on-device smoke test of the touched flows (reservation tab, add-member,
   amenities).
-- **Security/RLS track (Wave 0/1, ⛔ needs live DB):** the dangerous policies Phase C deliberately did
-  NOT touch — P5-01 (`memberships` open UPDATE), P5-07 (`users` PII SELECT), P5-08 (`WITH CHECK(true)`
-  forged inserts on referrals/badges/notifications/audit_log) — plus storage scoping, build keystore +
+- **Security/RLS track (Wave 0/1, ⛔ needs live DB + device):** ordered execution checklist now in
+  **`docs_fix/SECURITY_HARDENING_RUNBOOK.md`** (adopt-then-tighten loop). Priority: Cycle 1 = tenant-scope
+  `users` SELECT via RPC #1 (P10-04, largest PII); Cycle 2 = storage owner-scoping (P10-01/02/03, DPDP).
+  The dangerous policies Phase C deliberately did NOT touch — P5-01 (`memberships` open UPDATE), P5-07
+  (`users` PII SELECT), P5-08 (`WITH CHECK(true)` forged inserts) — plus storage scoping, build keystore +
   INTERNET, iOS location crash.
 - **Phase B remaining (server/OTP-gated):** ⛔ FCM send · ⛔ claim/link (phone OTP, disabled) ·
   🟡 referral auto-credit (server job) · owner-visibility of deletion requests (app-owner console).
