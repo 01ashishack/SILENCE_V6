@@ -13,10 +13,12 @@
 --   until this cross-library lookup has a narrow, owner-only path. This RPC is
 --   that path — the first brick of the server tier (root cause RC-1).
 --
--- WHAT
+-- WHAT  (UPDATED 2026-06-14: excludes admins/owners from results)
 --   A SECURITY DEFINER function that, for an authenticated LIBRARY OWNER only,
---   returns the single existing user matching an exact phone OR email (exactly
---   the fields the wizard autofills). Call it from the client as:
+--   returns the single existing MEMBER matching an exact phone OR email (exactly
+--   the fields the wizard autofills). Admins / library owners are NOT returned —
+--   this lookup is only for adding members, so an admin's profile must not be
+--   fetchable here. Call it from the client as:
 --       supabase.rpc('find_user_by_contact',
 --                    params: {'p_phone': '...', 'p_email': '...'})
 --   It returns a list of 0 or 1 row.
@@ -75,8 +77,14 @@ BEGIN
     SELECT u.id, u.full_name, u.phone, u.email, u.gender, u.date_of_birth,
            u.address, u.exam_category, u.photo_url
     FROM public.users u
-    WHERE (v_phone IS NOT NULL AND u.phone = v_phone)
-       OR (v_email IS NOT NULL AND lower(u.email) = v_email)
+    WHERE (
+            (v_phone IS NOT NULL AND u.phone = v_phone)
+         OR (v_email IS NOT NULL AND lower(u.email) = v_email)
+          )
+      -- Never resolve admins / library owners: this lookup is only for adding
+      -- MEMBERS, so an admin's profile must not be fetchable here.
+      AND u.role IS DISTINCT FROM 'admin'
+      AND NOT EXISTS (SELECT 1 FROM public.libraries l WHERE l.owner_id = u.id)
     ORDER BY u.created_at DESC
     LIMIT 1;
 END;
