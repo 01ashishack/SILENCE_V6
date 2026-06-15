@@ -800,6 +800,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         'category': category,
         'notes': notes,
         'expense_date': date.toUtc().toIso8601String(),
+        'added_by': _supabase.auth.currentUser?.id ?? 'admin',
       });
       _triggerActiveTabFetch();
     } catch (e) {

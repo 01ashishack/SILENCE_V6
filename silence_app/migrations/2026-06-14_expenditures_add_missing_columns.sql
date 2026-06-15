@@ -29,3 +29,9 @@ ALTER TABLE expenditures ADD COLUMN IF NOT EXISTS receipt_url  TEXT;
 ALTER TABLE expenditures ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT false;
 ALTER TABLE expenditures ADD COLUMN IF NOT EXISTS is_deleted   BOOLEAN DEFAULT false;
 ALTER TABLE expenditures ADD COLUMN IF NOT EXISTS added_by     TEXT;
+
+-- `added_by` is NOT NULL in the canonical schema but one insert path
+-- (admin_analytics_tab._addExpense) historically omitted it → 23502. Give it a
+-- default so a missing value never blocks an expense insert. (Code also sets it.)
+ALTER TABLE expenditures ALTER COLUMN added_by SET DEFAULT 'admin';
+UPDATE expenditures SET added_by = 'admin' WHERE added_by IS NULL;

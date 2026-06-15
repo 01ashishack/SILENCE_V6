@@ -1121,12 +1121,33 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
 
 
+  /// Top safe-area (status bar) color must match the CURRENT tab's header so the
+  /// inset blends in. Home & Profile have an orange header; Analytics & History
+  /// open on the cream page background.
+  Color get _topSafeAreaColor {
+    switch (_currentBottomTab) {
+      case 0: // Home — orange header
+      case 3: // Profile — orange header
+        return const Color(0xFFE65C00);
+      default: // Analytics / History — cream page bg
+        return const Color(0xFFFBF5EE);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
+    // Status-bar icons: light on the orange header, dark on the cream pages.
+    final bool darkTop = _topSafeAreaColor == const Color(0xFFE65C00);
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: darkTop
+          ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent)
+          : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+      child: Scaffold(
+      // Top inset = current tab's header color; bottom inset handled below.
+      backgroundColor: _topSafeAreaColor,
       body: SafeArea(
         top: true,
+        bottom: false,
         child: Scaffold(
           backgroundColor: const Color(0xFFFBF5EE),
           body: _isLoading
@@ -1134,7 +1155,14 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               : _errorMessage != null
                   ? _buildErrorState()
                   : _buildCurrentTabContent(),
-          bottomNavigationBar: _buildBottomNav(),
+          // White bottom inset so the nav bar (white) blends with the gesture area.
+          bottomNavigationBar: Container(
+            color: Colors.white,
+            child: SafeArea(
+              top: false,
+              child: _buildBottomNav(),
+            ),
+          ),
           floatingActionButton: _shouldShowFAB()
               ? FloatingActionButton(
                   onPressed: _openQRScanner,
@@ -1147,6 +1175,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               : null,
         ),
       ),
+    ),
     );
   }
 
