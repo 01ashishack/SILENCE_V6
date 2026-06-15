@@ -1529,12 +1529,12 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   }
 
   DateTime _addMonths(DateTime date, int months) {
-    int newYear = date.year;
-    int newMonth = date.month + months;
-    while (newMonth > 12) {
-      newMonth -= 12;
-      newYear++;
-    }
-    return DateTime(newYear, newMonth, date.day);
+    final y = date.year + ((date.month - 1 + months) ~/ 12);
+    final m = (date.month - 1 + months) % 12 + 1;
+    // Cap the day to the target month's last day so e.g. Jan 31 + 1 month
+    // becomes Feb 28/29, not an overflowed Mar 3 (Dart would roll over).
+    final lastDay = DateTime(y, m + 1, 0).day;
+    final day = date.day > lastDay ? lastDay : date.day;
+    return DateTime(y, m, day);
   }
 }

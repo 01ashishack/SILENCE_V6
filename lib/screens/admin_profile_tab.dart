@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
 import '../core/image_optimizer.dart';
+import '../utils/error_messages.dart';
 import '../core/plan_service.dart';
 import '../widgets/upgrade_sheet.dart';
 import 'library_public_profile_screen.dart';
@@ -2074,6 +2075,17 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 widget.onLibraryUpdated?.call();
               } catch (e) {
                 debugPrint('Error: $e');
+                // Honest failure: tell the admin it did NOT save, and re-pull the
+                // true DB state so the optimistic add/remove doesn't linger.
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: Text('Could not save photos. Please try again. (${friendlyError(e)})'),
+                      backgroundColor: Colors.red[600],
+                    ),
+                  );
+                }
+                _loadProfileData();
               }
             }
 
