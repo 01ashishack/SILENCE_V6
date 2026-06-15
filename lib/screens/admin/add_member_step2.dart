@@ -285,7 +285,11 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
     int durationMonths = 1;
     if (widget.memberData.planType == '3_month') durationMonths = 3;
     if (widget.memberData.planType == '6_month') durationMonths = 6;
-    return DateTime(start.year, start.month + durationMonths, start.day);
+    // Cap the day to the target month's last day (Jan 31 + 1mo = Feb 28/29).
+    final y = start.year + ((start.month - 1 + durationMonths) ~/ 12);
+    final m = (start.month - 1 + durationMonths) % 12 + 1;
+    final lastDay = DateTime(y, m + 1, 0).day;
+    return DateTime(y, m, start.day > lastDay ? lastDay : start.day);
   }
 
   @override

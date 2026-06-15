@@ -307,7 +307,12 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     int durationMonths = 1;
     if (_memberData.planType == '3_month') durationMonths = 3;
     if (_memberData.planType == '6_month') durationMonths = 6;
-    return DateTime(start.year, start.month + durationMonths, start.day);
+    // Add whole months, capping the day to the target month's last day so
+    // e.g. Jan 31 + 1 month = Feb 28/29 (not an overflowed Mar 3).
+    final y = start.year + ((start.month - 1 + durationMonths) ~/ 12);
+    final m = (start.month - 1 + durationMonths) % 12 + 1;
+    final lastDay = DateTime(y, m + 1, 0).day;
+    return DateTime(y, m, start.day > lastDay ? lastDay : start.day);
   }
 
   Future<String?> _uploadFileToStorage(File file, String subFolder) async {
@@ -463,7 +468,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       // this member's row. Best-effort: a media/upload hiccup must NOT roll back
       // an otherwise valid (and paid) registration — the admin can re-upload
       // from the member's profile later.
-      await _writeMemberProfile(memberUserId, refreshDetails: isExistingUser);
+      final mediaFailures = await _writeMemberProfile(memberUserId, refreshDetails: isExistingUser);
 
       // 5. Create payment record
       final finalPrice = (_memberData.totalBasePrice - _memberData.discount).clamp(0, double.infinity).toInt();
@@ -484,9 +489,23 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Member added successfully ✓'), backgroundColor: Colors.green),
-        );
+        // Honest: the member IS added, but flag any best-effort media that
+        // didn't attach so the admin can re-upload from the profile later.
+        if (mediaFailures.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Member added successfully ✓'), backgroundColor: Colors.green),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Member added ✓ — but ${mediaFailures.join(' & ')} couldn\'t be saved. '
+                  'You can add it later from the member\'s profile.'),
+              backgroundColor: const Color(0xFFF59E0B),
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
         // Close the wizard and signal members_sub_tab to refresh the member list.
         Navigator.pop(context, true);
       }
@@ -517,7 +536,11 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
   /// independent and swallowed — a single media/upload failure must not abort a
   /// valid registration; without the RLS migration applied these silently
   /// no-op (the member is still added, just without the media).
-  Future<void> _writeMemberProfile(String memberUserId, {required bool refreshDetails}) async {
+  /// Returns the labels of any best-effort writes that FAILED (e.g. ['photo',
+  /// 'ID documents']) so the caller can honestly tell the admin what didn't
+  /// attach — the member is still added regardless.
+  Future<List<String>> _writeMemberProfile(String memberUserId, {required bool refreshDetails}) async {
+    final failed = <String>[];
     // Refresh an existing member's contact details (deferred from step 1).
     if (refreshDetails) {
       try {
@@ -531,16 +554,19 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         }).eq('id', memberUserId);
       } catch (e) {
         debugPrint('Existing-member detail refresh skipped: $e');
+        failed.add('contact details');
       }
     }
 
     // Profile photo → public silence_assets bucket; store the public URL.
     String? photoUrl = _memberData.existingPhotoUrl?.trim();
+    bool photoFailed = false;
     if (_memberData.profilePhoto != null) {
       try {
         photoUrl = await _uploadProfilePhoto(_memberData.profilePhoto!, memberUserId);
       } catch (e) {
         debugPrint('Profile photo upload skipped: $e');
+        photoFailed = true;
       }
     }
     if (photoUrl != null && photoUrl.isNotEmpty) {
@@ -550,13 +576,16 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         }).eq('id', memberUserId);
       } catch (e) {
         debugPrint('Profile photo save skipped: $e');
+        photoFailed = true;
       }
     }
+    if (photoFailed) failed.add('photo');
 
     // ID documents → private silence_private bucket; store the storage path
     // (member_detail resolves a short-lived signed URL to display them).
     String? docUrl1;
     String? docUrl2;
+    bool idFailed = false;
     try {
       if (_memberData.idProof1File != null) {
         docUrl1 = await _uploadFileToStorage(_memberData.idProof1File!, 'documents');
@@ -566,6 +595,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       }
     } catch (e) {
       debugPrint('ID document upload skipped: $e');
+      idFailed = true;
     }
     if (docUrl1 != null) {
       try {
@@ -574,6 +604,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         }).eq('id', memberUserId);
       } catch (e) {
         debugPrint('ID proof save skipped: $e');
+        idFailed = true;
       }
     }
     final optionalUserFields = <String, dynamic>{};
@@ -584,6 +615,8 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       optionalUserFields['id_proof_2_url'] = docUrl2;
     }
     await _updateOptionalUserFields(memberUserId, optionalUserFields);
+    if (idFailed) failed.add('ID documents');
+    return failed;
   }
 
   /// Best-effort undo of a half-finished registration (no DB transaction
