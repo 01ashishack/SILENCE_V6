@@ -45,20 +45,19 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
   String _idDocType1 = 'Aadhaar';
   String _idDocType2 = 'PAN Card';
 
-  bool _phoneVerified = false;
-  bool _emailVerified = false;
-  String _lastVerifiedPhone = '';
-  String _lastVerifiedEmail = '';
-
   String _idProofStatus = 'Not uploaded';
   String _idProof2Status = 'Not uploaded';
-
-  bool get _isPhoneCurrentlyVerified => _phoneVerified && _phoneController.text.trim() == _lastVerifiedPhone && _lastVerifiedPhone.isNotEmpty;
-  bool get _isEmailCurrentlyVerified => _emailVerified && _emailController.text.trim() == _lastVerifiedEmail && _lastVerifiedEmail.isNotEmpty;
 
   bool _isLoading = false;
   bool _isUploadingPhoto = false;
   bool _isSaving = false;
+
+  /// New members (just signed up) have an empty profile → show "Complete
+  /// Profile"; an existing member editing → "Edit Profile".
+  bool get _isProfileIncomplete =>
+      _dob == null ||
+      _phoneController.text.trim().isEmpty ||
+      _addressController.text.trim().isEmpty;
 
   final List<String> _examCategories = [
     'UPSC', 'NEET', 'JEE', 'SSC', 'PCS', 'CAT', 'Banking', 'State PCS', 'Class 10-12', 'Other'
@@ -110,14 +109,6 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           _addressController.text = userData['address'] ?? '';
           _fatherNameController.text = userData['father_name'] ?? '';
           _emergencyContactController.text = userData['emergency_contact'] ?? '';
-          _phoneVerified = userData['phone_verified'] as bool? ?? false;
-          _emailVerified = userData['email_verified'] as bool? ?? false;
-          if (_phoneVerified) {
-            _lastVerifiedPhone = userData['phone'] ?? '';
-          }
-          if (_emailVerified) {
-            _lastVerifiedEmail = user.email ?? '';
-          }
           if (userData['id_type'] != null) {
             _idDocType1 = userData['id_type'];
           }
@@ -421,156 +412,6 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
     }
   }
 
-  void _showVerifyOtpBottomSheet(String targetType, String value) {
-    final otpController = TextEditingController();
-    bool isSending = false;
-    bool isVerifying = false;
-    String? localError;
-    String sentCode = "123456"; // Mock code
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              top: 24,
-              left: 24,
-              right: 24,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Verify ${targetType == 'phone' ? 'Phone Number' : 'Email'}',
-                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'We will send a 6-digit verification code to $value.',
-                  style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 16),
-                if (localError != null) ...[
-                  Text(
-                    localError!,
-                    style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                TextFormField(
-                  controller: otpController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.spaceMono(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
-                  decoration: const InputDecoration(
-                    hintText: '000000',
-                    counterText: '',
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      onPressed: isSending ? null : () {
-                        setModalState(() {
-                          isSending = true;
-                          localError = null;
-                        });
-                        Future.delayed(const Duration(seconds: 1), () {
-                          if (ctx.mounted) {
-                            setModalState(() {
-                              isSending = false;
-                              _showSuccessSnackBar('Mock OTP Code Sent: 123456');
-                            });
-                          }
-                        });
-                      },
-                      child: Text(
-                        isSending ? 'Sending...' : 'Resend Code',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: isVerifying ? null : () async {
-                        if (otpController.text.trim() != sentCode) {
-                          setModalState(() {
-                            localError = 'Invalid code. Please enter 123456 for testing.';
-                          });
-                          return;
-                        }
-                        setModalState(() {
-                          isVerifying = true;
-                          localError = null;
-                        });
-                        
-                        try {
-                          final supabase = Supabase.instance.client;
-                          final user = supabase.auth.currentUser;
-                          if (user != null) {
-                            if (targetType == 'phone') {
-                              final phoneVal = _phoneController.text.trim();
-                              await supabase.from('users').update({
-                                'phone_verified': true,
-                                'phone': phoneVal,
-                              }).eq('id', user.id);
-                              if (!mounted) return;
-                              setState(() {
-                                _phoneVerified = true;
-                                _lastVerifiedPhone = phoneVal;
-                              });
-                            } else {
-                              final emailVal = _emailController.text.trim();
-                              await supabase.from('users').update({
-                                'email_verified': true,
-                                'email': emailVal,
-                              }).eq('id', user.id);
-                              if (!mounted) return;
-                              setState(() {
-                                _emailVerified = true;
-                                _lastVerifiedEmail = emailVal;
-                              });
-                            }
-                            if (!mounted) return;
-                            _showSuccessSnackBar('Verified successfully! ✓');
-                            if (!ctx.mounted) return;
-                            Navigator.pop(ctx);
-                          }
-                        } catch (e) {
-                          setModalState(() {
-                            localError = friendlyError(e);
-                          });
-                        } finally {
-                          setModalState(() => isVerifying = false);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE65C00),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      ),
-                      child: isVerifying
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : Text('Verify Code', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
-                    )
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -606,8 +447,6 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         'id_proof_url': _idDocumentUrl,
         'id_proof_2_url': _idDocument2Url,
         'id_type': _idDocType1,
-        'phone_verified': _phoneVerified,
-        'email_verified': _emailVerified,
         'role': 'member',
         'updated_at': DateTime.now().toIso8601String(),
       };
@@ -620,18 +459,20 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
 
       await supabase.from('users').upsert(upsertData, onConflict: 'id');
 
-      // Save SharedPreferences fallbacks
-      final prefs = await SharedPreferences.getInstance();
-      if (!mounted) return;
-      final userId = user.id;
-      if (_idDocument2Url != null) prefs.setString('id_proof_2_url_$userId', _idDocument2Url!);
-      prefs.setString('id_doc_type_1_$userId', _idDocType1);
-      prefs.setString('id_doc_type_2_$userId', _idDocType2);
-      prefs.setString('id_proof_status_$userId', _idProofStatus);
-      prefs.setString('id_proof_status_2_$userId', _idProof2Status);
+      // Local fallbacks are best-effort: a prefs hiccup must NOT turn a
+      // successful DB save into an error.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final userId = user.id;
+        if (_idDocument2Url != null) prefs.setString('id_proof_2_url_$userId', _idDocument2Url!);
+        prefs.setString('id_doc_type_1_$userId', _idDocType1);
+        prefs.setString('id_doc_type_2_$userId', _idDocType2);
+        prefs.setString('id_proof_status_$userId', _idProofStatus);
+        prefs.setString('id_proof_status_2_$userId', _idProof2Status);
+      } catch (_) {}
 
-      _showSuccessSnackBar('Profile saved successfully! ✓');
       if (!mounted) return;
+      _showSuccessSnackBar('Profile saved successfully! ✓');
       Navigator.pop(context, true);
     } catch (e) {
       _showErrorSnackBar(friendlyError(e));
@@ -656,7 +497,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
-              'Edit Profile',
+              _isProfileIncomplete ? 'Complete Profile' : 'Edit Profile',
               style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             centerTitle: true,
@@ -703,7 +544,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                                   height: 24,
                                   child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                                 )
-                              : Text('Save Profile', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold)),
+                              : Text(_isProfileIncomplete ? 'Complete Profile' : 'Save Profile', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
@@ -1047,8 +888,6 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          _buildVerifyRow('phone', _isPhoneCurrentlyVerified, _phoneController.text.trim(), () => _showVerifyOtpBottomSheet('phone', '+91 ${_phoneController.text}')),
           const SizedBox(height: 16),
 
           // Emergency Contact
@@ -1099,59 +938,9 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          _buildVerifyRow('email', _isEmailCurrentlyVerified, _emailController.text.trim(), () => _showVerifyOtpBottomSheet('email', _emailController.text)),
         ],
       ),
     );
-  }
-
-  Widget _buildVerifyRow(String type, bool isVerified, String text, VoidCallback onVerify) {
-    if (isVerified) {
-      return Row(
-        children: [
-          const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 14),
-          const SizedBox(width: 4),
-          Text(
-            'Verified',
-            style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF10B981), fontWeight: FontWeight.bold),
-          ),
-        ],
-      );
-    } else {
-      final bool isDisabled = text.isEmpty;
-      final child = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            color: isDisabled ? Colors.grey : const Color(0xFFE65C00),
-            size: 14,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'Unverified. [Verify →]',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: isDisabled ? Colors.grey : const Color(0xFFE65C00),
-              fontWeight: FontWeight.bold,
-              decoration: isDisabled ? TextDecoration.none : TextDecoration.underline,
-            ),
-          ),
-        ],
-      );
-
-      if (isDisabled) {
-        return Tooltip(
-          message: 'Enter phone number/email first',
-          child: child,
-        );
-      }
-
-      return GestureDetector(
-        onTap: onVerify,
-        child: child,
-      );
-    }
   }
 
   Widget _buildIdDocumentsCard() {
