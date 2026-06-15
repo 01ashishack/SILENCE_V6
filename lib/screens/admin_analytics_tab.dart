@@ -13,6 +13,8 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'reservations/member_detail_screen.dart';
 import '../widgets/states/shimmer_box.dart';
+import '../core/plan_service.dart';
+import '../widgets/upgrade_sheet.dart';
 
 
 class AdminAnalyticsTab extends StatefulWidget {
@@ -869,7 +871,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     }
   }
 
-  void _showAddExpenseBottomSheet() {
+  void _showAddExpenseBottomSheet() async {
     if (!_isProfileComplete) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -879,6 +881,11 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       );
       return;
     }
+    if (!await ensurePlan(context, AdminFeature.expenditure,
+        featureLabel: 'Expense tracking')) {
+      return;
+    }
+    if (!mounted) return;
     if (_noLibrary || widget.libraryId == null || widget.libraryId!.isEmpty || widget.libraryId == 'null') {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1194,7 +1201,12 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                         icon: const Icon(Icons.download, size: 16, color: Color(0xFFE65C00)),
                         label: Text('Export CSV', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, fontSize: 13)),
                         style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFFE65C00))),
-                        onPressed: onExportCsv,
+                        onPressed: () async {
+                          if (!await ensurePlan(context, AdminFeature.export, featureLabel: 'Exporting reports')) {
+                            return;
+                          }
+                          onExportCsv();
+                        },
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1203,7 +1215,12 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                         icon: const Icon(Icons.picture_as_pdf, size: 16, color: Colors.white),
                         label: Text('Export PDF', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-                        onPressed: onExportPdf,
+                        onPressed: () async {
+                          if (!await ensurePlan(context, AdminFeature.export, featureLabel: 'Exporting reports')) {
+                            return;
+                          }
+                          onExportPdf();
+                        },
                       ),
                     ),
                   ],
@@ -3288,6 +3305,10 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       );
       return;
     }
+    if (!await ensurePlan(context, AdminFeature.export, featureLabel: 'Exporting reports')) {
+      return;
+    }
+    if (!mounted) return;
     if (_attendanceTableToggle == 'date_wise') {
       final logs = _attendanceLogs.map((l) {
         final name = l['member_id']?['full_name'] ?? 'N/A';
@@ -3370,6 +3391,10 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       );
       return;
     }
+    if (!await ensurePlan(context, AdminFeature.export, featureLabel: 'Exporting reports')) {
+      return;
+    }
+    if (!mounted) return;
     if (_attendanceTableToggle == 'date_wise') {
       final logs = _attendanceLogs.map((l) {
         final name = l['member_id']?['full_name'] ?? 'N/A';

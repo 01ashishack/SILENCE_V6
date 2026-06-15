@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/cache_service.dart';
 import '../core/plan_service.dart';
+import '../widgets/upgrade_sheet.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'reservations/reservations_tab.dart';
@@ -1323,12 +1324,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   }),
                   const Divider(height: 1, color: Color(0xFFE2E8F0)),
                   InkWell(
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(
-                        context,
-                        '/admin/library/setup/1',
-                      ).then((_) {
+                    onTap: () async {
+                      final nav = Navigator.of(context);
+                      // Adding a SECOND+ library is a Premium (multi-library) feature.
+                      // Gate BEFORE closing the switcher so the context stays valid
+                      // (inert during beta — see core/plan_service.dart).
+                      if (!await ensurePlan(context, AdminFeature.multiLibrary,
+                          featureLabel: 'Managing multiple libraries')) {
+                        return;
+                      }
+                      nav.pop(); // close the switcher
+                      nav.pushNamed('/admin/library/setup/1').then((_) {
                         _loadInitialData();
                       });
                     },

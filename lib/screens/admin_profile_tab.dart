@@ -12,6 +12,8 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
 import '../core/image_optimizer.dart';
+import '../core/plan_service.dart';
+import '../widgets/upgrade_sheet.dart';
 import 'library_public_profile_screen.dart';
 import 'payment_methods_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -839,10 +841,14 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       _buildSettingsGroup(
                         title: 'Operations',
                         items: [
-                          _buildSettingsItem(context, Icons.campaign_outlined, 'Announcement History', '/admin/announcements'),
-                          _buildSettingsItem(context, Icons.ios_share, 'Exports & Reports', '/admin/exports'),
-                          _buildSettingsItem(context, Icons.history_edu_outlined, 'Audit Log', '/admin/audit-log'),
-                          _buildSettingsItem(context, Icons.card_giftcard_outlined, 'Referral Rewards', '/admin/settings/referrals'),
+                          _buildSettingsItem(context, Icons.campaign_outlined, 'Announcement History', '/admin/announcements',
+                              feature: AdminFeature.announcements, featureLabel: 'Announcements'),
+                          _buildSettingsItem(context, Icons.ios_share, 'Exports & Reports', '/admin/exports',
+                              feature: AdminFeature.export, featureLabel: 'Exports & reports'),
+                          _buildSettingsItem(context, Icons.history_edu_outlined, 'Audit Log', '/admin/audit-log',
+                              feature: AdminFeature.auditLog, featureLabel: 'Audit log'),
+                          _buildSettingsItem(context, Icons.card_giftcard_outlined, 'Referral Rewards', '/admin/settings/referrals',
+                              feature: AdminFeature.referralConfig, featureLabel: 'Referral rewards'),
                           _buildSettingsItem(context, Icons.person_outline_rounded, 'Edit Profile Details', '/admin/profile/complete'),
                         ],
                       ),
@@ -1127,7 +1133,12 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
             ),
             const SizedBox(height: 12),
             OutlinedButton(
-              onPressed: () {
+              onPressed: () async {
+                if (!await ensurePlan(context, AdminFeature.verifiedBadge,
+                    featureLabel: 'The verified badge')) {
+                  return;
+                }
+                if (!mounted) return;
                 Navigator.pushNamed(context, '/admin/verified-badge').then((_) => _loadProfileData());
               },
               style: OutlinedButton.styleFrom(
@@ -1179,7 +1190,9 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     );
   }
 
-  Widget _buildSettingsItem(BuildContext context, IconData icon, String title, String routeName) {
+  Widget _buildSettingsItem(BuildContext context, IconData icon, String title, String routeName,
+      {AdminFeature? feature, String? featureLabel}) {
+    final bool locked = feature != null && !PlanService.instance.canUse(feature);
     return ListTile(
       leading: Icon(icon, size: 20, color: const Color(0xFFE65C00)),
       title: Text(
@@ -1190,8 +1203,15 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           color: const Color(0xFF1E293B),
         ),
       ),
-      trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
-      onTap: () {
+      trailing: locked
+          ? const Icon(Icons.lock_outline_rounded, size: 16, color: Color(0xFF94A3B8))
+          : const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
+      onTap: () async {
+        if (feature != null &&
+            !await ensurePlan(context, feature, featureLabel: featureLabel ?? title)) {
+          return;
+        }
+        if (!context.mounted) return;
         Navigator.pushNamed(
           context,
           routeName,
@@ -1535,8 +1555,12 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     );
   }
 
-  void _navigateToShiftManagement() {
+  void _navigateToShiftManagement() async {
     if (_selectedLibraryIdToManage == null) return;
+    if (!await ensurePlan(context, AdminFeature.shiftEdit, featureLabel: 'Editing shifts & plans')) {
+      return;
+    }
+    if (!mounted) return;
     Navigator.pushNamed(
       context,
       '/admin/settings/shifts',
@@ -1720,9 +1744,14 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     );
   }
 
-  void _showAmenitiesBottomSheet() {
+  void _showAmenitiesBottomSheet() async {
     final lib = _selectedLibrary;
     if (lib == null) return;
+    if (!await ensurePlan(context, AdminFeature.addonsManage,
+        featureLabel: 'Managing amenities & add-ons')) {
+      return;
+    }
+    if (!mounted) return;
 
     showModalBottomSheet(
       context: context,

@@ -280,7 +280,12 @@ class _MembersSubTabState extends State<MembersSubTab> {
   }
 
   // ── Announce & Export Bulk Actions ─────────────────────────────────────────
-  void _sendBulkAnnouncement() {
+  void _sendBulkAnnouncement() async {
+    if (!await ensurePlan(context, AdminFeature.announcements,
+        featureLabel: 'Bulk announcements')) {
+      return;
+    }
+    if (!mounted) return;
     final messageController = TextEditingController();
     showDialog(
       context: context,
@@ -356,6 +361,11 @@ class _MembersSubTabState extends State<MembersSubTab> {
   // Export the selected members to a real CSV (CsvExporter shares the file).
   // Honest: the OS share/save sheet is the result — no fake "exported ✓".
   Future<void> _exportSelectedMembers() async {
+    if (!await ensurePlan(context, AdminFeature.export,
+        featureLabel: 'Exporting members')) {
+      return;
+    }
+    if (!mounted) return;
     final selected = _membersList.where((m) {
       final mid = m['member_id'] is Map
           ? m['member_id']['id']?.toString()
