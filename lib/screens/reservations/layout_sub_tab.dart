@@ -898,7 +898,8 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     final confirm = await _showCustomConfirmDialog(
       context: context,
       title: 'Delete Seat',
-      content: 'Are you sure you want to delete seat $label permanently?',
+      content: 'Delete seat $label from ALL shifts permanently? '
+          'Any member assigned to it will be unseated (their membership stays).',
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
       icon: Icons.delete_outline,
@@ -907,27 +908,53 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     if (!confirm) return;
 
     try {
-      await supabase.from('seats').delete().eq('id', seatId);
+      // A physical seat = all rows sharing this seat_label in the library, one
+      // per shift. Delete every shift's row so the seat is gone everywhere.
+      final rows = await supabase
+          .from('seats')
+          .select('id')
+          .eq('library_id', widget.libraryId)
+          .eq('seat_label', label);
+      final seatIds = List<Map<String, dynamic>>.from(rows)
+          .map((r) => r['id'].toString())
+          .toList();
+      if (seatIds.isEmpty) seatIds.add(seatId);
+
+      // Unseat any membership pointing at these seat rows (FK is SET NULL, but be
+      // explicit so the member list reflects it immediately).
+      await supabase
+          .from('memberships')
+          .update({'seat_id': null})
+          .inFilter('seat_id', seatIds);
+
+      await supabase.from('seats').delete().inFilter('id', seatIds);
       _fetchSeatsAndSections();
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Seat $label deleted successfully.')),
+        SnackBar(content: Text('Seat $label deleted from all shifts.')),
       );
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting seat: $e')),
+        SnackBar(content: Text('Error deleting seat: ${friendlyError(e)}')),
       );
     }
   }
 
   // ── Show Seat Actions Modal (S031-A & S031-B) ────────────────────────────
   void _showSeatActionsBottomSheet(Map<String, dynamic> seat) {
-    final bool isOccupied = seat['status'] == 'occupied';
+    final String status = (seat['status'] ?? 'vacant').toString();
+    final bool isOccupied = status == 'occupied';
     final member = seat['occupied_by_member_id'];
-    final String memberName = member != null ? member['full_name'] ?? 'Unknown' : 'Vacant Seat';
+    final String memberName = member != null
+        ? member['full_name'] ?? 'Unknown'
+        : status == 'hold'
+            ? 'Reserved'
+            : status == 'maintenance'
+                ? 'Under Maintenance'
+                : 'Vacant Seat';
     final membership = _getMemberMembership(member?['id']);
     final String expiryText = membership != null
         ? 'Expires in ${DateTime.parse(membership['end_date']).difference(DateTime.now()).inDays}d'
@@ -1056,6 +1083,15 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   },
                 ),
               ] else ...[
+                if (status == 'hold' || status == 'maintenance')
+                  ListTile(
+                    leading: const Icon(Icons.event_available_rounded, color: Color(0xFF22C55E)),
+                    title: Text('Mark as Available', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF22C55E))),
+                    trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF22C55E)),
+                    onTap: () {
+                      if (mounted) _markSeatStatus(seat['id'], seat['seat_label'], 'vacant');
+                    },
+                  ),
                 ListTile(
                   leading: const Icon(Icons.person_add_alt, color: Color(0xFF374151)),
                   title: Text('Assign Member', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
@@ -1065,22 +1101,24 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                     if (mounted) _assignMemberToSeat(seat);
                   },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.lock_outline_rounded, color: Color(0xFF374151)),
-                  title: Text('Reserve Seat', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
-                  trailing: const Icon(Icons.chevron_right, size: 16),
-                  onTap: () {
-                    if (mounted) _markSeatStatus(seat['id'], seat['seat_label'], 'hold');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.build_outlined, color: Color(0xFF374151)),
-                  title: Text('Mark for Maintenance', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
-                  trailing: const Icon(Icons.chevron_right, size: 16),
-                  onTap: () {
-                    if (mounted) _markSeatStatus(seat['id'], seat['seat_label'], 'maintenance');
-                  },
-                ),
+                if (status != 'hold')
+                  ListTile(
+                    leading: const Icon(Icons.lock_outline_rounded, color: Color(0xFF374151)),
+                    title: Text('Reserve Seat', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
+                    trailing: const Icon(Icons.chevron_right, size: 16),
+                    onTap: () {
+                      if (mounted) _markSeatStatus(seat['id'], seat['seat_label'], 'hold');
+                    },
+                  ),
+                if (status != 'maintenance')
+                  ListTile(
+                    leading: const Icon(Icons.build_outlined, color: Color(0xFF374151)),
+                    title: Text('Mark for Maintenance', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
+                    trailing: const Icon(Icons.chevron_right, size: 16),
+                    onTap: () {
+                      if (mounted) _markSeatStatus(seat['id'], seat['seat_label'], 'maintenance');
+                    },
+                  ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
@@ -3235,7 +3273,8 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
     final confirm = await _showCustomConfirmDialog(
       context: context,
       title: 'Delete Seat',
-      content: 'Delete seat "$label"? This cannot be undone.',
+      content: 'Delete seat "$label" from ALL shifts? Any assigned member will be '
+          'unseated (their membership stays). This cannot be undone.',
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
       icon: Icons.delete_outline,
@@ -3245,11 +3284,25 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
 
     setState(() => _isLoading = true);
     try {
-      await supabase.from('seats').delete().eq('id', seatId);
+      // Delete this physical seat across every shift (one row per shift).
+      final rows = await supabase
+          .from('seats')
+          .select('id')
+          .eq('library_id', widget.libraryId)
+          .eq('seat_label', label);
+      final seatIds = List<Map<String, dynamic>>.from(rows)
+          .map((r) => r['id'].toString())
+          .toList();
+      if (seatIds.isEmpty) seatIds.add(seatId);
+      await supabase
+          .from('memberships')
+          .update({'seat_id': null})
+          .inFilter('seat_id', seatIds);
+      await supabase.from('seats').delete().inFilter('id', seatIds);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Seat "$label" deleted successfully! ✓')),
+        SnackBar(content: Text('Seat "$label" deleted from all shifts ✓')),
       );
 
       _fetchTreeData();
@@ -3257,7 +3310,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting seat: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting seat: ${friendlyError(e)}')));
     }
   }
 
