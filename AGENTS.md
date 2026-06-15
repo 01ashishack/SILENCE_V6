@@ -73,22 +73,34 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
 
 ## 5. Current state (keep this in sync)
 
-- Branch `main`. Latest committed app/remediation checkpoint: `52493b4` (member-profile fixes +
-  payments RLS hotfix + GitLab Duo handoff docs). Earlier: `3c78d4d` (docs sync + AGENTS.md +
-  wizard seat-occupy-before-payment), `30da253` (reservation-tab + four-problem fix), `df70f7b`
-  (UI honesty + Phase B + Phase C).
-  HEAD matches `origin/main` as of that checkpoint.
+- Branch `main`. Latest committed checkpoint: **`2a55f4d`** (2026-06-15) — a large
+  reservation/attendance/requests batch (seat overhaul batches 2–3, reservation-tab fixes,
+  manual-attendance rework, admin renew sheet, requests payment/join decoupling, admin-home
+  attendance redesign, permanent eligibility-gated member QR FAB). Earlier: `e24ea40` (seat
+  overhaul batch 1). HEAD is **ahead of `origin/main` by 13 commits (not pushed)**.
 - **Phase C** schema reconciliation: authored AND **applied to the live DB** (6 new tables RLS-on) —
-  see `docs_fix/PHASE_C_SCHEMA.md`.
-- **⛔ Pending live-DB action — payments RLS hotfix:** run
-  `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql` (adds an owner-scoped INSERT policy
-  on `payments`). Until applied, adding a member fails with "You don't have permission" (42501) and the
-  Payments tab stays empty — a pure RLS gap; no app-side fix exists.
-- **Uncommitted working tree:** the 2026-06-12 member-profile batch is committed in `52493b4`.
-  Nothing is uncommitted except local-only `.claude/settings.local.json`, which is ignored and should
-  stay out of commits. Run `git status` first.
-- Next candidates (user-directed, NOT automatic — confirm scope first): apply the payments hotfix +
-  on-device smoke test; then security/RLS Wave 0/1 (needs live DB), FCM push, real payments, OTP.
+  see `docs_fix/PHASE_C_SCHEMA.md`. Earlier payments/users RLS hotfixes also applied.
+- **⛔ Pending live-DB action — apply this migration:**
+  `silence_app/migrations/2026-06-15_join_requests_payment_status.sql` (adds `join_requests.payment_status`
+  and allows `status='withdrawn'`). Until applied: the requests **Reject-Pay/Confirm-Pay** flow,
+  member **Withdraw Application**, and the **rejected-request card** will error/no-op (the DB CHECK
+  rejects the new values). Folded into canonical `supabase_schema.sql`.
+- **Uncommitted working tree:** clean except local-only `devtools_options.yaml` (IDE-generated;
+  keep out of commits) — run `git status` first.
+- What's covered by `2a55f4d` (details in `docs_fix/LAYOUT_SEAT_OVERHAUL.md` + `RESERVATION_FIXES_2026-06-15.md`):
+  All-Shifts seat dedupe + per-shift action sheet + day booking strip; time-overlap seat
+  availability; orphaned-shift filtering; selector "All" only when >1; strip trailing "Shift" from
+  names; occupied-seats-first ordering; seat-sheet scroll/overflow fix; **one smart manual
+  check-in/out** (flagged `manual`, notifies member, future-time bug fixed); **"Manual" tag** in
+  analytics/history/CSV/PDF (both panels); members **"No Seat"** filter + **Assign Seat**; **admin
+  direct Renew sheet**; requests **payment-verify decoupled from join reject** (honest computed
+  amount); member **rejected-request card** + **soft withdraw**; admin-home **Today's Attendance**
+  redesign (profile photos + check-in/out times on a white card, separate In/Out entries);
+  **permanent eligibility-gated QR FAB** on member home.
+- Next candidates (user-directed — confirm scope first): apply the 2026-06-15 migration + on-device
+  smoke test; optional DB cleanup of orphaned `seats` rows; FCM push; real payments; OTP; security
+  RLS Wave 0/1.
+
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,

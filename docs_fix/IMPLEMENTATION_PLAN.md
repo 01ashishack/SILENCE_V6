@@ -353,3 +353,16 @@ member always sees the true state of their request/membership.
 ---
 
 *This plan is intentionally incremental — we land one screen-group at a time so nothing big breaks.*
+
+
+
+---
+
+## Post-plan work log (where the latest work is documented)
+The 3-phase plan above is complete; ongoing user-directed work is logged in dedicated docs:
+- **`LAYOUT_SEAT_OVERHAUL.md`** — admin seat-layout overhaul (batches 1–3 + round-2 screenshot fixes).
+- **`RESERVATION_FIXES_2026-06-15.md`** — reservation/attendance/requests batch committed in `2a55f4d`
+  (manual attendance, "Manual" tag, admin renew sheet, requests payment/join decoupling, admin-home
+  attendance redesign, permanent eligibility-gated member QR FAB). ⛔ Includes a **pending migration**:
+  `silence_app/migrations/2026-06-15_join_requests_payment_status.sql`.
+- See `CLAUDE.md` §0 + `AGENTS.md` §5 for the canonical current state.

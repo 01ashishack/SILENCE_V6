@@ -119,3 +119,23 @@ file + project-wide).
 - **Not changed (out of Batch 2 scope):** overview "Total/Available" counts remain library-wide
   per-shift-row counts (a different scope from the floor grid; pre-existing, not newly dishonest).
 - **⚠️ Verification:** static analysis only — no on-device test of the All-Shifts grid/sheet yet.
+
+
+
+---
+
+## Round 2 — screenshot follow-ups (2026-06-15, committed `2a55f4d`)
+After batches 1–3, the user reported more issues from screenshots. Fixed (full detail in
+`RESERVATION_FIXES_2026-06-15.md`):
+- **Seat-sheet bottom overflow** (3.3px) → sheet wrapped in `SingleChildScrollView`.
+- **Phantom shifts** — orphaned seat rows (shift deleted) showed as "Shift"; now filtered out via
+  `_validShiftSeats` in the All-Shifts view.
+- **Selector** — "All" only shows when >1 floor/shift; default "All" when multiple, else the single
+  item.
+- **All-Shifts sheet** restored actionable per-shift rows + a compact **day booking strip**
+  (open→close) replacing the tall read-only "Status by shift" list.
+- **Occupied seats first** in the grid (`_getFilteredSeats` sort) — they were buried at the end.
+- **Manual check-in/out merged** into one smart toggle; future-time bug fixed; flagged + notifies.
+
+The seat model work here is the basis for the time-overlap helper (`lib/utils/shift_overlap.dart`)
+and the admin-home / requests / renew changes documented in `RESERVATION_FIXES_2026-06-15.md`.

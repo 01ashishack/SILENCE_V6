@@ -215,7 +215,38 @@
   Canonical `supabase_schema.sql` is self-contained + idempotent (re-runnable; drops policies/triggers
   first). If the project ref changed, update `lib/core/supabase_config.dart` URL+anon key.
 
+- **Reservation / attendance / requests overhaul (2026-06-15, committed `2a55f4d`):** full detail in
+  `docs_fix/LAYOUT_SEAT_OVERHAUL.md` + `docs_fix/RESERVATION_FIXES_2026-06-15.md`.
+  - **Seat layout:** All-Shifts dedupe (one tile per physical seat) + per-shift action sheet + a
+    compact **day booking strip** (open→close booked/free); **time-overlap availability**
+    (`lib/utils/shift_overlap.dart` — a full-day booking blocks overlapping shifts); **orphaned-shift
+    filtering** (rows for deleted shifts no longer show as phantom "Shift"); selector **"All" only when
+    >1** (default All when multiple); strip trailing **"Shift"** from shift names; **occupied seats
+    first** in the grid; seat-sheet **scroll/overflow** fix.
+  - **Manual attendance:** one **smart Check-In/Out** toggle (open session → checkout, else check-in;
+    no duplicates), **flagged** `session_type='manual'`, **notifies** the member, time picker, and the
+    **future-time bug fixed** (no +1-day rollover). A **"Manual" tag** now shows in member/admin
+    analytics, history, and CSV/PDF exports (`lib/utils/attendance_format.dart`).
+  - **Admin home Today's Attendance:** removed the shift filter; **profile-photo circles** with
+    **check-in/out time** on a **white card**, horizontal slider, newest first, **separate In/Out
+    entries** (a checkout no longer mutates the check-in tile).
+  - **Members/Requests:** **"No Seat"** filter replaces "Trial" + **Assign Seat** 3-dots action;
+    **admin direct Renew sheet** (`admin_renew_sheet.dart` — extend end_date + record payment + notify +
+    audit) instead of routing to the profile; **payment-verify decoupled from join reject**
+    (Reject-Pay marks `payment_status='rejected'` + notifies + keeps the request pending; Confirm-Pay
+    persists `verified`); **honest computed amount** (no hardcoded ₹1,500); member **rejected-request
+    card** (reason + Apply again / Contact admin) + **soft withdraw** (`status='withdrawn'`).
+  - **Member home:** **permanent QR FAB** that's **eligibility-gated** (scans when active/trial/
+    expiring or expired-with-allow; otherwise shows a contextual warning).
+  - **⛔ NEW migration to apply:** `silence_app/migrations/2026-06-15_join_requests_payment_status.sql`
+    (adds `join_requests.payment_status` + allows `status='withdrawn'`; folded into canonical schema).
+    Withdraw / Reject-Pay / Confirm-Pay / rejected-card all **no-op or error until it is applied**.
+  - `flutter analyze`: **0 issues** (project-wide). Static-analysis only — not device-tested.
+
 ### Next action (when the user says "continue"/"GO")
+- **⛔ APPLY FIRST:** `silence_app/migrations/2026-06-15_join_requests_payment_status.sql` (gates the
+  requests payment flow + member withdraw + rejected-card). Then on-device smoke-test the 2026-06-15
+  batch (seat layout, manual attendance, renew, requests, admin-home attendance, member QR FAB).
 - **Both RLS hotfixes are now APPLIED** to the live DB:
   - `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql` — cleared the add-member "permission" error.
   - `silence_app/migrations/2026-06-12_users_owner_update_rls.sql` — allowed member photos + ID docs to persist.
