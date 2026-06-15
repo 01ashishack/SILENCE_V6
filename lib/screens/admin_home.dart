@@ -717,32 +717,72 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       final attendanceRes = await supabase
           .from('attendance')
           .select(
-            'check_in_time, check_out_time, member_id(full_name), memberships(seats(seat_label))',
+            'check_in_time, check_out_time, member_id(id, full_name, photo_url), memberships(seats(seat_label))',
           )
           .eq('library_id', libId)
           .gte('check_in_time', startOfDay)
           .lt('check_in_time', endOfDay)
           .order('check_in_time', ascending: false)
-          .limit(20);
+          .limit(50);
 
-      _todayAttendance = List<Map<String, dynamic>>.from(attendanceRes).map((
-        row,
-      ) {
+      // Build SEPARATE check-in and check-out entries (a member who checked in
+      // and out appears twice: one "In" at their check-in time and one "Out" at
+      // their check-out time). At most one In and one Out per member (latest of
+      // each), all sorted newest-event-first.
+      final seenIn = <String>{};
+      final seenOut = <String>{};
+      final events = <Map<String, dynamic>>[];
+      String fmt(String? raw) {
+        if (raw == null || raw.isEmpty) return '';
+        try {
+          return DateFormat('hh:mm a').format(DateTime.parse(raw).toLocal());
+        } catch (_) {
+          return '';
+        }
+      }
+
+      for (final row in List<Map<String, dynamic>>.from(attendanceRes)) {
         final member = row['member_id'];
+        final memberId = member is Map ? member['id']?.toString() : null;
+        final name = member is Map ? (member['full_name'] ?? 'Member').toString() : 'Member';
+        final photo = member is Map ? (member['photo_url'] ?? '').toString() : '';
         final membership = row['memberships'];
         final seat = membership is Map ? membership['seats'] : null;
-        final name = member is Map
-            ? (member['full_name'] ?? 'Member').toString()
-            : 'Member';
-        final seatLabel = seat is Map
-            ? (seat['seat_label'] ?? '').toString()
-            : '';
-        return {
-          'name': name,
-          'seat': seatLabel.isNotEmpty ? seatLabel : 'No Seat',
-          'status': row['check_out_time'] == null ? 'in' : 'out',
-        };
-      }).toList();
+        final seatLabel = seat is Map ? (seat['seat_label'] ?? '').toString() : '';
+        final ciRaw = row['check_in_time']?.toString();
+        final coRaw = row['check_out_time']?.toString();
+
+        // Check-in entry (latest per member).
+        if (ciRaw != null && (memberId == null || !seenIn.contains(memberId))) {
+          if (memberId != null) seenIn.add(memberId);
+          events.add({
+            'name': name,
+            'photo': photo,
+            'seat': seatLabel.isNotEmpty ? seatLabel : 'No Seat',
+            'status': 'in',
+            'time': fmt(ciRaw),
+            '_sort': DateTime.tryParse(ciRaw) ?? DateTime(1970),
+          });
+        }
+        // Check-out entry (latest per member), only if they actually checked out.
+        if (coRaw != null && coRaw.isNotEmpty && (memberId == null || !seenOut.contains(memberId))) {
+          if (memberId != null) seenOut.add(memberId);
+          events.add({
+            'name': name,
+            'photo': photo,
+            'seat': seatLabel.isNotEmpty ? seatLabel : 'No Seat',
+            'status': 'out',
+            'time': fmt(coRaw),
+            '_sort': DateTime.tryParse(coRaw) ?? DateTime(1970),
+          });
+        }
+      }
+
+      events.sort((a, b) => (b['_sort'] as DateTime).compareTo(a['_sort'] as DateTime));
+      for (final e in events) {
+        e.remove('_sort');
+      }
+      _todayAttendance = events;
     } catch (e) {
       debugPrint('Error loading today attendance: $e');
       _todayAttendance = [];
@@ -1870,7 +1910,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   // State variables for Operational Mode Dashboard
   int _carouselIndex = 0;
-  String _selectedShiftFilter = 'All';
 
   List<Map<String, dynamic>> _todayAttendance = [];
 
@@ -3904,6 +3943,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
+  Widget _attendanceInitial(String? name) {
+    final n = (name ?? '').trim();
+    return Container(
+      color: const Color(0xFFFFF3ED),
+      alignment: Alignment.center,
+      child: Text(
+        n.isNotEmpty ? n[0].toUpperCase() : '?',
+        style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+      ),
+    );
+  }
+
   Widget _buildAttendanceStrip() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3930,51 +3981,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           ],
         ),
         const SizedBox(height: 12),
-
-        // Shift filter chips
-        SizedBox(
-          height: 32,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: ['All Shifts', 'Morning', 'Evening', 'Custom'].map((
-              shift,
-            ) {
-              final isSelected = _selectedShiftFilter == shift;
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedShiftFilter = shift;
-                  });
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFE65C00) : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: isSelected
-                        ? null
-                        : Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Text(
-                    shift,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected
-                          ? Colors.white
-                          : const Color(0xFF6B7280),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        const SizedBox(height: 16),
 
         // Horizontal Avatars scroll or Empty State
         _todayAttendance.isEmpty
@@ -4006,10 +4012,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   ),
                 ),
               )
-            : SizedBox(
-                height: 90,
+            : Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: SizedBox(
+                height: 96,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemCount: _todayAttendance.length,
                   itemBuilder: (context, index) {
                     final student = _todayAttendance[index];
@@ -4042,22 +4056,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                     width: 2.5,
                                   ),
                                 ),
-                                child: CircleAvatar(
-                                  backgroundColor: const Color(0xFFFFF3ED),
-                                  child: Text(
-                                    (() {
-                                      final nameStr = student['name']
-                                          ?.toString();
-                                      return (nameStr != null &&
-                                              nameStr.isNotEmpty)
-                                          ? nameStr[0]
-                                          : '?';
-                                    })(),
-                                    style: GoogleFonts.outfit(
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFFE65C00),
-                                    ),
-                                  ),
+                                child: ClipOval(
+                                  child: (() {
+                                    final photo = (student['photo'] ?? '').toString();
+                                    if (photo.isNotEmpty) {
+                                      return Image.network(
+                                        photo,
+                                        width: 52,
+                                        height: 52,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) => _attendanceInitial(student['name']?.toString()),
+                                      );
+                                    }
+                                    return _attendanceInitial(student['name']?.toString());
+                                  })(),
                                 ),
                               ),
                               if (hasOverlay)
@@ -4091,18 +4103,25 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          Text(
-                            student['seat']?.toString() ?? 'No Seat',
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              color: const Color(0xFFE65C00),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Builder(builder: (_) {
+                            final bool isIn = student['status'] == 'in';
+                            final String time = (student['time'] ?? '').toString();
+                            return Text(
+                              time.isNotEmpty ? '${isIn ? 'In' : 'Out'} · $time' : (isIn ? 'In' : 'Out'),
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                color: isIn ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          }),
                         ],
                       ),
                     );
                   },
+                ),
                 ),
               ),
       ],

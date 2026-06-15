@@ -11,7 +11,9 @@ import '../../services/draft_service.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/csv_exporter.dart';
+import '../../utils/shift_overlap.dart';
 import 'member_transfer_screen.dart';
+import 'admin_renew_sheet.dart';
 import '../../widgets/states/shimmer_box.dart';
 
 enum MemberListItemType {
@@ -50,7 +52,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
 
   // Search & Filter state
   final _searchController = TextEditingController();
-  String _activeFilter = 'All'; // All, Active, Pending, Expired, Hold, Trial, Pending Drafts
+  String _activeFilter = 'All'; // All, Active, Pending, Expired, Hold, No Seat, Pending Drafts
   bool _isSearching = false;
   String _selectedSort = 'joining_desc';
 
@@ -507,6 +509,10 @@ class _MembersSubTabState extends State<MembersSubTab> {
     final String name = member['full_name']?.toString() ?? 'Member';
     final String status = (membership['status'] ?? 'pending').toString();
     final bool isHold = status == 'hold';
+    final bool hasSeat = membership['seat_id'] != null &&
+        membership['seat_id'].toString().isNotEmpty;
+    // Only a live, seat-eligible member without a seat can be assigned one.
+    final bool canAssignSeat = !hasSeat && (status == 'active' || status == 'trial');
 
     showModalBottomSheet(
       context: context,
@@ -536,13 +542,25 @@ class _MembersSubTabState extends State<MembersSubTab> {
               ListTile(
                 leading: const Icon(Icons.autorenew, color: Color(0xFFE65C00)),
                 title: Text('Renew', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-                subtitle: Text('Open profile to renew', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
-                onTap: () {
+                subtitle: Text('Extend membership + record payment', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                onTap: () async {
                   Navigator.pop(sheetCtx);
-                  Navigator.pushNamed(context, '/admin/member', arguments: memberId)
-                      .then((_) => _fetchMembers(isRefresh: true));
+                  final ok = await showAdminRenewSheet(context, membership: membership);
+                  if (ok == true) _fetchMembers(isRefresh: true);
                 },
               ),
+              if (canAssignSeat) ...[
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.event_seat_rounded, color: Color(0xFF22C55E)),
+                  title: Text('Assign Seat', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: Text('No seat yet — pick a vacant seat in their shift', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _assignSeatToMember(membership);
+                  },
+                ),
+              ],
               const Divider(height: 1),
               ListTile(
                 leading: Icon(isHold ? Icons.play_arrow_rounded : Icons.pause_rounded, color: const Color(0xFFD97706)),
@@ -589,6 +607,178 @@ class _MembersSubTabState extends State<MembersSubTab> {
         );
       },
     );
+  }
+
+  // Assign a vacant seat (in the member's own shift) to a seatless member:
+  // occupies the seat, sets membership.seat_id, notifies, audits, refreshes.
+  // Skips seats whose physical chair is taken in a time-overlapping shift.
+  Future<void> _assignSeatToMember(Map<String, dynamic> membership) async {
+    final member = membership['member_id'];
+    final String memberId = member?['id']?.toString() ?? '';
+    final String name = member?['full_name']?.toString() ?? 'Member';
+    final String membershipId = membership['id']?.toString() ?? '';
+    final String libraryId = membership['library_id']?.toString() ?? '';
+    final String? shiftId = membership['shift_id']?.toString();
+    if (membershipId.isEmpty || shiftId == null || shiftId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This member has no shift configured.')),
+      );
+      return;
+    }
+
+    // Vacant seats in the member's own shift.
+    List<Map<String, dynamic>> vacant = [];
+    try {
+      final res = await supabase
+          .from('seats')
+          .select('id, seat_label, status')
+          .eq('library_id', libraryId)
+          .eq('shift_id', shiftId)
+          .eq('status', 'vacant');
+      vacant = List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red[600]),
+      );
+      return;
+    }
+
+    // Drop seats whose physical chair is taken in a time-overlapping shift.
+    if (vacant.isNotEmpty) {
+      try {
+        final shiftsRes = await supabase
+            .from('shifts')
+            .select('id, start_time, end_time')
+            .eq('library_id', libraryId);
+        final blocked = await blockedSeatLabels(
+          supabase,
+          libraryId: libraryId,
+          targetShiftId: shiftId,
+          allShifts: List<Map<String, dynamic>>.from(shiftsRes),
+          candidateLabels: vacant.map((s) => s['seat_label'].toString()).toList(),
+        );
+        if (blocked.isNotEmpty) {
+          vacant = vacant
+              .where((s) => !blocked.contains(s['seat_label'].toString()))
+              .toList();
+        }
+      } catch (e) {
+        debugPrint('Assign-seat overlap check failed: $e');
+      }
+    }
+
+    if (!mounted) return;
+    if (vacant.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No vacant seats available in this member's shift.")),
+      );
+      return;
+    }
+
+    vacant.sort((a, b) =>
+        a['seat_label'].toString().compareTo(b['seat_label'].toString()));
+
+    final chosen = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Assign a seat to $name',
+                  style: GoogleFonts.outfit(
+                      fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text("Vacant seats in this member's shift:",
+                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: vacant
+                    .map((s) => ListTile(
+                          leading: const Icon(Icons.event_seat, color: Color(0xFF22C55E)),
+                          title: Text('Seat ${s['seat_label']}',
+                              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                          trailing: const Icon(Icons.chevron_right, size: 16),
+                          onTap: () => Navigator.pop(ctx, s),
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+
+    if (chosen == null) return;
+    final seatId = chosen['id'].toString();
+    final label = (chosen['seat_label'] ?? 'seat').toString();
+
+    try {
+      // Re-validate the seat is still vacant (avoid a race).
+      final check = await supabase.from('seats').select('status').eq('id', seatId).single();
+      if (check['status'] != 'vacant') {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('That seat was just taken. Try another.')),
+        );
+        return;
+      }
+
+      await supabase.from('seats').update({
+        'status': 'occupied',
+        'occupied_by_member_id': memberId,
+      }).eq('id', seatId);
+      await supabase.from('memberships').update({
+        'seat_id': seatId,
+      }).eq('id', membershipId);
+
+      if (memberId.isNotEmpty) {
+        await supabase.from('notifications').insert({
+          'user_id': memberId,
+          'title': 'Seat assigned',
+          'body': 'You have been assigned seat $label by the admin.',
+          'data': {'type': 'seat_assigned'},
+        });
+      }
+
+      await AuditLogger.instance.log(
+        action: 'seat_assign',
+        category: AuditLogger.categoryMembers,
+        title: 'Assigned seat',
+        details: '$name → seat $label',
+        libraryId: libraryId.isEmpty ? null : libraryId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$name assigned to seat $label. Member notified.'),
+            backgroundColor: const Color(0xFFE65C00),
+          ),
+        );
+        _fetchMembers(isRefresh: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red[600]),
+        );
+      }
+    }
   }
 
   // Hold or resume a membership: flip status + the seat's status, notify, audit.
@@ -1087,8 +1277,15 @@ class _MembersSubTabState extends State<MembersSubTab> {
       }).toList();
     } else if (_activeFilter == 'Hold') {
       list = list.where((m) => m['status'] == 'hold').toList();
-    } else if (_activeFilter == 'Trial') {
-      list = list.where((m) => m['status'] == 'trial').toList();
+    } else if (_activeFilter == 'No Seat') {
+      // Live members (active/trial) who currently have no seat — removed from a
+      // seat or never assigned one. Pairs with the "Assign Seat" action.
+      list = list.where((m) {
+        final status = (m['status'] ?? '').toString();
+        final seatId = m['seat_id'];
+        final hasSeat = seatId != null && seatId.toString().isNotEmpty;
+        return (status == 'active' || status == 'trial') && !hasSeat;
+      }).toList();
     }
 
     // 5. Sorting
@@ -1710,7 +1907,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                       _buildFilterChip('Pending'),
                       _buildFilterChip('Expired'),
                       _buildFilterChip('Hold'),
-                      _buildFilterChip('Trial'),
+                      _buildFilterChip('No Seat'),
                       _buildFilterChip('Pending Drafts'),
                     ],
                   ),

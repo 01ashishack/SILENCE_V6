@@ -7,7 +7,6 @@
 --   relation \"users\" violates not-null constraint". The Supabase Auth user is
 --   created anyway, so tapping Create Account again says "already registered",
 --   but no public.users profile row exists.
---
 -- ROOT CAUSE
 --   The signup flow (auth_screen.dart:_handleSignup) creates the auth user, then
 --   inserts public.users with role = NULL on purpose, and routes to /role-select

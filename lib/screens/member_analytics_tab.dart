@@ -5,6 +5,7 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/member_analytics_service.dart';
 import '../utils/csv_exporter.dart';
+import '../utils/attendance_format.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/shimmer_box.dart';
 
@@ -1530,21 +1531,33 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: log['session_type'] == 'incomplete' ? const Color(0xFFFFF1F2) : const Color(0xFFEFF6FF),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    log['session_type'].toString().toUpperCase(),
-                                    style: GoogleFonts.inter(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      color: log['session_type'] == 'incomplete' ? const Color(0xFFE11D48) : const Color(0xFF2563EB),
+                                Builder(builder: (_) {
+                                  final tag = attendanceTag(log['session_type']);
+                                  final bool incomplete = log['session_type'] == 'incomplete';
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: incomplete
+                                          ? const Color(0xFFFFF1F2)
+                                          : tag.isManual
+                                              ? const Color(0xFFFFF7E6)
+                                              : const Color(0xFFEFF6FF),
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
-                                  ),
-                                ),
+                                    child: Text(
+                                      tag.label.toUpperCase(),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: incomplete
+                                            ? const Color(0xFFE11D48)
+                                            : tag.isManual
+                                                ? const Color(0xFFB45309)
+                                                : const Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                  );
+                                }),
                               ],
                             ),
                             const Divider(height: 20),

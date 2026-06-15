@@ -4,6 +4,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 
+import 'attendance_format.dart';
+
 class PdfExporter {
   static Future<pw.MemoryImage?> _loadLogo() async {
     try {
@@ -146,13 +148,13 @@ class PdfExporter {
                 duration = '${hrs}h ${mins}m';
               }
 
-              return [name, seat, checkin, checkout, shift, duration];
+              return [name, seat, checkin, checkout, shift, duration, attendanceTag(l['session_type']).label];
             }).toList();
 
             elements.add(
               _buildTable(
                 context: context,
-                headers: ['Member Name', 'Seat', 'Check-In', 'Check-Out', 'Shift', 'Duration'],
+                headers: ['Member Name', 'Seat', 'Check-In', 'Check-Out', 'Shift', 'Duration', 'Type'],
                 data: tableData,
               ),
             );

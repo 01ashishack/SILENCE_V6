@@ -32,6 +32,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   // Local state tracking for UPI confirmations (Request ID -> confirmed in UI)
   final Set<String> _confirmedPaymentsInUi = {};
 
+  // Honest per-request amount (plan price − discount), Request ID -> ₹. Computed
+  // in _fetchRequests so the card shows a real figure (not a hardcoded one).
+  Map<String, int> _requestAmounts = {};
+
   // Realtime subscription channels
   RealtimeChannel? _requestsChannel;
 
@@ -141,11 +145,29 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           .eq('status', 'pending')
           .order('created_at', ascending: true);
 
+      final joinList = List<Map<String, dynamic>>.from(joinRes);
+
+      // Honest amount per join request (plan price − discount). Low volume
+      // (pending only), so a per-request lookup is fine.
+      final Map<String, int> amounts = {};
+      for (final r in joinList) {
+        try {
+          amounts[r['id'].toString()] = await _computeApprovalAmount(
+            shiftId: r['shift_id']?.toString(),
+            planType: (r['plan_type'] ?? 'monthly').toString(),
+            discount: (r['discount_amount'] as int?) ?? 0,
+          );
+        } catch (e) {
+          debugPrint('amount compute failed: $e');
+        }
+      }
+
       if (mounted) {
         setState(() {
-          _joinRequests = List<Map<String, dynamic>>.from(joinRes);
+          _joinRequests = joinList;
           _seatChangeRequests = List<Map<String, dynamic>>.from(changeRes);
           _holdRequests = List<Map<String, dynamic>>.from(holdRes);
+          _requestAmounts = amounts;
           _isLoading = false;
         });
       }
@@ -156,31 +178,60 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   }
 
   // ── Confirm / Reject Payments ─────────────────────────────────────────────
-  void _confirmPayment(String requestId) {
-    setState(() {
-      _confirmedPaymentsInUi.add(requestId);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Payment confirmed! Approve button enabled. ✓')),
-    );
-  }
-
-  Future<void> _rejectPayment(String requestId) async {
+  // Payment verification is now SEPARATE from the membership decision. It only
+  // sets join_requests.payment_status; the request stays pending either way, so
+  // the admin can still Approve/Reject. Only the membership Reject cancels it.
+  Future<void> _confirmPayment(String requestId) async {
     try {
       await supabase.from('join_requests').update({
-        'status': 'rejected',
-        'rejection_reason': 'Payment verification failed',
+        'payment_status': 'verified',
       }).eq('id', requestId);
-
+      if (mounted) setState(() => _confirmedPaymentsInUi.add(requestId));
       _fetchRequests();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment rejected and request cancelled.')),
+        const SnackBar(content: Text('Payment verified. You can approve now. ✓')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('Error: ${friendlyError(e)}')),
+      );
+    }
+  }
+
+  Future<void> _rejectPayment(Map<String, dynamic> request) async {
+    final requestId = request['id']?.toString() ?? '';
+    final memberId = request['member_id']?['id']?.toString();
+    if (requestId.isEmpty) return;
+    try {
+      // Mark the payment unverified — do NOT cancel the join request.
+      await supabase.from('join_requests').update({
+        'payment_status': 'rejected',
+      }).eq('id', requestId);
+      if (mounted) setState(() => _confirmedPaymentsInUi.remove(requestId));
+
+      // Honest: notify the member their payment wasn't verified so they re-pay.
+      if (memberId != null) {
+        await _notifyMember(
+          memberId: memberId,
+          title: 'Payment not verified',
+          message: "We couldn't verify your payment for the join request. "
+              'Please pay again and re-upload the proof — your request is still '
+              'pending and will be reviewed once payment is confirmed.',
+          type: 'payment_rejected',
+        );
+      }
+
+      _fetchRequests();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment marked unverified. Member notified to re-pay. Request kept pending.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${friendlyError(e)}')),
       );
     }
   }
@@ -951,9 +1002,12 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     final String upiProof = request['payment_proof_url'] ?? '';
     final String upiSender = request['upi_sender_name'] ?? '';
 
-    // Payment proof confirmation status
+    // Payment proof confirmation status (persisted on the request now).
     final bool isUpi = payMethod.toLowerCase() == 'upi';
-    final bool isPaymentConfirmed = !isUpi || _confirmedPaymentsInUi.contains(reqId);
+    final String paymentStatus = (request['payment_status'] ?? 'unverified').toString();
+    final bool isPaymentConfirmed = !isUpi ||
+        paymentStatus == 'verified' ||
+        _confirmedPaymentsInUi.contains(reqId);
 
     // Calculate aging in days
     final DateTime createdAt = DateTime.parse(request['created_at']);
@@ -1083,7 +1137,16 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                       children: [
                         Text('Sender: $upiSender', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF334155))),
                         const SizedBox(height: 4),
-                        Text('Amount: ₹1,500', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[600])),
+                        Text(
+                          () {
+                            final amt = _requestAmounts[reqId];
+                            final hasAddons = (request['selected_addon_ids'] is List) &&
+                                (request['selected_addon_ids'] as List).isNotEmpty;
+                            if (amt == null) return 'Amount: as per plan';
+                            return hasAddons ? 'Amount: ₹$amt + add-ons' : 'Amount: ₹$amt';
+                          }(),
+                          style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[600]),
+                        ),
                       ],
                     ),
                   ),
@@ -1095,7 +1158,22 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           const SizedBox(height: 16),
 
           // Payment Confirm Buttons (UPI verification steps)
-          if (isUpi && !_confirmedPaymentsInUi.contains(reqId)) ...[
+          if (isUpi && !isPaymentConfirmed) ...[
+            if (paymentStatus == 'rejected') ...[
+              Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFD97706)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Payment was marked unverified — awaiting the member to re-pay.',
+                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFB45309), fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
             Row(
               children: [
                 Expanded(
@@ -1108,7 +1186,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => _rejectPayment(reqId),
+                    onPressed: () => _rejectPayment(request),
                     style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
                     child: Text('Reject Pay', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red)),
                   ),

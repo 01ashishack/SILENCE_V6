@@ -61,6 +61,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   List<Map<String, dynamic>> _pastMemberships = [];
   List<Map<String, dynamic>> _allMemberships = [];
   Map<String, dynamic>? _pendingRequest;
+  // Most recent join request that was rejected by an admin — surfaced (with the
+  // reason + re-apply) when the member has no membership and no pending request.
+  Map<String, dynamic>? _rejectedRequest;
   List<Map<String, dynamic>> _announcements = [];
   Set<String> _readAnnouncementIds = {};
   int _unreadNotifications = 0; // unread rows in notifications table (header bell badge)
@@ -240,6 +243,15 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           .eq('status', 'pending')
           .order('created_at', ascending: false);
 
+      final rejectedReqFuture = supabase
+          .from('join_requests')
+          .select('*, libraries(*)')
+          .eq('member_id', currentUser.id)
+          .eq('status', 'rejected')
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
       final membershipsFuture = supabase
           .from('memberships')
           .select('*, libraries(*), shifts(*), seats(*)')
@@ -276,6 +288,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         attendanceFuture,
         lastCompletedFuture,
         exploreFuture,
+        rejectedReqFuture,
       ]);
 
       if (!mounted) return;
@@ -284,6 +297,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       
       final pendingReqs = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
       _pendingRequest = pendingReqs.isNotEmpty ? pendingReqs.first : null;
+      _rejectedRequest = results[6] as Map<String, dynamic>?;
 
       final allMemberships = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
       _allMemberships = allMemberships;
@@ -1165,7 +1179,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           ),
           floatingActionButton: _shouldShowFAB()
               ? FloatingActionButton(
-                  onPressed: _openQRScanner,
+                  onPressed: _onScanFabPressed,
                   backgroundColor: const Color(0xFFE65C00),
                   foregroundColor: Colors.white,
                   shape: const CircleBorder(),
@@ -1191,34 +1205,71 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   bool get _isPendingDeletion => _userProfile?['scheduled_for_deletion'] == true;
 
   bool _shouldShowFAB() {
-    if (_currentBottomTab != 0) return false;
-    // No check-in while pending deletion, or on a holiday (library closed).
-    if (_isPendingDeletion) return false;
-    if (_primaryLibraryHoliday != null) return false;
+    // Permanent on the Home tab. Eligibility is enforced on tap (with a clear
+    // warning) instead of hiding the button, so members always know where the
+    // scanner is.
+    return _currentBottomTab == 0;
+  }
+
+  /// Returns a warning message when the member is NOT eligible to scan
+  /// (check-in/out), or null when they are eligible.
+  String? _scanIneligibleReason() {
+    if (_isPendingDeletion) {
+      return 'Check-in is disabled while your account deletion is pending. Cancel the request in Privacy & Security to continue.';
+    }
+    if (_primaryLibraryHoliday != null) {
+      return 'The library is closed today (holiday), so check-in is unavailable.';
+    }
     final state = _getMemberState();
-    if (state == MemberState.active || state == MemberState.trial || state == MemberState.expiringSoon) {
-      return true;
-    }
-    if (state == MemberState.expired) {
-      final expiredM = _allMemberships.firstWhere(
-        (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(DateTime.now())),
-        orElse: () => {},
-      );
-      if (expiredM.isNotEmpty) {
-        final lib = expiredM['libraries'] as Map<String, dynamic>? ?? {};
-        final rawRules = lib['rules_metadata'] ?? lib['rules'];
-        Map<String, dynamic> rules = {};
-        if (rawRules is Map) {
-          rules = Map<String, dynamic>.from(rawRules);
-        } else if (rawRules is String) {
-          try {
-            rules = Map<String, dynamic>.from(jsonDecode(rawRules));
-          } catch (_) {}
+    switch (state) {
+      case MemberState.active:
+      case MemberState.trial:
+      case MemberState.expiringSoon:
+        return null; // eligible to check in / out
+      case MemberState.expired:
+        final expiredM = _allMemberships.firstWhere(
+          (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(DateTime.now())),
+          orElse: () => {},
+        );
+        if (expiredM.isNotEmpty) {
+          final lib = expiredM['libraries'] as Map<String, dynamic>? ?? {};
+          final rawRules = lib['rules_metadata'] ?? lib['rules'];
+          Map<String, dynamic> rules = {};
+          if (rawRules is Map) {
+            rules = Map<String, dynamic>.from(rawRules);
+          } else if (rawRules is String) {
+            try {
+              rules = Map<String, dynamic>.from(jsonDecode(rawRules));
+            } catch (_) {}
+          }
+          if (rules['allow_expired_checkin'] == true) return null;
         }
-        return rules['allow_expired_checkin'] == true;
-      }
+        return 'Your membership has expired. Renew it to check in again.';
+      case MemberState.onHold:
+        return 'Your membership is on hold. Ask the admin to resume it before checking in.';
+      case MemberState.applicationPending:
+        return 'Your application is under review. You can check in once it is approved.';
+      case MemberState.exited:
+      case MemberState.profileCompleteNoLib:
+      case MemberState.freshInstall:
+        return 'Join a library first to check in — tap "Find a Library" to get started.';
     }
-    return false;
+  }
+
+  void _onScanFabPressed() {
+    final reason = _scanIneligibleReason();
+    if (reason == null) {
+      _openQRScanner();
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(reason, style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+        backgroundColor: const Color(0xFFE65C00),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   Widget _buildErrorState() {
@@ -1576,6 +1627,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Shows only if the member's most recent request was rejected.
+                  _buildRejectedRequestCard(),
                   // Setup progress card
                   _buildSetupProgressCard(
                     title: "Almost there!",
@@ -2617,6 +2670,101 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
+  /// Card shown (in the no-library state) when the member's most recent join
+  /// request was rejected: shows the reason + lets them re-apply or contact the
+  /// admin. Hidden otherwise.
+  Widget _buildRejectedRequestCard() {
+    final req = _rejectedRequest;
+    if (req == null) return const SizedBox.shrink();
+    final lib = req['libraries'] as Map<String, dynamic>? ?? {};
+    final libName = (lib['name'] ?? 'the library').toString();
+    final reason = (req['rejection_reason'] ?? '').toString().trim();
+    final libraryId = (req['library_id'] ?? '').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.cancel_outlined, color: Color(0xFFDC2626), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Join request not approved',
+                  style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF991B1B)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Your request to join $libName was not approved.',
+            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF7F1D1D)),
+          ),
+          if (reason.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Reason: $reason',
+              style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF991B1B), fontStyle: FontStyle.italic),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65C00),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Apply again', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              if (libraryId.isNotEmpty) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => LibraryQueryScreen(
+                            libraryId: libraryId,
+                            preFilledMessage:
+                                'Hello, my join request was not approved. Could you tell me what I need to correct so I can re-apply? Thank you!',
+                          ),
+                        ),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626),
+                      side: const BorderSide(color: Color(0xFFDC2626)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text('Contact admin', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildApplicationPendingCard() {
     if (_pendingRequest == null) return const SizedBox.shrink();
     
@@ -2723,7 +2871,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               Navigator.pop(context);
               try {
                 final supabase = Supabase.instance.client;
-                await supabase.from('join_requests').delete().eq('id', requestId);
+                await supabase
+                    .from('join_requests')
+                    .update({'status': 'withdrawn'}).eq('id', requestId);
                 if (mounted) {
                   _loadInitialData();
                 }

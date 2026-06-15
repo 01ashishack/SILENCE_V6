@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/pdf_exporter.dart';
+import '../../utils/attendance_format.dart';
 import '../../utils/csv_exporter.dart';
 import 'member_transfer_screen.dart';
 
@@ -1998,11 +1999,20 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('Session Detail', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(color: const Color(0xFFFFF7F0), borderRadius: BorderRadius.circular(6)),
-                              child: Text(sessionType.toUpperCase(), style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                            ),
+                            Builder(builder: (_) {
+                              final tag = attendanceTag(sessionType);
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                    color: tag.isManual ? const Color(0xFFFFF7E6) : const Color(0xFFFFF7F0),
+                                    borderRadius: BorderRadius.circular(6)),
+                                child: Text(tag.label.toUpperCase(),
+                                    style: GoogleFonts.inter(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: tag.isManual ? const Color(0xFFB45309) : const Color(0xFFE65C00))),
+                              );
+                            }),
                           ],
                         ),
                         const SizedBox(height: 8),

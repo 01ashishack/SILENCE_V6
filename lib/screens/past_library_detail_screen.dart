@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../core/member_analytics_service.dart';
 import '../utils/pdf_exporter.dart';
+import '../utils/attendance_format.dart';
 import 'member_history_tab.dart';
 import 'reservations/join_flow_screen.dart';
 import 'library_public_profile_screen.dart';
@@ -352,17 +353,20 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                                   log['shift'] ?? 'N/A',
                                   style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF1E293B)),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: log['session_type'] == 'manual' ? Colors.amber[100] : const Color(0xFFE65C00).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    (log['session_type'] ?? 'normal').toString().toUpperCase(),
-                                    style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: log['session_type'] == 'manual' ? Colors.amber[900] : const Color(0xFFE65C00)),
-                                  ),
-                                ),
+                                Builder(builder: (_) {
+                                  final tag = attendanceTag(log['session_type']);
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: tag.isManual ? Colors.amber[100] : const Color(0xFFE65C00).withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      tag.label.toUpperCase(),
+                                      style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: tag.isManual ? Colors.amber[900] : const Color(0xFFE65C00)),
+                                    ),
+                                  );
+                                }),
                               ],
                             ),
                             const Divider(height: 16, color: Color(0xFFCBD5E1)),

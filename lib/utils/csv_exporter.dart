@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'attendance_format.dart';
 
 class CsvExporter {
   static Future<void> exportMembers({
@@ -175,7 +176,7 @@ class CsvExporter {
       final checkIn = l['check_in'] ?? 'N/A';
       final checkOut = l['check_out'] ?? 'N/A';
       final duration = l['duration'] ?? 'N/A';
-      final sessionType = (l['session_type'] ?? 'normal').toString().toUpperCase();
+      final sessionType = attendanceTag(l['session_type']).label;
       final library = l['library'] ?? 'N/A';
       final seat = l['seat'] ?? 'N/A';
 

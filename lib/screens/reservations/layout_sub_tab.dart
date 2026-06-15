@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/error_messages.dart';
+import '../../utils/shift_overlap.dart';
 import '../../widgets/states/shimmer_box.dart';
+import 'admin_renew_sheet.dart';
 
 class LayoutSubTab extends StatefulWidget {
   final String libraryId;
@@ -40,6 +42,10 @@ class LayoutSubTabState extends State<LayoutSubTab> {
   // Data collections
   List<Map<String, dynamic>> _sectionsList = [];
   List<Map<String, dynamic>> _seatsList = [];
+  // Seats as rendered in the grid. In a specific-shift view this equals
+  // _seatsList. In the "All Shifts" view it is _seatsList collapsed to ONE row
+  // per physical seat (see _collapsePhysicalSeats) so each seat shows once.
+  List<Map<String, dynamic>> _displaySeats = [];
   List<Map<String, dynamic>> _membershipsList = [];
 
   // Overview Counts
@@ -94,6 +100,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         _shiftsList = [];
         _floorsList = [];
         _seatsList = [];
+        _displaySeats = [];
         _sectionsList = [];
         _membershipsList = [];
         _paginationOffsets.clear();
@@ -181,15 +188,24 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
           _allFloorsCount = _floorsList.length;
 
-          // Check if previous selected IDs are still valid in the new lists, otherwise pick first or null
+          // Default to "All" only when there's more than one option; with a
+          // single shift/floor, select it directly (no redundant "All").
           final bool hasSelectedShift = _selectedShiftId != null && _shiftsList.any((s) => s['id'] == _selectedShiftId);
           if (!hasSelectedShift) {
-            _selectedShiftId = _shiftsList.isNotEmpty ? _shiftsList.first['id'] : null;
+            if (_shiftsList.length > 1) {
+              _selectedShiftId = 'all';
+            } else {
+              _selectedShiftId = _shiftsList.isNotEmpty ? _shiftsList.first['id'] : null;
+            }
           }
 
           final bool hasSelectedFloor = _selectedFloorId != null && _floorsList.any((f) => f['id'] == _selectedFloorId);
           if (!hasSelectedFloor) {
-            _selectedFloorId = _floorsList.isNotEmpty ? _floorsList.first['id'] : null;
+            if (_floorsList.length > 1) {
+              _selectedFloorId = 'all';
+            } else {
+              _selectedFloorId = _floorsList.isNotEmpty ? _floorsList.first['id'] : null;
+            }
           }
 
           debugPrint('Selected Shift: $_selectedShiftId, Selected Floor: $_selectedFloorId');
@@ -340,6 +356,13 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         setState(() {
           _sectionsList = List<Map<String, dynamic>>.from(sectionsRes);
           _seatsList = seatsList;
+          // "All Shifts" returns one seats row per (physical seat × shift).
+          // Drop rows whose shift no longer exists (orphaned from deleted
+          // shifts) so phantom "Shift" entries don't appear, then collapse to
+          // one tile per physical seat. A specific shift renders as-is.
+          _displaySeats = _selectedShiftId == 'all'
+              ? _collapsePhysicalSeats(_validShiftSeats(seatsList))
+              : seatsList;
           _membershipsList = membershipsList;
 
           _allSectionsCount = allSections.length;
@@ -404,33 +427,154 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     return m['status'] == 'expired'; // Simple rule matching specs
   }
 
-  // ── Manual Check In ───────────────────────────────────────────────────────
-  Future<void> _manualCheckIn(String memberId, String seatLabel) async {
+  // ── Manual Check In / Out ─────────────────────────────────────────────────
+  // ── Manual Attendance (single smart action) ───────────────────────────────
+  /// One entry point: if the member has an OPEN session, check them OUT;
+  /// otherwise check them IN. Prevents duplicate check-ins/outs, flags the row
+  /// as manual (session_type='manual'), and notifies the member.
+  Future<void> _manualAttendanceToggle(String memberId, String seatLabel) async {
+    final membership = _getMemberMembership(memberId);
+    final membershipId = membership?['id'];
+    if (membershipId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active membership details found for this member.')),
+      );
+      return;
+    }
+
+    Map<String, dynamic>? open;
     try {
-      final now = DateTime.now().toIso8601String();
-      final membership = _getMemberMembership(memberId);
-      final membershipId = membership?['id'];
+      open = await supabase
+          .from('attendance')
+          .select('id, check_in_time')
+          .eq('membership_id', membershipId)
+          .isFilter('check_out_time', null)
+          .order('check_in_time', ascending: false)
+          .limit(1)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('open-session lookup failed: $e');
+    }
 
-      if (membershipId == null) {
-        throw 'No active membership details found for this member.';
-      }
+    if (open != null) {
+      await _doManualCheckOut(memberId, seatLabel, open);
+    } else {
+      await _doManualCheckIn(memberId, seatLabel, membershipId, membership);
+    }
+  }
 
+  Future<void> _doManualCheckIn(
+      String memberId, String seatLabel, dynamic membershipId, Map<String, dynamic>? membership) async {
+    if (!mounted) return;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      helpText: 'Select check-in time',
+    );
+    if (picked == null) return;
+    if (!mounted) return;
+    final pickedLabel = picked.format(context);
+
+    final now = DateTime.now();
+    final checkIn = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
+    if (checkIn.isAfter(now)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Check-in time can't be in the future.")),
+      );
+      return;
+    }
+
+    final shiftIdForAttendance =
+        (membership?['shift_id'] ?? _selectedShiftId)?.toString();
+
+    try {
       await supabase.from('attendance').insert({
         'membership_id': membershipId,
         'member_id': memberId,
         'library_id': widget.libraryId,
-        'shift_id': _selectedShiftId!,
-        'check_in_time': now,
+        'shift_id': shiftIdForAttendance,
+        'check_in_time': checkIn.toUtc().toIso8601String(),
         'session_type': 'manual',
       });
+      // Best-effort notify (only lands if the member has an account row).
+      await _notifySeatMember(
+        memberId,
+        'Checked in',
+        'You were manually checked in at $pickedLabel by the admin (Seat $seatLabel).',
+        'attendance_manual',
+      );
+      _fetchSeatsAndSections();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Manually checked in member on Seat $seatLabel ✓', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
+        SnackBar(content: Text('Checked in on Seat $seatLabel at $pickedLabel ✓', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error checking in: $e')),
+        SnackBar(content: Text('Error checking in: ${friendlyError(e)}')),
+      );
+    }
+  }
+
+  Future<void> _doManualCheckOut(
+      String memberId, String seatLabel, Map<String, dynamic> open) async {
+    final checkInLocal = DateTime.parse(open['check_in_time'].toString()).toLocal();
+
+    if (!mounted) return;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      helpText: 'Select check-out time',
+    );
+    if (picked == null) return;
+    if (!mounted) return;
+    final pickedLabel = picked.format(context);
+
+    final now = DateTime.now();
+    // Anchor to the check-in's LOCAL date. (No auto +1-day rollover — that
+    // wrongly pushed a same-day checkout into "the future".)
+    final checkOut = DateTime(
+        checkInLocal.year, checkInLocal.month, checkInLocal.day, picked.hour, picked.minute);
+    // Minute granularity so seconds don't trip the comparisons.
+    final ciMin = DateTime(checkInLocal.year, checkInLocal.month, checkInLocal.day,
+        checkInLocal.hour, checkInLocal.minute);
+    final nowMin = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+    if (!checkOut.isAfter(ciMin)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Check-out time must be after check-in time.')),
+      );
+      return;
+    }
+    if (checkOut.isAfter(nowMin)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Check-out time can't be in the future.")),
+      );
+      return;
+    }
+    final durationMins = checkOut.difference(ciMin).inMinutes;
+
+    try {
+      await supabase.from('attendance').update({
+        'check_out_time': checkOut.toUtc().toIso8601String(),
+        'duration_minutes': durationMins,
+        'session_type': 'manual',
+      }).eq('id', open['id']);
+      await _notifySeatMember(
+        memberId,
+        'Checked out',
+        'You were manually checked out at $pickedLabel by the admin (Seat $seatLabel).',
+        'attendance_manual',
+      );
+      _fetchSeatsAndSections();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Checked out Seat $seatLabel at $pickedLabel ✓', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error checking out: ${friendlyError(e)}')),
       );
     }
   }
@@ -519,20 +663,40 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     if (memberId == null) return;
 
     // Vacant seats in the SAME shift (a member can't move across shifts here).
-    final vacant = _seatsList
+    var vacant = _seatsList
         .where((s) =>
             s['status'] == 'vacant' &&
             (shiftId == null || s['shift_id']?.toString() == shiftId) &&
             s['id'].toString() != oldSeatId)
         .toList();
 
+    // Drop seats whose physical chair is occupied/held in a TIME-OVERLAPPING
+    // shift — assigning one would double-book the same chair at the same hours.
+    if (shiftId != null && vacant.isNotEmpty) {
+      final blocked = await blockedSeatLabels(
+        supabase,
+        libraryId: widget.libraryId,
+        targetShiftId: shiftId,
+        allShifts: _shiftsList,
+        candidateLabels:
+            vacant.map((s) => s['seat_label'].toString()).toList(),
+      );
+      if (blocked.isNotEmpty) {
+        vacant = vacant
+            .where((s) => !blocked.contains(s['seat_label'].toString()))
+            .toList();
+      }
+    }
+
     if (vacant.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No vacant seats available in this shift to reassign.')),
       );
       return;
     }
 
+    if (!mounted) return;
     final chosen = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       backgroundColor: Colors.white,
@@ -645,6 +809,23 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     if (shiftId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('This seat has no shift configured.')),
+      );
+      return;
+    }
+
+    // This physical chair may be occupied in a time-overlapping shift even
+    // though this shift's row is vacant — block to avoid double-booking it.
+    final overlapBlocked = await blockedSeatLabels(
+      supabase,
+      libraryId: widget.libraryId,
+      targetShiftId: shiftId,
+      allShifts: _shiftsList,
+      candidateLabels: [label],
+    );
+    if (overlapBlocked.contains(label)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Seat $label is occupied in an overlapping shift, so it can't be assigned here.")),
       );
       return;
     }
@@ -943,6 +1124,140 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     }
   }
 
+  Map<String, dynamic>? _shiftById(String? id) {
+    if (id == null) return null;
+    for (final s in _shiftsList) {
+      if (s['id'].toString() == id) return s;
+    }
+    return null;
+  }
+
+  /// A shift is "effectively booked" for a physical seat if its own row is
+  /// occupied/held, OR an overlapping shift the seat IS booked in covers it
+  /// (e.g. a full-day booking also occupies the morning/evening it overlaps).
+  bool _effectivelyBooked(
+      Map<String, dynamic> row, List<Map<String, dynamic>> allRows) {
+    final st = (row['status'] ?? 'vacant').toString();
+    if (st == 'occupied' || st == 'hold') return true;
+    final sh = _shiftById(row['shift_id']?.toString());
+    for (final other in allRows) {
+      if (identical(other, row)) continue;
+      final ost = (other['status'] ?? 'vacant').toString();
+      if (ost != 'occupied' && ost != 'hold') continue;
+      final osh = _shiftById(other['shift_id']?.toString());
+      if (shiftRangesOverlap(
+          sh?['start_time'], sh?['end_time'], osh?['start_time'], osh?['end_time'])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  int? _minutesOfDay(dynamic t) {
+    if (t == null) return null;
+    final parts = t.toString().split(':');
+    final h = int.tryParse(parts[0]);
+    if (h == null) return null;
+    final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+    return h * 60 + m;
+  }
+
+  String _formatMinutes(int mins) {
+    final mm = ((mins % 1440) + 1440) % 1440;
+    final now = DateTime.now();
+    final dt = DateTime(now.year, now.month, now.day, mm ~/ 60, mm % 60);
+    return DateFormat('h:mm a').format(dt);
+  }
+
+  /// Compact horizontal strip: from the library's open to close time, which
+  /// parts of the day this physical seat is booked (blue) vs free (green).
+  /// Full-day bookings correctly cover the morning/evening they overlap.
+  Widget _buildDayBookingStrip(List<Map<String, dynamic>> shiftRows) {
+    final List<List<int>> ranges = [];
+    final List<List<int>> booked = [];
+    for (final r in shiftRows) {
+      final sh = _shiftById(r['shift_id']?.toString());
+      final s = _minutesOfDay(sh?['start_time']);
+      final e0 = _minutesOfDay(sh?['end_time']);
+      if (s == null || e0 == null) continue;
+      final e = e0 <= s ? e0 + 1440 : e0; // overnight → extend past midnight
+      ranges.add([s, e]);
+      final st = (r['status'] ?? 'vacant').toString();
+      if (st == 'occupied' || st == 'hold') booked.add([s, e]);
+    }
+    if (ranges.isEmpty) return const SizedBox.shrink();
+
+    int dayStart = ranges.first[0];
+    int dayEnd = ranges.first[1];
+    for (final r in ranges) {
+      if (r[0] < dayStart) dayStart = r[0];
+      if (r[1] > dayEnd) dayEnd = r[1];
+    }
+    if (dayEnd <= dayStart) return const SizedBox.shrink();
+
+    // Merge booked intervals (clamped to the day span).
+    booked.sort((a, b) => a[0].compareTo(b[0]));
+    final List<List<int>> merged = [];
+    for (final b in booked) {
+      final bs = b[0] < dayStart ? dayStart : b[0];
+      final be = b[1] > dayEnd ? dayEnd : b[1];
+      if (be <= bs) continue;
+      if (merged.isEmpty || bs > merged.last[1]) {
+        merged.add([bs, be]);
+      } else if (be > merged.last[1]) {
+        merged.last[1] = be;
+      }
+    }
+
+    // Walk the day building alternating free/booked segments.
+    final List<Map<String, dynamic>> segments = [];
+    int cursor = dayStart;
+    for (final m in merged) {
+      if (m[0] > cursor) segments.add({'len': m[0] - cursor, 'booked': false});
+      segments.add({'len': m[1] - m[0], 'booked': true});
+      cursor = m[1];
+    }
+    if (cursor < dayEnd) segments.add({'len': dayEnd - cursor, 'booked': false});
+    if (segments.isEmpty) segments.add({'len': dayEnd - dayStart, 'booked': false});
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              height: 10,
+              child: Row(
+                children: segments
+                    .map((s) => Expanded(
+                          flex: (s['len'] as int).clamp(1, 100000),
+                          child: Container(
+                            color: s['booked'] == true
+                                ? const Color(0xFF3B82F6)
+                                : const Color(0xFF22C55E),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Open ${_formatMinutes(dayStart)}',
+                  style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF94A3B8))),
+              Text('Close ${_formatMinutes(dayEnd)}',
+                  style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF94A3B8))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Show Seat Actions Modal (S031-A & S031-B) ────────────────────────────
   void _showSeatActionsBottomSheet(Map<String, dynamic> seat) {
     final String status = (seat['status'] ?? 'vacant').toString();
@@ -960,6 +1275,14 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         ? 'Expires in ${DateTime.parse(membership['end_date']).difference(DateTime.now()).inDays}d'
         : '';
 
+    // "All Shifts" view: the tapped tile is a collapsed physical seat carrying
+    // every shift's row. Show a per-shift status breakdown instead of single-
+    // shift actions (which would silently touch only one shift's row).
+    final List<Map<String, dynamic>> shiftRows = seat['_shift_rows'] != null
+        ? List<Map<String, dynamic>>.from(seat['_shift_rows'] as List)
+        : <Map<String, dynamic>>[];
+    final bool isAllShifts = shiftRows.isNotEmpty;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -968,7 +1291,8 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Column(
+          child: SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1002,10 +1326,15 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            memberName,
+                            isAllShifts ? 'Physical seat' : memberName,
                             style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
                           ),
-                          if (isOccupied && expiryText.isNotEmpty)
+                          if (isAllShifts)
+                            Text(
+                              '${shiftRows.length} shift${shiftRows.length == 1 ? '' : 's'} • status varies by shift',
+                              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),
+                            )
+                          else if (isOccupied && expiryText.isNotEmpty)
                             Text(
                               '[Active] • $expiryText',
                               style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),
@@ -1022,7 +1351,76 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               ),
               const Divider(height: 1),
 
-              if (isOccupied) ...[
+              if (isAllShifts) ...[
+                _buildDayBookingStrip(shiftRows),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
+                  child: Text(
+                    'Tap a shift to manage it',
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF64748B)),
+                  ),
+                ),
+                ...(() {
+                  final rows = List<Map<String, dynamic>>.from(shiftRows);
+                  rows.sort((a, b) {
+                    final am = _minutesOfDay(_shiftById(a['shift_id']?.toString())?['start_time']) ?? 0;
+                    final bm = _minutesOfDay(_shiftById(b['shift_id']?.toString())?['start_time']) ?? 0;
+                    return am.compareTo(bm);
+                  });
+                  return rows.map((r) {
+                    final st = (r['status'] ?? 'vacant').toString();
+                    final rowMember = r['occupied_by_member_id'];
+                    final rowMemberName = rowMember != null ? (rowMember['full_name'] ?? 'Member') : null;
+                    final bool effBooked = _effectivelyBooked(r, shiftRows);
+                    final bool coveredByOverlap = st == 'vacant' && effBooked;
+                    final Color dot = coveredByOverlap ? const Color(0xFF3B82F6) : _seatStatusColor(st);
+                    String subtitle;
+                    if (st == 'occupied' && rowMemberName != null) {
+                      subtitle = 'Occupied • $rowMemberName';
+                    } else if (st == 'hold') {
+                      subtitle = 'Reserved';
+                    } else if (st == 'maintenance') {
+                      subtitle = 'Maintenance';
+                    } else if (coveredByOverlap) {
+                      subtitle = 'Booked • via full-day booking';
+                    } else {
+                      subtitle = 'Vacant • tap to assign';
+                    }
+                    return ListTile(
+                      dense: true,
+                      leading: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+                      ),
+                      title: Text(
+                        _shiftLabel(r['shift_id']?.toString()),
+                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        subtitle,
+                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),
+                      ),
+                      trailing: const Icon(Icons.chevron_right, size: 16),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        // Open that shift's normal action set (the per-shift row
+                        // has no `_shift_rows`, so it renders the standard sheet).
+                        if (mounted) _showSeatActionsBottomSheet(r);
+                      },
+                    );
+                  }).toList();
+                })(),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: Text('Delete Seat (all shifts)', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red)),
+                  onTap: () {
+                    if (mounted) _deleteSeat(seat['id'], seat['seat_label']);
+                  },
+                ),
+              ] else if (isOccupied) ...[
                 ListTile(
                   leading: const Icon(Icons.person_outline, color: Color(0xFF374151)),
                   title: Text('View Member Details', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
@@ -1055,22 +1453,29 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   leading: const Icon(Icons.refresh_rounded, color: Color(0xFF374151)),
                   title: Text('Renew Membership', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
                   trailing: const Icon(Icons.chevron_right, size: 16),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(ctx);
-                    if (member != null && mounted) {
-                      Navigator.pushNamed(context, '/admin/member', arguments: member['id'])
-                          .then((_) => _fetchSeatsAndSections());
+                    if (member == null || !mounted) return;
+                    final m = _getMemberMembership(member['id']);
+                    if (m == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('No membership found to renew for this member.')),
+                      );
+                      return;
                     }
+                    final ok = await showAdminRenewSheet(context, membership: m);
+                    if (ok == true) _fetchSeatsAndSections();
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.check_circle_outline_rounded, color: Colors.blue),
-                  title: Text('Manual Check-In', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.blue)),
+                  leading: const Icon(Icons.fact_check_outlined, color: Colors.blue),
+                  title: Text('Manual Check-In / Out', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.blue)),
+                  subtitle: Text('Auto-detects: checks out if already checked in', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
                   trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.blue),
                   onTap: () {
                     Navigator.pop(ctx);
                     if (member != null && mounted) {
-                      _manualCheckIn(member['id'], seat['seat_label']);
+                      _manualAttendanceToggle(member['id'], seat['seat_label']);
                     }
                   },
                 ),
@@ -1129,6 +1534,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                 ),
               ],
             ],
+          ),
           ),
         );
       },
@@ -1325,6 +1731,36 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               );
             }
 
+            // "All Shifts" view: this seat is booked in some shift(s) but free in
+            // others. A small corner dot tells the admin it isn't fully free.
+            if (seat['_booked_elsewhere'] == true) {
+              mainContent = Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(child: mainContent),
+                  Positioned(
+                    bottom: -1,
+                    right: -1,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF3B82F6), // booked in another shift
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
             return GestureDetector(
               onTap: () => _showSeatActionsBottomSheet(seat),
               child: Column(
@@ -1413,9 +1849,142 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       list = list.where((s) => s['status'] == 'occupied' && _isExpiringSoon(s['occupied_by_member_id']?['id'])).toList();
     }
 
-    return list;
+    // Show occupied seats first (they were getting buried at the end), then
+    // hold, maintenance, vacant — ordered by seat label within each group.
+    int rank(Map<String, dynamic> s) {
+      switch ((s['status'] ?? 'vacant').toString()) {
+        case 'occupied':
+          return 0;
+        case 'hold':
+          return 1;
+        case 'maintenance':
+          return 2;
+        default:
+          return 3; // vacant
+      }
+    }
+
+    final sorted = List<Map<String, dynamic>>.from(list);
+    sorted.sort((a, b) {
+      final r = rank(a).compareTo(rank(b));
+      if (r != 0) return r;
+      return (a['seat_label'] ?? '').toString().compareTo((b['seat_label'] ?? '').toString());
+    });
+    return sorted;
   }
 
+  /// Collapse per-shift seat rows into ONE row per physical seat.
+  ///
+  /// In the "All Shifts" view, the `seats` table returns one row per
+  /// (physical seat × shift) because a seat exists once per shift. Rendering
+  /// every row shows the same seat multiple times. We group rows that share the
+  /// same physical seat (`floor_id` + `section_id` + `seat_label`) into a single
+  /// representative tile. Aggregate status precedence: occupied > hold >
+  /// maintenance > vacant — so a seat booked in ANY shift shows as occupied.
+  ///
+  /// The representative row carries two extra keys for the grid + detail sheet:
+  ///  - `_shift_rows`     : the underlying per-shift rows (for the status sheet)
+  ///  - `_booked_elsewhere`: true when the seat is taken in some shift(s) but
+  ///                         free in others (drives the corner marker).
+  /// Keep only seat rows whose shift still exists in `_shiftsList`. Rows for
+  /// deleted shifts (orphans) would otherwise show as phantom "Shift" entries in
+  /// the All-Shifts view. Guarded: if shifts haven't loaded, return rows as-is.
+  List<Map<String, dynamic>> _validShiftSeats(List<Map<String, dynamic>> rows) {
+    if (_shiftsList.isEmpty) return rows;
+    final ids = _shiftsList.map((s) => s['id'].toString()).toSet();
+    return rows.where((r) => ids.contains(r['shift_id']?.toString())).toList();
+  }
+
+  List<Map<String, dynamic>> _collapsePhysicalSeats(List<Map<String, dynamic>> rows) {
+    int rank(String st) {
+      switch (st) {
+        case 'occupied':
+          return 3;
+        case 'hold':
+          return 2;
+        case 'maintenance':
+          return 1;
+        default:
+          return 0; // vacant / unknown
+      }
+    }
+
+    final Map<String, List<Map<String, dynamic>>> groups = {};
+    for (final s in rows) {
+      final key = '${s['floor_id']}|${s['section_id']}|${s['seat_label']}';
+      (groups[key] ??= []).add(s);
+    }
+
+    final List<Map<String, dynamic>> result = [];
+    groups.forEach((_, shiftRows) {
+      // Representative = the highest-ranked status, so an occupied row keeps its
+      // member info on the collapsed tile.
+      Map<String, dynamic> rep = shiftRows.first;
+      for (final r in shiftRows) {
+        if (rank((r['status'] ?? 'vacant').toString()) >
+            rank((rep['status'] ?? 'vacant').toString())) {
+          rep = r;
+        }
+      }
+      final bool anyBooked = shiftRows
+          .any((r) => r['status'] == 'occupied' || r['status'] == 'hold');
+      final bool anyFree = shiftRows
+          .any((r) => r['status'] == 'vacant' || r['status'] == 'maintenance');
+
+      final collapsed = Map<String, dynamic>.from(rep);
+      collapsed['_shift_rows'] = shiftRows;
+      collapsed['_booked_elsewhere'] = anyBooked && anyFree;
+      result.add(collapsed);
+    });
+
+    // Stable order by seat label so tiles don't jump between rebuilds.
+    result.sort((a, b) =>
+        (a['seat_label'] ?? '').toString().compareTo((b['seat_label'] ?? '').toString()));
+    return result;
+  }
+
+  /// Display name for an individual shift with a trailing "Shift" word removed
+  /// (e.g. "Morning Shift" → "Morning"). Only the "All Shifts" option keeps the
+  /// word. Floor names and names that are just "Shift" are left untouched.
+  String _displayShiftName(dynamic rawName) {
+    final name = (rawName ?? '').toString().trim();
+    if (name.isEmpty) return name;
+    final cleaned =
+        name.replaceAll(RegExp(r'\s+[Ss][Hh][Ii][Ff][Tt]\s*$'), '').trim();
+    return cleaned.isEmpty ? name : cleaned;
+  }
+
+  /// Human label for a shift id (name, falling back to its timing or a short id).
+  String _shiftLabel(String? shiftId) {
+    if (shiftId == null) return 'Shift';
+    try {
+      final shift = _shiftsList.firstWhere((s) => s['id'].toString() == shiftId);
+      final name = _displayShiftName(shift['name']);
+      if (name.isNotEmpty) return name;
+      final start = shift['start_time'];
+      final end = shift['end_time'];
+      if (start != null && end != null) {
+        return '${_formatTimeHM(start)} – ${_formatTimeHM(end)}';
+      }
+    } catch (_) {}
+    return 'Shift';
+  }
+
+  /// Tile/dot colour for a seat status (matches the grid legend).
+  Color _seatStatusColor(String status) {
+    switch (status) {
+      case 'occupied':
+        return const Color(0xFF3B82F6);
+      case 'hold':
+        return const Color(0xFFF59E0B);
+      case 'maintenance':
+        return const Color(0xFF94A3B8);
+      default:
+        return const Color(0xFF22C55E); // vacant
+    }
+  }
+
+  /// Format a "HH:MM[:SS]" time string to "h:mm a".
   String _formatTimeHM(String? timeStr) {
     if (timeStr == null || timeStr.isEmpty) return '';
     try {
@@ -1454,7 +2023,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     required ValueChanged<String> onChanged,
   }) {
     final displayItems = [
-      {'id': 'all', 'name': isFloor ? 'All Floors' : 'All Shifts'},
+      if (items.length > 1) {'id': 'all', 'name': isFloor ? 'All Floors' : 'All Shifts'},
       ...items,
     ];
     showDialog(
@@ -1520,7 +2089,9 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                           size: 16,
                         ),
                         title: Text(
-                          item['name'] ?? '',
+                          (!isFloor && id != 'all')
+                              ? _displayShiftName(item['name'])
+                              : (item['name'] ?? ''),
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
@@ -1572,7 +2143,11 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     }
     final String selectedName = selectedId == 'all'
         ? (isFloor ? 'All Floors' : 'All Shifts')
-        : (selectedItem != null ? (selectedItem['name'] ?? '') : 'Select ${isFloor ? 'Floor' : 'Shift'}');
+        : (selectedItem != null
+            ? (isFloor
+                ? (selectedItem['name'] ?? '')
+                : _displayShiftName(selectedItem['name']))
+            : 'Select ${isFloor ? 'Floor' : 'Shift'}');
 
     return GestureDetector(
       onTap: () => _showSelectorBottomSheet(
@@ -2096,7 +2671,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                       final String sectionName = section['name'];
 
                       // Find seats belonging to this section on the selected floor
-                      final baseSecSeats = _seatsList.where((s) => s['section_id'] == sectionId).toList();
+                      final baseSecSeats = _displaySeats.where((s) => s['section_id'] == sectionId).toList();
                       final filteredSecSeats = _getFilteredSeats(baseSecSeats);
 
                       if (filteredSecSeats.isEmpty && _searchController.text.isNotEmpty) {
@@ -2196,33 +2771,33 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                                _buildSectionStatusBadge(
                                 color: const Color(0xFF22C55E),
                                 label: 'Vacant',
-                                count: _seatsList.where((s) => s['status'] == 'vacant').length,
+                                count: _displaySeats.where((s) => s['status'] == 'vacant').length,
                               ),
                               _buildSectionStatusBadge(
                                 color: const Color(0xFF3B82F6),
                                 label: 'Occupied',
-                                count: _seatsList.where((s) => s['status'] == 'occupied').length,
+                                count: _displaySeats.where((s) => s['status'] == 'occupied').length,
                               ),
                               _buildSectionStatusBadge(
                                 color: const Color(0xFF8B5CF6),
                                 label: 'Expiring',
-                                count: _seatsList.where((s) => s['status'] == 'occupied' && _isExpiringSoon(s['occupied_by_member_id']?['id'])).length,
+                                count: _displaySeats.where((s) => s['status'] == 'occupied' && _isExpiringSoon(s['occupied_by_member_id']?['id'])).length,
                               ),
                               _buildSectionStatusBadge(
                                 color: const Color(0xFFF97316),
                                 label: 'Hold',
-                                count: _seatsList.where((s) => s['status'] == 'hold').length,
+                                count: _displaySeats.where((s) => s['status'] == 'hold').length,
                               ),
                               _buildSectionStatusBadge(
                                 color: const Color(0xFF94A3B8),
                                 label: 'Maintenance',
-                                count: _seatsList.where((s) => s['status'] == 'maintenance').length,
+                                count: _displaySeats.where((s) => s['status'] == 'maintenance').length,
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 16),
-                        _buildSeatGrid(seats: _getFilteredSeats(_seatsList), sectionId: 'floor'),
+                        _buildSeatGrid(seats: _getFilteredSeats(_displaySeats), sectionId: 'floor'),
                       ],
                     ),
                   ),
