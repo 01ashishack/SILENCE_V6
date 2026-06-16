@@ -231,7 +231,11 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       _generateSessionsList(range);
 
     } catch (e) {
+      // Surface the real error instead of silently leaving the tabs empty —
+      // a swallowed failure here looked like "no history, just a Refresh
+      // button". Rethrow so _loadHistoryData shows an honest error + retry.
       debugPrint('Error fetching filtered history lists: $e');
+      rethrow;
     }
   }
 
@@ -1430,18 +1434,20 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             ),
             const SizedBox(height: 8),
             Text(
-              'Verify you have selected the correct library or date range above.',
+              'No check-ins in "$_selectedDateRange". Try a wider date range or '
+              'a different library above — or check in to start your history.',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: () => _loadHistoryData(),
+              icon: const Icon(Icons.refresh_rounded, size: 16),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE65C00),
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Refresh Screen'),
+              label: const Text('Refresh'),
             ),
           ],
         ),

@@ -1333,6 +1333,18 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   void _onScanFabPressed() {
+    // A member with no membership yet (fresh / profile-complete / past member)
+    // must be able to scan a JOIN QR — opening the scanner lets them do that;
+    // the scanner itself routes a join QR to the library profile and an
+    // attendance QR to check-in (and tells a non-member to join first).
+    final state = _getMemberState();
+    if (state == MemberState.freshInstall ||
+        state == MemberState.profileCompleteNoLib ||
+        state == MemberState.exited) {
+      _openQRScanner();
+      return;
+    }
+
     final reason = _scanIneligibleReason();
     if (reason == null) {
       _openQRScanner();
@@ -1697,9 +1709,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         ),
                         TextButton(
                           onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please complete your profile first.')),
-                            );
+                            // Exploring libraries needs no profile — the
+                            // complete-profile gate applies only at JOIN time.
+                            Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
                           },
                           child: Text('View all', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFE65C00), fontWeight: FontWeight.bold)),
                         )
@@ -3194,11 +3206,13 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
           ),
           const SizedBox(height: 12),
-          _buildHowItWorksRow(1, 'Complete Profile', 'Submit photo and ID details.', Icons.person_outlined),
+          _buildHowItWorksRow(1, 'Complete your profile', 'Add your details, photo and ID — needed before you join.', Icons.person_outline_rounded),
           const Divider(height: 20, color: Color(0xFFF1F5F9)),
-          _buildHowItWorksRow(2, 'Find a Library', 'Search study zones near you.', Icons.search),
+          _buildHowItWorksRow(2, 'Find & request to join', 'Explore nearby libraries, scan a join QR, or use a library code, then pick a shift and plan.', Icons.search_rounded),
           const Divider(height: 20, color: Color(0xFFF1F5F9)),
-          _buildHowItWorksRow(3, 'Scan & Study', 'Check attendance using QR scanner.', Icons.qr_code_scanner),
+          _buildHowItWorksRow(3, 'Pay & get approved', 'Pay the library directly (cash/UPI). The admin confirms your payment and assigns your seat.', Icons.verified_user_outlined),
+          const Divider(height: 20, color: Color(0xFFF1F5F9)),
+          _buildHowItWorksRow(4, 'Scan to check in & out', 'Use the QR scanner at the library to mark attendance and build your streak.', Icons.qr_code_scanner_rounded),
         ],
       ),
     );
@@ -5164,6 +5178,88 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             onPressed: () {
               Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
             },
+          ),
+          const SizedBox(width: 8),
+          _buildQuickActionButton(
+            label: 'Join by Code',
+            icon: Icons.qr_code_2_rounded,
+            onPressed: _openJoinByCodeDialog,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Quick "join a library by its code" — same flow as Explore's Join-with-Code,
+  /// surfaced on the home screen so a member can join without searching.
+  void _openJoinByCodeDialog() {
+    final codeCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Join by library code',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Enter the code your library shared with you.',
+                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
+            const SizedBox(height: 14),
+            TextField(
+              controller: codeCtrl,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Library Code',
+                hintText: 'e.g. SIL-4K9M-2P',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE65C00),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              final code = codeCtrl.text.trim();
+              if (code.isEmpty) return;
+              final nav = Navigator.of(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                final libRes = await Supabase.instance.client
+                    .from('libraries')
+                    .select('id')
+                    .eq('library_code', code)
+                    .maybeSingle();
+                if (libRes == null) {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Library not found. Check the code and try again.')),
+                  );
+                  return;
+                }
+                nav.pop();
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LibraryPublicProfileScreen(
+                      libraryId: libRes['id'],
+                      isAdmin: false,
+                      showProceedButton: true,
+                    ),
+                  ),
+                ).then((_) => _loadInitialData());
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
+              }
+            },
+            child: Text('Find Library', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

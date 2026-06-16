@@ -508,7 +508,10 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   Widget build(BuildContext context) {
     super.build(context);
 
-    // Full empty state: no libraries joined
+    // No libraries joined yet: show the REAL analytics layout with empty/zero
+    // values (cards + graphs) instead of an explore CTA — so the member sees
+    // exactly what their analytics will look like, just at zero. (Exploring /
+    // joining a library now lives on the Home tab.)
     if (widget.memberLibraries.isEmpty) {
       return Scaffold(
         backgroundColor: const Color(0xFFFBF5EE),
@@ -516,84 +519,45 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           children: [
             _buildHeaderAndFilters(),
             Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFFE65C00).withValues(alpha: 0.15),
-                        width: 1.5,
-                        // dashed border effect via custom paint is heavy; use solid here
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 100, top: 16),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFFD1B3)),
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF3ED),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.2)),
-                          ),
-                          child: const Icon(Icons.menu_book_rounded, size: 36, color: Color(0xFFE65C00)),
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          'No Libraries Joined',
-                          style: GoogleFonts.outfit(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1E293B),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Join a library to start tracking your\nstudy streaks, hours, and analytics.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF64748B),
-                            height: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              if (widget.onSwitchTab != null) {
-                                widget.onSwitchTab!(0);
-                              } else {
-                                Navigator.pop(context);
-                              }
-                            },
-                            icon: const Icon(Icons.explore_outlined, size: 18),
-                            label: Text('Explore Libraries', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE65C00),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 2,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.insights_rounded, size: 18, color: Color(0xFFB45309)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Join a library and check in — your streak, hours and '
+                                'attendance will fill in here.',
+                                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF92400E), height: 1.35),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    _buildStreakCard(),
+                    const SizedBox(height: 16),
+                    _buildSummaryGrid(),
+                    const SizedBox(height: 24),
+                    _buildBarChart(),
+                    const SizedBox(height: 24),
+                    _buildHeatmap(),
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
             ),
