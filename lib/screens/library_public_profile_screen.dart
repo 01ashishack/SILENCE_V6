@@ -90,6 +90,25 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     );
 
     try {
+      // Guard: if the user is ALREADY an active member of this library, do not
+      // send them through the join flow again (this is what happened when an
+      // existing member scanned the join QR). Show their status + how to check in.
+      final activeMs = await supabase
+          .from('memberships')
+          .select('status')
+          .eq('member_id', user.id)
+          .eq('library_id', libraryId)
+          .inFilter('status', ['active', 'trial', 'hold', 'expired', 'pending'])
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (activeMs != null) {
+        navigator.pop();
+        if (mounted) _showAlreadyMemberDialog((activeMs['status'] ?? 'active').toString());
+        return;
+      }
+
       final profileRes = await supabase
           .from('users')
           .select()
@@ -160,6 +179,75 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
         SnackBar(content: Text('Error validating profile: $e')),
       );
     }
+  }
+
+  /// Shown when an EXISTING member opens/scans the join QR — they should not
+  /// re-run the join flow. Tells them they're already a member and that check
+  /// in/out uses a different (attendance) QR.
+  void _showAlreadyMemberDialog(String status) {
+    final pretty = status == 'pending'
+        ? 'Your membership request is awaiting admin approval.'
+        : status == 'expired'
+            ? 'Your membership here has expired — renew it from your home screen.'
+            : status == 'hold'
+                ? 'Your membership here is currently on hold.'
+                : "You're already a member of this library.";
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.verified_user_rounded, color: Color(0xFF22C55E), size: 26),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Already a member',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(pretty,
+                style: GoogleFonts.inter(fontSize: 13.5, height: 1.4, color: const Color(0xFF475569))),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFFD1B3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.qr_code_scanner_rounded, size: 18, color: Color(0xFFB45309)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'This is the JOIN QR. To check in or out, scan the library\'s '
+                      'attendance QR instead.',
+                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF92400E), height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE65C00),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Got it', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadPublicData() async {
@@ -434,7 +522,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                             'library_id': libraryId,
                             'member_id': user.id,
                             'rating': selectedRating,
-                            'comment': commentCtrl.text.trim(),
+                            'review_text': commentCtrl.text.trim(),
                           });
 
                           navigator.pop();
@@ -1404,7 +1492,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
 
   Widget _buildReviewCard(Map<String, dynamic> r) {
     final nick = r['nickname'] ?? 'Anonymous';
-    final comment = r['comment'] ?? '';
+    final comment = r['review_text'] ?? r['comment'] ?? '';
     final rating = r['rating'] as int? ?? 5;
     final dateStr = _getRelativeTime(r['created_at']);
     final reply = r['admin_reply'] as String?;
