@@ -4602,6 +4602,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               _reservationsInitialSubTab = 0;
             }
           });
+          // Returning to the dashboard: refresh the action-required counts so an
+          // approval/rejection done in the Reservations tab reflects immediately
+          // (doesn't depend on realtime, which may not be enabled on the table).
+          if (index == 0 && _libraryId != null) {
+            _fetchRealStats(_libraryId!);
+            _loadOperationalFeeds(_libraryId!);
+          }
         },
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,

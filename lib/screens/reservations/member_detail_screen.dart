@@ -1010,6 +1010,180 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     }
   }
 
+  // ── Adjust membership duration (extend / shorten) ──────────────────────────
+  /// Shift a date by whole months, capping the day to the target month's last
+  /// day (handles negative months too via floor-correct arithmetic).
+  DateTime _shiftMonths(DateTime d, int months) {
+    final total = d.year * 12 + (d.month - 1) + months;
+    final y = total ~/ 12;
+    final m = total % 12 + 1;
+    final lastDay = DateTime(y, m + 1, 0).day;
+    return DateTime(y, m, d.day > lastDay ? lastDay : d.day);
+  }
+
+  Future<void> _showAdjustDurationSheet() async {
+    final ms = _membershipData;
+    if (ms == null) return;
+    final curEnd = DateTime.tryParse(ms['end_date']?.toString() ?? '');
+    if (curEnd == null) {
+      _snack('This membership has no expiry date to adjust.');
+      return;
+    }
+    DateTime newEnd = DateTime(curEnd.year, curEnd.month, curEnd.day);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) {
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final bool beforeToday = newEnd.isBefore(today);
+
+          Widget chip(String label, VoidCallback onTap) => Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 8),
+                child: OutlinedButton(
+                  onPressed: onTap,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: Text(label,
+                      style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                ),
+              );
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+              top: 20,
+              left: 24,
+              right: 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Adjust membership duration',
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                const SizedBox(height: 4),
+                Text('Current expiry: ${DateFormat('EEE, dd MMM yyyy').format(curEnd)}',
+                    style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+                const SizedBox(height: 16),
+                Wrap(
+                  children: [
+                    chip('− 1 month', () => setSheet(() => newEnd = _shiftMonths(newEnd, -1))),
+                    chip('− 7 days', () => setSheet(() => newEnd = newEnd.subtract(const Duration(days: 7)))),
+                    chip('+ 7 days', () => setSheet(() => newEnd = newEnd.add(const Duration(days: 7)))),
+                    chip('+ 1 month', () => setSheet(() => newEnd = _shiftMonths(newEnd, 1))),
+                    chip('+ 3 months', () => setSheet(() => newEnd = _shiftMonths(newEnd, 3))),
+                    chip('Reset', () => setSheet(() => newEnd = DateTime(curEnd.year, curEnd.month, curEnd.day))),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFFD1B3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.event_available_rounded, size: 18, color: Color(0xFFE65C00)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text('New expiry: ${DateFormat('EEE, dd MMM yyyy').format(newEnd)}',
+                            style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.bold, color: const Color(0xFF92400E))),
+                      ),
+                    ],
+                  ),
+                ),
+                if (beforeToday) ...[
+                  const SizedBox(height: 8),
+                  Text('⚠ This date is in the past — the membership will become expired.',
+                      style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFFB45309))),
+                ],
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65C00),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(sheetCtx);
+                    _applyAdjustedEndDate(newEnd, curEnd);
+                  },
+                  child: Text('Save new expiry',
+                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _applyAdjustedEndDate(DateTime newEnd, DateTime oldEnd) async {
+    final ms = _membershipData;
+    if (ms == null) return;
+    if (newEnd.year == oldEnd.year && newEnd.month == oldEnd.month && newEnd.day == oldEnd.day) {
+      return; // no change
+    }
+    setState(() => _isLoading = true);
+    try {
+      final memberId = ms['member_id'] ?? _memberId;
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final bool expiredNow = newEnd.isBefore(today);
+      final updates = <String, dynamic>{
+        'end_date': DateFormat('yyyy-MM-dd').format(newEnd),
+      };
+      // Keep status coherent: a future date re-activates; a past date expires.
+      if (ms['status'] == 'active' || ms['status'] == 'expired') {
+        updates['status'] = expiredNow ? 'expired' : 'active';
+      }
+      await supabase.from('memberships').update(updates).eq('id', ms['id']);
+      if (!mounted) return;
+
+      final extended = newEnd.isAfter(oldEnd);
+      if (memberId != null) {
+        await supabase.from('notifications').insert({
+          'user_id': memberId,
+          'title': extended ? 'Membership extended' : 'Membership updated',
+          'body':
+              'Your membership expiry is now ${DateFormat('dd MMM yyyy').format(newEnd)}.',
+          'data': {'type': 'membership_adjusted', 'membership_id': ms['id']},
+        });
+      }
+      try {
+        await AuditLogger.instance.log(
+          action: 'membership_adjust',
+          category: AuditLogger.categoryMembers,
+          title: extended ? 'Extended membership' : 'Shortened membership',
+          details:
+              '${_userProfile?['full_name'] ?? 'Member'} · ${DateFormat('dd MMM yyyy').format(oldEnd)} → ${DateFormat('dd MMM yyyy').format(newEnd)}',
+          libraryId: ms['library_id']?.toString(),
+        );
+      } catch (_) {}
+
+      if (!mounted) return;
+      _snack('Expiry updated to ${DateFormat('dd MMM yyyy').format(newEnd)}.');
+      _fetchMemberData();
+    } catch (e) {
+      if (mounted) _snack(friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   // ── Force Exit Member ──────────────────────────────────────────────────────
   Future<void> _forceExitMember() async {
     final confirmed = await showDialog<bool>(
@@ -1646,6 +1820,23 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       ),
                       onPressed: _holdMembership,
                     ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (!_isReadOnly && _membershipData?['end_date'] != null) ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.edit_calendar_outlined, size: 18, color: Color(0xFF7C3AED)),
+                label: Text('Adjust duration (extend / shorten)',
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF7C3AED))),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF7C3AED)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _showAdjustDurationSheet,
+              ),
             ),
             const SizedBox(height: 12),
           ],

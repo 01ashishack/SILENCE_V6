@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/image_optimizer.dart';
 import '../../theme/app_colors.dart';
@@ -35,6 +36,16 @@ class _RenewalScreenState extends State<RenewalScreen> {
   // Fetched data
   Map<String, dynamic>? _library;
   List<Map<String, dynamic>> _shifts = [];
+
+  // Current membership context (drives the 7-day renewal window gate).
+  DateTime? _currentEndDate;
+  int? _daysLeft; // null = no current membership (e.g. expired) → renewal allowed
+
+  /// Renewal is only "open" within the last 7 days of a still-running plan, or
+  /// once it has already expired. A member with > 7 days left is told to come
+  /// back closer to expiry (prevents accidental early/stacked renewals).
+  static const int _renewalWindowDays = 7;
+  bool get _renewalOpen => _daysLeft == null || _daysLeft! <= _renewalWindowDays;
 
   // Selected values
   Map<String, dynamic>? _selectedShift;
@@ -194,6 +205,32 @@ class _RenewalScreenState extends State<RenewalScreen> {
       
       _shifts = List<Map<String, dynamic>>.from(shiftsRes);
 
+      // 3. Current membership for this library → days-left for the renewal gate.
+      try {
+        final ms = await _supabase
+            .from('memberships')
+            .select('end_date, status')
+            .eq('member_id', user.id)
+            .eq('library_id', widget.libraryId)
+            .neq('status', 'exited')
+            .order('end_date', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        final endRaw = ms?['end_date']?.toString();
+        if (endRaw != null && endRaw.isNotEmpty) {
+          final end = DateTime.tryParse(endRaw);
+          if (end != null) {
+            _currentEndDate = end;
+            final now = DateTime.now();
+            final today = DateTime(now.year, now.month, now.day);
+            final endDay = DateTime(end.year, end.month, end.day);
+            _daysLeft = endDay.difference(today).inDays;
+          }
+        }
+      } catch (e) {
+        debugPrint('renewal: current membership lookup failed: $e');
+      }
+
       if (widget.initialShiftId != null && _shifts.isNotEmpty) {
         _selectedShift = _shifts.firstWhere(
           (s) => s['id'] == widget.initialShiftId,
@@ -292,6 +329,10 @@ class _RenewalScreenState extends State<RenewalScreen> {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
+    // Honest confirmation: tell the member what they have left before sending.
+    final confirmed = await _confirmRenewal();
+    if (confirmed != true) return;
+
     setState(() {
       _isSubmitting = true;
     });
@@ -334,7 +375,8 @@ class _RenewalScreenState extends State<RenewalScreen> {
         throw Exception('Please select a shift first.');
       }
 
-      // Insert join_request as a renewal request
+      // Insert join_request flagged as a RENEWAL so the admin can tell it apart
+      // and the approve flow extends the existing membership (not a duplicate).
       final requestPayload = {
         'member_id': user.id,
         'library_id': widget.libraryId,
@@ -344,6 +386,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
         'payment_proof_url': _proofUrl,
         'upi_sender_name': _paymentMethod == 'upi' ? _upiSenderCtrl.text.trim() : null,
         'status': 'pending',
+        'is_renewal': true,
       };
 
       await _supabase.from('join_requests').insert(requestPayload);
@@ -412,25 +455,142 @@ class _RenewalScreenState extends State<RenewalScreen> {
               ? const LoadingState(kind: SkeletonKind.spinner, message: 'Loading renewal details…')
               : _errorMessage != null
                   ? ErrorState(error: _errorMessage, onRetry: _loadDetails)
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildLibrarySummaryCard(),
-                          const SizedBox(height: 20),
-                          _buildShiftSelect(),
-                          const SizedBox(height: 20),
-                          _buildPlanSelect(),
-                          const SizedBox(height: 20),
-                          _buildPaymentSection(),
-                          const SizedBox(height: 32),
-                          _buildSubmitButton(),
-                          const SizedBox(height: 40),
-                        ],
-                      ),
-                    ),
+                  : !_renewalOpen
+                      ? _buildRenewalNotOpen()
+                      : SingleChildScrollView(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildLibrarySummaryCard(),
+                              const SizedBox(height: 20),
+                              if (_daysLeft != null) _buildDaysLeftNote(),
+                              if (_daysLeft != null) const SizedBox(height: 20),
+                              _buildShiftSelect(),
+                              const SizedBox(height: 20),
+                              _buildPlanSelect(),
+                              const SizedBox(height: 20),
+                              _buildPaymentSection(),
+                              const SizedBox(height: 32),
+                              _buildSubmitButton(),
+                              const SizedBox(height: 40),
+                            ],
+                          ),
+                        ),
         ),
+      ),
+    );
+  }
+
+  /// Shown when the member still has more than 7 days left — renewal opens
+  /// closer to expiry so plans aren't accidentally stacked early.
+  Widget _buildRenewalNotOpen() {
+    final endStr = _currentEndDate != null
+        ? DateFormat('dd MMM yyyy').format(_currentEndDate!)
+        : null;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: const BoxDecoration(color: Color(0xFFFFF3ED), shape: BoxShape.circle),
+              child: const Icon(Icons.schedule_rounded, color: Color(0xFFE65C00), size: 40),
+            ),
+            const SizedBox(height: 18),
+            Text('Renewal not open yet',
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+            const SizedBox(height: 8),
+            Text(
+              'Your plan is still active with $_daysLeft day${_daysLeft == 1 ? '' : 's'} left'
+              '${endStr != null ? ' (till $endStr)' : ''}. '
+              'Renewal opens in the last $_renewalWindowDays days before it expires — '
+              'please come back then.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 13.5, color: const Color(0xFF64748B), height: 1.45),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65C00),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text('Got it', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Small banner inside the form reminding the member how long is left.
+  Widget _buildDaysLeftNote() {
+    final endStr = _currentEndDate != null
+        ? DateFormat('dd MMM yyyy').format(_currentEndDate!)
+        : null;
+    final msg = (_daysLeft != null && _daysLeft! <= 0)
+        ? 'Your plan ends today. The new term starts from approval.'
+        : 'Your plan has $_daysLeft day${_daysLeft == 1 ? '' : 's'} left'
+            '${endStr != null ? ' (till $endStr)' : ''}. The new term is added on top.';
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFD1B3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFB45309)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(msg,
+                style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF92400E), height: 1.35)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Confirmation before sending the renewal request.
+  Future<bool?> _confirmRenewal() async {
+    final daysMsg = _daysLeft == null
+        ? 'Your previous plan has ended.'
+        : (_daysLeft! <= 0
+            ? 'Your plan ends today.'
+            : 'You currently have $_daysLeft day${_daysLeft == 1 ? '' : 's'} left.');
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Send renewal request?',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17)),
+        content: Text(
+          '$daysMsg The new term will be added on top of your current plan once '
+          'the admin approves and verifies the payment.',
+          style: GoogleFonts.inter(fontSize: 13.5, height: 1.4, color: const Color(0xFF475569)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE65C00),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Send request', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }

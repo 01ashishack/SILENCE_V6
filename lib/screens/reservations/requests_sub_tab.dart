@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/error_messages.dart';
 import '../../widgets/states/shimmer_box.dart';
@@ -749,6 +750,152 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     }
   }
 
+  /// Approve handler: a RENEWAL extends the member's existing membership (keeps
+  /// the same seat, no false "duplicate" prompt); a fresh join goes through the
+  /// seat picker.
+  Future<void> _onApprovePressed(Map<String, dynamic> request) async {
+    if (request['is_renewal'] == true) {
+      await _approveRenewalRequest(request);
+    } else {
+      await _showSeatPickerBottomSheet(request);
+    }
+  }
+
+  /// Approve a renewal: extend the member's current membership end_date (from
+  /// the later of current-end / today), keep their seat, record the payment,
+  /// notify + audit. Falls back to the join flow if no membership is found.
+  Future<void> _approveRenewalRequest(Map<String, dynamic> request) async {
+    if (_isApproving) return;
+    final member = request['member_id'];
+    final String memberId =
+        member is Map ? (member['id']?.toString() ?? '') : (member?.toString() ?? '');
+    final String memberName =
+        member is Map ? (member['full_name']?.toString() ?? 'Member') : 'Member';
+    if (memberId.isEmpty) return;
+
+    Map<String, dynamic>? existing;
+    try {
+      existing = await supabase
+          .from('memberships')
+          .select('id, end_date, seat_id, seats(seat_label)')
+          .eq('member_id', memberId)
+          .eq('library_id', widget.libraryId)
+          .inFilter('status', ['active', 'trial', 'hold', 'expiring', 'expired'])
+          .order('end_date', ascending: false)
+          .limit(1)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('renewal lookup failed: $e');
+    }
+    if (!mounted) return;
+    if (existing == null) {
+      // No membership to extend — treat as a normal join.
+      await _showSeatPickerBottomSheet(request);
+      return;
+    }
+
+    final planType = (request['plan_type'] ?? 'monthly').toString();
+    int durationMonths = 1;
+    if (planType == '3_month') durationMonths = 3;
+    if (planType == '6_month') durationMonths = 6;
+
+    DateTime base = DateTime.now();
+    final curEnd = DateTime.tryParse(existing['end_date']?.toString() ?? '');
+    if (curEnd != null && curEnd.isAfter(base)) base = curEnd;
+    final newEnd = _addMonths(base, durationMonths);
+    final seatLabel = (existing['seats']?['seat_label'] ?? 'their seat').toString();
+    final membershipId = existing['id'];
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Approve renewal?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Extend $memberName\'s membership to ${DateFormat('dd MMM yyyy').format(newEnd)} '
+          '(${_planLabel(planType)}). Seat $seatLabel stays the same.',
+          style: GoogleFonts.inter(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF22C55E),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(c, true),
+            child: Text('Approve renewal', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    _isApproving = true;
+    setState(() => _isLoading = true);
+    try {
+      final amount = await _computeApprovalAmount(
+        shiftId: request['shift_id']?.toString(),
+        planType: planType,
+        discount: (request['discount_amount'] as int?) ?? 0,
+      );
+
+      await supabase.from('memberships').update({
+        'end_date': newEnd.toIso8601String().substring(0, 10),
+        'status': 'active',
+        'plan_type': planType,
+      }).eq('id', membershipId);
+
+      await supabase.from('join_requests').update({'status': 'approved'}).eq('id', request['id']);
+
+      await supabase.from('payments').insert({
+        'membership_id': membershipId,
+        'member_id': memberId,
+        'library_id': widget.libraryId,
+        'amount': amount,
+        'method': request['payment_method'] ?? 'cash',
+        'status': 'confirmed',
+        'payment_date': DateTime.now().toIso8601String(),
+        'confirmed_by_admin_id': supabase.auth.currentUser?.id,
+        'proof_url': request['payment_proof_url'],
+        'upi_sender_name': request['upi_sender_name'],
+      });
+
+      await _notifyMember(
+        memberId: memberId,
+        title: 'Membership renewed',
+        message:
+            'Your renewal is confirmed. New expiry: ${DateFormat('dd MMM yyyy').format(newEnd)}. Payment of ₹$amount recorded.',
+        type: 'join_approved',
+      );
+      await _logAudit(
+        action: 'membership_renew',
+        category: AuditLogger.categoryMembers,
+        title: 'Renewed membership',
+        details: '$memberName · ${_planLabel(planType)} · ₹$amount',
+      );
+
+      _fetchRequests();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$memberName renewed — new expiry ${DateFormat('dd MMM yyyy').format(newEnd)}.'),
+          backgroundColor: const Color(0xFF22C55E),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      }
+    } finally {
+      _isApproving = false;
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _showSeatPickerBottomSheet(Map<String, dynamic> request) async {
     setState(() => _isLoading = true);
     final String shiftId = request['shift_id'];
@@ -994,6 +1141,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
     final String name = member['full_name'] ?? 'No Name';
     final String photo = member['photo_url'] ?? '';
+    final bool isRenewal = request['is_renewal'] == true;
     final String shiftName = request['shifts']?['name'] ?? 'Shift';
     final String planType = request['plan_type'] == 'monthly'
         ? '1 Month Plan'
@@ -1041,7 +1189,29 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        ),
+                        if (isRenewal) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: Text('RENEWAL',
+                                style: GoogleFonts.inter(fontSize: 8.5, fontWeight: FontWeight.bold, color: const Color(0xFF2563EB))),
+                          ),
+                        ],
+                      ],
+                    ),
                     const SizedBox(height: 2),
                     Text('Requested on ${createdAt.toString().substring(0, 16)}', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280))),
                   ],
@@ -1210,7 +1380,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                             ),
                           );
                         }
-                      : (isPaymentConfirmed ? () => _showSeatPickerBottomSheet(request) : null),
+                      : (isPaymentConfirmed ? () => _onApprovePressed(request) : null),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isProfileComplete
                         ? (isPaymentConfirmed ? const Color(0xFFE65C00) : Colors.grey[200])

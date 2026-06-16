@@ -246,6 +246,7 @@ CREATE TABLE IF NOT EXISTS join_requests (
     discount_reason TEXT,
     requested_seat_id UUID REFERENCES seats(id) ON DELETE SET NULL,
     selected_addon_ids UUID[],
+    is_renewal BOOLEAN NOT NULL DEFAULT false,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'expired', 'withdrawn')),
     payment_status TEXT NOT NULL DEFAULT 'unverified' CHECK (payment_status IN ('unverified', 'verified', 'rejected')),
     rejection_reason TEXT,
