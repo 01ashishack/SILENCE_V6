@@ -77,4 +77,17 @@ In this app becoming `admin` is the legitimate path to creating a library, so cl
 ## Status
 - ✅ Shipped: `2026-06-12_harden_open_insert_policies.sql` (anon-forgery block).
 - ✅ Drafted, additive, ready: RPC #1 `find_user_by_contact`.
-- ⏭️ Next executable step: **Cycle 1 step 2** (wire the 3 lookup sites) — gated on a device test, do it during/after the P1 smoke test.
+- ✅ Cycle 1 step 2 (wire the 3 lookup sites) — DONE, committed.
+- 🛠️ **Cycle 1 tighten migration corrected (2026-06-16):** the tenant-scope SELECT
+  (`2026-06-14_users_select_tenant_scope.sql`) would have **blanked the Requests tab** — a
+  pending join-request's applicant is NOT a member yet, so the `join_requests → member_id(...)`
+  embed in `requests_sub_tab.dart:128` would return null under a members-only policy. Added an
+  `OR EXISTS (pending join_requests at an owned library)` clause so applicants' name/phone/photo
+  still resolve. Swept all admin-side `users` reads/embeds: every other `member_id(...)` embed
+  (seat-change, hold, attendance, payments, layout, archive, members list) reads existing
+  **members** (membership row exists → covered by clause (a)); only pending join-requests needed
+  clause (b). Transfer screen doesn't read `users`. So the corrected policy is the complete set.
+- ⏭️ **Next executable step (USER, gated):** apply RPC #1 to the live DB if not already, device-verify
+  add-member autofill + the Requests tab shows applicant details, THEN apply the corrected
+  tenant-scope migration and re-verify (member lists, member detail, Requests tab all still load).
+  Only then fold the tightened policy into `supabase_schema.sql`.

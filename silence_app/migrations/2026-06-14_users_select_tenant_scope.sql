@@ -25,16 +25,21 @@
 -- WHAT
 --   Replace the table-wide owner SELECT with a membership-scoped one: an owner
 --   may read only users who are members of a library they own (same scoping the
---   UPDATE policy "Owner can update their library members" already uses). The
---   self-SELECT policy ("Users can view own profile") is unchanged, so every user
---   still reads their own row. The cross-library lookup now goes exclusively
---   through the SECURITY DEFINER RPC, which returns at most one minimal row.
+--   UPDATE policy "Owner can update their library members" already uses), PLUS
+--   users who have a PENDING JOIN REQUEST at one of their libraries (those users
+--   are not members yet, but the Requests tab must show their name/phone/photo
+--   via the join_requests → member_id(...) embed). The self-SELECT policy
+--   ("Users can view own profile") is unchanged, so every user still reads their
+--   own row. The cross-library lookup now goes exclusively through the SECURITY
+--   DEFINER RPC, which returns at most one minimal row.
 --
 -- VERIFY AFTER APPLYING (VC):
 --   • Admin member lists + member detail still load (members of owned libraries).
+--   • The Requests tab still shows each pending join request's member name/phone
+--     /photo (the non-member-yet case this policy explicitly covers).
 --   • Add-Member existing-account autofill still works (via the RPC).
---   • A library owner can NO LONGER select a user who is not a member of any of
---     their libraries (other than via the RPC).
+--   • A library owner can NO LONGER select a user who is neither a member nor a
+--     pending applicant of any of their libraries (other than via the RPC).
 --
 -- ROLLBACK:
 --   DROP POLICY "Admins can view library members" ON public.users;
@@ -48,9 +53,19 @@ DROP POLICY IF EXISTS "Admins can view library members" ON public.users;
 CREATE POLICY "Admins can view library members" ON public.users
     FOR SELECT
     USING (
+        -- (a) users who are members of a library the caller owns
         EXISTS (
             SELECT 1 FROM memberships m
             JOIN libraries l ON l.id = m.library_id
             WHERE m.member_id = users.id AND l.owner_id = auth.uid()
+        )
+        -- (b) users with a PENDING join request at a library the caller owns
+        --     (not members yet — the Requests tab reads them via member_id embed)
+        OR EXISTS (
+            SELECT 1 FROM join_requests jr
+            JOIN libraries l ON l.id = jr.library_id
+            WHERE jr.member_id = users.id
+              AND jr.status = 'pending'
+              AND l.owner_id = auth.uid()
         )
     );
