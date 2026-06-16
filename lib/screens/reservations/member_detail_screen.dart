@@ -56,6 +56,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   final _notesController = TextEditingController();
   bool _isSavingNote = false;
 
+  // True while building/sharing the full-profile PDF.
+  bool _isExportingPdf = false;
+
   // Tab state
   int _activeTab = 0;
   final List<String> _tabNames = ['Overview', 'Attendance', 'Payments', 'Activity', 'Notes'];
@@ -118,7 +121,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         // 2. Fetch current membership with relations
         supabase
             .from('memberships')
-            .select('*, seats(seat_label, floor_id), shifts(name, price_monthly)')
+            .select('*, seats(seat_label, floor_id, section_id), shifts(name, price_monthly), libraries(name, address_street, address_city, address_state, address_pin)')
             .eq('member_id', mId)
             .order('created_at', ascending: false)
             .limit(1)
@@ -1087,6 +1090,84 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     }
   }
 
+  // ── Export full member profile as PDF (with ID document images) ─────────────
+  Future<void> _exportMemberProfilePdf() async {
+    final user = _userProfile;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Member data is still loading. Please try again.')),
+      );
+      return;
+    }
+    setState(() => _isExportingPdf = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final ms = _membershipData ?? {};
+      final lib = ms['libraries'] as Map<String, dynamic>?;
+      final libName = (lib?['name'] ?? 'Library').toString();
+      final libAddress = [
+        lib?['address_street'],
+        lib?['address_city'],
+        lib?['address_state'],
+        lib?['address_pin'],
+      ].where((x) => x != null && x.toString().trim().isNotEmpty).join(', ');
+
+      // Resolve floor + section names from the seat (best-effort).
+      String floorName = '';
+      String sectionName = '';
+      final seat = ms['seats'] as Map<String, dynamic>?;
+      if (seat != null) {
+        final floorId = seat['floor_id'];
+        final sectionId = seat['section_id'];
+        if (floorId != null) {
+          try {
+            final f = await supabase.from('floors').select('name').eq('id', floorId).maybeSingle();
+            floorName = (f?['name'] ?? '').toString();
+          } catch (_) {}
+        }
+        if (sectionId != null) {
+          try {
+            final s = await supabase.from('sections').select('name').eq('id', sectionId).maybeSingle();
+            sectionName = (s?['name'] ?? '').toString();
+          } catch (_) {}
+        }
+      }
+
+      // Resolve image URLs: photo is public; ID docs need a signed URL.
+      final photoUrl = (user['photo_url'] ?? '').toString().trim();
+      String? idUrl1;
+      String? idUrl2;
+      final id1 = (user['id_proof_url'] ?? '').toString().trim();
+      final id2 = (user['id_proof_2_url'] ?? '').toString().trim();
+      if (id1.isNotEmpty) {
+        try {
+          idUrl1 = await _documentUrl(id1);
+        } catch (_) {}
+      }
+      if (id2.isNotEmpty) {
+        try {
+          idUrl2 = await _documentUrl(id2);
+        } catch (_) {}
+      }
+
+      await PdfExporter.exportMemberProfile(
+        libraryName: libName,
+        libraryAddress: libAddress.isEmpty ? 'Member profile' : libAddress,
+        user: user,
+        membership: ms,
+        floorName: floorName,
+        sectionName: sectionName,
+        photoUrl: photoUrl.isEmpty ? null : photoUrl,
+        idUrl1: idUrl1,
+        idUrl2: idUrl2,
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    } finally {
+      if (mounted) setState(() => _isExportingPdf = false);
+    }
+  }
+
   // ── Export Member Data CSV ─────────────────────────────────────────────────
   Future<void> _exportMemberData() async {
     final user = _userProfile;
@@ -1585,12 +1666,33 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             ),
             const SizedBox(height: 12),
           ],
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: _isExportingPdf
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.picture_as_pdf_rounded, size: 18, color: Colors.white),
+              label: Text(_isExportingPdf ? 'Preparing PDF…' : 'Export Profile PDF',
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _isExportingPdf ? null : _exportMemberProfilePdf,
+            ),
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.download_rounded, size: 18, color: Color(0xFFE65C00)),
-                  label: Text('Export Data', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                  label: Text('Export CSV', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFFE65C00)),
                     padding: const EdgeInsets.symmetric(vertical: 14),

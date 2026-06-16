@@ -439,6 +439,193 @@ class PdfExporter {
     );
   }
 
+  /// Full member-profile PDF: personal details, contact, membership (plan,
+  /// seat, floor, section, shift, library, dates) and the member's ID document
+  /// images. Image URLs are fetched best-effort — a missing/blocked image is
+  /// simply omitted, never an error.
+  static Future<void> exportMemberProfile({
+    required String libraryName,
+    required String libraryAddress,
+    required Map<String, dynamic> user,
+    required Map<String, dynamic> membership,
+    String floorName = '',
+    String sectionName = '',
+    String? photoUrl,
+    String? idUrl1,
+    String? idUrl2,
+  }) async {
+    final pdf = pw.Document();
+    final logo = await _loadLogo();
+    final generatedOn = DateFormat('dd MMM yyyy hh:mm a').format(DateTime.now());
+
+    final name = (user['full_name'] ?? 'N/A').toString();
+    final nickname = (user['nickname'] ?? '').toString();
+    final gender = (user['gender'] ?? 'N/A').toString();
+    final dob = _safeDate(user['date_of_birth']);
+    final exam = (user['exam_category'] ?? 'N/A').toString();
+    final phone = (user['phone'] ?? 'N/A').toString();
+    final email = (user['email'] ?? 'N/A').toString();
+    final address = (user['address'] ?? 'N/A').toString();
+    final idType = (user['id_type'] ?? 'N/A').toString();
+
+    final plan = _planLabel(membership['plan_type']);
+    final status = (membership['status'] ?? 'N/A').toString().toUpperCase();
+    final joinDate = _safeDate(membership['start_date']);
+    final endDate = _safeDate(membership['end_date']);
+    final seat = (membership['seats']?['seat_label'] ?? 'N/A').toString();
+    final shift = (membership['shifts']?['name'] ?? 'N/A').toString();
+
+    final photoImg = await _tryNetworkImage(photoUrl);
+    final idImg1 = await _tryNetworkImage(idUrl1);
+    final idImg2 = await _tryNetworkImage(idUrl2);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.only(top: 60, left: 40, right: 40, bottom: 50),
+        header: (ctx) => _buildHeader(ctx, libraryName, libraryAddress, 'MEMBER PROFILE', generatedOn, logo),
+        footer: (ctx) => _buildFooter(ctx, logo),
+        build: (ctx) => [
+          // Identity header: photo + name + status
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              if (photoImg != null) ...[
+                pw.Container(
+                  width: 64,
+                  height: 64,
+                  decoration: pw.BoxDecoration(
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                    image: pw.DecorationImage(image: photoImg, fit: pw.BoxFit.cover),
+                  ),
+                ),
+                pw.SizedBox(width: 14),
+              ],
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(name, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF0F172A))),
+                    if (nickname.isNotEmpty)
+                      pw.Text('"$nickname"', style: const pw.TextStyle(fontSize: 10, color: PdfColor.fromInt(0xFF64748B))),
+                    pw.SizedBox(height: 4),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColor.fromInt(0xFFFFF3ED),
+                        borderRadius: pw.BorderRadius.all(pw.Radius.circular(10)),
+                      ),
+                      child: pw.Text(status, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFFE65C00))),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          _profileSection('PERSONAL DETAILS', [
+            _buildReceiptDetailRow('Full name', name),
+            if (nickname.isNotEmpty) _buildReceiptDetailRow('Nickname', nickname),
+            _buildReceiptDetailRow('Gender', gender),
+            _buildReceiptDetailRow('Date of birth', dob),
+            _buildReceiptDetailRow('Preparing for', exam),
+          ]),
+          _profileSection('CONTACT', [
+            _buildReceiptDetailRow('Phone', phone),
+            _buildReceiptDetailRow('Email', email),
+            _buildReceiptDetailRow('Address', address),
+          ]),
+          _profileSection('MEMBERSHIP', [
+            _buildReceiptDetailRow('Library', libraryName),
+            _buildReceiptDetailRow('Plan', plan),
+            _buildReceiptDetailRow('Status', status),
+            _buildReceiptDetailRow('Joining date', joinDate),
+            _buildReceiptDetailRow('Valid till', endDate),
+            _buildReceiptDetailRow('Seat', seat),
+            _buildReceiptDetailRow('Floor', floorName.isEmpty ? 'N/A' : floorName),
+            _buildReceiptDetailRow('Section', sectionName.isEmpty ? 'N/A' : sectionName),
+            _buildReceiptDetailRow('Shift', shift),
+          ]),
+          _profileSection('ID DOCUMENTS', [
+            _buildReceiptDetailRow('ID type', idType),
+          ]),
+          if (idImg1 != null) ...[
+            pw.SizedBox(height: 10),
+            pw.Text('ID Document 1', style: const pw.TextStyle(fontSize: 9, color: PdfColor.fromInt(0xFF64748B))),
+            pw.SizedBox(height: 6),
+            pw.Container(
+              height: 220,
+              alignment: pw.Alignment.center,
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: const PdfColor.fromInt(0xFFE2E8F0))),
+              child: pw.Image(idImg1, fit: pw.BoxFit.contain),
+            ),
+          ],
+          if (idImg2 != null) ...[
+            pw.SizedBox(height: 10),
+            pw.Text('ID Document 2', style: const pw.TextStyle(fontSize: 9, color: PdfColor.fromInt(0xFF64748B))),
+            pw.SizedBox(height: 6),
+            pw.Container(
+              height: 220,
+              alignment: pw.Alignment.center,
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: const PdfColor.fromInt(0xFFE2E8F0))),
+              child: pw.Image(idImg2, fit: pw.BoxFit.contain),
+            ),
+          ],
+          if (idImg1 == null && idImg2 == null)
+            pw.Text('No ID document images available.', style: const pw.TextStyle(fontSize: 9, color: PdfColor.fromInt(0xFF94A3B8))),
+        ],
+      ),
+    );
+
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: '${name.replaceAll(' ', '_')}_profile.pdf',
+    );
+  }
+
+  static Future<pw.ImageProvider?> _tryNetworkImage(String? url) async {
+    if (url == null || url.trim().isEmpty) return null;
+    try {
+      return await networkImage(url.trim());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _safeDate(dynamic v) {
+    if (v == null) return 'N/A';
+    final s = v.toString();
+    if (s.isEmpty) return 'N/A';
+    final d = DateTime.tryParse(s);
+    return d == null ? 'N/A' : DateFormat('dd MMM yyyy').format(d);
+  }
+
+  static String _planLabel(dynamic plan) {
+    switch ((plan ?? '').toString()) {
+      case '6_month':
+        return '6-month plan';
+      case '3_month':
+        return '3-month plan';
+      case 'monthly':
+        return 'Monthly plan';
+      case 'trial':
+        return 'Trial';
+      default:
+        return (plan == null || plan.toString().isEmpty) ? 'N/A' : plan.toString();
+    }
+  }
+
+  static pw.Widget _profileSection(String title, List<pw.Widget> rows) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.SizedBox(height: 14),
+        pw.Text(title, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF1E293B))),
+        pw.Divider(thickness: 1, color: const PdfColor.fromInt(0xFFE2E8F0)),
+        ...rows,
+      ],
+    );
+  }
+
   // --- PRIVATE HEADER/FOOTER/CELL BUILDERS ---
 
   static pw.Widget _buildHeader(
