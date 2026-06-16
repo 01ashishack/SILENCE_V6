@@ -7,6 +7,7 @@
 --   lets ANY authenticated user read/write the silence_private bucket — i.e. any
 --   logged-in user can fetch any member's ID document or payment proof. That is
 --   the audit's P10-01/02/03 exposure and a reportable DPDP breach (identity
+
 --   documents). This migration scopes silence_private to the owner of each
 --   object's path.
 --

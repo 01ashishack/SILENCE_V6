@@ -364,14 +364,24 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       // migrations/2026-06-12_users_owner_update_rls.sql).
       // Owner-only server-side resolver (replaces a broad cross-library
       // users.select; see migrations/2026-06-12_rpc_find_user_by_contact.sql).
-      final lookupRows = await _supabase.rpc(
-        'find_user_by_contact',
-        params: {
-          'p_phone': _memberData.phone,
-          'p_email': _memberData.email,
-        },
-      );
-      final lookupList = lookupRows is List ? lookupRows : const [];
+      // Resolve an existing account. The RPC is an owner-scoped PII guard; if it
+      // is unavailable or rejects (e.g. not yet applied, or an ownership edge),
+      // do NOT hard-fail the whole add — fall back to "no match found" and let
+      // the users-table unique constraint catch a genuine duplicate with an
+      // honest message, instead of a blanket "permission" error.
+      List<dynamic> lookupList = const [];
+      try {
+        final lookupRows = await _supabase.rpc(
+          'find_user_by_contact',
+          params: {
+            'p_phone': _memberData.phone,
+            'p_email': _memberData.email,
+          },
+        );
+        lookupList = lookupRows is List ? lookupRows : const [];
+      } catch (e) {
+        debugPrint('find_user_by_contact failed; proceeding without autofill: $e');
+      }
       final Map<String, dynamic>? userObj = lookupList.isNotEmpty
           ? Map<String, dynamic>.from(lookupList.first as Map)
           : null;
@@ -762,8 +772,13 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        if (_currentStep == 0) {
-          Navigator.pop(context);
+        // Hardware/gesture back: step back through the wizard; only exit (with a
+        // save-draft prompt) from the first step.
+        if (_currentStep > 0) {
+          _pageController.previousPage(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+          );
         } else {
           _showExitDraftPrompt();
         }
@@ -772,6 +787,21 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         backgroundColor: const Color(0xFFFBF5EE),
         appBar: AppBar(
           backgroundColor: const Color(0xFFE65C00),
+          // Top-left back: previous step when not on the first page (was exiting
+          // the whole wizard); on the first page it offers save-draft / exit.
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (_currentStep > 0) {
+                _pageController.previousPage(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                );
+              } else {
+                _showExitDraftPrompt();
+              }
+            },
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
