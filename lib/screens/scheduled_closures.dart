@@ -236,23 +236,36 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                             );
                             return;
                           }
+                          final end = isRange ? endDate : startDate;
+                          final ok = await _confirmClose(startDate, end);
+                          if (ok != true) return;
+                          if (!mounted) return;
                           setSheet(() => saving = true);
                           final messenger = ScaffoldMessenger.of(context);
                           try {
-                            await HolidayService.instance.addHoliday(
+                            final created = await HolidayService.instance.addHoliday(
                               libraryId: _libId!,
                               start: startDate,
-                              end: isRange ? endDate : startDate,
+                              end: end,
                               reason: reasonCtrl.text.trim(),
                               notifyMembers: notify,
                             );
+                            int ended = 0;
+                            if (created.covers(_today)) {
+                              ended = await HolidayService.instance
+                                  .closeOpenSessionsNow(_libId!);
+                            }
                             if (!sheetCtx.mounted) return;
                             Navigator.pop(sheetCtx);
+                            final extra = ended > 0
+                                ? ' $ended active session${ended == 1 ? '' : 's'} ended.'
+                                : '';
                             messenger.showSnackBar(
                               SnackBar(
-                                content: Text(notify
-                                    ? 'Holiday saved. Members notified.'
-                                    : 'Holiday saved.'),
+                                content: Text((notify
+                                        ? 'Holiday saved. Members notified.'
+                                        : 'Holiday saved.') +
+                                    extra),
                                 backgroundColor: AppColors.primary,
                               ),
                             );
@@ -387,6 +400,86 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
     return '${DateFormat('dd MMM').format(h.startDate)} – ${DateFormat('dd MMM yyyy').format(h.endDate)}';
   }
 
+  /// Confirmation before saving a closure: shows active-member count and — when
+  /// the closure covers today — how many are checked in now (auto-checked-out).
+  Future<bool?> _confirmClose(DateTime start, DateTime end) async {
+    if (_libId == null) return false;
+    final coversToday = !_today.isBefore(start) && !_today.isAfter(end);
+    final activeMembers = await HolidayService.instance.activeMembersCount(_libId!);
+    final openNow = coversToday ? await HolidayService.instance.openSessionsNow(_libId!) : 0;
+    if (!mounted) return false;
+
+    final bool single = start.year == end.year && start.month == end.month && start.day == end.day;
+    final dateLabel = single
+        ? DateFormat('EEE, dd MMM yyyy').format(start)
+        : '${DateFormat('dd MMM').format(start)} – ${DateFormat('dd MMM yyyy').format(end)}';
+
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppColors.primary, size: 26),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Close the library?',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Closing for: $dateLabel',
+                style: GoogleFonts.inter(
+                    fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const SizedBox(height: 10),
+            Text('$activeMembers active member${activeMembers == 1 ? '' : 's'} in this library.',
+                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+            if (coversToday && openNow > 0) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: Text(
+                  '$openNow member${openNow == 1 ? ' is' : 's are'} checked in right now. '
+                  'Closing today will end ${openNow == 1 ? 'their session' : 'their sessions'} immediately.',
+                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF991B1B), height: 1.35),
+                ),
+              ),
+            ] else if (coversToday) ...[
+              const SizedBox(height: 8),
+              Text('No one is checked in right now.',
+                  style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textMuted)),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel',
+                style: GoogleFonts.inter(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(coversToday && openNow > 0 ? 'Close & end sessions' : 'Close library',
+                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -421,16 +514,6 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
               ],
             ),
           ),
-          floatingActionButton: _isLoading || _loadError != null
-              ? null
-              : FloatingActionButton.extended(
-                  backgroundColor: AppColors.primary,
-                  onPressed: _showAddHolidaySheet,
-                  icon: const Icon(Icons.add, color: Colors.white),
-                  label: Text('Add holiday',
-                      style: GoogleFonts.inter(
-                          color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
           body: _buildBody(),
         ),
       ),
@@ -444,11 +527,35 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
     if (_loadError != null) {
       return ErrorState(message: friendlyError(_loadError), onRetry: _load);
     }
-    return TabBarView(
-      controller: _tabController,
+    return Column(
       children: [
-        _buildList(_upcoming, true),
-        _buildList(_past, false),
+        // Add-holiday composer merged onto the main screen (was a FAB).
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _showAddHolidaySheet,
+              icon: const Icon(Icons.add, color: Colors.white, size: 18),
+              label: Text('Add holiday / closure',
+                  style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildList(_upcoming, true),
+              _buildList(_past, false),
+            ],
+          ),
+        ),
       ],
     );
   }

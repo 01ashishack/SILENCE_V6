@@ -12,6 +12,7 @@ import 'admin_analytics_tab.dart';
 import 'admin_profile_tab.dart';
 import 'scheduled_closures.dart';
 import '../utils/holiday_service.dart';
+import '../core/calendar_picker.dart';
 import '../widgets/states/shimmer_box.dart';
 
 class AdminHomeScreen extends StatefulWidget {
@@ -3476,6 +3477,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     final reasonCtrl = TextEditingController();
     bool notify = true;
     bool saving = false;
+    bool isRange = false;
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    DateTime startDate = today;
+    DateTime endDate = today;
 
     showModalBottomSheet(
       context: context,
@@ -3486,7 +3491,33 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       ),
       builder: (sheetCtx) => StatefulBuilder(
         builder: (sheetCtx, setSheet) {
-          final alreadyHoliday = _todayHoliday != null;
+          Future<void> pickStart() async {
+            final picked = await showCalendarGridBottomSheet(
+              sheetCtx,
+              initialDate: startDate,
+              firstDate: today,
+              lastDate: today.add(const Duration(days: 365)),
+            );
+            if (picked != null) {
+              setSheet(() {
+                startDate = DateTime(picked.year, picked.month, picked.day);
+                if (endDate.isBefore(startDate)) endDate = startDate;
+              });
+            }
+          }
+
+          Future<void> pickEnd() async {
+            final picked = await showCalendarGridBottomSheet(
+              sheetCtx,
+              initialDate: endDate.isBefore(startDate) ? startDate : endDate,
+              firstDate: startDate,
+              lastDate: startDate.add(const Duration(days: 365)),
+            );
+            if (picked != null) {
+              setSheet(() => endDate = DateTime(picked.year, picked.month, picked.day));
+            }
+          }
+
           return Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
@@ -3494,90 +3525,127 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               left: 20,
               right: 20,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF3ED),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.event_busy,
-                          color: Color(0xFFE65C00), size: 24),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            alreadyHoliday ? 'Today is already a holiday' : 'Close library today',
-                            style: GoogleFonts.outfit(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1A1A2E),
-                            ),
-                          ),
-                          Text(
-                            alreadyHoliday
-                                ? _todayHoliday!.reason
-                                : 'Mark the library closed for today only',
-                            style: GoogleFonts.inter(
-                                fontSize: 12, color: Colors.grey[500]),
-                          ),
-                        ],
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFFD1B3)),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Text(
-                        'What happens when you close:',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF92400E),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF3ED),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.event_busy,
+                            color: Color(0xFFE65C00), size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Add holiday / closure',
+                              style: GoogleFonts.outfit(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF1A1A2E),
+                              ),
+                            ),
+                            Text(
+                              'Close the library for a day, a range, or a future date',
+                              style: GoogleFonts.inter(
+                                  fontSize: 12, color: Colors.grey[500]),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      _buildCloseInfoRow('🛡️', 'Members’ study streaks are protected'),
-                      const SizedBox(height: 4),
-                      _buildCloseInfoRow('🚫', 'Check-in is blocked for everyone today'),
-                      const SizedBox(height: 4),
-                      _buildCloseInfoRow(
-                          '🔔',
-                          notify
-                              ? 'Members get an in-app notification'
-                              : 'Members are NOT notified'),
                     ],
                   ),
-                ),
-                if (!alreadyHoliday) ...[
+                  const SizedBox(height: 16),
+
+                  // Single day vs Date range toggle
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        _holidaySegment('Single day', !isRange, () {
+                          setSheet(() {
+                            isRange = false;
+                            endDate = startDate;
+                          });
+                        }),
+                        _holidaySegment('Date range', isRange, () {
+                          setSheet(() {
+                            isRange = true;
+                            if (!endDate.isAfter(startDate)) {
+                              endDate = startDate.add(const Duration(days: 1));
+                            }
+                          });
+                        }),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  _holidayDateRow(isRange ? 'From' : 'Date', startDate, pickStart),
+                  if (isRange) ...[
+                    const SizedBox(height: 8),
+                    _holidayDateRow('To', endDate, pickEnd),
+                  ],
+                  const SizedBox(height: 16),
+
+                  // Instruction card (kept).
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFFD1B3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'What happens when you close:',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF92400E),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildCloseInfoRow('🛡️', 'Members’ study streaks are protected'),
+                        const SizedBox(height: 4),
+                        _buildCloseInfoRow('🚫', 'Check-in is blocked for everyone on these days'),
+                        const SizedBox(height: 4),
+                        _buildCloseInfoRow('⏹️', 'If you close today, anyone checked in is auto-checked-out'),
+                        const SizedBox(height: 4),
+                        _buildCloseInfoRow(
+                            '🔔',
+                            notify
+                                ? 'Members get an in-app notification'
+                                : 'Members are NOT notified'),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: reasonCtrl,
@@ -3597,10 +3665,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     activeThumbColor: const Color(0xFFE65C00),
                     onChanged: (v) => setSheet(() => notify = v),
                   ),
-                ],
-                const SizedBox(height: 12),
-                // Primary action: close today (only if not already a holiday)
-                if (!alreadyHoliday)
+                  const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: saving
                         ? null
@@ -3611,28 +3676,42 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                               );
                               return;
                             }
+                            final end = isRange ? endDate : startDate;
+                            final ok = await _confirmCloseLibrary(startDate, end);
+                            if (ok != true) return;
+                            if (!mounted) return;
                             setSheet(() => saving = true);
                             final messenger = ScaffoldMessenger.of(context);
                             try {
-                              final today = DateTime.now();
                               final created = await HolidayService.instance.addHoliday(
                                 libraryId: _libraryId!,
-                                start: today,
-                                end: today,
+                                start: startDate,
+                                end: end,
                                 reason: reasonCtrl.text.trim(),
                                 notifyMembers: notify,
                               );
-                              if (mounted) setState(() => _todayHoliday = created);
+                              // If the closure covers today, end any open sessions.
+                              int ended = 0;
+                              if (created.covers(today)) {
+                                ended = await HolidayService.instance
+                                    .closeOpenSessionsNow(_libraryId!);
+                                if (mounted) setState(() => _todayHoliday = created);
+                              }
                               if (!sheetCtx.mounted) return;
                               Navigator.pop(sheetCtx);
+                              final extra = ended > 0
+                                  ? ' $ended active session${ended == 1 ? '' : 's'} ended.'
+                                  : '';
                               messenger.showSnackBar(
                                 SnackBar(
-                                  content: Text(notify
-                                      ? 'Library closed for today. Members notified.'
-                                      : 'Library closed for today.'),
+                                  content: Text((notify
+                                          ? 'Holiday saved. Members notified.'
+                                          : 'Holiday saved.') +
+                                      extra),
                                   backgroundColor: const Color(0xFFE65C00),
                                 ),
                               );
+                              if (_libraryId != null) _loadLibrarySpecificData(_libraryId!);
                             } catch (e) {
                               setSheet(() => saving = false);
                               messenger.showSnackBar(
@@ -3647,7 +3726,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.event_busy, size: 18),
-                    label: Text('Close today',
+                    label: Text('Save holiday',
                         style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFE65C00),
@@ -3657,36 +3736,166 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(sheetCtx);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            ScheduledClosuresScreen(libraryId: _libraryId),
-                      ),
-                    ).then((_) {
-                      if (_libraryId != null) _loadLibrarySpecificData(_libraryId!);
-                    });
-                  },
-                  icon: const Icon(Icons.calendar_month, size: 18),
-                  label: Text('Schedule Holidays',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFE65C00),
-                    side: const BorderSide(color: Color(0xFFE65C00)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetCtx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ScheduledClosuresScreen(libraryId: _libraryId),
+                        ),
+                      ).then((_) {
+                        if (_libraryId != null) _loadLibrarySpecificData(_libraryId!);
+                      });
+                    },
+                    icon: const Icon(Icons.history, size: 18),
+                    label: Text('Holiday history & upcoming',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFE65C00),
+                      side: const BorderSide(color: Color(0xFFE65C00)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-              ],
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// Segment pill for the single-day / date-range toggle.
+  Widget _holidaySegment(String label, bool active, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: active ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: active
+                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 1))]
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: active ? const Color(0xFFE65C00) : Colors.grey[500],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _holidayDateRow(String label, DateTime date, VoidCallback onTap) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: GoogleFonts.inter(
+                fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF475569))),
+        TextButton.icon(
+          onPressed: onTap,
+          icon: const Icon(Icons.calendar_month, size: 16, color: Color(0xFFE65C00)),
+          label: Text(
+            DateFormat('EEE, dd MMM yyyy').format(date),
+            style: GoogleFonts.inter(
+                fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Confirmation before closing: shows the current situation (active members,
+  /// and — if the closure covers today — how many are checked in right now and
+  /// will be auto-checked-out). Returns true if the admin confirms.
+  Future<bool?> _confirmCloseLibrary(DateTime start, DateTime end) async {
+    final libId = _libraryId!;
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    final coversToday = !today.isBefore(start) && !today.isAfter(end);
+    final activeMembers = await HolidayService.instance.activeMembersCount(libId);
+    final openNow = coversToday ? await HolidayService.instance.openSessionsNow(libId) : 0;
+    if (!mounted) return false;
+
+    final bool single =
+        start.year == end.year && start.month == end.month && start.day == end.day;
+    final dateLabel = single
+        ? DateFormat('EEE, dd MMM yyyy').format(start)
+        : '${DateFormat('dd MMM').format(start)} – ${DateFormat('dd MMM yyyy').format(end)}';
+
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFE65C00), size: 26),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Close the library?',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Closing for: $dateLabel',
+                style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+            const SizedBox(height: 10),
+            Text('$activeMembers active member${activeMembers == 1 ? '' : 's'} in this library.',
+                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569))),
+            if (coversToday && openNow > 0) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: Text(
+                  '$openNow member${openNow == 1 ? ' is' : 's are'} checked in right now. '
+                  'Closing today will end ${openNow == 1 ? 'their session' : 'their sessions'} immediately.',
+                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF991B1B), height: 1.35),
+                ),
+              ),
+            ] else if (coversToday) ...[
+              const SizedBox(height: 8),
+              Text('No one is checked in right now.',
+                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE65C00),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(coversToday && openNow > 0 ? 'Close & end sessions' : 'Close library',
+                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }

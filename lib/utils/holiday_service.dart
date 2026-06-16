@@ -140,6 +140,76 @@ class HolidayService {
     await _supabase.from('scheduled_closures').delete().eq('id', id);
   }
 
+  /// How many members currently have an OPEN session (checked in, not yet
+  /// checked out) at this library. These are the sessions a "close today"
+  /// would end — surfaced in the close-library confirmation.
+  Future<int> openSessionsNow(String libraryId) async {
+    try {
+      final res = await _supabase
+          .from('attendance')
+          .select('id')
+          .eq('library_id', libraryId)
+          .isFilter('check_out_time', null);
+      return List<Map<String, dynamic>>.from(res).length;
+    } catch (e) {
+      debugPrint('openSessionsNow failed: $e');
+      return 0;
+    }
+  }
+
+  /// Count of members with a live membership (active/trial/hold) at this
+  /// library — shown for context in the close-library confirmation.
+  Future<int> activeMembersCount(String libraryId) async {
+    try {
+      final res = await _supabase
+          .from('memberships')
+          .select('id')
+          .eq('library_id', libraryId)
+          .inFilter('status', ['active', 'trial', 'hold']);
+      return List<Map<String, dynamic>>.from(res).length;
+    } catch (e) {
+      debugPrint('activeMembersCount failed: $e');
+      return 0;
+    }
+  }
+
+  /// Auto-checks-out every currently-open session at this library (used when the
+  /// admin closes the library for today). Sets check_out_time = now, computes
+  /// duration, and flags the session as 'closed'. Returns how many sessions were
+  /// ended. Best-effort per row so one failure doesn't abort the rest.
+  Future<int> closeOpenSessionsNow(String libraryId) async {
+    int closed = 0;
+    try {
+      final res = await _supabase
+          .from('attendance')
+          .select('id, check_in_time')
+          .eq('library_id', libraryId)
+          .isFilter('check_out_time', null);
+      final now = DateTime.now().toUtc();
+      for (final row in List<Map<String, dynamic>>.from(res)) {
+        try {
+          final ci = DateTime.tryParse(row['check_in_time']?.toString() ?? '');
+          int dur = 0;
+          if (ci != null) {
+            dur = now.difference(ci.toUtc()).inMinutes;
+            if (dur < 0) dur = 0;
+          }
+          await _supabase.from('attendance').update({
+            'check_out_time': now.toIso8601String(),
+            'duration_minutes': dur,
+            'session_type': 'closed',
+          }).eq('id', row['id']);
+          closed++;
+        } catch (e) {
+          debugPrint('closeOpenSessionsNow row failed: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('closeOpenSessionsNow failed: $e');
+    }
+    return closed;
+  }
+
   /// Sends an in-app notification to every member of the library. Best-effort:
   /// logs and returns on failure rather than throwing (the holiday already
   /// exists; a notification failure must not roll it back).
