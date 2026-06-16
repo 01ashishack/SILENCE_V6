@@ -1582,11 +1582,18 @@ class _MembersSubTabState extends State<MembersSubTab> {
 
     final String memberId = member['id'];
     final String name = member['full_name'] ?? 'No Name';
-    final String phone = member['phone'] ?? '';
     final String photo = member['photo_url'] ?? '';
     final String seatLabel = membership['seats']?['seat_label'] ?? 'No Seat';
     final String shiftName = membership['shifts']?['name'] ?? 'No Shift';
     final String status = membership['status'] ?? 'pending';
+    // Show the joining date on the card (was the mobile number).
+    final String joiningRaw =
+        (membership['start_date'] ?? membership['created_at'])?.toString() ?? '';
+    String joiningLabel = '';
+    if (joiningRaw.isNotEmpty) {
+      final dt = DateTime.tryParse(joiningRaw);
+      if (dt != null) joiningLabel = 'Joined ${DateFormat('dd MMM yyyy').format(dt)}';
+    }
 
     final bool isSelected = _selectedMemberIds.contains(memberId);
 
@@ -1674,10 +1681,10 @@ class _MembersSubTabState extends State<MembersSubTab> {
                   ),
                 ],
               ),
-              if (phone.isNotEmpty)
+              if (joiningLabel.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text(phone, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
+                  child: Text(joiningLabel, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
                 ),
             ],
           ),

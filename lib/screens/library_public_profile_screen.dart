@@ -1120,7 +1120,6 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     final suffix = plan['priceSuffix'];
     final shiftName = plan['shiftName'];
     final timings = plan['timings'];
-    final shiftId = plan['shiftId'];
 
     return Container(
       width: 280,
@@ -1199,22 +1198,6 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
             _buildFeatureRow('Comfortable Seating'),
             const SizedBox(height: 3),
             _buildFeatureRow('Power Socket & RO Water'),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  _checkAndJoinLibrary(shiftId: shiftId);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE65C00),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: Text('Select Plan', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold)),
-              ),
-            ),
           ],
         ),
       ),

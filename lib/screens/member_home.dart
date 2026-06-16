@@ -281,6 +281,14 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, rules, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
           .eq('status', 'active');
 
+      // Latest confirmed payment per membership → real price for the card
+      // (the plan-price columns can be 0/null, which showed a dishonest ₹0).
+      final paymentsFuture = supabase
+          .from('payments')
+          .select('membership_id, amount, status, payment_date')
+          .eq('member_id', currentUser.id)
+          .order('payment_date', ascending: false);
+
       final results = await Future.wait([
         profileFuture,
         pendingReqsFuture,
@@ -289,6 +297,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         lastCompletedFuture,
         exploreFuture,
         rejectedReqFuture,
+        paymentsFuture,
       ]);
 
       if (!mounted) return;
@@ -300,6 +309,23 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       _rejectedRequest = results[6] as Map<String, dynamic>?;
 
       final allMemberships = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
+      // Attach each membership's latest confirmed payment amount (honest price).
+      final paymentRows = List<Map<String, dynamic>>.from(results[7] as List? ?? []);
+      final Map<String, int> paidByMembership = {};
+      for (final p in paymentRows) {
+        final mid = p['membership_id']?.toString();
+        if (mid == null) continue;
+        final status = (p['status'] ?? '').toString();
+        if (status == 'rejected') continue; // ignore rejected payments
+        // Rows are newest-first, so the first one we see per membership wins.
+        paidByMembership.putIfAbsent(mid, () => (p['amount'] as num? ?? 0).toInt());
+      }
+      for (final m in allMemberships) {
+        final mid = m['id']?.toString();
+        if (mid != null && paidByMembership.containsKey(mid)) {
+          m['_paid_amount'] = paidByMembership[mid];
+        }
+      }
       _allMemberships = allMemberships;
       // Cache memberships + profile so the card still renders when offline.
       CacheService.instance.writeCache('member_memberships', allMemberships);
@@ -1351,6 +1377,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       ],
     );
     final banners = <Widget>[
+      if (_primaryLibraryHoliday != null && _currentBottomTab == 0)
+        _buildClosedTodayBanner(_primaryLibraryHoliday!),
       if (_isPendingDeletion) _buildDeletionBanner(),
       if (_isOfflineCached)
         InkWell(
@@ -1396,6 +1424,49 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               const Icon(Icons.chevron_right, size: 18, color: Color(0xFFDC2626)),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Prominent RED banner shown across the Home tab whenever the member's
+  /// primary library is closed today (holiday/closure). Honest + unmissable so
+  /// a member doesn't show up to a closed library or wonder why check-in fails.
+  Widget _buildClosedTodayBanner(Holiday holiday) {
+    final reason = holiday.reason.trim();
+    return Material(
+      color: const Color(0xFFDC2626), // strong red
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.event_busy_rounded, size: 20, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Library closed today',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    reason.isEmpty
+                        ? 'Check-in is disabled for today.'
+                        : '$reason · Check-in is disabled for today.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: Colors.white.withValues(alpha: 0.92),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -3233,6 +3304,31 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
+  /// Honest price for the membership card: the amount the member actually paid
+  /// (latest confirmed payment) wins; otherwise the shift's plan price; if both
+  /// are missing/zero, show '—' rather than a misleading ₹0.
+  String _membershipPriceLabel(Map<String, dynamic> membership, Map<String, dynamic> shift) {
+    final paid = membership['_paid_amount'];
+    if (paid is num && paid > 0) return '₹${paid.toInt()}';
+    int planPrice = 0;
+    if (shift.isNotEmpty) {
+      switch (membership['plan_type']) {
+        case 'monthly':
+          planPrice = (shift['price_monthly'] as num? ?? 0).toInt();
+          break;
+        case '3_month':
+          planPrice = (shift['price_3month'] as num? ?? 0).toInt();
+          break;
+        case '6_month':
+          planPrice = (shift['price_6month'] as num? ?? 0).toInt();
+          break;
+        default:
+          planPrice = (shift['price_monthly'] as num? ?? 0).toInt();
+      }
+    }
+    return planPrice > 0 ? '₹$planPrice' : '—';
+  }
+
   Widget _buildMembershipCard(Map<String, dynamic> membership, MemberState state) {
     final status = membership['status'] as String? ?? 'pending';
     final library = membership['libraries'] as Map<String, dynamic>? ?? {};
@@ -3680,7 +3776,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                 child: _cardInfoItem(
                   Icons.payments_outlined,
                   'Price',
-                  '₹${shift.isNotEmpty ? (membership['plan_type'] == 'monthly' ? (shift['price_monthly'] ?? 0) : membership['plan_type'] == '3_month' ? (shift['price_3month'] ?? 0) : (shift['price_6month'] ?? 0)) : 0}',
+                  _membershipPriceLabel(membership, shift),
                 ),
               ),
             ],
