@@ -1466,7 +1466,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
 
   Widget _buildLibraryInfoSection(Map<String, dynamic>? lib) {
     if (lib == null) return const SizedBox.shrink();
-    final address = '${lib['address_street'] ?? ""}, ${lib['address_city'] ?? ""}, ${lib['address_state'] ?? ""} ${lib['address_pin'] ?? ""}';
+    final address = '${lib['address_street'] ?? ""}, ${lib['address_city'] ?? ""}, ${lib['address_state'] ?? ""} ${lib['address_pincode'] ?? ""}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -121,7 +121,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         // 2. Fetch current membership with relations
         supabase
             .from('memberships')
-            .select('*, seats(seat_label, floor_id, section_id), shifts(name, price_monthly), libraries(name, address_street, address_city, address_state, address_pin)')
+            .select('*, seats(seat_label, floor_id, section_id), shifts(name, price_monthly), libraries(name, address_street, address_city, address_state, address_pincode)')
             .eq('member_id', mId)
             .order('created_at', ascending: false)
             .limit(1)
@@ -1109,7 +1109,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         lib?['address_street'],
         lib?['address_city'],
         lib?['address_state'],
-        lib?['address_pin'],
+        lib?['address_pincode'],
       ].where((x) => x != null && x.toString().trim().isNotEmpty).join(', ');
 
       // Resolve floor + section names from the seat (best-effort).

@@ -1580,7 +1580,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     final streetCtrl = TextEditingController(text: lib['address_street'] ?? '');
     final cityCtrl = TextEditingController(text: lib['address_city'] ?? '');
     final stateCtrl = TextEditingController(text: lib['address_state'] ?? '');
-    final pinCtrl = TextEditingController(text: lib['address_pin'] ?? '');
+    final pinCtrl = TextEditingController(text: lib['address_pincode'] ?? '');
     final locationLinkCtrl = TextEditingController(text: lib['location_link'] ?? '');
     final emergencyCtrl = TextEditingController(text: lib['emergency_phone'] ?? '');
     final latitudeCtrl = TextEditingController(text: lib['latitude']?.toString() ?? '');
@@ -1698,7 +1698,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                         'address_street': streetCtrl.text.trim(),
                         'address_city': cityCtrl.text.trim(),
                         'address_state': stateCtrl.text.trim(),
-                        'address_pin': pinCtrl.text.trim(),
+                        'address_pincode': pinCtrl.text.trim(),
                         'location_link': locationLinkCtrl.text.trim(),
                         'emergency_phone': emergencyCtrl.text.trim(),
                         'latitude': double.tryParse(latitudeCtrl.text.trim()),

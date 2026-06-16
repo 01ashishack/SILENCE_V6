@@ -585,7 +585,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     final addressCity = _library!['address_city'] ?? '';
     final addressState = _library!['address_state'] ?? '';
     final addressStreet = _library!['address_street'] ?? '';
-    final addressPin = _library!['address_pin'] ?? '';
+    final addressPin = _library!['address_pincode'] ?? '';
     final aboutText = _library!['about_text'] as String?;
     final photos = _library!['photos'] as List? ?? [];
     final amenities = _library!['amenities'] as List? ?? [];
