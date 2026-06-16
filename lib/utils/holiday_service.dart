@@ -136,8 +136,58 @@ class HolidayService {
     return holiday;
   }
 
-  Future<void> removeHoliday(String id) async {
+  /// Remove a closure. If [holiday] is given, the closure still covers today or
+  /// the future, and it had member-notification on, members are told the
+  /// library has reopened. Past closures are deleted silently (no reopen spam).
+  Future<void> removeHoliday(String id, {Holiday? holiday}) async {
     await _supabase.from('scheduled_closures').delete().eq('id', id);
+    if (holiday == null || !holiday.notifyMembers) return;
+    final today = _dateOnly(DateTime.now());
+    final endDay = _dateOnly(holiday.endDate);
+    if (endDay.isBefore(today)) return; // a past closure — nothing to reopen
+    await notifyMembersOfReopen(holiday);
+  }
+
+  /// Tell members the library is open again after an upcoming/active closure was
+  /// removed. Best-effort (mirrors notifyMembersOfHoliday).
+  Future<int> notifyMembersOfReopen(Holiday holiday) async {
+    try {
+      final memberRows = await _supabase
+          .from('memberships')
+          .select('member_id')
+          .eq('library_id', holiday.libraryId);
+      final memberIds = <String>{};
+      for (final r in List<Map<String, dynamic>>.from(memberRows)) {
+        final id = r['member_id']?.toString();
+        if (id != null && id.isNotEmpty) memberIds.add(id);
+      }
+      if (memberIds.isEmpty) return 0;
+
+      final whenLabel = holiday.isRange
+          ? '${_human(holiday.startDate)} – ${_human(holiday.endDate)}'
+          : _human(holiday.startDate);
+      final body = 'The library will now be OPEN as usual — the planned closure '
+          '($whenLabel) has been cancelled.';
+
+      final rows = memberIds
+          .map((mid) => {
+                'user_id': mid,
+                'title': 'Library reopened',
+                'body': body,
+                'data': {
+                  'type': 'reopen',
+                  'start_date': _fmt(holiday.startDate),
+                  'end_date': _fmt(holiday.endDate),
+                },
+              })
+          .toList();
+
+      await _supabase.from('notifications').insert(rows);
+      return memberIds.length;
+    } catch (e) {
+      debugPrint('notifyMembersOfReopen failed: $e');
+      return 0;
+    }
   }
 
   /// How many members currently have an OPEN session (checked in, not yet

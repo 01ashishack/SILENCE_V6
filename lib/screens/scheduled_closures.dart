@@ -387,8 +387,12 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
     final removed = h;
     setState(() => _holidays.removeWhere((x) => x.id == h.id));
     try {
-      await HolidayService.instance.removeHoliday(h.id);
-      messenger.showSnackBar(const SnackBar(content: Text('Holiday removed.')));
+      await HolidayService.instance.removeHoliday(h.id, holiday: h);
+      messenger.showSnackBar(SnackBar(
+        content: Text(h.notifyMembers && !h.endDate.isBefore(_today)
+            ? 'Holiday removed. Members notified the library is open.'
+            : 'Holiday removed.'),
+      ));
     } catch (e) {
       setState(() => _holidays.add(removed));
       messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));

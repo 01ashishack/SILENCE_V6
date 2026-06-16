@@ -3063,23 +3063,53 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       }
                       final navigator = Navigator.of(context);
                       final messenger = ScaffoldMessenger.of(context);
+                      final supabase = Supabase.instance.client;
+                      final msg = msgController.text.trim();
                       try {
-                        await Supabase.instance.client
-                            .from('announcements')
-                            .insert({
-                              'library_id': _libraryId!,
-                              'message': msgController.text.trim(),
-                              'priority': priority,
-                              'created_by':
-                                  Supabase.instance.client.auth.currentUser?.id,
-                            });
+                        await supabase.from('announcements').insert({
+                          'library_id': _libraryId!,
+                          'message': msg,
+                          'priority': priority,
+                          'created_by': supabase.auth.currentUser?.id,
+                        });
+
+                        // Deliver to each member's notification centre (the bell
+                        // reads `notifications`, not `announcements`). This is
+                        // what made the broadcast feel "dead" before.
+                        int delivered = 0;
+                        try {
+                          final memberRows = await supabase
+                              .from('memberships')
+                              .select('member_id')
+                              .eq('library_id', _libraryId!);
+                          final ids = <String>{};
+                          for (final r in List<Map<String, dynamic>>.from(memberRows)) {
+                            final id = r['member_id']?.toString();
+                            if (id != null && id.isNotEmpty) ids.add(id);
+                          }
+                          if (ids.isNotEmpty) {
+                            final rows = ids
+                                .map((id) => {
+                                      'user_id': id,
+                                      'title': 'Announcement',
+                                      'body': msg,
+                                      'data': {'type': 'announcement', 'priority': priority},
+                                    })
+                                .toList();
+                            await supabase.from('notifications').insert(rows);
+                            delivered = ids.length;
+                          }
+                        } catch (e) {
+                          debugPrint('announcement notify failed: $e');
+                        }
+
                         navigator.pop();
                         messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              '📢 Announcement broadcasted to all members!',
-                            ),
-                            backgroundColor: Color(0xFF8B5CF6),
+                          SnackBar(
+                            content: Text(delivered > 0
+                                ? '📢 Announcement sent to $delivered member${delivered == 1 ? '' : 's'}.'
+                                : '📢 Announcement saved (no members to notify yet).'),
+                            backgroundColor: const Color(0xFF8B5CF6),
                           ),
                         );
                       } catch (e) {

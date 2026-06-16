@@ -343,7 +343,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }
 
   // Central trigger to dispatch fetch for current tab active parameters
-  void _triggerActiveTabFetch() {
+  Future<void> _triggerActiveTabFetch() async {
     final String activeFloorId = _getActiveFloorIdForTab();
     final String activeShiftId = _getActiveShiftIdForTab();
 
@@ -357,7 +357,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     }
 
     if (_filterLibraryId != null) {
-      _fetchAnalyticsData(
+      await _fetchAnalyticsData(
         libraryId: _filterLibraryId!,
         dateFilter: dateFilter,
         floorId: activeFloorId == 'all' ? null : activeFloorId,
@@ -4349,9 +4349,13 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       ),
                       _buildTraditionalDatePresets('rev'),
                       Expanded(
-                        child: _isLoading
-                            ? _buildSkeletonLoader()
-                            : _buildRevenueTabView(),
+                        child: RefreshIndicator(
+                          onRefresh: _triggerActiveTabFetch,
+                          color: const Color(0xFFE65C00),
+                          child: _isLoading
+                              ? _buildSkeletonLoader()
+                              : _buildRevenueTabView(),
+                        ),
                       ),
                     ],
                   ),
@@ -4372,9 +4376,13 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       ),
                       _buildAttendanceDateFilters(),
                       Expanded(
-                        child: _isLoading
-                            ? _buildSkeletonLoader()
-                            : _buildAttendanceTabView(),
+                        child: RefreshIndicator(
+                          onRefresh: _triggerActiveTabFetch,
+                          color: const Color(0xFFE65C00),
+                          child: _isLoading
+                              ? _buildSkeletonLoader()
+                              : _buildAttendanceTabView(),
+                        ),
                       ),
                     ],
                   ),
@@ -4395,9 +4403,13 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       ),
                       _buildTraditionalDatePresets('sp'),
                       Expanded(
-                        child: _isLoading
-                            ? _buildSkeletonLoader()
-                            : _buildShiftsPlansTabView(),
+                        child: RefreshIndicator(
+                          onRefresh: _triggerActiveTabFetch,
+                          color: const Color(0xFFE65C00),
+                          child: _isLoading
+                              ? _buildSkeletonLoader()
+                              : _buildShiftsPlansTabView(),
+                        ),
                       ),
                     ],
                   ),

@@ -73,6 +73,33 @@ class MemberAnalyticsService {
     required DateTime endDate,
     List<String>? memberLibraryIds,
   }) async {
+    // Don't count days BEFORE the member actually joined as "absent". Clamp the
+    // elapsed-days anchor to the membership start when it falls inside the range
+    // (fixes inflated absent counts for members who joined mid-period).
+    DateTime effectiveStart = startDate;
+    try {
+      var msQ = _supabase.from('memberships').select('start_date');
+      if (libraryId != null && libraryId != 'all') {
+        msQ = msQ.eq('library_id', libraryId);
+      } else if (memberLibraryIds != null && memberLibraryIds.isNotEmpty) {
+        msQ = msQ.inFilter('library_id', memberLibraryIds);
+      }
+      final msRes = await msQ
+          .eq('member_id', memberId)
+          .order('start_date', ascending: true)
+          .limit(1)
+          .maybeSingle();
+      final joinStr = msRes?['start_date']?.toString();
+      if (joinStr != null && joinStr.isNotEmpty) {
+        final join = DateTime.tryParse(joinStr);
+        if (join != null && join.isAfter(startDate)) {
+          effectiveStart = DateTime(join.year, join.month, join.day);
+        }
+      }
+    } catch (_) {
+      // No membership row / query unavailable → fall back to the period start.
+    }
+
     // 1. Try querying member_daily_stats table first
     try {
       var query = _supabase.from('member_daily_stats').select();
@@ -105,7 +132,7 @@ class MemberAnalyticsService {
 
         final DateTime now = DateTime.now();
         final DateTime elapsedEnd = endDate.isAfter(now) ? now : endDate;
-        int elapsedDays = elapsedEnd.difference(startDate).inDays + 1;
+        int elapsedDays = elapsedEnd.difference(effectiveStart).inDays + 1;
         if (elapsedDays < 1) elapsedDays = 1;
 
         int daysAbsent = elapsedDays - daysPresent - closedDaysCount;
@@ -169,7 +196,7 @@ class MemberAnalyticsService {
 
     final DateTime now = DateTime.now();
     final DateTime elapsedEnd = endDate.isAfter(now) ? now : endDate;
-    int elapsedDays = elapsedEnd.difference(startDate).inDays + 1;
+    int elapsedDays = elapsedEnd.difference(effectiveStart).inDays + 1;
     if (elapsedDays < 1) elapsedDays = 1;
 
     int daysAbsent = elapsedDays - daysPresent - closedDaysCount;

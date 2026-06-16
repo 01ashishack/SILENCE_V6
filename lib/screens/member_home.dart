@@ -101,6 +101,10 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   // Timer
   Timer? _sessionTimer;
+  // Realtime: refresh when THIS member's own rows change (approval, check-in,
+  // notification) so the home screen updates without a manual pull-to-refresh.
+  RealtimeChannel? _realtimeChannel;
+  Timer? _realtimeDebounce;
   
   // Cache of all study dates (for streak calculation)
   Set<String> _studyDates = {};
@@ -125,6 +129,50 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     WidgetsBinding.instance.addPostFrameCallback((_) {
       OfflineSyncManager.instance.startListening(context);
     });
+
+    _setupRealtime();
+  }
+
+  /// Subscribe to changes on this member's own memberships / attendance /
+  /// notifications and refresh (debounced). Requires the tables to be in the
+  /// `supabase_realtime` publication — see migrations/2026-06-16_enable_realtime.sql.
+  void _setupRealtime() {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    _realtimeChannel?.unsubscribe();
+
+    void onChange(_) {
+      _realtimeDebounce?.cancel();
+      _realtimeDebounce = Timer(const Duration(milliseconds: 700), () {
+        if (mounted) _loadInitialData();
+      });
+    }
+
+    _realtimeChannel = supabase
+        .channel('member_home_${user.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'memberships',
+          filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'member_id', value: user.id),
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'attendance',
+          filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'member_id', value: user.id),
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'user_id', value: user.id),
+          callback: onChange,
+        )
+        .subscribe();
   }
 
   Future<void> _checkRoleGuard() async {
@@ -147,6 +195,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   @override
   void dispose() {
     _sessionTimer?.cancel();
+    _realtimeDebounce?.cancel();
+    _realtimeChannel?.unsubscribe();
     _sessionDurationNotifier.dispose();
     _shiftRemainingNotifier.dispose();
     _shiftProgressNotifier.dispose();
