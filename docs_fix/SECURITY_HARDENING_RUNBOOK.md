@@ -54,9 +54,18 @@ Today any authenticated user can read `silence_private` (member ID docs + paymen
    admin uploads + views a member ID; member uploads + views own ID; payment-proof upload + both reads.
    If any image goes blank → run the ROLLBACK. Only fold into canonical after a clean device pass.
 > ⚠️ Do NOT apply blind — a wrong policy silently breaks signed-URL reads (blank images, no error).
-> 🐛 Tangential: `admin_profile_tab.dart:374` calls `getPublicUrl` on the **private** bucket — that
->   returns an unsigned URL that won't load regardless of RLS. Admin photos probably belong in the
->   public `silence_assets` bucket; fix separately (not part of this migration).
+> ✅ Tangential bug FIXED (2026-06-16): `admin_profile_tab` uploaded the admin photo to the PRIVATE
+>   bucket then called `getPublicUrl` (an unsigned URL that never loads). Admin photos are public-facing
+>   (shown on the library's public profile), so they now upload to PUBLIC `silence_assets` +
+>   `getPublicUrl` — the correct working pair. This also means the storage migration's `admin_profiles`
+>   family no longer holds new objects; its self-scoped clauses remain only for any legacy private photo.
+>
+> 🔎 Pre-apply code sweep (2026-06-16) — every `silence_private` writer verified to use the
+>   3-segment `family/<id>/<file>` path the policy assumes (`foldername[1]/[2]`):
+>   - `add_member_wizard` ID docs → `library_members/<library_id>/…` (owner write ✓)
+>   - `member_profile_edit` ID docs → `member_profiles/<user_id>/…` (self write ✓, owner read ✓)
+>   - `join_flow_screen` payment proof → `payment_proofs/<user_id>/…` (self write ✓, owner read ✓)
+>   No flat/legacy private paths exist, so no writer is silently blocked. Migration is correct as-is.
 
 ### 🥉 Cycle 3 — Actor-scope the 4 forgeable inserts (P5-08)
 `auth.uid() IS NOT NULL` is already shipped (blocks anon forgery). Full actor-scoping needs RPCs first:

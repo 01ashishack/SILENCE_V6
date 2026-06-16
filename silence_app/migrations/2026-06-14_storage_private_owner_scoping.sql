@@ -23,8 +23,15 @@
 --                                               (member_profile_edit.dart:363)
 --   payment_proofs/<user_id>/<file>             member uploads a payment proof
 --                                               (join_flow_screen.dart:526)
---   admin_profiles/<user_id>/<file>             admin uploads their own photo
---                                               (admin_profile_tab.dart:369)
+--   admin_profiles/<user_id>/<file>             admin's own photo. NOTE: as of
+--                                               2026-06-16 NEW admin photos go to
+--                                               the PUBLIC silence_assets bucket
+--                                               (shown on the public library
+--                                               profile). The self-scoped
+--                                               admin_profiles clauses below stay
+--                                               only so a LEGACY admin photo left
+--                                               in silence_private is still
+--                                               readable by its owner.
 --   storage.foldername(name) → text[]; [1] = family, [2] = owning id.
 --
 -- READ (signed URLs / createSignedUrl):

@@ -364,26 +364,18 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
       if (user == null) return;
 
       final bytes = await ImageOptimizer.compressImage(croppedFile?.path ?? image.path);
+      // Admin photo is public-facing (shown on the library's public profile), so
+      // it belongs in the PUBLIC silence_assets bucket. The old code uploaded to
+      // silence_private then called getPublicUrl() — an unsigned URL on a private
+      // bucket never loads (the photo always appeared broken). Public bucket +
+      // getPublicUrl is the correct, working pair.
       final path = 'admin_profiles/${user.id}/profile.jpg';
-
-      // Try uploading to silence_private, fallback to silence_assets
-      String publicUrl = '';
-      try {
-        await _supabase.storage.from('silence_private').uploadBinary(
-          path,
-          Uint8List.fromList(bytes),
-          fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-        );
-        publicUrl = _supabase.storage.from('silence_private').getPublicUrl(path);
-      } catch (_) {
-        // Fallback
-        await _supabase.storage.from('silence_assets').uploadBinary(
-          path,
-          Uint8List.fromList(bytes),
-          fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-        );
-        publicUrl = _supabase.storage.from('silence_assets').getPublicUrl(path);
-      }
+      await _supabase.storage.from('silence_assets').uploadBinary(
+        path,
+        Uint8List.fromList(bytes),
+        fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+      );
+      final String publicUrl = _supabase.storage.from('silence_assets').getPublicUrl(path);
 
       // Update user photo_url in Supabase
       await _supabase.from('users').update({'photo_url': publicUrl}).eq('id', user.id);
