@@ -434,6 +434,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         await _loadOperationalFeeds(libId);
         _setupJoinRequestsSubscription(libId);
         await _writeDashboardStatsToCache(libId);
+        await _loadOpenQueriesCount(libId);
 
         try {
           _todayHoliday = await HolidayService.instance.todaysHoliday(libId);
@@ -447,6 +448,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   bool _hasCachedStats = false; // true once cached dashboard stats are hydrated
+
+  int _openQueriesCount = 0; // unreplied (status='open') queries → Queries badge
+
+  Future<void> _loadOpenQueriesCount(String libId) async {
+    try {
+      final rows = await Supabase.instance.client
+          .from('queries')
+          .select('id')
+          .eq('library_id', libId)
+          .eq('status', 'open');
+      if (mounted) setState(() => _openQueriesCount = (rows as List).length);
+    } catch (e) {
+      debugPrint('Open queries count load failed: $e');
+    }
+  }
 
   Future<void> _fetchRealStats(String libId) async {
     // Only blank the stat cards to skeletons when we have no cached values to
@@ -1571,7 +1587,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     onPressed: () {
                       Navigator.pushNamed(
                         context,
-                        '/admin/settings/notifications',
+                        '/member/notifications',
                       );
                     },
                   ),
@@ -2818,7 +2834,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               icon: Icons.chat_bubble,
               label: 'Queries',
               color: const Color(0xFF06B6D4), // Teal
-              onTap: _showManageQueries,
+              badgeCount: _openQueriesCount,
+              onTap: () async {
+                await _showManageQueries();
+                if (_libraryId != null && _libraryId != 'all') {
+                  _loadOpenQueriesCount(_libraryId!);
+                }
+              },
             ),
             _buildCircularActionButton(
               icon: Icons.event_busy,
@@ -2837,26 +2859,56 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     required String label,
     required Color color,
     required VoidCallback onTap,
+    int badgeCount = 0,
   }) {
     return Column(
       children: [
         GestureDetector(
           onTap: onTap,
-          child: Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 24),
+                child: Icon(icon, color: Colors.white, size: 24),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: Text(
+                      badgeCount > 99 ? '99+' : '$badgeCount',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
@@ -3069,8 +3121,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         await supabase.from('announcements').insert({
                           'library_id': _libraryId!,
                           'message': msg,
-                          'priority': priority,
-                          'created_by': supabase.auth.currentUser?.id,
+                          'admin_id': supabase.auth.currentUser?.id,
                         });
 
                         // Deliver to each member's notification centre (the bell
@@ -3140,12 +3191,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   // ── Manage Queries Bottom Sheet ─────────────────────────────────────────────
-  void _showManageQueries() {
+  Future<void> _showManageQueries() async {
     if (_libraryId == null) {
       _showErrorSnackBar('Please complete library setup first.');
       return;
     }
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -3290,7 +3341,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
                                 onTap: () => _openReplyToQuery(q,
-                                    () => setSheet(() => queriesFuture = buildQuery())),
+                                    () => setSheet(() {
+                                          queriesFuture = buildQuery();
+                                        })),
                                 leading: CircleAvatar(
                                   backgroundColor: const Color(0xFFF0FDFA),
                                   child: Icon(
@@ -3370,8 +3423,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   // Reply to a member query: writes admin_reply + status='replied' + replied_at,
   // notifies the member, then refreshes the queries sheet. [onDone] re-renders.
   void _openReplyToQuery(Map<String, dynamic> query, VoidCallback onDone) {
-    final replyCtrl =
-        TextEditingController(text: (query['admin_reply'] ?? '').toString());
+    final existingReply = (query['admin_reply'] ?? '').toString();
+    final replyCtrl = TextEditingController();
     bool saving = false;
 
     showModalBottomSheet(
@@ -3412,13 +3465,40 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       fontSize: 13, color: const Color(0xFF475569)),
                 ),
               ),
+              if (existingReply.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Previous reply',
+                          style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF16A34A))),
+                      const SizedBox(height: 4),
+                      Text(existingReply,
+                          style: GoogleFonts.inter(
+                              fontSize: 12.5, color: const Color(0xFF166534))),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               TextField(
                 controller: replyCtrl,
                 maxLines: 5,
                 style: GoogleFonts.inter(fontSize: 14),
-                decoration: const InputDecoration(
-                  hintText: 'Type your reply…',
+                decoration: InputDecoration(
+                  hintText: existingReply.isEmpty
+                      ? 'Type your reply…'
+                      : 'Add another reply…',
                 ),
               ),
               const SizedBox(height: 16),
@@ -3437,8 +3517,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         final messenger = ScaffoldMessenger.of(context);
                         try {
                           final supabase = Supabase.instance.client;
+                          final combined = existingReply.isEmpty
+                              ? text
+                              : '$existingReply\n\n— $text';
                           await supabase.from('queries').update({
-                            'admin_reply': text,
+                            'admin_reply': combined,
                             'status': 'replied',
                             'replied_at': DateTime.now().toIso8601String(),
                           }).eq('id', query['id']);

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/states/states.dart';
+import 'contact_admin_screen.dart';
 
 /// Member-facing notification center. Reads the real `notifications` table for
 /// the signed-in user (canonical columns: `user_id, title, body, data, sent_at,
@@ -65,6 +66,85 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   int get _unreadCount => _items.where((n) => n['read_at'] == null).length;
+
+  /// Mark read + route to the screen related to this notification's `data.type`.
+  /// Honors an explicit `data.route` (named route) when present; otherwise maps
+  /// the type to a sensible destination. Best-effort + guarded so a tap never
+  /// crashes the screen.
+  void _onTapNotification(Map<String, dynamic> item) {
+    _markRead(item);
+    final data = item['data'];
+    final type =
+        (data is Map && data['type'] is String) ? data['type'] as String : '';
+    final route =
+        (data is Map && data['route'] is String) ? data['route'] as String : null;
+    try {
+      if (route != null && route.isNotEmpty) {
+        Navigator.of(context).pushNamed(route);
+        return;
+      }
+      switch (type) {
+        case 'query_reply':
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ContactAdminScreen()),
+          );
+          break;
+        case 'approval':
+        case 'approved':
+        case 'join_approved':
+        case 'payment_confirmed':
+        case 'rejection':
+        case 'rejected':
+        case 'join_rejected':
+        case 'payment_rejected':
+        case 'hold':
+        case 'hold_approved':
+        case 'hold_lifted':
+        case 'seat_change':
+        case 'seat_reassigned':
+        case 'expiry':
+        case 'renewal':
+        case 'badge':
+          Navigator.of(context).pushNamed('/member/home');
+          break;
+        case 'query':
+        case 'new_query':
+        case 'join_request':
+        case 'new_join_request':
+        case 'payment':
+        case 'payment_submitted':
+          Navigator.of(context).pushNamed('/admin/home');
+          break;
+        case 'announcement':
+          _showAnnouncementDialog(item);
+          break;
+        default:
+          break; // unknown: already marked read, no navigation
+      }
+    } catch (e) {
+      debugPrint('Notification tap navigation failed: $e');
+    }
+  }
+
+  void _showAnnouncementDialog(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        title: Text((item['title'] as String?)?.trim().isNotEmpty == true
+            ? item['title'] as String
+            : 'Announcement'),
+        content: Text((item['body'] as String?) ?? ''),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _markRead(Map<String, dynamic> item) async {
     if (item['read_at'] != null) return;
@@ -169,7 +249,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.divider),
         itemBuilder: (context, index) => _NotificationTile(
           item: _items[index],
-          onTap: () => _markRead(_items[index]),
+          onTap: () => _onTapNotification(_items[index]),
         ),
       ),
     );
