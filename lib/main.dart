@@ -110,6 +110,7 @@ class SilenceApp extends StatelessWidget {
     return MaterialApp(
       title: 'SILENCE',
       debugShowCheckedModeBanner: false,
+      navigatorKey: PushNotificationService.navigatorKey,
       
       // Global Brand Design System (Premium Orange Aesthetics)
       theme: ThemeData(

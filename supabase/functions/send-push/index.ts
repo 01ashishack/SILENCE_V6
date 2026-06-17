@@ -26,6 +26,15 @@ const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 
 Deno.serve(async (req) => {
   try {
+    // Hardening: when PUSH_WEBHOOK_SECRET is set, require the caller (the DB
+    // webhook) to send a matching `x-webhook-secret` header. Until the secret is
+    // set, the check is skipped (so deploy order is flexible) — set it + add the
+    // webhook header to lock the public function URL against abuse.
+    const expectedSecret = Deno.env.get("PUSH_WEBHOOK_SECRET");
+    if (expectedSecret && req.headers.get("x-webhook-secret") !== expectedSecret) {
+      return json({ error: "unauthorized" }, 401);
+    }
+
     const payload = await req.json();
     // A Database Webhook posts { type, table, record, old_record }.
     const record = payload?.record ?? payload;
