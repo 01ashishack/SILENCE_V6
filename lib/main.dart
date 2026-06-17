@@ -53,9 +53,29 @@ import 'screens/reservations/library_query_screen.dart';
 import 'screens/member_analytics_tab.dart';
 import 'screens/past_library_detail_screen.dart';
 import 'screens/admin/all_reviews_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_options.dart';
+import 'services/push_notification_service.dart';
+
+/// Handles a push that arrives while the app is in the background or terminated.
+/// Must be a top-level function and re-init Firebase (it runs in its own isolate).
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint('FCM background message: ${message.messageId}');
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase + register the background message handler BEFORE runApp.
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+  }
 
   // Consistent status bar across all screens: orange background + light icons
   // so the safe-area / top bar always matches the brand color.
@@ -67,6 +87,9 @@ void main() async {
 
   // 1. Initialize Supabase Client
   await SupabaseConfig.initialize();
+
+  // 1b. Wire push notifications (permission, token → users.fcm_token, handlers).
+  await PushNotificationService.instance.initialize();
 
   // 2. Initialize Local SQLite Offline Database Groundwork
   try {

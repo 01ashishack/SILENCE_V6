@@ -53,3 +53,6 @@ scratch/
 
 # Claude related
 .claude/settings.local.json
+
+# Supabase CLI local cache
+supabase/.temp/

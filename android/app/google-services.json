@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1085738355311",
+    "project_id": "silence-v6",
+    "storage_bucket": "silence-v6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1085738355311:android:b1f82d4c4d36e0b8285b9a",
+        "android_client_info": {
+          "package_name": "com.silence.app.silence"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvuVu4AmLjxglvwcsf3UwMo82YsjQmLsY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

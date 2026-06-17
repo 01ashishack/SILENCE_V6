@@ -65,6 +65,24 @@ All shipped in `lib/screens/admin/` (+ 3 new migrations). `flutter analyze` clea
   `2026-06-17_users_owner_insert_member_rls.sql` is now redundant/harmless — the real cause was
   RETURNING, not WITH CHECK.)
 
+### Session 2026-06-17 (b) — FCM push: foundation SHIPPED & web verified end-to-end
+- **Firebase project `silence-v6`** created; `flutterfire configure` ran (Android/iOS/web/win/macOS
+  registered) → `lib/firebase_options.dart`, `android/app/google-services.json`, gradle plugins.
+- **App-side** (`lib/services/push_notification_service.dart`, wired in `main.dart`): permission,
+  FCM token → **`device_tokens`** table (multi-device), token-refresh + sign-in re-save, background
+  handler, tap/foreground stubs. Web uses the VAPID key (`_webVapidKey`).
+- **DB:** `silence_app/migrations/2026-06-17_device_tokens.sql` (token PK, user-scoped RLS) — APPLIED.
+- **Send-side (server tier!):** `supabase/functions/send-push/index.ts` — on a `notifications` INSERT
+  a **Database Webhook** calls it; it reads the recipient's `device_tokens` (service role) and sends
+  **FCM HTTP v1** (service account stored as secret `FIREBASE_SERVICE_ACCOUNT_B64`, base64). Deployed
+  `--no-verify-jwt`; webhook `send_push_on_notification` (notifications · INSERT) wired.
+  **✅ Verified end-to-end on web** (insert notification row → push arrived in Chrome).
+- **Pending FCM:** foreground heads-up banner (flutter_local_notifications), tap→navigation routing,
+  Android/iOS device test (iOS needs Apple Developer + APNs key), and a **shared-secret header** to
+  harden the `--no-verify-jwt` webhook→function call (anyone could POST a push to a known user_id now).
+- **Subscription decision (2026-06-17):** in-app Razorpay ruled out; either store IAP or website+Razorpay
+  (see `docs_fix/UIUX_OVERHAUL_DECISIONS.md` + `SUBSCRIPTION_ARCHITECTURE.md`).
+
 ### Key reframes (these OVERRIDE the old spec/audit "fixes")
 - **Member ↔ library-admin payment is OUT OF APP.** Member taps a real UPI deep-link
   (`upi://pay`) to the admin's configured UPI, pays externally, then taps **"I have paid"**; the

@@ -43,6 +43,14 @@
 > (real Reassign dialog + membership.seat_id sync + notify, no more desync). **Next:** FCM, referral
 > credit, transfer, claim/link, drafts, account-deletion, subscription mock plans → then Phase C.
 
+> **Subscription payment channel — clarified (2026-06-17):** Razorpay will **NOT** be used *inside
+> the app* (no 3rd-party gateway for digital goods in-app — Apple/Google policy). The library-owner
+> subscription will be taken EITHER via (a) **Play Store / App Store in-app billing (IAP)**, OR (b) a
+> **separate SILENCE website + Razorpay** (zero store commission, UPI-native, standard B2B-SaaS
+> pattern). Final choice between (a)/(b) is still open, but **in-app Razorpay is ruled out either
+> way.** Member↔admin payment stays **out-of-app UPI** (unchanged). Full blueprint + store-compliance
+> notes: `SUBSCRIPTION_ARCHITECTURE.md`.
+
 > Living document. Captures every product/UX decision made with the user during the
 > requirements-gathering phase for the 3-phase overhaul. **Source of truth = the existing
 > codebase**, NOT the `silence_app/` spec docs (user has added/removed features since).
