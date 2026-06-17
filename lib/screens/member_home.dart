@@ -3004,18 +3004,30 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               Navigator.pop(context);
               try {
                 final supabase = Supabase.instance.client;
-                await supabase
+                // .select() returns the affected rows: if RLS silently matched
+                // 0 rows (no policy / already processed), we get an empty list
+                // and report honestly instead of a false "withdrawn".
+                final res = await supabase
                     .from('join_requests')
-                    .update({'status': 'withdrawn'}).eq('id', requestId);
+                    .update({'status': 'withdrawn'})
+                    .eq('id', requestId)
+                    .eq('status', 'pending')
+                    .select('id');
                 if (mounted) {
                   _loadInitialData();
                 }
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('Application withdrawn successfully.')),
-                );
+                if ((res as List).isEmpty) {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Could not withdraw — it may already be approved or processed.')),
+                  );
+                } else {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Application withdrawn.')),
+                  );
+                }
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
+                  SnackBar(content: Text(friendlyError(e))),
                 );
               }
             },
@@ -6053,87 +6065,181 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   void _openExitLibraryFinalConfirmSheet(Map<String, dynamic> membership) {
+    // Days left on the active plan (shown so the member knows what they forfeit).
+    final endStr = membership['end_date']?.toString();
+    final endDate = endStr != null ? DateTime.tryParse(endStr) : null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    int daysLeft = 0;
+    if (endDate != null) {
+      daysLeft = DateTime(endDate.year, endDate.month, endDate.day).difference(today).inDays;
+      if (daysLeft < 0) daysLeft = 0;
+    }
+    bool wantRefund = false;
+    final reasonCtrl = TextEditingController();
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.red[50],
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 48),
-              const SizedBox(height: 12),
-              Text(
-                '⚠️ Final Confirmation',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.redAccent),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'This cannot be undone. Your seat will be freed immediately and you will no longer be an active member of this library.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red[900]),
-              ),
-              const SizedBox(height: 24),
-              Row(
+        return StatefulBuilder(
+          builder: (context, setSheet) => Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: const BorderSide(color: Colors.redAccent),
-                        foregroundColor: Colors.redAccent,
-                      ),
-                      child: const Text('← Cancel'),
-                    ),
+                  const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 48),
+                  const SizedBox(height: 12),
+                  Text(
+                    '⚠️ Final Confirmation',
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.redAccent),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final navigator = Navigator.of(context);
-                        final messenger = ScaffoldMessenger.of(context);
-                        try {
-                          final supabase = Supabase.instance.client;
-                          final seatId = membership['seat_id'];
-                          if (seatId != null) {
-                            await supabase.from('seats').update({
-                              'status': 'vacant',
-                              'occupied_by_member_id': null,
-                            }).eq('id', seatId);
-                          }
-                          
-                          await supabase.from('memberships').update({
-                            'status': 'exited',
-                            'exited_at': DateTime.now().toIso8601String(),
-                          }).eq('id', membership['id']);
-                          
-                          navigator.pop();
-                          messenger.showSnackBar(
-                            const SnackBar(content: Text('Successfully exited library. ✓')),
-                          );
-                          if (mounted) {
-                            _loadInitialData();
-                          }
-                        } catch (e) {
-                          messenger.showSnackBar(
-                            SnackBar(content: Text('Error: $e')),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                  const SizedBox(height: 12),
+                  Text(
+                    'This cannot be undone. Your seat will be freed immediately and you will no longer be an active member of this library.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red[900]),
+                  ),
+                  if (daysLeft > 0) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFFD1B3)),
                       ),
-                      child: const Text('Confirm Exit'),
+                      child: Text(
+                        'Your plan is still active with $daysLeft day${daysLeft == 1 ? '' : 's'} left'
+                        '${endDate != null ? ' (till ${DateFormat('dd MMM yyyy').format(endDate)})' : ''}. '
+                        'You will forfeit these days.',
+                        style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF92400E), height: 1.35),
+                      ),
                     ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: wantRefund,
+                          activeColor: const Color(0xFFE65C00),
+                          onChanged: (v) => setSheet(() => wantRefund = v ?? false),
+                        ),
+                        Expanded(
+                          child: Text('Also request a refund from the admin',
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                        ),
+                      ],
+                    ),
+                    if (wantRefund)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: TextField(
+                          controller: reasonCtrl,
+                          maxLines: 2,
+                          style: GoogleFonts.inter(fontSize: 13),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.white,
+                            hintText: 'Reason for refund (optional)',
+                            hintStyle: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey[400]),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'A refund is decided and paid by the admin — this only sends them a request.',
+                        style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[600]),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: const BorderSide(color: Colors.redAccent),
+                            foregroundColor: Colors.redAccent,
+                          ),
+                          child: const Text('← Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final navigator = Navigator.of(context);
+                            final messenger = ScaffoldMessenger.of(context);
+                            try {
+                              final supabase = Supabase.instance.client;
+                              final seatId = membership['seat_id'];
+                              if (seatId != null) {
+                                await supabase.from('seats').update({
+                                  'status': 'vacant',
+                                  'occupied_by_member_id': null,
+                                }).eq('id', seatId);
+                              }
+
+                              await supabase.from('memberships').update({
+                                'status': 'exited',
+                                'exited_at': DateTime.now().toIso8601String(),
+                              }).eq('id', membership['id']);
+
+                              // Optional refund REQUEST → goes to the admin as a query.
+                              if (wantRefund && daysLeft > 0) {
+                                final uid = supabase.auth.currentUser?.id;
+                                final libId = membership['library_id'];
+                                if (uid != null && libId != null) {
+                                  final reason = reasonCtrl.text.trim();
+                                  await supabase.from('queries').insert({
+                                    'member_id': uid,
+                                    'library_id': libId,
+                                    'subject': 'Refund request',
+                                    'type': 'refund_request',
+                                    'message': 'I exited with $daysLeft day(s) left and would like to request a refund.'
+                                        '${reason.isEmpty ? '' : ' Reason: $reason'}',
+                                    'status': 'open',
+                                  });
+                                }
+                              }
+
+                              navigator.pop();
+                              messenger.showSnackBar(
+                                SnackBar(content: Text(wantRefund && daysLeft > 0
+                                    ? 'Exited. Your refund request was sent to the admin.'
+                                    : 'Successfully exited library. ✓')),
+                              );
+                              if (mounted) {
+                                _loadInitialData();
+                              }
+                            } catch (e) {
+                              messenger.showSnackBar(
+                                SnackBar(content: Text(friendlyError(e))),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text('Confirm Exit'),
+                        ),
+                      )
+                    ],
                   )
                 ],
-              )
-            ],
+              ),
+            ),
           ),
         );
       },

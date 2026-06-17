@@ -830,6 +830,12 @@ CREATE POLICY "Admin update (approve/reject)" ON join_requests
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
     WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
+-- A member may withdraw their OWN pending request (and only to 'withdrawn').
+CREATE POLICY "Member withdraw own pending request" ON join_requests
+    FOR UPDATE
+    USING (member_id = auth.uid() AND status = 'pending')
+    WITH CHECK (member_id = auth.uid() AND status = 'withdrawn');
+
 -- 4.11 Seat Change Requests Policies
 CREATE POLICY "Member view own seat change requests" ON seat_change_requests
     FOR SELECT USING (member_id = auth.uid());

@@ -1,11 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/pdf_exporter.dart';
@@ -1010,212 +1008,125 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     }
   }
 
-  // ── Adjust membership duration (extend / shorten) ──────────────────────────
-  /// Shift a date by whole months, capping the day to the target month's last
-  /// day (handles negative months too via floor-correct arithmetic).
-  DateTime _shiftMonths(DateTime d, int months) {
-    final total = d.year * 12 + (d.month - 1) + months;
-    final y = total ~/ 12;
-    final m = total % 12 + 1;
-    final lastDay = DateTime(y, m + 1, 0).day;
-    return DateTime(y, m, d.day > lastDay ? lastDay : d.day);
-  }
-
-  Future<void> _showAdjustDurationSheet() async {
+  // ── Force Exit Member ──────────────────────────────────────────────────────
+  Future<void> _forceExitMember() async {
     final ms = _membershipData;
-    if (ms == null) return;
-    final curEnd = DateTime.tryParse(ms['end_date']?.toString() ?? '');
-    if (curEnd == null) {
-      _snack('This membership has no expiry date to adjust.');
-      return;
+    final status = (ms?['status'] ?? '').toString();
+    final endStr = ms?['end_date']?.toString();
+    final endDate = endStr != null ? DateTime.tryParse(endStr) : null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    int daysLeft = 0;
+    if (endDate != null) {
+      daysLeft = DateTime(endDate.year, endDate.month, endDate.day).difference(today).inDays;
+      if (daysLeft < 0) daysLeft = 0;
     }
-    DateTime newEnd = DateTime(curEnd.year, curEnd.month, curEnd.day);
+    final bool isActiveLike = status == 'active' || status == 'trial' || status == 'hold';
+    final memberName = (_userProfile?['full_name'] ?? 'this member').toString();
 
-    await showModalBottomSheet(
+    // Optional refund inputs (only meaningful when removing an active member).
+    bool wantRefund = false;
+    final refundCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetCtx) => StatefulBuilder(
-        builder: (sheetCtx, setSheet) {
-          final now = DateTime.now();
-          final today = DateTime(now.year, now.month, now.day);
-          final bool beforeToday = newEnd.isBefore(today);
-
-          Widget chip(String label, VoidCallback onTap) => Padding(
-                padding: const EdgeInsets.only(right: 8, bottom: 8),
-                child: OutlinedButton(
-                  onPressed: onTap,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFE2E8F0)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  child: Text(label,
-                      style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
-                ),
-              );
-
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
-              top: 20,
-              left: 24,
-              right: 24,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 26),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Remove from library', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFDC2626), fontSize: 17)),
             ),
+          ]),
+          content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Adjust membership duration',
-                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-                const SizedBox(height: 4),
-                Text('Current expiry: ${DateFormat('EEE, dd MMM yyyy').format(curEnd)}',
-                    style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
-                const SizedBox(height: 16),
-                Wrap(
-                  children: [
-                    chip('− 1 month', () => setSheet(() => newEnd = _shiftMonths(newEnd, -1))),
-                    chip('− 7 days', () => setSheet(() => newEnd = newEnd.subtract(const Duration(days: 7)))),
-                    chip('+ 7 days', () => setSheet(() => newEnd = newEnd.add(const Duration(days: 7)))),
-                    chip('+ 1 month', () => setSheet(() => newEnd = _shiftMonths(newEnd, 1))),
-                    chip('+ 3 months', () => setSheet(() => newEnd = _shiftMonths(newEnd, 3))),
-                    chip('Reset', () => setSheet(() => newEnd = DateTime(curEnd.year, curEnd.month, curEnd.day))),
-                  ],
+                Text(
+                  'This marks $memberName as EXITED, frees their seat and ends their membership. This cannot be undone.',
+                  style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.45),
                 ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFFD1B3)),
+                if (isActiveLike && endDate != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFFD1B3)),
+                    ),
+                    child: Text(
+                      'Their membership is still ACTIVE with $daysLeft day${daysLeft == 1 ? '' : 's'} left '
+                      '(till ${DateFormat('dd MMM yyyy').format(endDate)}).',
+                      style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF92400E), height: 1.35),
+                    ),
                   ),
-                  child: Row(
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      const Icon(Icons.event_available_rounded, size: 18, color: Color(0xFFE65C00)),
-                      const SizedBox(width: 10),
+                      Checkbox(
+                        value: wantRefund,
+                        activeColor: const Color(0xFFE65C00),
+                        onChanged: (v) => setLocal(() => wantRefund = v ?? false),
+                      ),
                       Expanded(
-                        child: Text('New expiry: ${DateFormat('EEE, dd MMM yyyy').format(newEnd)}',
-                            style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.bold, color: const Color(0xFF92400E))),
+                        child: Text('Refund part of their payment',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
                       ),
                     ],
                   ),
-                ),
-                if (beforeToday) ...[
-                  const SizedBox(height: 8),
-                  Text('⚠ This date is in the past — the membership will become expired.',
-                      style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFFB45309))),
+                  if (wantRefund)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8, top: 4),
+                      child: TextField(
+                        controller: refundCtrl,
+                        keyboardType: TextInputType.number,
+                        style: GoogleFonts.inter(fontSize: 14),
+                        decoration: InputDecoration(
+                          prefixText: '₹ ',
+                          labelText: 'Refund amount',
+                          hintText: 'e.g. 600',
+                          hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
+                        ),
+                      ),
+                    ),
                 ],
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(sheetCtx);
-                    _applyAdjustedEndDate(newEnd, curEnd);
-                  },
-                  child: Text('Save new expiry',
-                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
               ],
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _applyAdjustedEndDate(DateTime newEnd, DateTime oldEnd) async {
-    final ms = _membershipData;
-    if (ms == null) return;
-    if (newEnd.year == oldEnd.year && newEnd.month == oldEnd.month && newEnd.day == oldEnd.day) {
-      return; // no change
-    }
-    setState(() => _isLoading = true);
-    try {
-      final memberId = ms['member_id'] ?? _memberId;
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final bool expiredNow = newEnd.isBefore(today);
-      final updates = <String, dynamic>{
-        'end_date': DateFormat('yyyy-MM-dd').format(newEnd),
-      };
-      // Keep status coherent: a future date re-activates; a past date expires.
-      if (ms['status'] == 'active' || ms['status'] == 'expired') {
-        updates['status'] = expiredNow ? 'expired' : 'active';
-      }
-      await supabase.from('memberships').update(updates).eq('id', ms['id']);
-      if (!mounted) return;
-
-      final extended = newEnd.isAfter(oldEnd);
-      if (memberId != null) {
-        await supabase.from('notifications').insert({
-          'user_id': memberId,
-          'title': extended ? 'Membership extended' : 'Membership updated',
-          'body':
-              'Your membership expiry is now ${DateFormat('dd MMM yyyy').format(newEnd)}.',
-          'data': {'type': 'membership_adjusted', 'membership_id': ms['id']},
-        });
-      }
-      try {
-        await AuditLogger.instance.log(
-          action: 'membership_adjust',
-          category: AuditLogger.categoryMembers,
-          title: extended ? 'Extended membership' : 'Shortened membership',
-          details:
-              '${_userProfile?['full_name'] ?? 'Member'} · ${DateFormat('dd MMM yyyy').format(oldEnd)} → ${DateFormat('dd MMM yyyy').format(newEnd)}',
-          libraryId: ms['library_id']?.toString(),
-        );
-      } catch (_) {}
-
-      if (!mounted) return;
-      _snack('Expiry updated to ${DateFormat('dd MMM yyyy').format(newEnd)}.');
-      _fetchMemberData();
-    } catch (e) {
-      if (mounted) _snack(friendlyError(e));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // ── Force Exit Member ──────────────────────────────────────────────────────
-  Future<void> _forceExitMember() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 28),
-          const SizedBox(width: 8),
-          Text('Force Exit Member', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFDC2626))),
-        ]),
-        content: Text(
-          'This will permanently mark this member as EXITED. They will lose their seat assignment and active membership. This action cannot be undone.\n\nAre you absolutely sure?',
-          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.5),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B)))),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
-            child: Text('Yes, Force Exit', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B)))),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+              child: Text('Remove member', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
       ),
     );
-    if (!mounted) return;
+    if (!mounted || confirmed != true) return;
 
-    if (confirmed != true) return;
+    // Parse refund (only if asked + active).
+    int refundAmount = 0;
+    if (isActiveLike && wantRefund) {
+      refundAmount = int.tryParse(refundCtrl.text.trim()) ?? 0;
+      if (refundAmount <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter a valid refund amount, or uncheck refund.')),
+        );
+        return;
+      }
+    }
 
     try {
       setState(() => _isLoading = true);
       final membershipId = _membershipData?['id'];
+      final memberId = (_membershipData?['member_id'] ?? _memberId)?.toString();
+      final libraryId = _membershipData?['library_id']?.toString();
       if (membershipId != null) {
         final membership = await supabase
             .from('memberships')
@@ -1228,7 +1139,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
         await supabase.from('memberships').update({
           'status': 'exited',
-          'end_date': DateTime.now().toUtc().toIso8601String(),
+          'exited_at': DateTime.now().toUtc().toIso8601String(),
+          'end_date': DateTime.now().toUtc().toIso8601String().substring(0, 10),
         }).eq('id', membershipId);
         if (!mounted) return;
 
@@ -1238,11 +1150,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               .select('id')
               .eq('seat_id', seatId)
               .neq('id', membershipId)
-              .inFilter('status', ['active', 'trial', 'hold', 'expiring'])
+              .inFilter('status', ['active', 'trial', 'hold'])
               .limit(1)
               .maybeSingle();
           if (!mounted) return;
-
           if (otherActive == null) {
             await supabase.from('seats').update({
               'status': 'vacant',
@@ -1251,15 +1162,61 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             if (!mounted) return;
           }
         }
+
+        // Record the refund as a negative confirmed payment so it flows into
+        // revenue/analytics everywhere (a refund reduces net revenue).
+        if (refundAmount > 0 && memberId != null && libraryId != null) {
+          await supabase.from('payments').insert({
+            'membership_id': membershipId,
+            'member_id': memberId,
+            'library_id': libraryId,
+            'amount': -refundAmount,
+            'method': 'cash',
+            'status': 'confirmed',
+            'payment_date': DateTime.now().toIso8601String(),
+            'confirmed_by_admin_id': supabase.auth.currentUser?.id,
+            'notes': 'Refund on early removal ($daysLeft days left)',
+          });
+          if (!mounted) return;
+          await supabase.from('notifications').insert({
+            'user_id': memberId,
+            'title': 'Membership ended — refund issued',
+            'body': 'Your membership was ended by the admin. A refund of ₹$refundAmount has been recorded.',
+            'data': {'type': 'membership_removed_refund', 'amount': refundAmount},
+          });
+        } else if (memberId != null) {
+          await supabase.from('notifications').insert({
+            'user_id': memberId,
+            'title': 'Membership ended',
+            'body': 'Your membership at this library was ended by the admin.',
+            'data': {'type': 'membership_removed'},
+          });
+        }
+
+        try {
+          await AuditLogger.instance.log(
+            action: 'membership_remove',
+            category: AuditLogger.categoryMembers,
+            title: refundAmount > 0 ? 'Removed member (refunded)' : 'Removed member',
+            details: refundAmount > 0
+                ? '$memberName · $daysLeft days left · refund ₹$refundAmount'
+                : '$memberName · removed',
+            libraryId: libraryId,
+          );
+        } catch (_) {}
       }
       await _fetchMemberData();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Member has been force-exited successfully.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(refundAmount > 0
+              ? 'Member removed. ₹$refundAmount refund recorded.'
+              : 'Member removed.')),
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error force-exiting member: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     }
   }
@@ -1340,61 +1297,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     } finally {
       if (mounted) setState(() => _isExportingPdf = false);
     }
-  }
-
-  // ── Export Member Data CSV ─────────────────────────────────────────────────
-  Future<void> _exportMemberData() async {
-    final user = _userProfile;
-    final ms = _membershipData;
-    if (user == null) return;
-
-    final buffer = StringBuffer();
-    buffer.writeln('SILENCE Member Data Export');
-    buffer.writeln('Export Date:,${DateFormat('dd MMM yyyy hh:mm a').format(DateTime.now())}');
-    buffer.writeln();
-    buffer.writeln('Field,Value');
-    buffer.writeln('"Name","${user['full_name'] ?? 'N/A'}"');
-    buffer.writeln('"Phone","${user['phone'] ?? 'N/A'}"');
-    buffer.writeln('"Email","${user['email'] ?? 'N/A'}"');
-    buffer.writeln('"Gender","${user['gender'] ?? 'N/A'}"');
-    buffer.writeln('"Date of Birth","${user['date_of_birth'] ?? 'N/A'}"');
-    buffer.writeln('"Address","${user['address'] ?? 'N/A'}"');
-    buffer.writeln('"Exam/Preparing","${user['exam_category'] ?? 'N/A'}"');
-    buffer.writeln('"Status","${ms?['status'] ?? 'N/A'}"');
-    buffer.writeln('"Plan","${ms?['plan_type'] ?? 'N/A'}"');
-    buffer.writeln('"Start Date","${ms?['start_date'] ?? 'N/A'}"');
-    buffer.writeln('"End Date","${ms?['end_date'] ?? 'N/A'}"');
-    buffer.writeln('"Seat","${ms?['seats']?['seat_label'] ?? 'N/A'}"');
-    buffer.writeln('"Shift","${ms?['shifts']?['name'] ?? 'N/A'}"');
-    buffer.writeln('"Total Visits","${_attendanceList.length}"');
-    buffer.writeln('"Total Paid","₹${_calculateTotalPaid()}"');
-    buffer.writeln('"Streak Days","${_calculateStreak()}"');
-    buffer.writeln();
-
-    // Attendance History
-    buffer.writeln('Attendance History');
-    buffer.writeln('Date,Check-in,Check-out,Duration (min)');
-    for (final a in _attendanceList.take(50)) {
-      final ci = a['check_in_time'];
-      final co = a['check_out_time'];
-      final dur = a['duration_minutes'] ?? '';
-      buffer.writeln('"${ci != null ? DateFormat('dd MMM yyyy').format(DateTime.parse(ci).toLocal()) : 'N/A'}","${ci != null ? DateFormat('hh:mm a').format(DateTime.parse(ci).toLocal()) : 'N/A'}","${co != null ? DateFormat('hh:mm a').format(DateTime.parse(co).toLocal()) : 'N/A'}","$dur"');
-    }
-    buffer.writeln();
-
-    // Payment History
-    buffer.writeln('Payment History');
-    buffer.writeln('Date,Amount,Method,Status');
-    for (final p in _paymentsList.take(50)) {
-      final pd = p['payment_date'];
-      buffer.writeln('"${pd != null ? DateFormat('dd MMM yyyy').format(DateTime.parse(pd).toLocal()) : 'N/A'}","₹${p['amount'] ?? 0}","${p['method'] ?? 'N/A'}","${p['status'] ?? 'N/A'}"');
-    }
-
-    final tempDir = Directory.systemTemp;
-    final name = (user['full_name'] ?? 'member').toString().replaceAll(' ', '_');
-    final tempFile = File('${tempDir.path}/${name}_profile_export.csv');
-    await tempFile.writeAsString(buffer.toString());
-    await Share.shareXFiles([XFile(tempFile.path, mimeType: 'text/csv')], subject: 'SILENCE Member Data – ${user['full_name']}');
   }
 
   // ── Render Utilities ───────────────────────────────────────────────────────
@@ -1823,23 +1725,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             ),
             const SizedBox(height: 12),
           ],
-          if (!_isReadOnly && _membershipData?['end_date'] != null) ...[
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.edit_calendar_outlined, size: 18, color: Color(0xFF7C3AED)),
-                label: Text('Adjust duration (extend / shorten)',
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF7C3AED))),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF7C3AED)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: _showAdjustDurationSheet,
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
           if (!_isReadOnly && _canTransfer()) ...[
             SizedBox(
               width: double.infinity,
@@ -1877,38 +1762,22 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               onPressed: _isExportingPdf ? null : _exportMemberProfilePdf,
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.download_rounded, size: 18, color: Color(0xFFE65C00)),
-                  label: Text('Export CSV', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFE65C00)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: _exportMemberData,
+          if (!_isReadOnly) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.person_remove_rounded, size: 18, color: Colors.white),
+                label: Text('Remove from library', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
+                onPressed: _forceExitMember,
               ),
-              if (!_isReadOnly) ...[
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.person_remove_rounded, size: 18, color: Colors.white),
-                    label: Text('Force Exit', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFDC2626),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _forceExitMember,
-                  ),
-                ),
-              ],
-            ],
-          ),
+            ),
+          ],
           const SizedBox(height: 24),
         ],
       ),
