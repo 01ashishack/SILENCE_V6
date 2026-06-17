@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../../models/member_draft.dart';
 import '../../models/member_data.dart';
 import '../../services/draft_service.dart';
@@ -260,8 +261,8 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       if (_step1FormKey.currentState?.validate() == false) {
         return false;
       }
-      if (_memberData.idProof1File == null && _memberData.idProof2File == null) {
-        _showErrorSnackBar('At least one ID proof document is required.');
+      if (_memberData.idProof1Url == null && _memberData.idProof1File == null) {
+        _showErrorSnackBar('Front side of the ID is required.');
         return false;
       }
     } else if (adjustedStep == 2) {
@@ -354,7 +355,26 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     // there is no server-side transaction (see _rollbackPartialRegistration).
     String? createdMembershipId;
     String? occupiedSeatId;
+    // Names the DB write currently in flight so a permission/RLS rejection can
+    // be pinned to the exact operation (memberships / seat / payment) instead of
+    // collapsing to a single opaque "You don't have permission" message.
+    String opLabel = 'preparing';
     try {
+      // Guard: every owner-scoped write below (membership, seat, payment) checks
+      // that auth.uid() OWNS this library. If _libraryId was passed in via route
+      // args without being verified against the signed-in admin's owned
+      // libraries, ALL of them fail with RLS 42501 ("permission") AFTER a
+      // half-created member. Fail fast with an honest message instead.
+      final ownsLibrary = _ownedLibraries.any((l) => l['id'] == _libraryId);
+      if (_libraryId.isEmpty || (_ownedLibraries.isNotEmpty && !ownsLibrary)) {
+        setState(() => _isLoading = false);
+        _showErrorSnackBar(
+          'This library isn\'t linked to your account, so members can\'t be '
+          'added to it. Please pick one of your own libraries and try again.',
+        );
+        return;
+      }
+
       // 1. Look up or insert user by phone or email. For a NEW member we insert
       // the basic profile now; the photo / ID documents are written LATER (step
       // 4), AFTER the membership exists. RLS only lets an owner update a user
@@ -389,7 +409,23 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       final bool isExistingUser = userObj != null;
       String memberUserId;
       if (userObj == null) {
-        final newU = await _supabase.from('users').insert({
+        opLabel = 'creating the member profile';
+        // Generate the new member's id CLIENT-SIDE and insert WITHOUT a
+        // RETURNING clause (no .select()).
+        //
+        // WHY: the users SELECT policy is tenant-scoped
+        // ("Admins can view library members",
+        // migrations/2026-06-14_users_select_tenant_scope.sql) — an owner may
+        // read a user only once that user is a MEMBER (or pending applicant) of
+        // one of their libraries. A brand-new member has no membership yet (it
+        // is created in the next step), so `INSERT ... RETURNING id` is rejected
+        // by RLS with 42501 "new row violates row-level security policy": the
+        // INSERT itself is allowed, but Postgres cannot return a row the owner
+        // is not yet permitted to SELECT. Supplying our own id removes the need
+        // to read the row back, so no RETURNING / SELECT visibility is required.
+        memberUserId = const Uuid().v4();
+        await _supabase.from('users').insert({
+          'id': memberUserId,
           'full_name': _memberData.name,
           'nickname': _memberData.name.split(' ').first,
           'phone': _memberData.phone,
@@ -399,8 +435,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
           'address': _memberData.address,
           'exam_category': _memberData.preparingFor,
           'role': 'member',
-        }).select('id').single();
-        memberUserId = newU['id'] as String;
+        });
       } else {
         memberUserId = userObj['id'] as String;
 
@@ -448,6 +483,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       final startStr = _calculatedPlanStart.toIso8601String().substring(0, 10);
       final endStr = _calculatedExpiry.toIso8601String().substring(0, 10);
 
+      opLabel = 'creating the membership';
       final membership = await _supabase.from('memberships').insert({
         'member_id': memberUserId,
         'library_id': _libraryId,
@@ -466,6 +502,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       // the payment insert. If payment ever fails, the seat/membership stay in
       // sync (no "assigned but shows vacant"); the layout grid also self-heals.
       if (_memberData.selectedSeatId != null) {
+        opLabel = 'assigning the seat';
         await _supabase.from('seats').update({
           'status': 'occupied',
           'occupied_by_member_id': memberUserId,
@@ -481,6 +518,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       final mediaFailures = await _writeMemberProfile(memberUserId, refreshDetails: isExistingUser);
 
       // 5. Create payment record
+      opLabel = 'recording the payment';
       final finalPrice = (_memberData.totalBasePrice - _memberData.discount).clamp(0, double.infinity).toInt();
       await _supabase.from('payments').insert({
         'membership_id': membershipId,
@@ -520,8 +558,27 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      // Log the exact exception (incl. PostgREST/RLS details) — do not swallow.
-      debugPrint('Error finalizing registration: $e');
+      // Log the exact exception (incl. PostgREST/RLS details) AND which write
+      // was in flight — do not swallow. A 42501 here almost always means a
+      // missing owner-scoped RLS policy on that specific table (e.g. the
+      // payments admin-insert policy: migrations/2026-06-12_payments_admin_insert_rls.sql).
+      final pgCode = e is PostgrestException ? (e.code ?? '') : '';
+      if (e is PostgrestException) {
+        debugPrint('Error finalizing registration while "$opLabel": '
+            'code=${e.code} | message=${e.message} | details=${e.details} | hint=${e.hint}');
+      } else {
+        debugPrint('Error finalizing registration while "$opLabel": $e');
+      }
+      // Capture the auth/tenant context at the moment of failure — this tells us
+      // whether the RLS rejection is a missing policy vs. a null/expired
+      // auth.uid() vs. a library the signed-in user does not actually own.
+      final session = _supabase.auth.currentSession;
+      final nowSecs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      debugPrint('AUTH/TENANT @ failure: uid=${_supabase.auth.currentUser?.id} '
+          'hasSession=${session != null} '
+          'sessionExpired=${session?.expiresAt != null ? session!.expiresAt! < nowSecs : 'n/a'} '
+          'libraryId=$_libraryId '
+          'ownedLibraryIds=${_ownedLibraries.map((l) => l['id']).toList()}');
       // Compensating rollback: a later step (commonly the payment insert) can
       // fail AFTER the membership + seat were written, leaving a "ghost" member
       // in the list. Undo those writes so the admin can cleanly retry. There is
@@ -532,7 +589,23 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       if (mounted) {
         // Keep the wizard OPEN so the admin can correct and retry. Do NOT save a
         // draft on error — that path is what produced duplicate member records.
-        _showErrorSnackBar(friendlyError(e));
+        // For a permission/RLS rejection, name the blocked step so the cause is
+        // actionable instead of an opaque "permission" message.
+        final isPermission = pgCode == '42501' ||
+            (e is PostgrestException &&
+                (e.message.toLowerCase().contains('row-level security') ||
+                    e.message.toLowerCase().contains('permission')));
+        final expired = session == null ||
+            (session.expiresAt != null && session.expiresAt! < nowSecs);
+        _showErrorSnackBar(
+          isPermission
+              ? (expired
+                  ? 'Your login session has expired. Please sign out and sign in '
+                      'again, then retry adding the member.'
+                  : 'Permission denied while $opLabel. Please retry; if it keeps '
+                      'happening, the database access rules for this step need to be applied.')
+              : friendlyError(e),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -597,10 +670,17 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     String? docUrl2;
     bool idFailed = false;
     try {
-      if (_memberData.idProof1File != null) {
+      // Front/Back are uploaded immediately in step 1, so reuse those storage
+      // paths; only fall back to uploading here for older drafts that still
+      // carry a local file without a URL.
+      if (_memberData.idProof1Url != null) {
+        docUrl1 = _memberData.idProof1Url;
+      } else if (_memberData.idProof1File != null) {
         docUrl1 = await _uploadFileToStorage(_memberData.idProof1File!, 'documents');
       }
-      if (_memberData.idProof2File != null) {
+      if (_memberData.idProof2Url != null) {
+        docUrl2 = _memberData.idProof2Url;
+      } else if (_memberData.idProof2File != null) {
         docUrl2 = await _uploadFileToStorage(_memberData.idProof2File!, 'documents');
       }
     } catch (e) {

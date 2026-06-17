@@ -316,15 +316,15 @@ class AddMemberStep5 extends StatelessWidget {
           _buildReviewRow('Preparing For', memberData.preparingFor ?? 'N/A'),
           _buildReviewRow('Joining Date', _formatDate(memberData.joiningDate)),
           _buildReviewRow(
-            'Documents',
+            'ID Upload',
             [
-              if (memberData.idProof1File != null) memberData.idProof1Type ?? 'Doc 1',
-              if (memberData.idProof2File != null) memberData.idProof2Type ?? 'Doc 2',
+              if (memberData.idProof1File != null || memberData.idProof1Url != null) 'Front',
+              if (memberData.idProof2File != null || memberData.idProof2Url != null) 'Back',
             ].join(', ').isEmpty
                 ? 'None'
                 : [
-                    if (memberData.idProof1File != null) memberData.idProof1Type ?? 'Doc 1',
-                    if (memberData.idProof2File != null) memberData.idProof2Type ?? 'Doc 2',
+                    if (memberData.idProof1File != null || memberData.idProof1Url != null) 'Front',
+                    if (memberData.idProof2File != null || memberData.idProof2Url != null) 'Back',
                   ].join(', '),
           ),
           const SizedBox(height: 16),

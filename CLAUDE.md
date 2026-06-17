@@ -36,6 +36,35 @@
   "notified" for something that didn't happen); **ask before adding** anything not already decided;
   run `flutter analyze` after edits (target: 0 new errors; pre-existing infos are baseline).
 
+### Session 2026-06-17 — Add-Member wizard fixes (verified by user on-device)
+All shipped in `lib/screens/admin/` (+ 3 new migrations). `flutter analyze` clean on touched files.
+- **ID upload rework** (`add_member_step1.dart`): removed doc-type dropdown; single **"Upload ID"**
+  with **Front (required)** + **Back (optional, no "optional" label)** square tiles; uploads to
+  `silence_private` **immediately** with a circular progress overlay (honest success/fail);
+  `MemberData` gained `idProof1Url/idProof2Url` (+ JSON); wizard validation requires Front; finalize
+  reuses the uploaded paths.
+- **Add-Member "permission denied" bug — ROOT CAUSE FOUND & FIXED (no DB change):** the new-member
+  `users` insert used `.insert(...).select('id')` → `INSERT ... RETURNING id`. The tenant-scoped
+  SELECT policy (`Admins can view library members`, migration 2026-06-14) only lets an owner read a
+  user who is ALREADY a member, but the brand-new member has no membership yet → RETURNING was
+  rejected with `42501 new row violates row-level security policy`. Fix: generate the id client-side
+  (`uuid`) and insert **without** `.select()` (`add_member_wizard.dart`). Added per-step `opLabel`
+  diagnostics + auth/tenant logging in `_finalizeRegistration` (these pinned the cause).
+- **"Could not save your changes" = `email NOT NULL`** while wizard treats email as optional →
+  inserting NULL hit 23502. Fix migration **`2026-06-17_users_email_nullable.sql`**
+  (`ALTER COLUMN email DROP NOT NULL`; UNIQUE kept — multiple NULLs allowed). Canonical
+  `supabase_schema.sql` synced.
+- **Block admin/owner contacts:** new RPC **`2026-06-17_rpc_contact_in_use.sql`** (boolean, owner-only,
+  no PII) — step1 `_blockIfContactReserved` clears the field + shows "Already Registered" when an
+  email/phone belongs to an admin/owner (members are still autofilled via `find_user_by_contact`).
+  Best-effort/fails-open; UNIQUE constraint is the backstop.
+- **UI:** Gender + Preparing-For dropdown menus now white + curved (`dropdownColor`/`borderRadius`);
+  added **Teacher** to Preparing For.
+- **Migrations the user APPLIED to live DB (project `kndeshxeerldamafweru`):**
+  `2026-06-17_users_email_nullable.sql` + `2026-06-17_rpc_contact_in_use.sql`. (Earlier
+  `2026-06-17_users_owner_insert_member_rls.sql` is now redundant/harmless — the real cause was
+  RETURNING, not WITH CHECK.)
+
 ### Key reframes (these OVERRIDE the old spec/audit "fixes")
 - **Member ↔ library-admin payment is OUT OF APP.** Member taps a real UPI deep-link
   (`upi://pay`) to the admin's configured UPI, pays externally, then taps **"I have paid"**; the

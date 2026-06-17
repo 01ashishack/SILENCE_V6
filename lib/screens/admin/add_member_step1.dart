@@ -42,6 +42,8 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
   Timer? _debounce;
   final _picker = ImagePicker();
   bool _isPhotoUploading = false;
+  bool _isId1Uploading = false;
+  bool _isId2Uploading = false;
 
   late final TextEditingController _nameController;
   late final TextEditingController _fatherNameController;
@@ -256,6 +258,8 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
         }
 
         _showAutofillBottomSheet(userObj, isPhone: false);
+      } else if (userObj == null && mounted) {
+        await _blockIfContactReserved(email: email);
       }
     } catch (e) {
       debugPrint('Error looking up email: $e');
@@ -311,9 +315,64 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
         }
 
         _showAutofillBottomSheet(userObj, isPhone: true);
+      } else if (userObj == null && mounted) {
+        await _blockIfContactReserved(phone: phone);
       }
     } catch (e) {
       debugPrint('Error looking up phone: $e');
+    }
+  }
+
+  /// Blocks reusing a contact that belongs to an ADMIN / library-owner account.
+  /// Existing MEMBERS are handled by find_user_by_contact (autofill); this only
+  /// catches the admin/owner case the resolver deliberately hides, so a member
+  /// can never be registered on an admin's email/phone. Best-effort: if the
+  /// contact_in_use RPC isn't applied yet, this fails open (the users UNIQUE
+  /// constraint still blocks an actual duplicate at insert time).
+  Future<void> _blockIfContactReserved({String? email, String? phone}) async {
+    final isEmail = email != null && email.trim().isNotEmpty;
+    final isPhone = phone != null && phone.trim().isNotEmpty;
+    if (!isEmail && !isPhone) return;
+    try {
+      final params = <String, dynamic>{};
+      if (isEmail) params['p_email'] = email.trim();
+      if (isPhone) params['p_phone'] = phone.trim();
+
+      final res = await _supabase.rpc('contact_in_use', params: params);
+      if (res == true && mounted) {
+        if (isEmail) {
+          _emailController.clear();
+          widget.memberData.email = '';
+        } else {
+          _phoneController.clear();
+          widget.memberData.phone = '';
+        }
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            title: Text('Already Registered',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
+            content: Text(
+              'This ${isEmail ? 'email' : 'phone number'} is already registered to '
+              'another account and cannot be used to add a member. Please use a '
+              'different ${isEmail ? 'email' : 'number'}.',
+              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('OK',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('contact_in_use check skipped: $e');
     }
   }
 
@@ -588,17 +647,79 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
         }
       }
     } else {
+      // ID document — upload immediately so the admin gets an honest, visible
+      // confirmation (with a circular progress indicator) that it's actually
+      // stored, instead of only being captured locally and uploaded later.
       setState(() {
         if (isId1) {
           widget.memberData.idProof1File = processedFile;
+          widget.memberData.idProof1Url = null;
+          _isId1Uploading = true;
         } else if (isId2) {
           widget.memberData.idProof2File = processedFile;
+          widget.memberData.idProof2Url = null;
+          _isId2Uploading = true;
         }
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document captured successfully ✓'), backgroundColor: Colors.green),
+
+      try {
+        final compressedBytes = kIsWeb
+            ? await pickedFile.readAsBytes()
+            : await ImageOptimizer.compressImage(processedFile.path);
+
+        final slot = isId1 ? 'front' : 'back';
+        final path =
+            'library_members/${widget.libraryId}/documents/${widget.memberData.tempId}_$slot.jpg';
+
+        await _supabase.storage.from('silence_private').uploadBinary(
+          path,
+          Uint8List.fromList(compressedBytes),
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: true,
+          ),
         );
+        if (!mounted) return;
+
+        setState(() {
+          if (isId1) {
+            widget.memberData.idProof1Url = path;
+          } else if (isId2) {
+            widget.memberData.idProof2Url = path;
+          }
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ID uploaded successfully ✓'), backgroundColor: Colors.green),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error uploading ID document: $e');
+        if (!mounted) return;
+        // Honest failure: clear the captured file so the slot doesn't look done.
+        setState(() {
+          if (isId1) {
+            widget.memberData.idProof1File = null;
+            widget.memberData.idProof1Url = null;
+          } else if (isId2) {
+            widget.memberData.idProof2File = null;
+            widget.memberData.idProof2Url = null;
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload ID: $e'), backgroundColor: Colors.red),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            if (isId1) {
+              _isId1Uploading = false;
+            } else if (isId2) {
+              _isId2Uploading = false;
+            }
+          });
+        }
       }
     }
   }
@@ -780,6 +901,8 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                 initialValue: widget.memberData.gender,
                 decoration: const InputDecoration(labelText: 'Gender *'),
                 style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 14),
+                dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(14),
                 items: const [
                   DropdownMenuItem(value: 'male', child: Text('Male')),
                   DropdownMenuItem(value: 'female', child: Text('Female')),
@@ -866,11 +989,14 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                 initialValue: widget.memberData.preparingFor,
                 decoration: const InputDecoration(labelText: 'Preparing For *'),
                 style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 14),
+                dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(14),
                 items: const [
                   DropdownMenuItem(value: 'UPSC', child: Text('UPSC')),
                   DropdownMenuItem(value: 'NEET', child: Text('NEET')),
                   DropdownMenuItem(value: 'JEE', child: Text('JEE')),
                   DropdownMenuItem(value: 'SSC', child: Text('SSC')),
+                  DropdownMenuItem(value: 'Teacher', child: Text('Teacher')),
                   DropdownMenuItem(value: 'Other', child: Text('Other')),
                 ],
                 onChanged: (val) {
@@ -922,52 +1048,72 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               ),
               const SizedBox(height: 24),
 
-              // ID Documents header
+              // Upload ID header
               Text(
-                'ID Document Verification (At least one required) *',
+                'Upload ID',
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: const Color(0xFF1E293B),
                 ),
               ),
-              const SizedBox(height: 12),
-
-              // Document slot 1
-              _buildDocumentSlot(
-                slotNum: 1,
-                selectedType: widget.memberData.idProof1Type,
-                file: widget.memberData.idProof1File,
-                onTypeChanged: (type) {
-                  setState(() {
-                    widget.memberData.idProof1Type = type;
-                  });
-                },
-                onPick: () => _pickImage(false, isId1: true),
-                onClear: () {
-                  setState(() {
-                    widget.memberData.idProof1File = null;
-                  });
-                },
+              const SizedBox(height: 4),
+              Text(
+                'Add a clear photo of the member\'s ID. Front is required.',
+                style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  color: const Color(0xFF64748B),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
-              // Document slot 2
-              _buildDocumentSlot(
-                slotNum: 2,
-                selectedType: widget.memberData.idProof2Type,
-                file: widget.memberData.idProof2File,
-                onTypeChanged: (type) {
-                  setState(() {
-                    widget.memberData.idProof2Type = type;
-                  });
-                },
-                onPick: () => _pickImage(false, isId2: true),
-                onClear: () {
-                  setState(() {
-                    widget.memberData.idProof2File = null;
-                  });
-                },
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildIdTileLabel('Front', isRequired: true),
+                        const SizedBox(height: 6),
+                        _buildIdTile(
+                          file: widget.memberData.idProof1File,
+                          url: widget.memberData.idProof1Url,
+                          uploading: _isId1Uploading,
+                          onPick: () => _pickImage(false, isId1: true),
+                          onClear: () {
+                            setState(() {
+                              widget.memberData.idProof1File = null;
+                              widget.memberData.idProof1Url = null;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildIdTileLabel('Back', isRequired: false),
+                        const SizedBox(height: 6),
+                        _buildIdTile(
+                          file: widget.memberData.idProof2File,
+                          url: widget.memberData.idProof2Url,
+                          uploading: _isId2Uploading,
+                          onPick: () => _pickImage(false, isId2: true),
+                          onClear: () {
+                            setState(() {
+                              widget.memberData.idProof2File = null;
+                              widget.memberData.idProof2Url = null;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -976,100 +1122,140 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
     );
   }
 
-  Widget _buildDocumentSlot({
-    required int slotNum,
-    required String? selectedType,
+  Widget _buildIdTileLabel(String label, {required bool isRequired}) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF1E293B),
+          ),
+        ),
+        if (isRequired)
+          Text(
+            ' *',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFFE65C00),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildIdTile({
     required File? file,
-    required ValueChanged<String?> onTypeChanged,
+    required String? url,
+    required bool uploading,
     required VoidCallback onPick,
     required VoidCallback onClear,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.01),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+    final bool done = file != null && url != null && !uploading;
+
+    return AspectRatio(
+      aspectRatio: 1,
+      child: GestureDetector(
+        onTap: (uploading || done) ? null : onPick,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF7ED),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: done ? const Color(0xFFFFB877) : const Color(0xFFFFD9B3),
+              width: 1.5,
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: selectedType ?? (slotNum == 1 ? 'Aadhaar' : 'PAN'),
-                  decoration: InputDecoration(
-                    labelText: 'Doc $slotNum Type',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              // Local preview behind everything (shown while uploading & when done)
+              if (file != null)
+                kIsWeb
+                    ? Image.network(file.path, fit: BoxFit.cover)
+                    : Image.file(file, fit: BoxFit.cover),
+
+              if (uploading) ...[
+                Container(color: Colors.black.withValues(alpha: 0.45)),
+                const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.6,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'Uploading…',
+                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ),
-                  style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 13),
-                  items: const [
-                    DropdownMenuItem(value: 'Aadhaar', child: Text('Aadhaar Card')),
-                    DropdownMenuItem(value: 'PAN', child: Text('PAN Card')),
-                    DropdownMenuItem(value: 'Passport', child: Text('Passport')),
-                    DropdownMenuItem(value: 'Driving License', child: Text('Driving License')),
-                    DropdownMenuItem(value: 'Student ID', child: Text('Student ID')),
-                    DropdownMenuItem(value: 'Other', child: Text('Other')),
-                  ],
-                  onChanged: onTypeChanged,
                 ),
-              ),
-              const SizedBox(width: 12),
-              if (file == null)
-                ElevatedButton.icon(
-                  onPressed: onPick,
-                  icon: const Icon(Icons.file_upload, size: 18),
-                  label: const Text('Pick Image'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFF7ED),
-                    foregroundColor: const Color(0xFFE65C00),
-                    side: const BorderSide(color: Color(0xFFFFE0C2)),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ] else if (file == null) ...[
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFFFD9B3)),
+                        ),
+                        child: const Icon(Icons.add_a_photo_outlined, color: Color(0xFFE65C00), size: 22),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Tap to upload',
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFFE65C00),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                )
-              else
-                Row(
-                  children: [
-                    const Icon(Icons.check_circle, color: Colors.green, size: 24),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red, size: 24),
-                      onPressed: onClear,
+                ),
+              ] else ...[
+                // Done — uploaded check badge + remove control
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                    child: const Icon(Icons.check, color: Colors.white, size: 14),
+                  ),
+                ),
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: GestureDetector(
+                    onTap: onClear,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close, color: Colors.white, size: 16),
                     ),
-                  ],
+                  ),
                 ),
+              ],
             ],
           ),
-          if (file != null) ...[
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: kIsWeb
-                  ? Image.network(
-                      file.path,
-                      height: 120,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    )
-                  : Image.file(
-                      file,
-                      height: 120,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

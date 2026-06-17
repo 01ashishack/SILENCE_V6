@@ -54,7 +54,7 @@ END $$;
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE, -- nullable: email is optional for members (UNIQUE still allows multiple NULLs); see migrations/2026-06-17_users_email_nullable.sql
     phone TEXT UNIQUE,
     full_name TEXT NOT NULL,
     nickname TEXT,

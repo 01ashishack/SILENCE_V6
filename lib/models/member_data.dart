@@ -15,10 +15,14 @@ class MemberData {
   DateTime joiningDate = DateTime.now();
   File? profilePhoto;
   String? existingPhotoUrl;
-  String? idProof1Type = 'Aadhaar';
+  // ID proof is a single "Upload ID": slot 1 = Front (required),
+  // slot 2 = Back (optional). No document-type selection anymore.
+  String? idProof1Type = 'ID Proof';
   File? idProof1File;
-  String? idProof2Type = 'PAN';
+  String? idProof1Url; // storage path, set as soon as the front is uploaded
+  String? idProof2Type = 'ID Proof';
   File? idProof2File;
+  String? idProof2Url; // storage path, set as soon as the back is uploaded
 
   // Plan configuration
   String? selectedShiftId;
@@ -61,8 +65,10 @@ class MemberData {
       'existingPhotoUrl': existingPhotoUrl,
       'idProof1Type': idProof1Type,
       'idProof1Path': idProof1File?.path,
+      'idProof1Url': idProof1Url,
       'idProof2Type': idProof2Type,
       'idProof2Path': idProof2File?.path,
+      'idProof2Url': idProof2Url,
       'selectedShiftId': selectedShiftId,
       'selectedShiftName': selectedShiftName,
       'selectedShiftPrice': selectedShiftPrice,
@@ -102,12 +108,14 @@ class MemberData {
       final file = File(data['profilePhotoPath'] as String);
       if (kIsWeb || file.existsSync()) profilePhoto = file;
     }
-    idProof1Type = data['idProof1Type'] as String? ?? 'Aadhaar';
+    idProof1Type = data['idProof1Type'] as String? ?? 'ID Proof';
+    idProof1Url = data['idProof1Url'] as String?;
     if (data['idProof1Path'] != null) {
       final file = File(data['idProof1Path'] as String);
       if (kIsWeb || file.existsSync()) idProof1File = file;
     }
-    idProof2Type = data['idProof2Type'] as String? ?? 'PAN';
+    idProof2Type = data['idProof2Type'] as String? ?? 'ID Proof';
+    idProof2Url = data['idProof2Url'] as String?;
     if (data['idProof2Path'] != null) {
       final file = File(data['idProof2Path'] as String);
       if (kIsWeb || file.existsSync()) idProof2File = file;

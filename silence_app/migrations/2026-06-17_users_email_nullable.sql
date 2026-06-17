@@ -1,0 +1,37 @@
+-- ============================================================================
+-- 2026-06-17 — Fix: "Could not save your changes" when adding a member w/o email
+-- ============================================================================
+--
+-- SYMPTOM
+--   Completing the Add-Member wizard for a member who has NO email fails with
+--   "Could not save your changes. Please try again." The diagnostic logs show
+--   PostgREST code 23502 (not-null violation) on public.users while
+--   "creating the member profile".
+--
+-- ROOT CAUSE
+--   public.users.email is `TEXT UNIQUE NOT NULL`, but email is OPTIONAL in the
+--   Add-Member wizard (no required marker; the validator accepts an empty
+--   value), and _finalizeRegistration inserts email = NULL when it is blank.
+--   NULL into a NOT NULL column → 23502.
+--
+-- FIX
+--   Drop the NOT NULL constraint on users.email so members without an email can
+--   be added. The UNIQUE constraint is KEPT — in PostgreSQL a UNIQUE column
+--   still allows multiple NULLs, so several members without email coexist, while
+--   any two NON-NULL emails must still be distinct (so a member still cannot
+--   reuse an admin's / another account's email).
+--
+-- SAFETY
+--   * Signup is unaffected — auth signup always provides an email.
+--   * Purely relaxing a constraint; no data is changed and nothing that
+--     currently works can break.
+--
+-- APPLY: run once in the Supabase SQL editor.
+-- VERIFY: add a member leaving the Email field blank → completes with
+--         "Member added successfully".
+--
+-- ROLLBACK (only if every users row has a non-null, unique email):
+--   ALTER TABLE public.users ALTER COLUMN email SET NOT NULL;
+-- ============================================================================
+
+ALTER TABLE public.users ALTER COLUMN email DROP NOT NULL;
