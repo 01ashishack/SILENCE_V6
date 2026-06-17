@@ -243,10 +243,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return RefreshIndicator(
       color: AppColors.primary,
       onRefresh: _load,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 6),
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.divider),
         itemBuilder: (context, index) => _NotificationTile(
           item: _items[index],
           onTap: () => _onTapNotification(_items[index]),
@@ -271,12 +270,32 @@ class _NotificationTile extends StatelessWidget {
     final style = _NotifStyle.forType(type);
     final time = _timeAgo(item['sent_at']);
 
-    return Material(
-      color: unread ? AppColors.orangeTintBg.withValues(alpha: 0.45) : Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: unread
+                ? AppColors.primary.withValues(alpha: 0.25)
+                : const Color(0xFFEDEDED),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -332,6 +351,8 @@ class _NotificationTile extends StatelessWidget {
                   decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
                 ),
             ],
+              ),
+            ),
           ),
         ),
       ),

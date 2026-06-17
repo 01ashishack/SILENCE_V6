@@ -203,6 +203,27 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                             'message': msg,
                             'status': 'open',
                           });
+                          // Notify the library owner so the query shows in their
+                          // bell + Queries badge (best-effort; cross-actor insert
+                          // is allowed by the notifications insert policy).
+                          try {
+                            final lib = await _supabase
+                                .from('libraries')
+                                .select('owner_id')
+                                .eq('id', libraryId)
+                                .maybeSingle();
+                            final ownerId = lib?['owner_id'] as String?;
+                            if (ownerId != null) {
+                              await _supabase.from('notifications').insert({
+                                'user_id': ownerId,
+                                'title': 'New member query',
+                                'body': msg,
+                                'data': {'type': 'new_query', 'library_id': libraryId},
+                              });
+                            }
+                          } catch (e) {
+                            debugPrint('notify admin of query failed: $e');
+                          }
                           if (!sheetCtx.mounted) return;
                           Navigator.pop(sheetCtx);
                           messenger.showSnackBar(

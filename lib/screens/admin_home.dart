@@ -2963,7 +2963,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       return;
     }
     final msgController = TextEditingController();
-    String priority = 'normal';
 
     showModalBottomSheet(
       context: context,
@@ -3053,53 +3052,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Priority',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF374151),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: ['normal', 'urgent'].map((p) {
-                      final isActive = priority == p;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: ChoiceChip(
-                          label: Text(
-                            p == 'normal' ? '📢 Normal' : '🚨 Urgent',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isActive
-                                  ? Colors.white
-                                  : const Color(0xFF6B7280),
-                            ),
-                          ),
-                          selected: isActive,
-                          onSelected: (val) {
-                            if (val) setModalState(() => priority = p);
-                          },
-                          selectedColor: p == 'normal'
-                              ? const Color(0xFF8B5CF6)
-                              : const Color(0xFFEF4444),
-                          backgroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isActive
-                                  ? Colors.transparent
-                                  : const Color(0xFFE5E7EB),
-                            ),
-                          ),
-                          showCheckmark: false,
-                        ),
-                      );
-                    }).toList(),
-                  ),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
                     onPressed: () async {
@@ -3144,7 +3096,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                       'user_id': id,
                                       'title': 'Announcement',
                                       'body': msg,
-                                      'data': {'type': 'announcement', 'priority': priority},
+                                      'data': {'type': 'announcement'},
                                     })
                                 .toList();
                             await supabase.from('notifications').insert(rows);

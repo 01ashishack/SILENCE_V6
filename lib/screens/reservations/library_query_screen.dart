@@ -82,6 +82,25 @@ class _LibraryQueryScreenState extends State<LibraryQueryScreen> {
         'message': message,
         'status': 'open',
       });
+      // Notify the library owner (best-effort).
+      try {
+        final lib = await _supabase
+            .from('libraries')
+            .select('owner_id')
+            .eq('id', widget.libraryId)
+            .maybeSingle();
+        final ownerId = lib?['owner_id'] as String?;
+        if (ownerId != null) {
+          await _supabase.from('notifications').insert({
+            'user_id': ownerId,
+            'title': 'New member query',
+            'body': message,
+            'data': {'type': 'new_query', 'library_id': widget.libraryId},
+          });
+        }
+      } catch (e) {
+        debugPrint('notify admin of query failed: $e');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

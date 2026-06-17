@@ -5571,8 +5571,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   Widget _buildAnnouncementsSection() {
-    return Column(
-      children: _announcements.map((announce) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 320),
+      child: SingleChildScrollView(
+        child: Column(
+          children: _announcements.map((announce) {
         final isUnread = !_readAnnouncementIds.contains(announce['id']);
         final libraryName = announce['libraries']?['name'] ?? 'Library';
         final sentAtStr = announce['sent_at'] as String?;
@@ -5644,6 +5647,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           ),
         );
       }).toList(),
+        ),
+      ),
     );
   }
 
