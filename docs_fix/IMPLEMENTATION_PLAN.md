@@ -196,7 +196,7 @@
 - ✅ **Notification center** (replaced `notifications_screen` stub): real `notifications` read, skeleton/
   empty/error states, tap-to-mark-read, mark-all-read, pull-to-refresh, type-based icons. **Also fixed
   2 broken notification inserts** in `requests_sub_tab.dart` (`is_read`/`created_at` → schema-valid).
-  *Pending (Phase B): bell **unread-badge** count in `member_home`; **FCM** push.*
+  *Pending (Phase B): bell **unread-badge** count in `member_home`. **FCM push ✅ SHIPPED** (2026-06-17): `device_tokens` + `send-push` Edge Function + Database Webhook, web-verified; device test/foreground/hardening pending.*
 - 🆕 **“My Queries”** screen: member’s queries with status + admin replies. *(wiring Phase B)*
 - ♻️ `member_explore`, `member_history_tab`, `member_analytics_tab`, `member_profile_tab`,
   `member_profile_edit`, settings/privacy/help/about/terms screens — apply the 4 states; friendly errors;
@@ -276,8 +276,9 @@ new screens exist (wired or stubbed-honest), `flutter analyze` clean vs baseline
 > via `main()` `SystemChrome` + `AppBarTheme.systemOverlayStyle` → safe-area/top-bar match the brand on
 > every screen. **Dup-prevention:** member join/renewal submit buttons already gated on `_isSubmitting`;
 > added an **`_isApproving` re-entrancy guard** to the admin approval transaction (fast double-tap can't
-> create two memberships/payments). **Honest status of remaining Phase B:** ⛔ **FCM send** (needs
-> server tier; in-app center already real) · ⛔ **claim/link** (needs phone OTP, disabled by decision) ·
+> create two memberships/payments). **Honest status of remaining Phase B:** ✅ **FCM send** (server
+> tier shipped: `send-push` Edge Function + webhook; web-verified — device test/hardening pending) ·
+> ⛔ **claim/link** (needs phone OTP, disabled by decision) ·
 > 🟡 **referral** (share works; auto-credit after 30-day use needs a server job; admin config screen not
 > built) · **member transfer** (large multi-library flow — deferred) · **owner-visibility of deletion**
 > (needs an app-owner console). The pure-client items are done; the rest are server/OTP-gated and won't

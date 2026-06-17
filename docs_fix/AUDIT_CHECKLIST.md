@@ -128,7 +128,7 @@
 - [x] **Dup-prevention** — member submit gated on `_isSubmitting`; admin approval `_isApproving` re-entrancy guard
 
 **Remaining ⬜ / blocked ⛔**
-- ⛔ **FCM push send** — needs server tier / cloud function (in-app center already real)
+- ✅ **FCM push send** — server tier SHIPPED (`supabase/functions/send-push` + Database Webhook on `notifications` INSERT; `device_tokens` table); **web-verified end-to-end** (2026-06-17). Pending: Android/iOS device test, foreground banner, webhook shared-secret hardening.
 - ⛔ **Manually-added member claim/link** — needs phone OTP (verification disabled by decision)
 - 🟡 **Referral** — share works; **admin config** screen ✅ built + wired (admin profile → Operations → "Referral Rewards" → `/admin/settings/referrals`: enable toggle + referrer/referee extra days, saved to `settings` via `AdminSettingsService`, honest "manual crediting for now" copy); **auto-credit** after 30-day use still needs a server job
 - ✅ **Member transfer** — `lib/screens/reservations/member_transfer_screen.dart` (entry: member_detail → "Transfer to another library"): pick target owned library → shift → vacant seat (or "assign later") → confirm; frees old seat, marks old membership `transferred`, inserts new membership (expiry/plan/discount carried, `transferred_from` set) + `transfers` row, occupies new seat, notifies member, audits. Expiry preserved, no new payment (honest). Dup-membership + seat-race guards. *(Phase C: `transfers` orphan table now wired)*

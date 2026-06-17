@@ -12,7 +12,7 @@
   - [ ] `silence_app/migrations/2026-06-12_users_owner_update_rls.sql` → member **photos + ID docs** persist, member **profile edits** save.
 - [ ] **Pick the right device.** Camera, image-crop and runtime permissions are **mobile-only** → test on an **Android device/emulator** for full coverage. On the **Windows** build, gallery-based upload works but "Take Photo" only shows a friendly message (by design).
 - [ ] **Know what is mocked / disabled** (do NOT log these as bugs):
-  - Razorpay subscription = **mock plans** ("free during beta"); email/phone **OTP = disabled**; **FCM push = pending**; members-tab **bulk Announce/Export = stubbed** snackbars.
+  - Razorpay subscription = **mock plans** ("free during beta"); email/phone **OTP = disabled**; **FCM push = foundation shipped (web-verified); Android/iOS device test pending**; members-tab **bulk Announce/Export = stubbed** snackbars.
 
 ### Smoke test of THIS session's fixes
 - [ ] Add a member with a **photo + 1 ID proof** → open their profile: avatar shows, **ID Documents render** (not "No documents uploaded"). Card in Members list also shows the avatar.

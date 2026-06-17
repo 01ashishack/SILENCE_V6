@@ -55,6 +55,13 @@ revertible and testable in isolation.
 
 ## Status
 
+- **First Edge Function LIVE (2026-06-17):** `supabase/functions/send-push` — the "later, non-DB work"
+  this doc anticipated (sending FCM). Deployed `--no-verify-jwt`; a Database Webhook on `notifications`
+  INSERT invokes it; it reads `device_tokens` (service role) and sends FCM HTTP v1. Service account is
+  a base64 secret (`FIREBASE_SERVICE_ACCOUNT_B64`). Web-verified end-to-end. *Harden:* add a shared-secret
+  header so the public function URL can't be abused to spam pushes.
+- **RPCs `find_user_by_contact` + `contact_in_use` (add-member) — APPLIED & wired** (existing-user
+  autofill + admin-email block). The broad users SELECT was tenant-scoped (2026-06-14).
 - **RPC #1 `find_user_by_contact` — drafted & ready to apply:**
   `silence_app/migrations/2026-06-12_rpc_find_user_by_contact.sql`. Additive; nothing calls it yet.
 - **Next step (needs one on-device test):** wire the 3 add-member lookup call sites to

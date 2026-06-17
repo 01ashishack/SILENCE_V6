@@ -74,7 +74,7 @@ Same crash as Add-Member (mobile-only `permission_handler` / `image_cropper` thr
 
 ## T3 — Needs server work or a product decision (NOT actionable without testing/infra; listed only)
 
-- [ ] **FCM push send** — needs a server/Edge function + device tokens.
+- [x] **FCM push send** — ✅ **SHIPPED & web-verified** (2026-06-17): `device_tokens` table + Edge Function `supabase/functions/send-push` + Database Webhook on `notifications` INSERT (FCM HTTP v1). *Pending:* foreground heads-up banner, tap→navigation, Android/iOS device test, webhook shared-secret hardening (`--no-verify-jwt`).
 - [ ] **Email/phone OTP** — screens exist but disabled; needs auth/server wiring.
 - [ ] **Referral auto-credit** — needs a server job (currently manual).
 - [ ] **Owner console for deletion requests** — app-owner tier.

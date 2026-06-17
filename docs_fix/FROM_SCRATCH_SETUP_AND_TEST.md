@@ -35,7 +35,8 @@ is EXPECTED and confirms your structure is intact. Just confirm a few things, th
 > one becomes your Admin in B1).
 >
 > ⚠️ **Mocked/disabled — do NOT log as bugs:** Razorpay subscription (mock plans), email/phone OTP
-> (disabled), FCM push (pending).
+> (disabled). **FCM push: foundation SHIPPED + web-verified** (device_tokens + send-push Edge
+> Function + webhook); Android/iOS on-device test still pending.
 
 ---
 
