@@ -2788,8 +2788,8 @@ class _ReuploadProofBottomSheetState extends State<ReuploadProofBottomSheet> {
       // Compress
       final bytes = await ImageOptimizer.compressImage(_imageFile!.path);
 
-      // Upload binary
-      await _supabase.storage.from('silence_assets').uploadBinary(
+      // Upload binary — payment proof is financial PII → private bucket.
+      await _supabase.storage.from('silence_private').uploadBinary(
             path,
             Uint8List.fromList(bytes),
             fileOptions: const FileOptions(
@@ -2799,7 +2799,7 @@ class _ReuploadProofBottomSheetState extends State<ReuploadProofBottomSheet> {
             ),
           );
 
-      final proofUrl = _supabase.storage.from('silence_assets').getPublicUrl(path);
+      final proofUrl = await _supabase.storage.from('silence_private').createSignedUrl(path, 3600);
 
       // Update payment status to pending and re-save transaction data
       await _supabase.from('payments').update({

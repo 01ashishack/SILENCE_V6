@@ -280,7 +280,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
       final path = 'payment_proofs/${user.id}/$fileName';
 
       final bytes = await ImageOptimizer.compressImage(_proofImageFile!.path);
-      await _supabase.storage.from('silence_assets').uploadBinary(
+      await _supabase.storage.from('silence_private').uploadBinary(
             path,
             Uint8List.fromList(bytes),
             fileOptions: const FileOptions(
@@ -290,7 +290,9 @@ class _RenewalScreenState extends State<RenewalScreen> {
             ),
           );
 
-      final String publicUrl = _supabase.storage.from('silence_assets').getPublicUrl(path);
+      // Payment proof is financial PII → private bucket + signed URL (member
+      // detail re-signs it for the admin on view). Not the public bucket.
+      final String publicUrl = await _supabase.storage.from('silence_private').createSignedUrl(path, 3600);
       _proofUrl = publicUrl;
       return true;
     } catch (e) {

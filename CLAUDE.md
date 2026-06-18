@@ -82,6 +82,12 @@ Worked through safe audit items (baseline `SILENCE_COMPLETE_AUDIT_REPORT.md`):
 - **P7-06** QR regeneration grace: scanner accepts current **or immediately-previous** version (no
   more instant-break of printed QRs). *Precise 7-day window needs a `qr_version_updated_at` column.*
 - **P12-01** global error handler: `main()` wrapped in `runZonedGuarded` + `FlutterError.onError`.
+- **P10-02 / R-01 (storage PII)**: payment proofs in **renewal** + **history-reupload** now upload to
+  `silence_private` (+ signed URL) instead of the PUBLIC `silence_assets` bucket (join_flow already
+  did). ID docs + payment proofs are now all private. *(Profile photos stay public by decision.)*
+  ⛔ **Still APPLY:** `silence_app/migrations/2026-06-14_storage_private_owner_scoping.sql` (owner-scopes
+  who can READ silence_private). Follow-up: proof display uses 1h signed URLs (join pattern) — old
+  proofs may need re-signing on display (affects join too).
 > Still pending (need live DB / server tier / decisions): storage PII off public bucket (P10-02, DPDP),
 > apply storage owner-scoping migration (P10-01/03), real account-deletion purge (P14-02), RLS column
 > locks (P5-01/P6-02/03), server tier RPCs (RC-1), cron automation (P7-04/09, referral credit),
