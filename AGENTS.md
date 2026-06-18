@@ -91,25 +91,16 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
   data wipe + fresh account) + `guard_role_change` trigger that locks direct `role` flips (closes
   P6-02 self-escalation). Rewritten Change-Role dialogs call the RPC. (A `referrals` column-name bug
   found in testing was fixed; re-applied.) Folded into canonical schema. No outstanding live-DB action.
-- **⛔ NEW pending live-DB action (2026-06-18 (e)) — apply + device-verify (security batch):**
-  `2026-06-18_lock_user_privileged_columns.sql` (locks `role`+`subscription_*`+`*_verified` via one
-  guard trigger; `start_my_trial()` grants a 30-day **Free** window; re-creates `change_my_role` on the
-  unified GUC — supersedes the standalone role trigger), `2026-06-14_users_select_tenant_scope.sql`
-  (tenant-scope users SELECT, P10-04/DPDP), `2026-06-18_memberships_member_exit_rpc.sql` (member
-  self-exit via `exit_my_membership()` RPC + drops the open `memberships` UPDATE, P5-01). All folded
-  into canonical. Existing 'starter'/'basic' admins (legacy 14-day grant shown as "Pro") → one-time
-  reset: `begin; set local app.allow_privileged_update='on'; update public.users set
-  subscription_plan='free', subscription_status='active', subscription_expiry=now()+interval '30 days'
-  where subscription_plan in ('starter','basic'); commit;`. **Subscription enforcement deferred**
-  (`betaMode=true` keeps all features unlocked; 30-day window is display-only for now).
-- **⛔ Also apply (2026-06-18 (f), P5-08):** `2026-06-18_actor_scope_inserts.sql` — relationship-scoped
-  INSERT policies on notifications/audit_log/badges/referrals (replaces the open authenticated-insert);
-  `join_flow_screen` no longer writes an owner-attributed audit row. Folded into canonical. Device-verify
-  notify-heavy flows after applying.
-- **Uncommitted working tree (2026-06-18):** two FCM-related edits —
-  `android/app/build.gradle.kts` (core-library desugaring for `flutter_local_notifications`) and a
-  trailing-newline tidy in `silence_app/migrations/2026-06-17_device_tokens.sql`. Local-only
-  `devtools_options.yaml` (IDE-generated) stays out of commits — run `git status` first.
+- **✅ Wave-0 security batch APPLIED to live DB (2026-06-18 (e)+(f)):**
+  `2026-06-18_lock_user_privileged_columns.sql` (locks `role`+`subscription_*`+`*_verified`; `start_my_trial()`
+  grants a 30-day **Free** window; supersedes the standalone role trigger), `2026-06-14_users_select_tenant_scope.sql`
+  (tenant-scope users SELECT, P10-04/DPDP), `2026-06-18_memberships_member_exit_rpc.sql` (member self-exit
+  RPC + drop open `memberships` UPDATE, P5-01), `2026-06-18_actor_scope_inserts.sql` (relationship-scoped
+  notifications/audit_log/badges/referrals inserts, P5-08). All folded into canonical. **No outstanding
+  live-DB action.** (Existing 'starter'/'basic' admins reset to free+30d via the documented `set local` SQL.)
+- **Subscription enforcement deferred** (`betaMode=true` keeps all features unlocked; 30-day window is
+  display-only). Build/release: INTERNET + signing scaffold present (P1); user generates the keystore.
+- **Working tree:** clean (last code in `git log`); local-only `devtools_options.yaml` stays out of commits.
 - What's covered by `2a55f4d` (details in `docs_fix/LAYOUT_SEAT_OVERHAUL.md` + `RESERVATION_FIXES_2026-06-15.md`):
   All-Shifts seat dedupe + per-shift action sheet + day booking strip; time-overlap seat
   availability; orphaned-shift filtering; selector "All" only when >1; strip trailing "Shift" from

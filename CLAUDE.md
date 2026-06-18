@@ -120,9 +120,9 @@ Full flow built; `flutter analyze` clean. **Migrations APPLIED + Edge Function d
   throwaway account before relying on the cron. Self-cancel removed (recovery is owner-approved).
 - Minor: descriptive "30-day" copy in member_about / privacy_policy not yet updated to 7-day.
 
-### Session 2026-06-18 (f) — P5-08: actor-scope the forgeable inserts
-`2026-06-18_actor_scope_inserts.sql` (+ folded into canonical). Replaced the open
-`WITH CHECK (auth.uid() IS NOT NULL)` on **notifications / audit_log / badges / referrals** with
+### Session 2026-06-18 (f) — P5-08: actor-scope the forgeable inserts — APPLIED
+`2026-06-18_actor_scope_inserts.sql` (+ folded into canonical) — **applied to live DB 2026-06-18**.
+Replaced the open `WITH CHECK (auth.uid() IS NOT NULL)` on **notifications / audit_log / badges / referrals** with
 relationship-scoped checks that still allow every real cross-actor write:
 - **notifications:** self · owner→member · owner→applicant · (member|applicant)→owner. Covers all
   ~15 notify sites (admin→member actions, broadcasts, member→owner queries, badge self-notify).
@@ -134,8 +134,8 @@ relationship-scoped checks that still allow every real cross-actor write:
   seat/query/broadcast deliver; member query reaches owner; streak badge awards; forgery of an
   unrelated notification/badge fails). One-line rollback per policy in the migration.
 
-### Session 2026-06-18 (e) — Security hardening batch: lock privileged columns + tenant-scope + membership lock
-Device available, so doing adopt-then-tighten. `flutter analyze` clean on touched files. **Apply migrations + device-verify each (pending):**
+### Session 2026-06-18 (e) — Security hardening batch: lock privileged columns + tenant-scope + membership lock — APPLIED
+Device available; adopt-then-tighten. `flutter analyze` clean. **All migrations applied to live DB 2026-06-18:**
 - **P6-03/P6-06 — subscription + verified lock** (`2026-06-18_lock_user_privileged_columns.sql`):
   consolidated the role lock into one `guard_user_privileged_columns` trigger (GUC
   `app.allow_privileged_update`) covering `role` + `subscription_plan/status/expiry` +
@@ -229,18 +229,19 @@ permanent eligibility-gated member QR FAB; detail in `docs_fix/LAYOUT_SEAT_OVERH
 `RESERVATION_FIXES_2026-06-15.md`).
 
 ### Next action (when the user says "continue"/"GO")
-- **⛔ APPLY + device-verify (security batch, 2026-06-18 (e)):** `2026-06-18_lock_user_privileged_columns.sql`
-  (role+subscription+verified lock + `start_my_trial`), `2026-06-14_users_select_tenant_scope.sql`
-  (tenant-scope users SELECT), `2026-06-18_memberships_member_exit_rpc.sql` (member self-exit RPC + drop
-  open membership UPDATE). Existing 'starter'/'basic' admins → run the `set local` reset to free+30d (see
-  session (e)). Test: trial banner, lock checks, role change, member lists/Requests tab, member exit.
-- **Next security item — P5-08 (DONE, pending apply):** `2026-06-18_actor_scope_inserts.sql` —
-  relationship-scoped INSERT policies on notifications/audit_log/badges/referrals (join_flow audit
-  insert removed). Apply + device-verify notify flows.
-- **Subscription model — DEFERRED (user's call):** beta = everything free (`betaMode=true`). New admin
-  now shown a 30-day Free window (display only; not enforced yet). Real trial enforcement + Razorpay later.
-- **Remaining audit:** server tier RC-1 (large), analytics precompute (P11), build/keystore (P1-01/02),
-  iOS location (P14-03).
+- ✅ **Wave-0 security: ALL APPLIED to live DB (2026-06-18).** role lock (P6-02), subscription/verified
+  lock (P6-03/06), tenant-scope users SELECT (P10-04), membership self-exit + open-UPDATE drop (P5-01),
+  actor-scoped inserts (P5-08), storage owner-scoping (P10-01/02/03). Build/release: INTERNET + signing
+  scaffold present (P1) — user generates the keystore.
+- **Remaining (need decision / environment / large):**
+  - **Server tier RC-1:** foundation exists (RPCs + Edge Functions); real **payments** (Razorpay) +
+    **OTP** still need it — both deferred by product decision.
+  - **Subscription enforcement:** `betaMode=true` keeps all features free/unlocked; 30-day Free window
+    is display-only. Flip + enforce later with billing.
+  - **Analytics precompute (P11-01/02):** Wave-2 perf — precompute tables/cron.
+  - **iOS location crash (P14-03):** needs a Mac/iOS build.
+  - **TZ reconcile (P8-01):** one IST clock everywhere + precompute.
+- **FCM follow-ups:** foreground banner, tap→navigation, Android/iOS device test, webhook shared-secret.
 - **FCM follow-ups:** foreground banner, tap→navigation, Android/iOS device test, webhook shared-secret.
 
 ---

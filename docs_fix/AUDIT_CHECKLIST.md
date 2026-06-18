@@ -37,11 +37,11 @@
 | 1 | P10-01 | Private bucket not owner-scoped | ✅ | `2026-06-14_storage_private_owner_scoping.sql` **applied 2026-06-18** — `silence_private` reads owner-scoped (3-seg `family/<id>/<file>`). Device-verify signed-URL reads recommended |
 | 2 | P10-02 | PII in **public** bucket | ✅ | ID docs + payment proofs moved to `silence_private` (code, 2026-06-18) + owner-scoping migration applied (DPDP). Profile photos stay public by decision |
 | 3 | P10-03 | Storage world-writable/deletable | ✅ | owner-scoped read/write/delete policies in `2026-06-14_storage_private_owner_scoping.sql` **applied 2026-06-18** |
-| 4 | P10-04 | Any user reads `users` table | 🟡 | tenant-scoped SELECT authored (`2026-06-14_users_select_tenant_scope.sql`, RPC `find_user_by_contact` wired) + folded into canonical; **apply + device-verify pending** (member lists / Requests tab / add-member autofill) |
-| 5 | P5-01/P10-05 | `memberships` UPDATE open to all | 🟡 | open `USING(true)` dropped; member self-exit moved to `exit_my_membership()` RPC (`2026-06-18_memberships_member_exit_rpc.sql`, member_home wired); **apply + device-test pending** |
+| 4 | P10-04 | Any user reads `users` table | ✅ | tenant-scoped SELECT **applied 2026-06-18** (`2026-06-14_users_select_tenant_scope.sql`; owner reads only members+pending applicants; cross-library lookup via `find_user_by_contact` RPC) |
+| 5 | P5-01/P10-05 | `memberships` UPDATE open to all | ✅ | open `USING(true)` **dropped + applied 2026-06-18**; member self-exit via `exit_my_membership()` RPC; admin writes owner-scoped |
 | 6 | P6-02 | Role self-escalation member→admin | ✅ | **Role-change redesign applied + device-verified (2026-06-18)** (`2026-06-18_role_change_rpc.sql` + both profile tabs): `change_my_role()` RPC enforces a **7-day-from-signup** window, **wipes all role data** + starts a fresh account; a trigger blocks any other direct `role` flip (self-escalation closed) |
-| 7 | P6-03 | Subscription self-activation | 🟡 | client self-activation **removed** (B6); **subscription_*/verified columns now locked** by `guard_user_privileged_columns` trigger — only `start_my_trial()` (admin one-time 14-day) / billing may write them (`2026-06-18_lock_user_privileged_columns.sql`, admin_home wired); apply + device-verify pending |
-| 8 | P6-01/P10-08 | **No server tier (root)** | ⛔ | Wave 1 — large |
+| 7 | P6-03 | Subscription self-activation | ✅ | self-activation removed (B6) + **`subscription_*`/`verified` columns locked** by `guard_user_privileged_columns` trigger **applied 2026-06-18** — only `start_my_trial()` / billing may write; (paid-tier *limit* enforcement still gated behind `betaMode`, by decision) |
+| 8 | P6-01/P10-08 | **No server tier (root)** | 🟡 | foundation now exists — SECURITY DEFINER RPCs (`change_my_role`, `start_my_trial`, `exit_my_membership`, `find_user_by_contact`, account-recovery) + Edge Functions (`send-push`, `process-account-deletions`); still needed for real payments + OTP (both deferred by decision) |
 | 9 | P0-01 | Payments fully mocked | 🟡 | reframed to **out-of-app UPI** + real amount; Razorpay (subscription) deferred to last |
 | 10 | P9-02 | Subscription payment theatre + fake invoice | ✅ | **B6** — subscription_screen rewritten: 3 honest mock plans (Free/₹499/₹799); removed Razorpay sim sheet, `Future.delayed`, fake invoice, self-activation; "free during beta / coming soon" |
 | 11 | P3-01 | Members pay hardcoded placeholder UPI | ✅ | join/renewal read admin `social_links.upi_ids` → real `upi://pay` deep-links |
@@ -54,21 +54,19 @@
 | 18 | P8-01 | Three contradictory "which day" defs (TZ) | 🟡 | one IST clock used in member_home / activities / holidays; full reconcile + precompute pending |
 | 19 | P11-01 | Analytics fast-path tables absent | ⬜ | Wave 2 precompute |
 | 20 | P11-02 | Badge engine N+1 | ⬜ | Wave 2 |
-| 21 | P1-01/P1-02 | Release manifest missing INTERNET + debug-signed | ⛔ | build config — needs keystore |
+| 21 | P1-01/P1-02 | Release manifest missing INTERNET + debug-signed | ✅ | INTERNET permission present in manifest; release `signingConfig` wired to `key.properties` (gitignored) with debug fallback — user generates the keystore (`key.properties.example`) |
 | 22 | P14-03 | iOS crashes on location screen | ⛔ | needs device/iOS build |
 
-**Criticals closed: 13 ✅ (incl. P5-02/P5-03 + storage P10-01/02/03 + P6-02 role-escalation, all applied to live DB) · 5 🟡 (P6-03 sub/verified lock, P0-01, P8-01, P10-04 tenant-scope, P5-01 membership-lock — last three apply+test pending) · 4 open (server tier RC-1, P11 ×2, build P1/P14-03).**
+**Criticals closed: 16 ✅ · 3 🟡 (P0-01 payments, P8-01 TZ, P6-01 server-tier-partial) · 3 ⬜ (P11-01/02 perf Wave 2, P14-03 iOS). All Wave-0 RLS/storage/identity locks applied 2026-06-18.**
 
 ---
 
 ## 2. Five Root Causes
 
-1. **RC-4 — Self-asserted identity & permissive RLS/storage** → 🟡 partial: storage owner-scoping
-   (P10-01/02/03) **applied 2026-06-18**; **role self-escalation (P6-02) closed via `change_my_role()`
-   + role-lock trigger** (applied + device-verified 2026-06-18); subscription/verified locks (P6-03/06),
-   tenant-scope users SELECT (P10-04), open membership UPDATE (P5-01) and forgeable inserts (P5-08) all
-   **built + folded, apply+device-verify pending**; identity-verify (disabled) + remaining server-tier
-   tightenings pending (RC-1).
+1. **RC-4 — Self-asserted identity & permissive RLS/storage** → ✅ **largely closed (applied 2026-06-18):**
+   storage owner-scoping (P10-01/02/03); role self-escalation (P6-02, verified); subscription/verified
+   locks (P6-03/06); tenant-scope users SELECT (P10-04); open membership UPDATE (P5-01); forgeable
+   inserts actor-scoped (P5-08). Remaining: identity-verify (disabled by decision).
 2. **RC-3 — Schema drift / missing tables & constraints** → ✅ **Phase C applied to live DB** (6 tables + columns + guarded constraints; closures reconciled); concurrency-safe seats deferred (server tier).
 3. **RC-1 — No server-side tier** → ⛔ pending (Wave 1, large).
 4. **RC-2 — Money is mocked** → 🟡 member↔admin made **real & honest** (out-of-app UPI + derived amount); app-owner↔library Razorpay deferred.
