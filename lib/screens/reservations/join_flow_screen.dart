@@ -631,23 +631,6 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         if (_exitedMembershipToWelcome != null && _usedPreviousDetails) {
           if (nameStr != _origFullName || phoneStr != _origPhone || nickStr != _origNickname) {
             try {
-              await supabase.from('audit_log').insert({
-                'admin_id': _library?['owner_id'] ?? user.id,
-                'library_id': widget.libraryId,
-                'action': 'profile_modified_returning_member',
-                'details': {
-                  'member_id': user.id,
-                  'old_full_name': _origFullName,
-                  'new_full_name': nameStr,
-                  'old_phone': _origPhone,
-                  'new_phone': phoneStr,
-                  'old_nickname': _origNickname,
-                  'new_nickname': nickStr,
-                },
-                'previous_value': 'Name: $_origFullName, Phone: $_origPhone, Nickname: $_origNickname',
-                'new_value': 'Name: $nameStr, Phone: $phoneStr, Nickname: $nickStr',
-              });
-
               await supabase.from('notifications').insert({
                 'user_id': _library?['owner_id'] ?? user.id,
                 'title': 'Returning Member Profile Modified',

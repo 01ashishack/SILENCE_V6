@@ -951,8 +951,10 @@ CREATE POLICY "Member view own referrals" ON referrals
 CREATE POLICY "Admin view referrals" ON referrals
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
-CREATE POLICY "System insert referrals" ON referrals
-    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Scoped insert referrals" ON referrals
+    FOR INSERT WITH CHECK (
+        referrer_member_id = auth.uid() OR referred_member_id = auth.uid()
+    ); -- P5-08; canonical copy of migrations/2026-06-18_actor_scope_inserts.sql
 
 -- 4.17 Badges Policies
 CREATE POLICY "Member view own badges" ON badges
@@ -961,8 +963,12 @@ CREATE POLICY "Member view own badges" ON badges
 CREATE POLICY "Admin view member badges" ON badges
     FOR SELECT USING (EXISTS (SELECT 1 FROM memberships WHERE memberships.member_id = badges.member_id AND library_id = badges.library_id AND EXISTS (SELECT 1 FROM libraries WHERE id = memberships.library_id AND owner_id = auth.uid())));
 
-CREATE POLICY "System insert badges" ON badges
-    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Scoped insert badges" ON badges
+    FOR INSERT WITH CHECK (
+        member_id = auth.uid()
+        OR EXISTS (SELECT 1 FROM libraries l
+                   WHERE l.id = badges.library_id AND l.owner_id = auth.uid())
+    ); -- P5-08
 
 -- 4.18 Announcements Policies
 CREATE POLICY "Admin insert announcements" ON announcements
@@ -1002,8 +1008,30 @@ CREATE POLICY "Admin update queries" ON queries
 CREATE POLICY "User view own notifications" ON notifications
     FOR SELECT USING (user_id = auth.uid());
 
-CREATE POLICY "System insert notifications" ON notifications
-    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Scoped insert notifications" ON notifications
+    FOR INSERT WITH CHECK (
+        user_id = auth.uid()
+        OR EXISTS (
+            SELECT 1 FROM memberships m
+            JOIN libraries l ON l.id = m.library_id
+            WHERE m.member_id = notifications.user_id AND l.owner_id = auth.uid()
+        )
+        OR EXISTS (
+            SELECT 1 FROM join_requests jr
+            JOIN libraries l ON l.id = jr.library_id
+            WHERE jr.member_id = notifications.user_id AND l.owner_id = auth.uid()
+        )
+        OR EXISTS (
+            SELECT 1 FROM libraries l
+            WHERE l.owner_id = notifications.user_id
+              AND (
+                EXISTS (SELECT 1 FROM memberships m
+                        WHERE m.library_id = l.id AND m.member_id = auth.uid())
+                OR EXISTS (SELECT 1 FROM join_requests jr
+                           WHERE jr.library_id = l.id AND jr.member_id = auth.uid())
+              )
+        )
+    ); -- P5-08
 
 CREATE POLICY "User update read status" ON notifications
     FOR UPDATE USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
@@ -1012,8 +1040,8 @@ CREATE POLICY "User update read status" ON notifications
 CREATE POLICY "Admin view own audit log" ON audit_log
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
-CREATE POLICY "System insert audit log" ON audit_log
-    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Scoped insert audit log" ON audit_log
+    FOR INSERT WITH CHECK (admin_id = auth.uid()); -- P5-08
 
 -- 4.23 Scheduled Closures Policies
 CREATE POLICY "Admin manage scheduled closures" ON scheduled_closures

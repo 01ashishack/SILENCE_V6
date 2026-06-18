@@ -120,6 +120,20 @@ Full flow built; `flutter analyze` clean. **Migrations APPLIED + Edge Function d
   throwaway account before relying on the cron. Self-cancel removed (recovery is owner-approved).
 - Minor: descriptive "30-day" copy in member_about / privacy_policy not yet updated to 7-day.
 
+### Session 2026-06-18 (f) — P5-08: actor-scope the forgeable inserts
+`2026-06-18_actor_scope_inserts.sql` (+ folded into canonical). Replaced the open
+`WITH CHECK (auth.uid() IS NOT NULL)` on **notifications / audit_log / badges / referrals** with
+relationship-scoped checks that still allow every real cross-actor write:
+- **notifications:** self · owner→member · owner→applicant · (member|applicant)→owner. Covers all
+  ~15 notify sites (admin→member actions, broadcasts, member→owner queries, badge self-notify).
+- **audit_log:** `admin_id = auth.uid()` only. Code: `join_flow_screen` no longer writes an
+  owner-attributed audit row (kept the owner notification, which is allowed).
+- **badges:** self-award or owner-of-the-badge's-library (covers member analytics + admin viewing).
+- **referrals:** inserter must be referrer or referred.
+- `flutter analyze` clean. ⛔ **apply + device-verify** (notify-heavy flows: approve/reject/hold/end/
+  seat/query/broadcast deliver; member query reaches owner; streak badge awards; forgery of an
+  unrelated notification/badge fails). One-line rollback per policy in the migration.
+
 ### Session 2026-06-18 (e) — Security hardening batch: lock privileged columns + tenant-scope + membership lock
 Device available, so doing adopt-then-tighten. `flutter analyze` clean on touched files. **Apply migrations + device-verify each (pending):**
 - **P6-03/P6-06 — subscription + verified lock** (`2026-06-18_lock_user_privileged_columns.sql`):
@@ -220,11 +234,11 @@ permanent eligibility-gated member QR FAB; detail in `docs_fix/LAYOUT_SEAT_OVERH
   (tenant-scope users SELECT), `2026-06-18_memberships_member_exit_rpc.sql` (member self-exit RPC + drop
   open membership UPDATE). Existing 'starter'/'basic' admins → run the `set local` reset to free+30d (see
   session (e)). Test: trial banner, lock checks, role change, member lists/Requests tab, member exit.
-- **Next security item — P5-08 (in progress):** actor-scope the cross-actor inserts (join_flow owner
-  notify/audit, badge award) via SECURITY DEFINER RPCs.
+- **Next security item — P5-08 (DONE, pending apply):** `2026-06-18_actor_scope_inserts.sql` —
+  relationship-scoped INSERT policies on notifications/audit_log/badges/referrals (join_flow audit
+  insert removed). Apply + device-verify notify flows.
 - **Subscription model — DEFERRED (user's call):** beta = everything free (`betaMode=true`). New admin
-  now shown a 30-day Free window (display only; not enforced yet). Real trial enforcement + Razorpay
-  later.
+  now shown a 30-day Free window (display only; not enforced yet). Real trial enforcement + Razorpay later.
 - **Remaining audit:** server tier RC-1 (large), analytics precompute (P11), build/keystore (P1-01/02),
   iOS location (P14-03).
 - **FCM follow-ups:** foreground banner, tap→navigation, Android/iOS device test, webhook shared-secret.

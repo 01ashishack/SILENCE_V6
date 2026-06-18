@@ -102,6 +102,10 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
   subscription_plan='free', subscription_status='active', subscription_expiry=now()+interval '30 days'
   where subscription_plan in ('starter','basic'); commit;`. **Subscription enforcement deferred**
   (`betaMode=true` keeps all features unlocked; 30-day window is display-only for now).
+- **⛔ Also apply (2026-06-18 (f), P5-08):** `2026-06-18_actor_scope_inserts.sql` — relationship-scoped
+  INSERT policies on notifications/audit_log/badges/referrals (replaces the open authenticated-insert);
+  `join_flow_screen` no longer writes an owner-attributed audit row. Folded into canonical. Device-verify
+  notify-heavy flows after applying.
 - **Uncommitted working tree (2026-06-18):** two FCM-related edits —
   `android/app/build.gradle.kts` (core-library desugaring for `flutter_local_notifications`) and a
   trailing-newline tidy in `silence_app/migrations/2026-06-17_device_tokens.sql`. Local-only

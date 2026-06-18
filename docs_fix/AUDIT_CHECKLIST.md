@@ -65,8 +65,10 @@
 
 1. **RC-4 — Self-asserted identity & permissive RLS/storage** → 🟡 partial: storage owner-scoping
    (P10-01/02/03) **applied 2026-06-18**; **role self-escalation (P6-02) closed via `change_my_role()`
-   + role-lock trigger** (applied + device-verified 2026-06-18); identity-verify (disabled) + remaining
-   RLS column locks (P5-01/P6-06) + tenant-scope still pending (Wave 0, live DB).
+   + role-lock trigger** (applied + device-verified 2026-06-18); subscription/verified locks (P6-03/06),
+   tenant-scope users SELECT (P10-04), open membership UPDATE (P5-01) and forgeable inserts (P5-08) all
+   **built + folded, apply+device-verify pending**; identity-verify (disabled) + remaining server-tier
+   tightenings pending (RC-1).
 2. **RC-3 — Schema drift / missing tables & constraints** → ✅ **Phase C applied to live DB** (6 tables + columns + guarded constraints; closures reconciled); concurrency-safe seats deferred (server tier).
 3. **RC-1 — No server-side tier** → ⛔ pending (Wave 1, large).
 4. **RC-2 — Money is mocked** → 🟡 member↔admin made **real & honest** (out-of-app UPI + derived amount); app-owner↔library Razorpay deferred.
