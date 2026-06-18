@@ -1020,6 +1020,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           .eq('id', _libraryId!);
 
       // Update user subscription state to active Starter plan
+      final trialUid = supabase.auth.currentUser?.id;
+      if (trialUid == null) {
+        if (mounted) _showErrorSnackBar('Session expired. Please sign in again.');
+        return;
+      }
       await supabase
           .from('users')
           .update({
@@ -1029,7 +1034,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 .add(const Duration(days: 14))
                 .toIso8601String(), // 14-day trial
           })
-          .eq('id', supabase.auth.currentUser!.id);
+          .eq('id', trialUid);
       if (!mounted) return;
 
       _showCongratulationsPopup();

@@ -522,8 +522,10 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
     try {
       final supabase = Supabase.instance.client;
+      final uid = supabase.auth.currentUser?.id;
+      if (uid == null) return false;
       final fileName = 'proof_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final path = 'payment_proofs/${supabase.auth.currentUser!.id}/$fileName';
+      final path = 'payment_proofs/$uid/$fileName';
 
       final bytes = await ImageOptimizer.compressImage(_proofImageFile!.path);
       await supabase.storage.from('silence_private').uploadBinary(

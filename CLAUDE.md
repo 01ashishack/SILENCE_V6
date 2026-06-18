@@ -70,6 +70,23 @@ All in `lib/screens/admin/` (+ migrations). `flutter analyze` clean on touched f
 - **Subscription decision (2026-06-17):** **in-app Razorpay ruled out**; either store IAP OR
   website+Razorpay. See `docs_fix/UIUX_OVERHAUL_DECISIONS.md` + `SUBSCRIPTION_ARCHITECTURE.md`.
 
+### Session 2026-06-18 — audit-fix batch (code-only, full project `flutter analyze` clean)
+Worked through safe audit items (baseline `SILENCE_COMPLETE_AUDIT_REPORT.md`):
+- **P7-01 (flagship) multi-shift seats** (`library_setup_stage2.dart`): setup now creates one seat row
+  **per shift** (same label) — was only first shift → 0 seats in other shifts; load **dedupes by
+  label**; delete-detection made **label-aware** so sibling shift-rows aren't wrongly deleted.
+- **P12-03** guarded 3 `currentUser!` force-unwraps → null checks (admin_home trial, member_history
+  receipt, join_flow proof upload).
+- **P7-02** discount cap: `add_member_step4` loads `business_rules.max_discount` (%) and clamps the
+  discount to base×max%/100 (+ helper + snackbar). *Client-side only; server cap needs Wave 1.*
+- **P7-06** QR regeneration grace: scanner accepts current **or immediately-previous** version (no
+  more instant-break of printed QRs). *Precise 7-day window needs a `qr_version_updated_at` column.*
+- **P12-01** global error handler: `main()` wrapped in `runZonedGuarded` + `FlutterError.onError`.
+> Still pending (need live DB / server tier / decisions): storage PII off public bucket (P10-02, DPDP),
+> apply storage owner-scoping migration (P10-01/03), real account-deletion purge (P14-02), RLS column
+> locks (P5-01/P6-02/03), server tier RPCs (RC-1), cron automation (P7-04/09, referral credit),
+> analytics precompute (P11), real payments (RC-2, deferred), OTP (disabled by decision).
+
 ### Key reframes (these OVERRIDE the old spec/audit "fixes")
 - **Member ↔ library-admin payment is OUT OF APP.** Real `upi://pay` deep-link + "I have paid";
   admin verifies in their bank app + confirms. No in-app gateway, no screenshot-theatre.

@@ -1854,7 +1854,9 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () async {
-                            final userProfile = await _supabase.from('users').select('full_name').eq('id', _supabase.auth.currentUser!.id).maybeSingle();
+                            final uid = _supabase.auth.currentUser?.id;
+                            if (uid == null) return;
+                            final userProfile = await _supabase.from('users').select('full_name').eq('id', uid).maybeSingle();
                             final memberName = userProfile != null ? (userProfile['full_name'] ?? 'Member') : 'Member';
                             await PdfExporter.exportPaymentReceipt(
                               libraryName: libName,

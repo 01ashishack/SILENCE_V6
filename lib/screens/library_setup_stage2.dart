@@ -127,11 +127,19 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
         for (final s in sectionsRaw) {
           final sectionId = s['id'] as String;
           final seatsRaw = await sb.from('seats').select().eq('section_id', sectionId);
-          final seats = (seatsRaw as List).map((seat) => SeatModel(
-            id: seat['id'] as String,
-            label: seat['seat_label'] as String,
-            status: (seat['status'] as String?) ?? 'vacant',
-          )).toList();
+          // A physical seat has one DB row PER shift (same label, different
+          // shift_id). Dedupe by label so the layout shows one logical seat.
+          final seenSecLabels = <String>{};
+          final seats = <SeatModel>[];
+          for (final seat in (seatsRaw as List)) {
+            final label = seat['seat_label'] as String;
+            if (!seenSecLabels.add(label)) continue;
+            seats.add(SeatModel(
+              id: seat['id'] as String,
+              label: label,
+              status: (seat['status'] as String?) ?? 'vacant',
+            ));
+          }
           sections.add(SectionModel(
             id: sectionId,
             name: s['name'] as String,
@@ -144,11 +152,17 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
         final floorSeatsRaw = await sb.from('seats').select()
             .eq('floor_id', floorId)
             .isFilter('section_id', null);
-        final floorSeats = (floorSeatsRaw as List).map((seat) => SeatModel(
-          id: seat['id'] as String,
-          label: seat['seat_label'] as String,
-          status: (seat['status'] as String?) ?? 'vacant',
-        )).toList();
+        final seenFloorLabels = <String>{};
+        final floorSeats = <SeatModel>[];
+        for (final seat in (floorSeatsRaw as List)) {
+          final label = seat['seat_label'] as String;
+          if (!seenFloorLabels.add(label)) continue;
+          floorSeats.add(SeatModel(
+            id: seat['id'] as String,
+            label: label,
+            status: (seat['status'] as String?) ?? 'vacant',
+          ));
+        }
 
         floors.add(FloorModel(
           id: floorId,
@@ -566,7 +580,9 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
               for (final dbSeat in dbSeatsRaw) {
                 final seatId = dbSeat['id'] as String;
                 final seatLabel = dbSeat['seat_label'] as String;
-                if (!keptSection.seats.any((s) => s.id == seatId)) {
+                // Label-aware: a kept seat has multiple shift rows (different
+                // ids). Only delete rows whose label is no longer in the layout.
+                if (!keptSection.seats.any((s) => s.id == seatId || s.label == seatLabel)) {
                   deletedSeats.add({'id': seatId, 'label': seatLabel});
                 }
               }
@@ -577,7 +593,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
           for (final dbSeat in dbFloorSeatsRaw) {
             final seatId = dbSeat['id'] as String;
             final seatLabel = dbSeat['seat_label'] as String;
-            if (!keptFloor.floorSeats.any((s) => s.id == seatId)) {
+            if (!keptFloor.floorSeats.any((s) => s.id == seatId || s.label == seatLabel)) {
               deletedSeats.add({'id': seatId, 'label': seatLabel});
             }
           }
@@ -661,9 +677,11 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
         return;
       }
 
-      // Get or create a default shift to attach seats to
+      // Seats are created PER SHIFT (one row per shift, same label) so a
+      // physical seat works across every shift — the multi-shift model the
+      // product is built on. Get all shifts (create a default if none).
       var shiftsRaw = await sb.from('shifts').select('id').eq('library_id', _libraryId!);
-      String shiftId;
+      List<String> shiftIds;
       if ((shiftsRaw as List).isEmpty) {
         final newShift = await sb.from('shifts').insert({
           'library_id': _libraryId!,
@@ -672,9 +690,9 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
           'end_time': '14:00:00',
           'price_monthly': 700,
         }).select().single();
-        shiftId = newShift['id'] as String;
+        shiftIds = [newShift['id'] as String];
       } else {
-        shiftId = shiftsRaw.first['id'] as String;
+        shiftIds = shiftsRaw.map((s) => s['id'] as String).toList();
       }
 
       // 3. Perform Deletions (since they have been checked and verified to be safe)
@@ -741,16 +759,21 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                 'status': seat.status,
               }).eq('id', seat.id!);
             } else {
-              // Insert new seat
-              final seatRow = await sb.from('seats').insert({
-                'library_id': _libraryId!,
-                'floor_id': floorId,
-                'section_id': sectionId,
-                'shift_id': shiftId,
-                'seat_label': seat.label,
-                'status': seat.status,
-              }).select().single();
-              seat.id = seatRow['id'] as String;
+              // Insert new seat: one row per shift (same label) so the seat
+              // exists in every shift. status is per-shift independent.
+              String? firstSeatId;
+              for (final sid in shiftIds) {
+                final seatRow = await sb.from('seats').insert({
+                  'library_id': _libraryId!,
+                  'floor_id': floorId,
+                  'section_id': sectionId,
+                  'shift_id': sid,
+                  'seat_label': seat.label,
+                  'status': seat.status,
+                }).select().single();
+                firstSeatId ??= seatRow['id'] as String;
+              }
+              seat.id = firstSeatId;
             }
           }
         }
@@ -764,15 +787,19 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
               'status': seat.status,
             }).eq('id', seat.id!);
           } else {
-            // Insert seat
-            final seatRow = await sb.from('seats').insert({
-              'library_id': _libraryId!,
-              'floor_id': floorId,
-              'shift_id': shiftId,
-              'seat_label': seat.label,
-              'status': seat.status,
-            }).select().single();
-            seat.id = seatRow['id'] as String;
+            // Insert seat: one row per shift (same label).
+            String? firstSeatId;
+            for (final sid in shiftIds) {
+              final seatRow = await sb.from('seats').insert({
+                'library_id': _libraryId!,
+                'floor_id': floorId,
+                'shift_id': sid,
+                'seat_label': seat.label,
+                'status': seat.status,
+              }).select().single();
+              firstSeatId ??= seatRow['id'] as String;
+            }
+            seat.id = firstSeatId;
           }
         }
       }

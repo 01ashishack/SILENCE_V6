@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/member_data.dart';
+import '../../core/admin_settings_service.dart';
 
 class AddMemberStep4 extends StatefulWidget {
   final MemberData memberData;
+  final String? libraryId;
 
   const AddMemberStep4({
     super.key,
     required this.memberData,
+    this.libraryId,
   });
 
   @override
@@ -17,6 +20,9 @@ class AddMemberStep4 extends StatefulWidget {
 
 class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAliveClientMixin {
   late TextEditingController _discountController;
+
+  /// Max discount as a PERCENT of the base total (business rule; default 15%).
+  int _maxDiscountPercent = 15;
 
   @override
   bool get wantKeepAlive => true;
@@ -27,6 +33,40 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
     _discountController = TextEditingController(
       text: widget.memberData.discount > 0 ? widget.memberData.discount.toString() : '',
     );
+    _loadMaxDiscount();
+  }
+
+  Future<void> _loadMaxDiscount() async {
+    try {
+      final rules = await AdminSettingsService.load(
+        scope: 'business_rules',
+        libraryId: widget.libraryId,
+      );
+      final pct = int.tryParse('${rules['max_discount'] ?? ''}');
+      if (pct != null && pct >= 0 && pct <= 100 && mounted) {
+        setState(() {
+          _maxDiscountPercent = pct;
+          // Re-clamp any pre-filled discount to the loaded cap.
+          final capped = _cappedDiscount(widget.memberData.discount);
+          if (capped != widget.memberData.discount) {
+            widget.memberData.discount = capped;
+            _discountController.text = capped > 0 ? capped.toString() : '';
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('max_discount load failed, using default 15%: $e');
+    }
+  }
+
+  /// Largest discount allowed = base × max%/100 (also ≤ base).
+  int get _maxDiscountAmount =>
+      ((widget.memberData.totalBasePrice * _maxDiscountPercent) / 100).floor();
+
+  int _cappedDiscount(int entered) {
+    final cap = _maxDiscountAmount;
+    if (entered < 0) return 0;
+    return entered > cap ? cap : entered;
   }
 
   @override
@@ -167,6 +207,11 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
               'Discount / Fee Adjustment (₹)',
               style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
             ),
+            const SizedBox(height: 4),
+            Text(
+              'Max $_maxDiscountPercent% (₹$_maxDiscountAmount) of ₹${widget.memberData.totalBasePrice}',
+              style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B)),
+            ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _discountController,
@@ -178,14 +223,26 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                 prefixText: '₹ ',
               ),
               onChanged: (val) {
-                final disc = int.tryParse(val) ?? 0;
+                final entered = int.tryParse(val) ?? 0;
+                final capped = _cappedDiscount(entered);
                 setState(() {
-                  if (disc <= widget.memberData.totalBasePrice) {
-                    widget.memberData.discount = disc;
-                  } else {
-                    widget.memberData.discount = widget.memberData.totalBasePrice;
-                  }
+                  widget.memberData.discount = capped;
                 });
+                if (entered > capped) {
+                  // Reflect the cap in the field + tell the admin why.
+                  _discountController.value = TextEditingValue(
+                    text: capped > 0 ? capped.toString() : '',
+                    selection: TextSelection.collapsed(
+                        offset: (capped > 0 ? capped.toString() : '').length),
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          'Max discount is $_maxDiscountPercent% (₹$_maxDiscountAmount). Capped to ₹$capped.'),
+                      backgroundColor: const Color(0xFFE65C00),
+                    ),
+                  );
+                }
               },
             ),
             const SizedBox(height: 24),

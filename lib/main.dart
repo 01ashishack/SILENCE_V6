@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/supabase_config.dart';
@@ -66,8 +67,17 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('FCM background message: ${message.messageId}');
 }
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  // Global crash safety net: route Flutter framework errors AND any uncaught
+  // async error in the app to one place (visible in debug, logged in release) —
+  // replaces silent red screens / swallowed crashes (audit P12-01).
+  runZonedGuarded<Future<void>>(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      debugPrint('FlutterError: ${details.exceptionAsString()}');
+    };
 
   // Initialize Firebase + register the background message handler BEFORE runApp.
   try {
@@ -100,6 +110,10 @@ void main() async {
   }
 
   runApp(const SilenceApp());
+  }, (Object error, StackTrace stack) {
+    // Last-resort handler for uncaught async errors anywhere in the app.
+    debugPrint('Uncaught zone error: $error\n$stack');
+  });
 }
 
 class SilenceApp extends StatelessWidget {

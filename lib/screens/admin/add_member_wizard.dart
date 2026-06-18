@@ -822,6 +822,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     if (_memberData.mode != 'existing') {
       steps.add(AddMemberStep4(
         memberData: _memberData,
+        libraryId: _libraryId,
       ));
     }
 
