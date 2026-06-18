@@ -1028,22 +1028,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           .update({'status': 'active', 'library_code': uniqueCode})
           .eq('id', _libraryId!);
 
-      // Update user subscription state to active Starter plan
+      // Activate the admin's one-time 14-day starter trial via RPC. Direct
+      // client writes to subscription_* are blocked by the privileged-column
+      // guard (migrations/2026-06-18_lock_user_privileged_columns.sql).
       final trialUid = supabase.auth.currentUser?.id;
       if (trialUid == null) {
         if (mounted) _showErrorSnackBar('Session expired. Please sign in again.');
         return;
       }
-      await supabase
-          .from('users')
-          .update({
-            'subscription_plan': 'starter',
-            'subscription_status': 'active',
-            'subscription_expiry': DateTime.now()
-                .add(const Duration(days: 14))
-                .toIso8601String(), // 14-day trial
-          })
-          .eq('id', trialUid);
+      await supabase.rpc('start_my_trial');
       if (!mounted) return;
 
       _showCongratulationsPopup();

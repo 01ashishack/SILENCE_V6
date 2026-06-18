@@ -670,13 +670,27 @@ ALTER TABLE draft_members ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own profile" ON users
     FOR SELECT USING (auth.uid() = id);
 
--- ⚠️ P10-04: this lets ANY library owner SELECT the ENTIRE users table (largest
--- PII exposure). The tenant-scoped replacement is authored in
--- migrations/2026-06-14_users_select_tenant_scope.sql but is GATED on verifying
--- the add-member RPC wiring on a device first (adopt-then-tighten,
--- docs_fix/SECURITY_HARDENING_RUNBOOK.md Cycle 1). Fold it in here after verify.
-CREATE POLICY "Admins can view all users (for member lists)" ON users
-    FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE owner_id = auth.uid()));
+-- P10-04: a library owner may read only users who are MEMBERS of a library they
+-- own, plus users with a PENDING join request at one of their libraries (the
+-- Requests tab reads applicant name/phone/photo via the member_id embed). The
+-- cross-library existing-account lookup goes through the SECURITY DEFINER RPC
+-- find_user_by_contact (returns one minimal row). Canonical copy of
+-- migrations/2026-06-14_users_select_tenant_scope.sql.
+CREATE POLICY "Admins can view library members" ON users
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM memberships m
+            JOIN libraries l ON l.id = m.library_id
+            WHERE m.member_id = users.id AND l.owner_id = auth.uid()
+        )
+        OR EXISTS (
+            SELECT 1 FROM join_requests jr
+            JOIN libraries l ON l.id = jr.library_id
+            WHERE jr.member_id = users.id
+              AND jr.status = 'pending'
+              AND l.owner_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Users can update own profile" ON users
     FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
@@ -774,8 +788,43 @@ CREATE POLICY "Admin update (approve, renew, hold, transfer)" ON memberships
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
     WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
-CREATE POLICY "System can update (auto-hold, auto-expiry)" ON memberships
-    FOR UPDATE USING (true) WITH CHECK (true); -- service_role bypassed dynamically in supabase
+-- P5-01: member self-exit goes through the SECURITY DEFINER exit_my_membership()
+-- RPC (verifies ownership, releases seat, marks exited). The old open
+-- "System can update USING(true)" policy is removed; admin writes stay covered by
+-- the owner-scoped UPDATE policy above and server cron uses service_role.
+-- Canonical copy of migrations/2026-06-18_memberships_member_exit_rpc.sql.
+CREATE OR REPLACE FUNCTION public.exit_my_membership(p_membership_id uuid)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_uid   uuid := auth.uid();
+    v_owner uuid;
+    v_seat  uuid;
+BEGIN
+    IF v_uid IS NULL THEN
+        RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
+    END IF;
+    SELECT member_id, seat_id INTO v_owner, v_seat
+      FROM public.memberships WHERE id = p_membership_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Membership not found' USING errcode = 'P0002';
+    END IF;
+    IF v_owner <> v_uid THEN
+        RAISE EXCEPTION 'Not your membership' USING errcode = '42501';
+    END IF;
+    IF v_seat IS NOT NULL THEN
+        UPDATE public.seats
+           SET status = 'vacant', occupied_by_member_id = NULL
+         WHERE id = v_seat;
+    END IF;
+    UPDATE public.memberships
+       SET status = 'exited', exited_at = now()
+     WHERE id = p_membership_id;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.exit_my_membership(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.exit_my_membership(uuid) TO authenticated;
 
 -- 4.8 Attendance Policies
 CREATE POLICY "Member view own attendance" ON attendance
@@ -1051,20 +1100,32 @@ CREATE POLICY "Admins full access on own drafts" ON draft_members
            OR EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
 -- ============================================================================
--- 5. Role change — 7-day window + data wipe + self-escalation lock (P6-02)
---    Canonical copy of migrations/2026-06-18_role_change_rpc.sql.
---    Role can ONLY be changed via change_my_role() (within 7 days of signup),
---    which wipes the current role's data and starts a fresh account in the new
---    role. The trigger blocks any other direct role flip.
+-- 5. Privileged users-column locks — role (P6-02) + subscription (P6-06) +
+--    verification flags. Canonical copy of
+--    migrations/2026-06-18_lock_user_privileged_columns.sql.
+--    role/subscription/verified can only change via change_my_role() /
+--    start_my_trial() (which set app.allow_privileged_update); the trigger
+--    blocks any other direct change.
 -- ============================================================================
-CREATE OR REPLACE FUNCTION public.guard_role_change()
+CREATE OR REPLACE FUNCTION public.guard_user_privileged_columns()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF OLD.role IS NOT NULL AND NEW.role IS DISTINCT FROM OLD.role THEN
-        IF current_setting('app.allow_role_change', true) IS DISTINCT FROM 'on' THEN
+    IF current_setting('app.allow_privileged_update', true) IS DISTINCT FROM 'on' THEN
+        IF OLD.role IS NOT NULL AND NEW.role IS DISTINCT FROM OLD.role THEN
             RAISE EXCEPTION 'Role can only be changed through change_my_role()'
+                USING errcode = '42501';
+        END IF;
+        IF NEW.subscription_plan   IS DISTINCT FROM OLD.subscription_plan
+        OR NEW.subscription_status IS DISTINCT FROM OLD.subscription_status
+        OR NEW.subscription_expiry IS DISTINCT FROM OLD.subscription_expiry THEN
+            RAISE EXCEPTION 'Subscription can only be changed by the trial/billing flow'
+                USING errcode = '42501';
+        END IF;
+        IF NEW.phone_verified IS DISTINCT FROM OLD.phone_verified
+        OR NEW.email_verified IS DISTINCT FROM OLD.email_verified THEN
+            RAISE EXCEPTION 'Verification flags are set only after OTP verification'
                 USING errcode = '42501';
         END IF;
     END IF;
@@ -1072,11 +1133,45 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_guard_role_change ON public.users;
-CREATE TRIGGER trg_guard_role_change
-    BEFORE UPDATE OF role ON public.users
+DROP TRIGGER IF EXISTS trg_guard_user_privileged_columns ON public.users;
+CREATE TRIGGER trg_guard_user_privileged_columns
+    BEFORE UPDATE OF role, subscription_plan, subscription_status,
+                     subscription_expiry, phone_verified, email_verified
+    ON public.users
     FOR EACH ROW
-    EXECUTE FUNCTION public.guard_role_change();
+    EXECUTE FUNCTION public.guard_user_privileged_columns();
+
+CREATE OR REPLACE FUNCTION public.start_my_trial()
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_uid  uuid := auth.uid();
+    v_role text;
+    v_plan text;
+BEGIN
+    IF v_uid IS NULL THEN
+        RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
+    END IF;
+    SELECT role, subscription_plan INTO v_role, v_plan
+      FROM public.users WHERE id = v_uid;
+    IF v_role IS DISTINCT FROM 'admin' THEN
+        RAISE EXCEPTION 'Only admins have a subscription' USING errcode = '42501';
+    END IF;
+    IF v_plan IS NOT NULL THEN
+        RETURN;
+    END IF;
+    PERFORM set_config('app.allow_privileged_update', 'on', true);
+    UPDATE public.users SET
+        subscription_plan   = 'starter',
+        subscription_status = 'active',
+        subscription_expiry = now() + interval '14 days',
+        updated_at          = now()
+      WHERE id = v_uid;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.start_my_trial() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.start_my_trial() TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.change_my_role(p_new_role text)
 RETURNS void
@@ -1129,7 +1224,7 @@ BEGIN
     DELETE FROM public.audit_log             WHERE admin_id   = v_uid;
     DELETE FROM public.libraries             WHERE owner_id   = v_uid;
 
-    PERFORM set_config('app.allow_role_change', 'on', true);
+    PERFORM set_config('app.allow_privileged_update', 'on', true);
     UPDATE public.users SET
         role                     = p_new_role,
         exam_category            = NULL,

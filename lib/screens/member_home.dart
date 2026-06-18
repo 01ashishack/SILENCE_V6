@@ -6240,18 +6240,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             final messenger = ScaffoldMessenger.of(context);
                             try {
                               final supabase = Supabase.instance.client;
-                              final seatId = membership['seat_id'];
-                              if (seatId != null) {
-                                await supabase.from('seats').update({
-                                  'status': 'vacant',
-                                  'occupied_by_member_id': null,
-                                }).eq('id', seatId);
-                              }
-
-                              await supabase.from('memberships').update({
-                                'status': 'exited',
-                                'exited_at': DateTime.now().toIso8601String(),
-                              }).eq('id', membership['id']);
+                              // Member self-exit via RPC (verifies ownership,
+                              // releases seat, marks exited). Direct membership
+                              // UPDATE is no longer permitted (P5-01 lock).
+                              await supabase.rpc('exit_my_membership',
+                                  params: {'p_membership_id': membership['id']});
 
                               // Optional refund REQUEST → goes to the admin as a query.
                               if (wantRefund && daysLeft > 0) {

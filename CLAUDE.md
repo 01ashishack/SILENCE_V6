@@ -120,6 +120,24 @@ Full flow built; `flutter analyze` clean. **Migrations APPLIED + Edge Function d
   throwaway account before relying on the cron. Self-cancel removed (recovery is owner-approved).
 - Minor: descriptive "30-day" copy in member_about / privacy_policy not yet updated to 7-day.
 
+### Session 2026-06-18 (e) — Security hardening batch: lock privileged columns + tenant-scope + membership lock
+Device available, so doing adopt-then-tighten. `flutter analyze` clean on touched files. **Apply migrations + device-verify each (pending):**
+- **P6-03/P6-06 — subscription + verified lock** (`2026-06-18_lock_user_privileged_columns.sql`):
+  consolidated the role lock into one `guard_user_privileged_columns` trigger (GUC
+  `app.allow_privileged_update`) covering `role` + `subscription_plan/status/expiry` +
+  `phone_verified/email_verified`. New `start_my_trial()` RPC (admin one-time 14-day starter);
+  `admin_home` launch now calls it instead of a direct `users.update`. `change_my_role` re-created on the
+  unified GUC (replaces standalone `guard_role_change`). Verified flags had no client writer → pure lock.
+- **P10-04 — tenant-scope users SELECT**: folded the authored `2026-06-14_users_select_tenant_scope.sql`
+  into canonical (owner reads only members + pending applicants of their libraries; cross-library lookup
+  via `find_user_by_contact` RPC, already wired). User applies + verifies member lists / Requests tab /
+  add-member autofill.
+- **P5-01 — open memberships UPDATE**: dropped `"System can update USING(true)"`; member self-exit moved
+  to `exit_my_membership()` RPC (`2026-06-18_memberships_member_exit_rpc.sql`, `member_home` wired). Admin
+  writes stay owner-scoped; cron uses service_role.
+- ⛔ **Still open (next):** actor-scope the cross-actor inserts (P5-08 — join_flow owner notify/audit,
+  badge award) via RPCs; server tier RC-1; analytics precompute (P11); build/keystore (P1); iOS (P14-03).
+
 ### Session 2026-06-18 (d) — Role-change redesign + self-escalation lock (P6-02) — APPLIED & VERIFIED
 User decision: the "Change Role" option exists ONLY to fix an accidental wrong-role signup. Migration
 applied to live DB + device-verified both directions (2026-06-18); `flutter analyze` clean. New rules:

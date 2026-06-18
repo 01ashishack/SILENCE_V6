@@ -37,10 +37,10 @@
 | 1 | P10-01 | Private bucket not owner-scoped | ✅ | `2026-06-14_storage_private_owner_scoping.sql` **applied 2026-06-18** — `silence_private` reads owner-scoped (3-seg `family/<id>/<file>`). Device-verify signed-URL reads recommended |
 | 2 | P10-02 | PII in **public** bucket | ✅ | ID docs + payment proofs moved to `silence_private` (code, 2026-06-18) + owner-scoping migration applied (DPDP). Profile photos stay public by decision |
 | 3 | P10-03 | Storage world-writable/deletable | ✅ | owner-scoped read/write/delete policies in `2026-06-14_storage_private_owner_scoping.sql` **applied 2026-06-18** |
-| 4 | P10-04 | Any user reads `users` table | ⛔ | Wave 0 (RLS) |
-| 5 | P5-01/P10-05 | `memberships` UPDATE open to all | ⛔ | Wave 0 (RLS) |
+| 4 | P10-04 | Any user reads `users` table | 🟡 | tenant-scoped SELECT authored (`2026-06-14_users_select_tenant_scope.sql`, RPC `find_user_by_contact` wired) + folded into canonical; **apply + device-verify pending** (member lists / Requests tab / add-member autofill) |
+| 5 | P5-01/P10-05 | `memberships` UPDATE open to all | 🟡 | open `USING(true)` dropped; member self-exit moved to `exit_my_membership()` RPC (`2026-06-18_memberships_member_exit_rpc.sql`, member_home wired); **apply + device-test pending** |
 | 6 | P6-02 | Role self-escalation member→admin | ✅ | **Role-change redesign applied + device-verified (2026-06-18)** (`2026-06-18_role_change_rpc.sql` + both profile tabs): `change_my_role()` RPC enforces a **7-day-from-signup** window, **wipes all role data** + starts a fresh account; a trigger blocks any other direct `role` flip (self-escalation closed) |
-| 7 | P6-03 | Subscription self-activation | 🟡 | client self-activation **removed** from subscription_screen (B6); server-side billing-bypass lock still needs RLS (Wave 0) |
+| 7 | P6-03 | Subscription self-activation | 🟡 | client self-activation **removed** (B6); **subscription_*/verified columns now locked** by `guard_user_privileged_columns` trigger — only `start_my_trial()` (admin one-time 14-day) / billing may write them (`2026-06-18_lock_user_privileged_columns.sql`, admin_home wired); apply + device-verify pending |
 | 8 | P6-01/P10-08 | **No server tier (root)** | ⛔ | Wave 1 — large |
 | 9 | P0-01 | Payments fully mocked | 🟡 | reframed to **out-of-app UPI** + real amount; Razorpay (subscription) deferred to last |
 | 10 | P9-02 | Subscription payment theatre + fake invoice | ✅ | **B6** — subscription_screen rewritten: 3 honest mock plans (Free/₹499/₹799); removed Razorpay sim sheet, `Future.delayed`, fake invoice, self-activation; "free during beta / coming soon" |
@@ -57,7 +57,7 @@
 | 21 | P1-01/P1-02 | Release manifest missing INTERNET + debug-signed | ⛔ | build config — needs keystore |
 | 22 | P14-03 | iOS crashes on location screen | ⛔ | needs device/iOS build |
 
-**Criticals closed: 13 ✅ (incl. P5-02/P5-03 + storage P10-01/02/03 + P6-02 role-escalation, all applied to live DB) · 3 🟡 (P6-03, P0-01, P8-01) · 6 open (server/RLS-locks/build).**
+**Criticals closed: 13 ✅ (incl. P5-02/P5-03 + storage P10-01/02/03 + P6-02 role-escalation, all applied to live DB) · 5 🟡 (P6-03 sub/verified lock, P0-01, P8-01, P10-04 tenant-scope, P5-01 membership-lock — last three apply+test pending) · 4 open (server tier RC-1, P11 ×2, build P1/P14-03).**
 
 ---
 
