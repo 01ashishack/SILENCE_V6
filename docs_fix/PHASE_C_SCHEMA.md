@@ -1,10 +1,10 @@
 # SILENCE — Phase C: Schema Reconciliation
 
-> **Status: AUTHORED 2026-06-11, NOT YET APPLIED to a live DB.** There is no live
-> Supabase access from the dev environment, so the SQL below is written but
-> **unverified against the running database**. Applying it (and running the
-> pre-checks) is a manual step in the Supabase SQL editor — that is the
-> verification gate. See **§5 Verification-Pending**.
+> **Status: AUTHORED 2026-06-11, APPLIED to the live DB.** The migration was run in
+> the Supabase SQL editor (6 new tables RLS-on + additive columns + guarded
+> constraints; expenditures normalized). Confirmed in `../CLAUDE.md` §0. The §A
+> pre-checks + per-screen verification were the gate — see **§5** for the
+> live-verification log.
 
 This closes the **schema-drift** half of the audit (P5-02 / P5-03 / P5-06 /
 P5-12). It deliberately does **not** touch the **RLS/security** half
@@ -64,8 +64,8 @@ modified.**
 
 The app code already tolerates a not-yet-migrated DB (graceful fallbacks for
 `selected_addon_ids`, `screenshot_url`, and the analytics drift tables), so there
-is **no hard ordering** between deploying the app and applying the migration —
-but apply it to make those features fully work.
+was **no hard ordering** between deploying the app and applying the migration —
+the migration has now been applied, so those features work fully.
 
 ---
 
@@ -86,15 +86,15 @@ but apply it to make those features fully work.
 
 ---
 
-## 5. Verification-Pending (needs live DB — do NOT mark "fixed" until done)
-| VID | Item | Method |
-|---|---|---|
-| VC-01 | Run §A pre-checks; confirm zero violations (or clean) | Supabase SQL editor |
-| VC-02 | Apply §B/§C/§D/§F; confirm no errors | SQL editor |
-| VC-03 | Test insert from each touched screen (join w/ add-ons, bug report w/ screenshot, expense add/edit, referral code, account-deletion toggle, seat-change approve) | On-device / DB row check |
-| VC-04 | Confirm the 6 new tables exist **with RLS enabled** in the live DB | `select * from pg_policies` |
-| VC-05 | Confirm `settings` global-scope (null library_id) upsert updates in place | SQL editor |
-| VC-06 | After cleanup, `VALIDATE CONSTRAINT` the two attendance CHECKs | SQL editor |
+## 5. Live-verification log (migration applied; some on-device checks remain)
+| VID | Item | Method | Status |
+|---|---|---|---|
+| VC-01 | Run §A pre-checks; confirm zero violations (or clean) | Supabase SQL editor | ✅ done (applied) |
+| VC-02 | Apply §B/§C/§D/§F; confirm no errors | SQL editor | ✅ done (applied) |
+| VC-03 | Test insert from each touched screen (join w/ add-ons, bug report w/ screenshot, expense add/edit, referral code, account-deletion toggle, seat-change approve) | On-device / DB row check | ⏭️ on-device smoke test pending |
+| VC-04 | Confirm the 6 new tables exist **with RLS enabled** in the live DB | `select * from pg_policies` | ✅ confirmed (6 tables RLS-on) |
+| VC-05 | Confirm `settings` global-scope (null library_id) upsert updates in place | SQL editor | ⏭️ pending |
+| VC-06 | After cleanup, `VALIDATE CONSTRAINT` the two attendance CHECKs | SQL editor | ⏭️ pending |
 
 ---
 

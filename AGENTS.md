@@ -73,20 +73,23 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
 
 ## 5. Current state (keep this in sync)
 
-- Branch `main`. Latest committed checkpoint: **`2a55f4d`** (2026-06-15) — a large
-  reservation/attendance/requests batch (seat overhaul batches 2–3, reservation-tab fixes,
-  manual-attendance rework, admin renew sheet, requests payment/join decoupling, admin-home
-  attendance redesign, permanent eligibility-gated member QR FAB). Earlier: `e24ea40` (seat
-  overhaul batch 1). HEAD is **ahead of `origin/main` by 13 commits (not pushed)**.
+- Branch `main`. Latest committed checkpoint: **`9ea0403`** (2026-06-18) — member-exit dues
+  fail-open (P7-08) + 7-day deletion copy. Recent: account-deletion 7-day recovery flow, app-owner
+  flag, storage-PII move, FCM push foundation, add-member wizard fixes, audit-fix batch. HEAD is
+  **fully synced with `origin/main`** (0 ahead / 0 behind).
 - **Phase C** schema reconciliation: authored AND **applied to the live DB** (6 new tables RLS-on) —
   see `docs_fix/PHASE_C_SCHEMA.md`. Earlier payments/users RLS hotfixes also applied.
-- **⛔ Pending live-DB action — apply this migration:**
-  `silence_app/migrations/2026-06-15_join_requests_payment_status.sql` (adds `join_requests.payment_status`
-  and allows `status='withdrawn'`). Until applied: the requests **Reject-Pay/Confirm-Pay** flow,
-  member **Withdraw Application**, and the **rejected-request card** will error/no-op (the DB CHECK
-  rejects the new values). Folded into canonical `supabase_schema.sql`.
-- **Uncommitted working tree:** clean except local-only `devtools_options.yaml` (IDE-generated;
-  keep out of commits) — run `git status` first.
+- **✅ All previously-pending migrations APPLIED to the live DB (2026-06-18):**
+  `2026-06-15_join_requests_payment_status.sql` (requests payment flow + member withdraw +
+  rejected-card now live), `2026-06-14_storage_private_owner_scoping.sql` (owner-scopes
+  `silence_private` reads — DPDP), and the account-deletion set
+  `2026-06-18_account_deletion_recovery.sql` + `2026-06-18_account_recovery_rpcs.sql` +
+  `2026-06-18_app_owner_flag.sql`. `process-account-deletions` Edge Function deployed + cron
+  scheduled. All folded into canonical `supabase_schema.sql`. No outstanding live-DB action.
+- **Uncommitted working tree (2026-06-18):** two FCM-related edits —
+  `android/app/build.gradle.kts` (core-library desugaring for `flutter_local_notifications`) and a
+  trailing-newline tidy in `silence_app/migrations/2026-06-17_device_tokens.sql`. Local-only
+  `devtools_options.yaml` (IDE-generated) stays out of commits — run `git status` first.
 - What's covered by `2a55f4d` (details in `docs_fix/LAYOUT_SEAT_OVERHAUL.md` + `RESERVATION_FIXES_2026-06-15.md`):
   All-Shifts seat dedupe + per-shift action sheet + day booking strip; time-overlap seat
   availability; orphaned-shift filtering; selector "All" only when >1; strip trailing "Shift" from
@@ -97,9 +100,11 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
   amount); member **rejected-request card** + **soft withdraw**; admin-home **Today's Attendance**
   redesign (profile photos + check-in/out times on a white card, separate In/Out entries);
   **permanent eligibility-gated QR FAB** on member home.
-- Next candidates (user-directed — confirm scope first): apply the 2026-06-15 migration + on-device
-  smoke test; optional DB cleanup of orphaned `seats` rows; FCM push; real payments; OTP; security
-  RLS Wave 0/1.
+- Next candidates (user-directed — confirm scope first): on-device smoke test of the 2026-06-15
+  reservation batch + account-deletion/recovery flow (now that migrations are live); commit the two
+  pending FCM build edits; FCM follow-ups (foreground banner, tap→nav, device test, webhook
+  shared-secret); optional DB cleanup of orphaned `seats` rows; real payments; OTP; security RLS
+  Wave 0/1.
 
 
 <!-- SPECKIT START -->

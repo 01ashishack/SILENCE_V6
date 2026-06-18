@@ -34,9 +34,9 @@
 
 | # | ID | Title | Status | Where / note |
 |---|---|---|---|---|
-| 1 | P10-01 | Private bucket not owner-scoped | ⛔ | Wave 0 security — needs live Supabase RLS/storage |
-| 2 | P10-02 | PII in **public** bucket | ⛔ | Wave 0 |
-| 3 | P10-03 | Storage world-writable/deletable | ⛔ | Wave 0 |
+| 1 | P10-01 | Private bucket not owner-scoped | ✅ | `2026-06-14_storage_private_owner_scoping.sql` **applied 2026-06-18** — `silence_private` reads owner-scoped (3-seg `family/<id>/<file>`). Device-verify signed-URL reads recommended |
+| 2 | P10-02 | PII in **public** bucket | ✅ | ID docs + payment proofs moved to `silence_private` (code, 2026-06-18) + owner-scoping migration applied (DPDP). Profile photos stay public by decision |
+| 3 | P10-03 | Storage world-writable/deletable | ✅ | owner-scoped read/write/delete policies in `2026-06-14_storage_private_owner_scoping.sql` **applied 2026-06-18** |
 | 4 | P10-04 | Any user reads `users` table | ⛔ | Wave 0 (RLS) |
 | 5 | P5-01/P10-05 | `memberships` UPDATE open to all | ⛔ | Wave 0 (RLS) |
 | 6 | P6-02 | Role self-escalation member→admin | ⛔ | Wave 0 (lock `role` column) |
@@ -57,13 +57,15 @@
 | 21 | P1-01/P1-02 | Release manifest missing INTERNET + debug-signed | ⛔ | build config — needs keystore |
 | 22 | P14-03 | iOS crashes on location screen | ⛔ | needs device/iOS build |
 
-**Criticals closed: 9 ✅ (incl. P5-02/P5-03 now applied to live DB) · 3 🟡 (P6-03, P0-01, P8-01) · 10 open (mostly security/server/build).**
+**Criticals closed: 12 ✅ (incl. P5-02/P5-03 + storage P10-01/02/03 now applied to live DB) · 3 🟡 (P6-03, P0-01, P8-01) · 7 open (server/RLS-locks/build).**
 
 ---
 
 ## 2. Five Root Causes
 
-1. **RC-4 — Self-asserted identity & permissive RLS/storage** → ⛔ pending (Wave 0, live DB).
+1. **RC-4 — Self-asserted identity & permissive RLS/storage** → 🟡 partial: storage owner-scoping
+   (P10-01/02/03) **applied 2026-06-18**; identity-verify (disabled) + RLS column locks
+   (P5-01/P6-02/06) + tenant-scope still pending (Wave 0, live DB).
 2. **RC-3 — Schema drift / missing tables & constraints** → ✅ **Phase C applied to live DB** (6 tables + columns + guarded constraints; closures reconciled); concurrency-safe seats deferred (server tier).
 3. **RC-1 — No server-side tier** → ⛔ pending (Wave 1, large).
 4. **RC-2 — Money is mocked** → 🟡 member↔admin made **real & honest** (out-of-app UPI + derived amount); app-owner↔library Razorpay deferred.

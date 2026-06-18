@@ -29,8 +29,9 @@
 > CHECKs; dead `library_closures` retired opt-in). **Code fix:** `admin_analytics_tab` expense
 > categories normalized to canonical lowercase keys (+ label map). Loose `expenditures.sql`/
 > `draft_members.sql`/`indices.sql` marked SUPERSEDED. Decisions: **additive only**, **guarded
-> constraints**, **fix code to canonical** for expenditures. ⛔ **NOT applied to live DB** — apply
-> order + verification gate in `PHASE_C_SCHEMA.md`.
+> constraints**, **fix code to canonical** for expenditures. ✅ **APPLIED to live DB** (6 tables
+> RLS-on confirmed); on-device per-screen smoke test still pending — see verification log in
+> `PHASE_C_SCHEMA.md` §5.
 > **Still deferred (won't fake):** dues banner (no data model). **Phase B remaining (server/OTP-gated
 > or large):** FCM send (server) · claim/link (OTP, disabled) · referral auto-credit (server) ·
 > owner-visibility of deletion (app-owner console). Full build log in `IMPLEMENTATION_PLAN.md`;

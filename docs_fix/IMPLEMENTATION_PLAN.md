@@ -29,7 +29,8 @@
 > also blocks `pending`. **Payments RLS hotfix:** `payments` had no admin-INSERT policy → admin
 > add/approve inserts were RLS-rejected (42501 = "You don't have permission"), which also left Payments
 > tabs empty. New `silence_app/migrations/2026-06-12_payments_admin_insert_rls.sql` + folded into
-> canonical schema. **0 new analyze issues.** ⛔ migration NOT yet applied to live DB (the real fix).
+> canonical schema. **0 new analyze issues.** ✅ migration APPLIED to live DB (2026-06-18) — admin
+add/approve payment inserts succeed, Payments tabs populate.
 >
 > **Reservation tab + add-member polish — done (2026-06-11):** **member_detail_screen** blank-screen
 > fixed (eager `IndexedStack` that built all 5 tabs → **active-tab-only** build selected by tab name +

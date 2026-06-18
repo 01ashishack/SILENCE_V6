@@ -85,16 +85,17 @@ Worked through safe audit items (baseline `SILENCE_COMPLETE_AUDIT_REPORT.md`):
 - **P10-02 / R-01 (storage PII)**: payment proofs in **renewal** + **history-reupload** now upload to
   `silence_private` (+ signed URL) instead of the PUBLIC `silence_assets` bucket (join_flow already
   did). ID docs + payment proofs are now all private. *(Profile photos stay public by decision.)*
-  ⛔ **Still APPLY:** `silence_app/migrations/2026-06-14_storage_private_owner_scoping.sql` (owner-scopes
-  who can READ silence_private). Follow-up: proof display uses 1h signed URLs (join pattern) — old
-  proofs may need re-signing on display (affects join too).
-> Still pending (need live DB / server tier / decisions): storage PII off public bucket (P10-02, DPDP),
-> apply storage owner-scoping migration (P10-01/03), real account-deletion purge (P14-02), RLS column
+  ✅ **APPLIED (2026-06-18):** `silence_app/migrations/2026-06-14_storage_private_owner_scoping.sql`
+  (owner-scopes who can READ silence_private). Follow-up: proof display uses 1h signed URLs (join
+  pattern) — old proofs may need re-signing on display (affects join too).
+> Still pending (need live DB / server tier / decisions): RLS column
 > locks (P5-01/P6-02/03), server tier RPCs (RC-1), cron automation (P7-04/09, referral credit),
 > analytics precompute (P11), real payments (RC-2, deferred), OTP (disabled by decision).
+> *(Storage PII off public bucket + owner-scoping migration (P10-01/02/03, DPDP) and account-deletion
+> purge cron (P14-02) — migrations APPLIED 2026-06-18; recovery purge still needs a destructive test.)*
 
 ### Session 2026-06-18 (b) — Account deletion + 7-day recovery + owner approval (P14-02)
-Full flow built; `flutter analyze` clean. **Must apply/deploy + TEST (destructive):**
+Full flow built; `flutter analyze` clean. **Migrations APPLIED + Edge Function deployed (2026-06-18); still TEST (destructive) on a throwaway account before relying on purge:**
 - **Flow:** request delete → `scheduled_for_deletion=true, deletion_scheduled_at=now()+7d,
   deletion_recovery_status='none'` → dashboard **fully blocked** (`account_frozen_screen.dart`,
   routed from splash + admin_home + member_home guards) → user taps **Request Recovery**
@@ -110,13 +111,28 @@ Full flow built; `flutter analyze` clean. **Must apply/deploy + TEST (destructiv
   enable later when a dedicated admin/owner account exists. Approve/deny meanwhile via:
   `UPDATE users SET scheduled_for_deletion=false, deletion_scheduled_at=NULL, deletion_recovery_status='approved' WHERE id='…';`
   (deny → `deletion_recovery_status='denied'`).
-- **Migrations to apply:** `2026-06-18_account_deletion_recovery.sql` (recovery_status col) +
-  `2026-06-18_account_recovery_rpcs.sql` (RPCs + `purge_account`) + `2026-06-18_app_owner_flag.sql`
-  (is_app_owner col + re-gates the owner RPCs on the flag — run this LAST).
-- **Deploy:** `supabase functions deploy process-account-deletions` + add a cron schedule.
+- **Migrations APPLIED to live DB (2026-06-18):** `2026-06-18_account_deletion_recovery.sql`
+  (recovery_status col) + `2026-06-18_account_recovery_rpcs.sql` (RPCs + `purge_account`) +
+  `2026-06-18_app_owner_flag.sql` (is_app_owner col + re-gates the owner RPCs on the flag — ran LAST).
+- **Edge Function DEPLOYED (2026-06-18):** `process-account-deletions` deployed + cron scheduled.
 - ⛔ Purge is destructive/irreversible — verify `purge_account` covers your FK tables + test on a
-  throwaway account before scheduling. Self-cancel removed (recovery is owner-approved).
+  throwaway account before relying on the cron. Self-cancel removed (recovery is owner-approved).
 - Minor: descriptive "30-day" copy in member_about / privacy_policy not yet updated to 7-day.
+
+### Session 2026-06-18 (c) — All pending live-DB migrations APPLIED (user-run)
+User confirmed running every outstanding migration in the Supabase SQL editor + deploying the Edge
+Function. No code change this session; docs synced. Now live:
+- `2026-06-15_join_requests_payment_status.sql` — requests **Reject-Pay/Confirm-Pay**, member
+  **Withdraw Application**, and the **rejected-request card** now work (DB CHECK accepts the values).
+- `2026-06-14_storage_private_owner_scoping.sql` — `silence_private` reads owner-scoped (P10-01/03, DPDP).
+- `2026-06-18_account_deletion_recovery.sql` + `2026-06-18_account_recovery_rpcs.sql` +
+  `2026-06-18_app_owner_flag.sql` (last) — account-deletion 7-day recovery + `purge_account` (P14-02).
+- Edge Function `process-account-deletions` deployed + cron scheduled.
+- **No outstanding live-DB action.** Next: on-device smoke-test the gated flows; verify `purge_account`
+  on a throwaway account before relying on the cron (destructive). `is_app_owner` flag stays dormant
+  (recovery still approved via dashboard SQL — Option B) until a dedicated owner account exists.
+- Uncommitted working tree: two FCM build edits (`android/app/build.gradle.kts` desugaring +
+  `2026-06-17_device_tokens.sql` newline tidy) — commit when user asks.
 
 ### Key reframes (these OVERRIDE the old spec/audit "fixes")
 - **Member ↔ library-admin payment is OUT OF APP.** Real `upi://pay` deep-link + "I have paid";
@@ -147,9 +163,10 @@ permanent eligibility-gated member QR FAB; detail in `docs_fix/LAYOUT_SEAT_OVERH
 `RESERVATION_FIXES_2026-06-15.md`).
 
 ### Next action (when the user says "continue"/"GO")
-- **⛔ APPLY IF NOT YET:** `silence_app/migrations/2026-06-15_join_requests_payment_status.sql` (gates
-  requests payment flow + member withdraw + rejected-card; they no-op/error until applied). Then
-  on-device smoke-test the 2026-06-15 batch.
+- ✅ **All pending migrations APPLIED (2026-06-18)** — `2026-06-15_join_requests_payment_status.sql`,
+  `2026-06-14_storage_private_owner_scoping.sql`, and the account-deletion set. `process-account-deletions`
+  Edge Function deployed + cron scheduled. **Now on-device smoke-test** the 2026-06-15 reservation/
+  requests batch + the account-deletion/recovery flow.
 - **FCM follow-ups:** foreground banner, tap→navigation, Android/iOS device test, webhook shared-secret.
 - **Phase C:** optional §E `library_closures` drop; on-device smoke test of touched flows.
 - **Security/RLS (Wave 0/1, ⛔ needs live DB + device):** checklist in

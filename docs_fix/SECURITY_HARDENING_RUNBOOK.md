@@ -46,13 +46,13 @@ Today any authenticated user can read `silence_private` (member ID docs + paymen
    - `member_profiles/<user_id>/…` — member ID doc, self-uploaded (`member_profile_edit.dart:363`)
    - `payment_proofs/<user_id>/…` — payment proof, member-uploaded (`join_flow_screen.dart:526`)
    - `admin_profiles/<user_id>/…` — admin's own photo (`admin_profile_tab.dart:369`)
-2. ✅ **Authored** `migrations/2026-06-14_storage_private_owner_scoping.sql` (gated, NOT applied):
+2. ✅ **Authored + APPLIED 2026-06-18** `migrations/2026-06-14_storage_private_owner_scoping.sql`:
    read = self for own-id folders + library owner for `library_members`/their members' `member_profiles`/`payment_proofs`;
    write = self for own-id folders + library owner for `library_members`. Uses `storage.foldername(name)`.
    Includes a per-path VERIFY block + a one-paste ROLLBACK to the functional baseline.
-3. ⏭️ **Verify on device (USER, critical — easy to over-lock):** run the migration's VERIFY block —
+3. ⏭️ **Verify on device (USER, still recommended — easy to over-lock):** run the migration's VERIFY block —
    admin uploads + views a member ID; member uploads + views own ID; payment-proof upload + both reads.
-   If any image goes blank → run the ROLLBACK. Only fold into canonical after a clean device pass.
+   If any image goes blank → run the ROLLBACK. Fold into canonical only after a clean device pass.
 > ⚠️ Do NOT apply blind — a wrong policy silently breaks signed-URL reads (blank images, no error).
 > ✅ Tangential bug FIXED (2026-06-16): `admin_profile_tab` uploaded the admin photo to the PRIVATE
 >   bucket then called `getPublicUrl` (an unsigned URL that never loads). Admin photos are public-facing

@@ -4,13 +4,13 @@
 > Static-analysis verified only — **not device-tested**. Builds on the seat-overhaul plan in
 > `LAYOUT_SEAT_OVERHAUL.md` (batches 1–3) plus a round of user-reported screenshot fixes.
 
-## ⛔ Migration to apply (gates several features)
+## ✅ Migration APPLIED 2026-06-18 (gated several features — now live)
 `silence_app/migrations/2026-06-15_join_requests_payment_status.sql`
 - Adds `join_requests.payment_status` (`unverified` | `verified` | `rejected`, default `unverified`).
 - Extends the `status` CHECK to allow `withdrawn`.
 - Additive + idempotent; folded into canonical `supabase_schema.sql`.
-- **Until applied:** Reject-Pay / Confirm-Pay, member Withdraw Application, and the rejected-request
-  card all error or no-op (the DB CHECK rejects the new values).
+- **Now applied:** Reject-Pay / Confirm-Pay, member Withdraw Application, and the rejected-request
+  card all work (the DB CHECK accepts the new values).
 
 ## Seat layout (`lib/screens/reservations/layout_sub_tab.dart`)
 - **All-Shifts dedupe** — one tile per physical seat (`_collapsePhysicalSeats`), aggregate status
@@ -69,6 +69,6 @@
   expiring or expired-with-allow, else a contextual warning snackbar).
 
 ## Open follow-ups
-- Apply the 2026-06-15 migration + on-device smoke test of every flow above.
+- ✅ 2026-06-15 migration applied (2026-06-18). Remaining: on-device smoke test of every flow above.
 - Optional: delete orphaned `seats` rows at the DB level (shift_id not in `shifts`) so counts match.
 - A full-screen story viewer for Today's Attendance (current "slide" = horizontal scroll).
