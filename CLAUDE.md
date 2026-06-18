@@ -120,9 +120,9 @@ Full flow built; `flutter analyze` clean. **Migrations APPLIED + Edge Function d
   throwaway account before relying on the cron. Self-cancel removed (recovery is owner-approved).
 - Minor: descriptive "30-day" copy in member_about / privacy_policy not yet updated to 7-day.
 
-### Session 2026-06-18 (d) — Role-change redesign + self-escalation lock (P6-02)
-User decision: the "Change Role" option exists ONLY to fix an accidental wrong-role signup. New rules
-(built; `flutter analyze` clean on both touched files; **migration NOT yet applied / not device-tested**):
+### Session 2026-06-18 (d) — Role-change redesign + self-escalation lock (P6-02) — APPLIED & VERIFIED
+User decision: the "Change Role" option exists ONLY to fix an accidental wrong-role signup. Migration
+applied to live DB + device-verified both directions (2026-06-18); `flutter analyze` clean. New rules:
 - **7-day window** from signup (`users.created_at`) — after that, role is fixed (honest "not available" dialog).
 - **Role change = full data wipe + fresh account:** the current role's data (memberships, attendance,
   payments, owned libraries+their members, streaks, etc.) is permanently deleted; the login identity
@@ -139,10 +139,12 @@ User decision: the "Change Role" option exists ONLY to fix an accidental wrong-r
   `_showChangeRoleDialog` rewritten (was a plain `users.update({'role':...})`) to: fetch `created_at`,
   gate on the 7-day window, show the strict dialog, call `rpc('change_my_role', ...)`, then clear prefs
   + signOut + route to `/auth` (re-login lands in the fresh new-role onboarding).
-- ⛔ **APPLY + TEST (destructive):** apply the migration, then on-device verify both directions within
-  7 days (data really wiped, fresh account), the >7-day block, and that normal signup/profile-edit
-  upserts still work under the trigger. Decision to confirm: `created_at` is kept (original signup), so
-  the 7-day clock does NOT reset on role change — prevents repeat flip/wipe abuse.
+- ✅ **APPLIED + device-verified (2026-06-18):** migration run on live DB; role change tested both
+  directions within 7 days (data wiped, fresh account), the >7-day block, and normal signup/profile-edit
+  upserts still work under the trigger. **Bug fixed during testing:** `change_my_role()` (and the existing
+  `purge_account`) referenced non-existent `referrals.referrer_id/referred_id` → corrected to
+  `referrer_member_id/referred_member_id` (42703). `created_at` kept (original signup) so the 7-day clock
+  does NOT reset on role change — prevents repeat flip/wipe abuse.
 
 ### Session 2026-06-18 (c) — All pending live-DB migrations APPLIED (user-run)
 User confirmed running every outstanding migration in the Supabase SQL editor + deploying the Edge
