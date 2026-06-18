@@ -8,6 +8,7 @@ import '../utils/csv_exporter.dart';
 import '../utils/attendance_format.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/shimmer_box.dart';
+import 'notifications_screen.dart';
 
 // Import removed to avoid unused library dependency
 
@@ -649,7 +650,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => _buildNotificationsScreen(),
+                        builder: (context) => const NotificationsScreen(),
                       ),
                     );
                   },
@@ -2717,37 +2718,8 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   }
 
   // ---------------------------------------------------------
-  // 12. Notifications Stub Screen
+  // 12. Notifications → real shared NotificationsScreen (see the bell above)
   // ---------------------------------------------------------
-  Widget _buildNotificationsScreen() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            foregroundColor: Colors.white,
-            title: Text('Notifications', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-          ),
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.notifications_none, size: 64, color: Colors.grey),
-                const SizedBox(height: 16),
-                Text(
-                  "You're all caught up!",
-                  style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[700]),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------
