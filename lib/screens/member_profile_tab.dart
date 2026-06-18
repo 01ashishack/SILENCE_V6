@@ -1401,91 +1401,188 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
     );
   }
 
-  void _showChangeRoleDialog() {
-    final hasActive = _activeMemberships.isNotEmpty;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: Text(
-          'Switch to Admin Role?',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to switch your account type to Admin?',
-              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
-            ),
-            const SizedBox(height: 12),
-            if (hasActive) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEE2E2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFFCA5A5)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.warning, color: Color(0xFFEF4444), size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'WARNING: You currently have active memberships. Changing your role will block your access to these libraries.',
-                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF991B1B)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            Text(
-              'You will be signed out. Upon logging back in, you will configure your library workspace as an Admin.',
-              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), fontStyle: FontStyle.italic),
+  // Role change exists ONLY to fix an accidental wrong-role signup. It is
+  // allowed within 7 days of signup, PERMANENTLY deletes the current account's
+  // data, and starts a brand-new Admin account. Enforced server-side by the
+  // change_my_role() RPC (migrations/2026-06-18_role_change_rpc.sql).
+  Future<void> _showChangeRoleDialog() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    // 1) Eligibility: only within 7 days of signup.
+    DateTime? createdAt;
+    try {
+      final row = await _supabase
+          .from('users')
+          .select('created_at')
+          .eq('id', user.id)
+          .maybeSingle();
+      final raw = row?['created_at'] as String?;
+      if (raw != null) createdAt = DateTime.tryParse(raw);
+    } catch (_) {
+      // fall through → treated as not eligible
+    }
+    if (!mounted) return;
+
+    final withinWindow =
+        createdAt != null && DateTime.now().difference(createdAt).inDays < 7;
+
+    if (!withinWindow) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          title: Text('Role change not available',
+              style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+          content: Text(
+            'You can only change your role within 7 days of creating your account. '
+            'That window has closed, so your role is now fixed.',
+            style:
+                GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('OK',
+                  style: GoogleFonts.inter(
+                      color: const Color(0xFFE65C00),
+                      fontWeight: FontWeight.bold)),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.bold)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              setState(() => _isLoading = true);
-              try {
-                final user = _supabase.auth.currentUser;
-                if (user != null) {
-                  await _supabase.from('users').update({'role': 'admin'}).eq('id', user.id);
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.clear();
-                  await _supabase.auth.signOut();
-                  if (context.mounted) {
-                    Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
-                  }
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to switch role: $e')),
-                  );
-                }
-              } finally {
-                if (mounted) setState(() => _isLoading = false);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: Text('Confirm - Switch to Admin', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
+      );
+      return;
+    }
+
+    // 2) Strict type-to-confirm dialog.
+    final hasActive = _activeMemberships.isNotEmpty;
+    final confirmController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final canConfirm =
+              confirmController.text.trim().toUpperCase() == 'ADMIN';
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            title: Text('Switch to Admin — start over?',
+                style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B))),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFCA5A5)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded,
+                                color: Color(0xFFEF4444), size: 18),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text('This permanently deletes your account',
+                                  style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF991B1B))),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your current Member account and ALL its data — '
+                          'memberships, attendance, payments, streaks and history — '
+                          'will be permanently deleted. You will start as a brand-new '
+                          'Admin with an empty workspace. This cannot be undone.',
+                          style: GoogleFonts.inter(
+                              fontSize: 12.5, color: const Color(0xFF991B1B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (hasActive) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                        'You have active memberships — you will lose access to those libraries.',
+                        style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFFB45309))),
+                  ],
+                  const SizedBox(height: 14),
+                  Text('Type ADMIN to confirm:',
+                      style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569))),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: confirmController,
+                    autocorrect: false,
+                    textCapitalization: TextCapitalization.characters,
+                    onChanged: (_) => setLocal(() {}),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: 'ADMIN',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel',
+                    style: GoogleFonts.inter(
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.bold)),
+              ),
+              ElevatedButton(
+                onPressed: canConfirm ? () => Navigator.pop(ctx, true) : null,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    disabledBackgroundColor: const Color(0xFFFCA5A5)),
+                child: Text('Delete & become Admin',
+                    style: GoogleFonts.inter(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
       ),
     );
+
+    if (confirmed != true || !mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      await _supabase.rpc('change_my_role', params: {'p_new_role': 'admin'});
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      await _supabase.auth.signOut();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not switch role: $e')),
+        );
+      }
+    }
   }
 
   // 5. ACCOUNT SECTION

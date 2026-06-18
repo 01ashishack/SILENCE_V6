@@ -89,7 +89,8 @@ Worked through safe audit items (baseline `SILENCE_COMPLETE_AUDIT_REPORT.md`):
   (owner-scopes who can READ silence_private). Follow-up: proof display uses 1h signed URLs (join
   pattern) — old proofs may need re-signing on display (affects join too).
 > Still pending (need live DB / server tier / decisions): RLS column
-> locks (P5-01/P6-02/03), server tier RPCs (RC-1), cron automation (P7-04/09, referral credit),
+> locks (P5-01/P6-06 — P6-02 role-escalation now closed via `change_my_role()`, apply+test pending),
+> server tier RPCs (RC-1), cron automation (P7-04/09, referral credit),
 > analytics precompute (P11), real payments (RC-2, deferred), OTP (disabled by decision).
 > *(Storage PII off public bucket + owner-scoping migration (P10-01/02/03, DPDP) and account-deletion
 > purge cron (P14-02) — migrations APPLIED 2026-06-18; recovery purge still needs a destructive test.)*
@@ -118,6 +119,30 @@ Full flow built; `flutter analyze` clean. **Migrations APPLIED + Edge Function d
 - ⛔ Purge is destructive/irreversible — verify `purge_account` covers your FK tables + test on a
   throwaway account before relying on the cron. Self-cancel removed (recovery is owner-approved).
 - Minor: descriptive "30-day" copy in member_about / privacy_policy not yet updated to 7-day.
+
+### Session 2026-06-18 (d) — Role-change redesign + self-escalation lock (P6-02)
+User decision: the "Change Role" option exists ONLY to fix an accidental wrong-role signup. New rules
+(built; `flutter analyze` clean on both touched files; **migration NOT yet applied / not device-tested**):
+- **7-day window** from signup (`users.created_at`) — after that, role is fixed (honest "not available" dialog).
+- **Role change = full data wipe + fresh account:** the current role's data (memberships, attendance,
+  payments, owned libraries+their members, streaks, etc.) is permanently deleted; the login identity
+  (auth user / email / phone / created_at) is kept; a brand-new empty account starts in the new role.
+- **Strict type-to-confirm:** user must type `ADMIN`/`MEMBER` to enable the destructive button; red
+  warning explains the permanent deletion.
+- **Server-enforced + escalation locked:** `silence_app/migrations/2026-06-18_role_change_rpc.sql` —
+  `change_my_role(p_new_role)` (SECURITY DEFINER) does the window check + purge + role flip atomically;
+  a `BEFORE UPDATE OF role` trigger (`guard_role_change`) blocks ANY other direct role flip unless the
+  RPC set its transaction-local flag. Allows INSERTs, null→role onboarding, and same-value upserts, so
+  `role_selection`/`member_profile_edit`/admin onboarding upserts are unaffected. Folded into canonical
+  `supabase_schema.sql`. This closes audit **P6-02** (member self-escalation to admin).
+- **Code:** `lib/screens/member_profile_tab.dart` + `lib/screens/admin_profile_tab.dart` — both
+  `_showChangeRoleDialog` rewritten (was a plain `users.update({'role':...})`) to: fetch `created_at`,
+  gate on the 7-day window, show the strict dialog, call `rpc('change_my_role', ...)`, then clear prefs
+  + signOut + route to `/auth` (re-login lands in the fresh new-role onboarding).
+- ⛔ **APPLY + TEST (destructive):** apply the migration, then on-device verify both directions within
+  7 days (data really wiped, fresh account), the >7-day block, and that normal signup/profile-edit
+  upserts still work under the trigger. Decision to confirm: `created_at` is kept (original signup), so
+  the 7-day clock does NOT reset on role change — prevents repeat flip/wipe abuse.
 
 ### Session 2026-06-18 (c) — All pending live-DB migrations APPLIED (user-run)
 User confirmed running every outstanding migration in the Supabase SQL editor + deploying the Edge

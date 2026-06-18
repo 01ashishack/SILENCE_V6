@@ -1049,3 +1049,102 @@ CREATE POLICY "Admins full access on own drafts" ON draft_members
            OR EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
     WITH CHECK (admin_id = auth.uid()
            OR EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+
+-- ============================================================================
+-- 5. Role change — 7-day window + data wipe + self-escalation lock (P6-02)
+--    Canonical copy of migrations/2026-06-18_role_change_rpc.sql.
+--    Role can ONLY be changed via change_my_role() (within 7 days of signup),
+--    which wipes the current role's data and starts a fresh account in the new
+--    role. The trigger blocks any other direct role flip.
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.guard_role_change()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.role IS NOT NULL AND NEW.role IS DISTINCT FROM OLD.role THEN
+        IF current_setting('app.allow_role_change', true) IS DISTINCT FROM 'on' THEN
+            RAISE EXCEPTION 'Role can only be changed through change_my_role()'
+                USING errcode = '42501';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_guard_role_change ON public.users;
+CREATE TRIGGER trg_guard_role_change
+    BEFORE UPDATE OF role ON public.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.guard_role_change();
+
+CREATE OR REPLACE FUNCTION public.change_my_role(p_new_role text)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_uid     uuid := auth.uid();
+    v_role    text;
+    v_created timestamptz;
+BEGIN
+    IF v_uid IS NULL THEN
+        RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
+    END IF;
+    IF p_new_role NOT IN ('admin', 'member') THEN
+        RAISE EXCEPTION 'Invalid role: %', p_new_role USING errcode = '22023';
+    END IF;
+
+    SELECT role, created_at INTO v_role, v_created
+      FROM public.users WHERE id = v_uid;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'User profile not found' USING errcode = 'P0002';
+    END IF;
+    IF v_role = p_new_role THEN
+        RAISE EXCEPTION 'You are already a %', p_new_role USING errcode = '22023';
+    END IF;
+    IF v_created IS NULL OR v_created < now() - interval '7 days' THEN
+        RAISE EXCEPTION 'Role can only be changed within 7 days of signup'
+            USING errcode = 'P0001';
+    END IF;
+
+    DELETE FROM public.attendance            WHERE member_id  = v_uid;
+    DELETE FROM public.payments              WHERE member_id  = v_uid;
+    DELETE FROM public.seat_change_requests  WHERE member_id  = v_uid;
+    DELETE FROM public.hold_requests         WHERE member_id  = v_uid;
+    DELETE FROM public.join_requests         WHERE member_id  = v_uid;
+    DELETE FROM public.reviews               WHERE member_id  = v_uid;
+    DELETE FROM public.badges                WHERE member_id  = v_uid;
+    DELETE FROM public.referrals             WHERE referrer_id = v_uid OR referred_id = v_uid;
+    DELETE FROM public.queries               WHERE member_id  = v_uid;
+    DELETE FROM public.notifications         WHERE user_id    = v_uid;
+    DELETE FROM public.transfers             WHERE member_id  = v_uid;
+    BEGIN DELETE FROM public.streaks            WHERE member_id = v_uid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM public.member_daily_stats WHERE member_id = v_uid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    UPDATE public.seats SET status = 'vacant', occupied_by_member_id = NULL
+        WHERE occupied_by_member_id = v_uid;
+    DELETE FROM public.memberships           WHERE member_id  = v_uid;
+    BEGIN DELETE FROM public.settings    WHERE admin_id = v_uid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    DELETE FROM public.announcements         WHERE admin_id   = v_uid;
+    DELETE FROM public.audit_log             WHERE admin_id   = v_uid;
+    DELETE FROM public.libraries             WHERE owner_id   = v_uid;
+
+    PERFORM set_config('app.allow_role_change', 'on', true);
+    UPDATE public.users SET
+        role                     = p_new_role,
+        exam_category            = NULL,
+        subscription_plan        = NULL,
+        subscription_status      = 'active',
+        subscription_expiry      = NULL,
+        id_proof_url             = NULL,
+        id_proof_2_url           = NULL,
+        id_type                  = NULL,
+        scheduled_for_deletion   = false,
+        deletion_scheduled_at    = NULL,
+        deletion_recovery_status = 'none',
+        updated_at               = now()
+      WHERE id = v_uid;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.change_my_role(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.change_my_role(text) TO authenticated;

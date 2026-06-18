@@ -37,6 +37,11 @@
 > owner-visibility of deletion (app-owner console). Full build log in `IMPLEMENTATION_PLAN.md`;
 > status in `../CLAUDE.md` §0.
 >
+> **Role change (decided 2026-06-18):** exists ONLY to fix an accidental wrong-role signup. Allowed
+> within **7 days of signup**; on change the current role's account+data is **permanently deleted** and
+> a **brand-new account** starts in the new role (login identity kept). Strict type-to-confirm. Enforced
+> server-side by `change_my_role()` + a role-lock trigger (`2026-06-18_role_change_rpc.sql`); closes P6-02.
+>
 > **Phase B started (2026-06-10):** real payment amount (plan + add-ons − discount, no more hardcoded
 > 1500/4000/7500) · add-ons persist (join → `member_add_ons`; **decided with user:** store
 > `selected_addon_ids` on join_requests + amount = plan + add-ons) · notify on approve/reject + payment

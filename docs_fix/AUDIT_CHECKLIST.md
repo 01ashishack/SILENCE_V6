@@ -39,7 +39,7 @@
 | 3 | P10-03 | Storage world-writable/deletable | ✅ | owner-scoped read/write/delete policies in `2026-06-14_storage_private_owner_scoping.sql` **applied 2026-06-18** |
 | 4 | P10-04 | Any user reads `users` table | ⛔ | Wave 0 (RLS) |
 | 5 | P5-01/P10-05 | `memberships` UPDATE open to all | ⛔ | Wave 0 (RLS) |
-| 6 | P6-02 | Role self-escalation member→admin | ⛔ | Wave 0 (lock `role` column) |
+| 6 | P6-02 | Role self-escalation member→admin | 🟡 | **Role-change redesign built** (`2026-06-18_role_change_rpc.sql` + both profile tabs): `change_my_role()` RPC enforces a **7-day-from-signup** window, **wipes all role data** + starts a fresh account; a trigger blocks any other direct `role` flip (self-escalation closed). ⛔ apply migration + device-test pending |
 | 7 | P6-03 | Subscription self-activation | 🟡 | client self-activation **removed** from subscription_screen (B6); server-side billing-bypass lock still needs RLS (Wave 0) |
 | 8 | P6-01/P10-08 | **No server tier (root)** | ⛔ | Wave 1 — large |
 | 9 | P0-01 | Payments fully mocked | 🟡 | reframed to **out-of-app UPI** + real amount; Razorpay (subscription) deferred to last |
@@ -57,15 +57,16 @@
 | 21 | P1-01/P1-02 | Release manifest missing INTERNET + debug-signed | ⛔ | build config — needs keystore |
 | 22 | P14-03 | iOS crashes on location screen | ⛔ | needs device/iOS build |
 
-**Criticals closed: 12 ✅ (incl. P5-02/P5-03 + storage P10-01/02/03 now applied to live DB) · 3 🟡 (P6-03, P0-01, P8-01) · 7 open (server/RLS-locks/build).**
+**Criticals closed: 12 ✅ (incl. P5-02/P5-03 + storage P10-01/02/03 now applied to live DB) · 4 🟡 (P6-03, P0-01, P8-01, P6-02 role-change built/pending-apply) · 6 open (server/RLS-locks/build).**
 
 ---
 
 ## 2. Five Root Causes
 
 1. **RC-4 — Self-asserted identity & permissive RLS/storage** → 🟡 partial: storage owner-scoping
-   (P10-01/02/03) **applied 2026-06-18**; identity-verify (disabled) + RLS column locks
-   (P5-01/P6-02/06) + tenant-scope still pending (Wave 0, live DB).
+   (P10-01/02/03) **applied 2026-06-18**; **role self-escalation (P6-02) closed via `change_my_role()`
+   + role-lock trigger** (built 2026-06-18, apply+test pending); identity-verify (disabled) + remaining
+   RLS column locks (P5-01/P6-06) + tenant-scope still pending (Wave 0, live DB).
 2. **RC-3 — Schema drift / missing tables & constraints** → ✅ **Phase C applied to live DB** (6 tables + columns + guarded constraints; closures reconciled); concurrency-safe seats deferred (server tier).
 3. **RC-1 — No server-side tier** → ⛔ pending (Wave 1, large).
 4. **RC-2 — Money is mocked** → 🟡 member↔admin made **real & honest** (out-of-app UPI + derived amount); app-owner↔library Razorpay deferred.

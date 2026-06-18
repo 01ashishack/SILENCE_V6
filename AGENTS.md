@@ -85,7 +85,12 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
   `silence_private` reads — DPDP), and the account-deletion set
   `2026-06-18_account_deletion_recovery.sql` + `2026-06-18_account_recovery_rpcs.sql` +
   `2026-06-18_app_owner_flag.sql`. `process-account-deletions` Edge Function deployed + cron
-  scheduled. All folded into canonical `supabase_schema.sql`. No outstanding live-DB action.
+  scheduled. All folded into canonical `supabase_schema.sql`.
+- **⛔ NEW pending live-DB action (2026-06-18) — apply + device-test:**
+  `silence_app/migrations/2026-06-18_role_change_rpc.sql` — `change_my_role()` RPC (7-day window +
+  data wipe + fresh account) + `guard_role_change` trigger that locks direct `role` flips (closes
+  P6-02 self-escalation). Until applied, the rewritten Change-Role dialogs will error (RPC missing).
+  Destructive — test both directions on a throwaway account. Folded into canonical schema.
 - **Uncommitted working tree (2026-06-18):** two FCM-related edits —
   `android/app/build.gradle.kts` (core-library desugaring for `flutter_local_notifications`) and a
   trailing-newline tidy in `silence_app/migrations/2026-06-17_device_tokens.sql`. Local-only
