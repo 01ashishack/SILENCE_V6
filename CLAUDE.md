@@ -101,10 +101,12 @@ Full flow built; `flutter analyze` clean. **Must apply/deploy + TEST (destructiv
   (`status='requested'`) → **app-owner** reviews in **`owner_recovery_console_screen.dart`** (gated to
   `SupabaseConfig.appOwnerUserId`; entry in admin profile Operations) → Approve (restore) / Deny →
   after 7d unapproved, **Edge Function `process-account-deletions`** (cron) purges everything.
+- **App owner = a DB flag** `users.is_app_owner` (NOT a hardcoded uid). Designate your owner account:
+  `UPDATE public.users SET is_app_owner = true WHERE email = 'you@example.com';` — the Recovery
+  Console entry + owner RPCs gate on this flag. Migration: `2026-06-18_app_owner_flag.sql`.
 - **Migrations to apply:** `2026-06-18_account_deletion_recovery.sql` (recovery_status col) +
-  `2026-06-18_account_recovery_rpcs.sql` (owner_list/decide RPCs + `purge_account`).
-  ⚠️ **SET the app-owner uid** in both the RPC migration AND `SupabaseConfig.appOwnerUserId`
-  (placeholder = `1ce8bdfb-…`).
+  `2026-06-18_account_recovery_rpcs.sql` (RPCs + `purge_account`) + `2026-06-18_app_owner_flag.sql`
+  (is_app_owner col + re-gates the owner RPCs on the flag — run this LAST).
 - **Deploy:** `supabase functions deploy process-account-deletions` + add a cron schedule.
 - ⛔ Purge is destructive/irreversible — verify `purge_account` covers your FK tables + test on a
   throwaway account before scheduling. Self-cancel removed (recovery is owner-approved).

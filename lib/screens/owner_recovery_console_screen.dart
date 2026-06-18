@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../core/supabase_config.dart';
 import '../theme/app_colors.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/states.dart';
@@ -29,9 +28,6 @@ class _OwnerRecoveryConsoleScreenState extends State<OwnerRecoveryConsoleScreen>
   List<Map<String, dynamic>> _requests = [];
   final Set<String> _busy = {};
 
-  bool get _isAppOwner =>
-      _supabase.auth.currentUser?.id == SupabaseConfig.appOwnerUserId;
-
   @override
   void initState() {
     super.initState();
@@ -39,10 +35,11 @@ class _OwnerRecoveryConsoleScreenState extends State<OwnerRecoveryConsoleScreen>
   }
 
   Future<void> _load() async {
-    if (!_isAppOwner) {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
       setState(() {
         _loading = false;
-        _error = 'You are not authorized to view this console.';
+        _error = 'Please sign in again.';
       });
       return;
     }
@@ -51,6 +48,20 @@ class _OwnerRecoveryConsoleScreenState extends State<OwnerRecoveryConsoleScreen>
       _error = null;
     });
     try {
+      // Only the app owner (users.is_app_owner = true) may use this console.
+      final me = await _supabase
+          .from('users')
+          .select('is_app_owner')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (me == null || me['is_app_owner'] != true) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'You are not authorized to view this console.';
+        });
+        return;
+      }
       final rows = await _supabase.rpc('owner_list_recovery_requests');
       if (!mounted) return;
       setState(() {

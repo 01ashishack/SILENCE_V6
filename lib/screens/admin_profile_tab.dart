@@ -11,7 +11,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
-import '../core/supabase_config.dart';
 import '../core/image_optimizer.dart';
 import '../utils/error_messages.dart';
 import '../core/plan_service.dart';
@@ -64,6 +63,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   bool? _currentLibraryVerified;
   DateTime? _currentLibraryVerifiedAt;
   String? _selectedLibraryIdToManage;
+  bool _isAppOwner = false; // gates the Recovery Console entry
 
   @override
   void didUpdateWidget(covariant AdminProfileTab oldWidget) {
@@ -141,6 +141,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
             _adminName = userData['full_name'] ?? widget.adminName;
             _adminPhotoUrl = userData['photo_url'];
             _subscriptionPlan = userData['subscription_plan'] ?? 'trial';
+            _isAppOwner = userData['is_app_owner'] == true;
           });
         }
 
@@ -835,8 +836,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       _buildSettingsGroup(
                         title: 'Operations',
                         items: [
-                          if (Supabase.instance.client.auth.currentUser?.id ==
-                              SupabaseConfig.appOwnerUserId)
+                          if (_isAppOwner)
                             _buildSettingsItem(context, Icons.shield_moon_outlined,
                                 'Recovery Console', '/owner/recovery-console'),
                           _buildSettingsItem(context, Icons.campaign_outlined, 'Announcement History', '/admin/announcements',

@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS users (
     scheduled_for_deletion BOOLEAN DEFAULT false,
     deletion_scheduled_at TIMESTAMPTZ,
     deletion_recovery_status TEXT NOT NULL DEFAULT 'none' CHECK (deletion_recovery_status IN ('none','requested','approved','denied')), -- 7-day recovery flow; see migrations/2026-06-18_account_deletion_recovery.sql
+    is_app_owner BOOLEAN NOT NULL DEFAULT false, -- app-owner flag (recovery console); see migrations/2026-06-18_app_owner_flag.sql
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
