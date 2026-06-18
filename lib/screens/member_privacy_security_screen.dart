@@ -397,15 +397,16 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('This starts a 30-day deletion. After the grace period this is '
-                    'permanent and cannot be undone.',
+                Text('This schedules permanent deletion in 7 days. Your account is '
+                    'frozen immediately — the dashboard is locked meanwhile.',
                     style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
                 const SizedBox(height: 10),
                 _delWarnRow('Your profile, study hours, streaks & history will be erased'),
                 _delWarnRow('Your memberships and seat will be released'),
                 _delWarnRow('You will be signed out and check-in will be disabled'),
                 const SizedBox(height: 8),
-                Text('You can cancel anytime before the 30 days end.',
+                Text('Within 7 days you can request recovery; the SILENCE team reviews '
+                    'and decides. There is no self-cancel. After 7 days it is permanent.',
                     style: GoogleFonts.inter(
                         fontSize: 11.5, color: const Color(0xFF64748B))),
                 const SizedBox(height: 14),
@@ -468,7 +469,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                 final supabase = Supabase.instance.client;
                 final prefs = await SharedPreferences.getInstance();
                 final suffix = _userId!;
-                final deletionTime = DateTime.now().add(const Duration(days: 30));
+                final deletionTime = DateTime.now().add(const Duration(days: 7));
 
                 await prefs.setBool('privacy_scheduled_deletion_$suffix', true);
                 await prefs.setString('privacy_deletion_time_$suffix', deletionTime.toIso8601String());
@@ -477,8 +478,12 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                   await supabase.from('users').update({
                     'scheduled_for_deletion': true,
                     'deletion_scheduled_at': deletionTime.toIso8601String(),
+                    'deletion_recovery_status': 'none',
                   }).eq('id', _userId!);
                   if (!mounted) return;
+                  // Freeze immediately — block dashboard, only recovery/logout remain.
+                  Navigator.of(context).pushNamedAndRemoveUntil('/account-frozen', (r) => false);
+                  return;
                 } catch (e) {
                   debugPrint('Failed to update scheduled_for_deletion in DB, using local: $e');
                 }

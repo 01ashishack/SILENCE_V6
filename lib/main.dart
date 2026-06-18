@@ -48,6 +48,9 @@ import 'screens/member_privacy_policy_screen.dart';
 import 'screens/member_licences_screen.dart';
 import 'screens/notifications_screen.dart';
 
+import 'screens/account_frozen_screen.dart';
+import 'screens/owner_recovery_console_screen.dart';
+
 import 'screens/admin/add_member_wizard.dart';
 import 'screens/reservations/renewal_screen.dart';
 import 'screens/reservations/library_query_screen.dart';
@@ -58,7 +61,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'services/push_notification_service.dart';
-
 /// Handles a push that arrives while the app is in the background or terminated.
 /// Must be a top-level function and re-init Firebase (it runs in its own isolate).
 @pragma('vm:entry-point')
@@ -198,6 +200,8 @@ class SilenceApp extends StatelessWidget {
         '/member/privacy-policy': (context) => const MemberPrivacyPolicyScreen(),
         '/member/licences': (context) => const MemberLicencesScreen(),
         '/member/notifications': (context) => const NotificationsScreen(),
+        '/account-frozen': (context) => const AccountFrozenScreen(),
+        '/owner/recovery-console': (context) => const OwnerRecoveryConsoleScreen(),
         '/admin/profile/complete': (context) => const AdminProfileCompleteScreen(),
         '/admin/library/setup/1': (context) => const LibrarySetupStage1Screen(),
         '/admin/library/setup/2': (context) => const LibrarySetupStage2Screen(),

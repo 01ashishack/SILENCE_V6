@@ -65,6 +65,9 @@ class _SplashScreenState extends State<SplashScreen> {
         if (userData['role'] == null) {
           // 3. Session but no role -> navigate to Role Selection (S003)
           Navigator.of(context).pushReplacementNamed('/role-select');
+        } else if (userData['scheduled_for_deletion'] == true) {
+          // Account scheduled for deletion → freeze (block the dashboard).
+          Navigator.of(context).pushReplacementNamed('/account-frozen');
         } else {
           final String role = userData['role'];
           if (role == 'admin') {

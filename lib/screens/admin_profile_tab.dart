@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
+import '../core/supabase_config.dart';
 import '../core/image_optimizer.dart';
 import '../utils/error_messages.dart';
 import '../core/plan_service.dart';
@@ -834,6 +835,10 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       _buildSettingsGroup(
                         title: 'Operations',
                         items: [
+                          if (Supabase.instance.client.auth.currentUser?.id ==
+                              SupabaseConfig.appOwnerUserId)
+                            _buildSettingsItem(context, Icons.shield_moon_outlined,
+                                'Recovery Console', '/owner/recovery-console'),
                           _buildSettingsItem(context, Icons.campaign_outlined, 'Announcement History', '/admin/announcements',
                               feature: AdminFeature.announcements, featureLabel: 'Announcements'),
                           _buildSettingsItem(context, Icons.ios_share, 'Exports & Reports', '/admin/exports',
@@ -951,15 +956,16 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('This requests permanent deletion with a 30-day grace period. '
-                    'After that it cannot be undone.',
+                Text('This schedules permanent deletion in 7 days. Your account is '
+                    'frozen immediately — the dashboard is locked meanwhile.',
                     style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
                 const SizedBox(height: 10),
                 _adminDelWarn('Your library, seats, shifts & settings will be removed'),
                 _adminDelWarn('Your members lose access to this library'),
                 _adminDelWarn('Analytics, payments & audit history will be erased'),
                 const SizedBox(height: 8),
-                Text('You can cancel anytime before the 30 days end by contacting support.',
+                Text('Within 7 days you can request recovery; the SILENCE team reviews '
+                    'and decides. There is no self-cancel. After 7 days it is permanent.',
                     style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B))),
                 const SizedBox(height: 14),
                 Text('Type DELETE to confirm:',
@@ -1000,20 +1006,17 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
     if (user == null) return;
-    final deletionTime = DateTime.now().add(const Duration(days: 30));
+    final deletionTime = DateTime.now().add(const Duration(days: 7));
     try {
       await supabase.from('users').update({
         'scheduled_for_deletion': true,
         'deletion_scheduled_at': deletionTime.toIso8601String(),
+        'deletion_recovery_status': 'none',
       }).eq('id', user.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Deletion requested. Your account is scheduled for removal on '
-              '${deletionTime.day}/${deletionTime.month}/${deletionTime.year}. Contact support to cancel.'),
-          backgroundColor: const Color(0xFFDC2626),
-        ),
-      );
+      // Freeze immediately — block the dashboard, only recovery/logout remain.
+      Navigator.of(context).pushNamedAndRemoveUntil('/account-frozen', (r) => false);
+      return;
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

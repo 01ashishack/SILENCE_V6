@@ -282,6 +282,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             .eq('id', user.id)
             .maybeSingle();
         if (userData != null) {
+          // Account scheduled for deletion → freeze (block dashboard).
+          if (userData['scheduled_for_deletion'] == true) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/account-frozen', (r) => false);
+              }
+            });
+            return;
+          }
           // Keep PlanService in sync so feature gates read the right plan.
           PlanService.instance.hydrateFromRow(userData);
           _nameController.text = userData['full_name'] ?? '';

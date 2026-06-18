@@ -93,6 +93,23 @@ Worked through safe audit items (baseline `SILENCE_COMPLETE_AUDIT_REPORT.md`):
 > locks (P5-01/P6-02/03), server tier RPCs (RC-1), cron automation (P7-04/09, referral credit),
 > analytics precompute (P11), real payments (RC-2, deferred), OTP (disabled by decision).
 
+### Session 2026-06-18 (b) — Account deletion + 7-day recovery + owner approval (P14-02)
+Full flow built; `flutter analyze` clean. **Must apply/deploy + TEST (destructive):**
+- **Flow:** request delete → `scheduled_for_deletion=true, deletion_scheduled_at=now()+7d,
+  deletion_recovery_status='none'` → dashboard **fully blocked** (`account_frozen_screen.dart`,
+  routed from splash + admin_home + member_home guards) → user taps **Request Recovery**
+  (`status='requested'`) → **app-owner** reviews in **`owner_recovery_console_screen.dart`** (gated to
+  `SupabaseConfig.appOwnerUserId`; entry in admin profile Operations) → Approve (restore) / Deny →
+  after 7d unapproved, **Edge Function `process-account-deletions`** (cron) purges everything.
+- **Migrations to apply:** `2026-06-18_account_deletion_recovery.sql` (recovery_status col) +
+  `2026-06-18_account_recovery_rpcs.sql` (owner_list/decide RPCs + `purge_account`).
+  ⚠️ **SET the app-owner uid** in both the RPC migration AND `SupabaseConfig.appOwnerUserId`
+  (placeholder = `1ce8bdfb-…`).
+- **Deploy:** `supabase functions deploy process-account-deletions` + add a cron schedule.
+- ⛔ Purge is destructive/irreversible — verify `purge_account` covers your FK tables + test on a
+  throwaway account before scheduling. Self-cancel removed (recovery is owner-approved).
+- Minor: descriptive "30-day" copy in member_about / privacy_policy not yet updated to 7-day.
+
 ### Key reframes (these OVERRIDE the old spec/audit "fixes")
 - **Member ↔ library-admin payment is OUT OF APP.** Real `upi://pay` deep-link + "I have paid";
   admin verifies in their bank app + confirms. No in-app gateway, no screenshot-theatre.

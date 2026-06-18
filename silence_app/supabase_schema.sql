@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS users (
     referral_code TEXT,
     scheduled_for_deletion BOOLEAN DEFAULT false,
     deletion_scheduled_at TIMESTAMPTZ,
+    deletion_recovery_status TEXT NOT NULL DEFAULT 'none' CHECK (deletion_recovery_status IN ('none','requested','approved','denied')), -- 7-day recovery flow; see migrations/2026-06-18_account_deletion_recovery.sql
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );

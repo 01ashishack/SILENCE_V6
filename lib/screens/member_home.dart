@@ -353,6 +353,16 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       if (!mounted) return;
 
       _userProfile = results[0] as Map<String, dynamic>?;
+
+      // Account scheduled for deletion → freeze (block dashboard).
+      if (_userProfile?['scheduled_for_deletion'] == true) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.of(context).pushNamedAndRemoveUntil('/account-frozen', (r) => false);
+          }
+        });
+        return;
+      }
       
       final pendingReqs = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
       _pendingRequest = pendingReqs.isNotEmpty ? pendingReqs.first : null;
