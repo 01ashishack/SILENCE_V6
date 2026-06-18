@@ -1149,23 +1149,25 @@ DECLARE
     v_uid  uuid := auth.uid();
     v_role text;
     v_plan text;
+    v_exp  timestamptz;
 BEGIN
     IF v_uid IS NULL THEN
         RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
     END IF;
-    SELECT role, subscription_plan INTO v_role, v_plan
+    SELECT role, subscription_plan, subscription_expiry
+      INTO v_role, v_plan, v_exp
       FROM public.users WHERE id = v_uid;
     IF v_role IS DISTINCT FROM 'admin' THEN
         RAISE EXCEPTION 'Only admins have a subscription' USING errcode = '42501';
     END IF;
-    IF v_plan IS NOT NULL THEN
+    IF v_exp IS NOT NULL OR v_plan IS NOT NULL THEN
         RETURN;
     END IF;
     PERFORM set_config('app.allow_privileged_update', 'on', true);
     UPDATE public.users SET
-        subscription_plan   = 'starter',
+        subscription_plan   = 'free',
         subscription_status = 'active',
-        subscription_expiry = now() + interval '14 days',
+        subscription_expiry = now() + interval '30 days',
         updated_at          = now()
       WHERE id = v_uid;
 END;

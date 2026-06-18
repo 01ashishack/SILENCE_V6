@@ -176,8 +176,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                             style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
                         const SizedBox(height: 12),
                         ..._plans.map(_buildPlanCard),
-                        const SizedBox(height: 16),
-                        _buildBetaNote(),
+                        const SizedBox(height: 8),
                       ],
                     ),
                   ),
@@ -222,8 +221,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text('No charges right now. Use every feature free while we’re in beta.',
-              style: GoogleFonts.inter(fontSize: 12, color: Colors.white70, height: 1.4)),
+          Builder(builder: (_) {
+            final expiry = PlanService.instance.expiry;
+            final daysLeft = expiry?.difference(DateTime.now()).inDays;
+            final text = (daysLeft != null && daysLeft >= 0)
+                ? 'Free for 30 days — $daysLeft day${daysLeft == 1 ? '' : 's'} left. '
+                    'No charges; we’ll notify you before any billing.'
+                : 'No charges right now. Use every feature free while we’re in beta.';
+            return Text(text,
+                style: GoogleFonts.inter(
+                    fontSize: 12, color: Colors.white70, height: 1.4));
+          }),
         ],
       ),
     );
@@ -333,30 +341,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     child: Text('Coming soon',
                         style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold)),
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBetaNote() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.info_outline, size: 18, color: Color(0xFF64748B)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'In-app billing (Razorpay) is added after the beta. Until then all plans '
-              'are free and no card or UPI is charged.',
-              style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B), height: 1.4),
-            ),
           ),
         ],
       ),

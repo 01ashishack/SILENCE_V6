@@ -64,7 +64,10 @@ CREATE TRIGGER trg_guard_user_privileged_columns
     FOR EACH ROW
     EXECUTE FUNCTION public.guard_user_privileged_columns();
 
--- 2) start_my_trial(): admin's one-time 14-day starter trial -----------------
+-- 2) start_my_trial(): new admin's one-time 30-day FREE window --------------
+--    Sets plan='free' (displays as "Free") with a 30-day expiry marker — NOT a
+--    paid 'starter' grant (which the app maps to "Pro"). During beta everything
+--    is unlocked regardless; the window is shown on the subscription screen.
 CREATE OR REPLACE FUNCTION public.start_my_trial()
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
@@ -73,24 +76,26 @@ DECLARE
     v_uid  uuid := auth.uid();
     v_role text;
     v_plan text;
+    v_exp  timestamptz;
 BEGIN
     IF v_uid IS NULL THEN
         RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
     END IF;
-    SELECT role, subscription_plan INTO v_role, v_plan
+    SELECT role, subscription_plan, subscription_expiry
+      INTO v_role, v_plan, v_exp
       FROM public.users WHERE id = v_uid;
     IF v_role IS DISTINCT FROM 'admin' THEN
         RAISE EXCEPTION 'Only admins have a subscription' USING errcode = '42501';
     END IF;
-    -- One trial only: if a plan is already set, do nothing (no trial farming).
-    IF v_plan IS NOT NULL THEN
+    -- Grant once: skip if a free window was already set or any plan exists.
+    IF v_exp IS NOT NULL OR v_plan IS NOT NULL THEN
         RETURN;
     END IF;
     PERFORM set_config('app.allow_privileged_update', 'on', true);
     UPDATE public.users SET
-        subscription_plan   = 'starter',
+        subscription_plan   = 'free',
         subscription_status = 'active',
-        subscription_expiry = now() + interval '14 days',
+        subscription_expiry = now() + interval '30 days',
         updated_at          = now()
       WHERE id = v_uid;
 END;
