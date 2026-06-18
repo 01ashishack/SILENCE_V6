@@ -91,6 +91,17 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
   data wipe + fresh account) + `guard_role_change` trigger that locks direct `role` flips (closes
   P6-02 self-escalation). Rewritten Change-Role dialogs call the RPC. (A `referrals` column-name bug
   found in testing was fixed; re-applied.) Folded into canonical schema. No outstanding live-DB action.
+- **⛔ NEW pending live-DB action (2026-06-18 (e)) — apply + device-verify (security batch):**
+  `2026-06-18_lock_user_privileged_columns.sql` (locks `role`+`subscription_*`+`*_verified` via one
+  guard trigger; `start_my_trial()` grants a 30-day **Free** window; re-creates `change_my_role` on the
+  unified GUC — supersedes the standalone role trigger), `2026-06-14_users_select_tenant_scope.sql`
+  (tenant-scope users SELECT, P10-04/DPDP), `2026-06-18_memberships_member_exit_rpc.sql` (member
+  self-exit via `exit_my_membership()` RPC + drops the open `memberships` UPDATE, P5-01). All folded
+  into canonical. Existing 'starter'/'basic' admins (legacy 14-day grant shown as "Pro") → one-time
+  reset: `begin; set local app.allow_privileged_update='on'; update public.users set
+  subscription_plan='free', subscription_status='active', subscription_expiry=now()+interval '30 days'
+  where subscription_plan in ('starter','basic'); commit;`. **Subscription enforcement deferred**
+  (`betaMode=true` keeps all features unlocked; 30-day window is display-only for now).
 - **Uncommitted working tree (2026-06-18):** two FCM-related edits —
   `android/app/build.gradle.kts` (core-library desugaring for `flutter_local_notifications`) and a
   trailing-newline tidy in `silence_app/migrations/2026-06-17_device_tokens.sql`. Local-only

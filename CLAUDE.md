@@ -137,6 +137,13 @@ Device available, so doing adopt-then-tighten. `flutter analyze` clean on touche
   writes stay owner-scoped; cron uses service_role.
 - ⛔ **Still open (next):** actor-scope the cross-actor inserts (P5-08 — join_flow owner notify/audit,
   badge award) via RPCs; server tier RC-1; analytics precompute (P11); build/keystore (P1); iOS (P14-03).
+- **Subscription display (same session, P6-03 related):** `start_my_trial()` now grants a **30-day Free
+  window** (`plan='free'` + 30d expiry) instead of the legacy `'starter'` grant (which `plan_service`
+  mapped to "Pro" — confusing). Subscription screen shows "Free — X days left" and the bottom Razorpay
+  note was removed. **Deferred (user's call):** real trial *enforcement* (countdown that actually limits)
+  — `betaMode=true` keeps everything unlocked for now; revisit with Razorpay/website. Existing
+  'starter'/'basic' admins need a one-time reset:
+  `begin; set local app.allow_privileged_update='on'; update public.users set subscription_plan='free', subscription_status='active', subscription_expiry=now()+interval '30 days' where subscription_plan in ('starter','basic'); commit;`
 
 ### Session 2026-06-18 (d) — Role-change redesign + self-escalation lock (P6-02) — APPLIED & VERIFIED
 User decision: the "Change Role" option exists ONLY to fix an accidental wrong-role signup. Migration
@@ -208,17 +215,19 @@ permanent eligibility-gated member QR FAB; detail in `docs_fix/LAYOUT_SEAT_OVERH
 `RESERVATION_FIXES_2026-06-15.md`).
 
 ### Next action (when the user says "continue"/"GO")
-- ✅ **All pending migrations APPLIED (2026-06-18)** — `2026-06-15_join_requests_payment_status.sql`,
-  `2026-06-14_storage_private_owner_scoping.sql`, and the account-deletion set. `process-account-deletions`
-  Edge Function deployed + cron scheduled. **Now on-device smoke-test** the 2026-06-15 reservation/
-  requests batch + the account-deletion/recovery flow.
+- **⛔ APPLY + device-verify (security batch, 2026-06-18 (e)):** `2026-06-18_lock_user_privileged_columns.sql`
+  (role+subscription+verified lock + `start_my_trial`), `2026-06-14_users_select_tenant_scope.sql`
+  (tenant-scope users SELECT), `2026-06-18_memberships_member_exit_rpc.sql` (member self-exit RPC + drop
+  open membership UPDATE). Existing 'starter'/'basic' admins → run the `set local` reset to free+30d (see
+  session (e)). Test: trial banner, lock checks, role change, member lists/Requests tab, member exit.
+- **Next security item — P5-08 (in progress):** actor-scope the cross-actor inserts (join_flow owner
+  notify/audit, badge award) via SECURITY DEFINER RPCs.
+- **Subscription model — DEFERRED (user's call):** beta = everything free (`betaMode=true`). New admin
+  now shown a 30-day Free window (display only; not enforced yet). Real trial enforcement + Razorpay
+  later.
+- **Remaining audit:** server tier RC-1 (large), analytics precompute (P11), build/keystore (P1-01/02),
+  iOS location (P14-03).
 - **FCM follow-ups:** foreground banner, tap→navigation, Android/iOS device test, webhook shared-secret.
-- **Phase C:** optional §E `library_closures` drop; on-device smoke test of touched flows.
-- **Security/RLS (Wave 0/1, ⛔ needs live DB + device):** checklist in
-  `docs_fix/SECURITY_HARDENING_RUNBOOK.md` (adopt-then-tighten). Priority: tenant-scope `users` SELECT
-  (done via RPC), storage owner-scoping (P10-01/02/03, DPDP), then P5-01/P6-02/06 column locks.
-- **Phase B remaining (server/OTP-gated):** claim/link (phone OTP, disabled) · referral auto-credit
-  (server job) · owner-visibility of deletion requests (app-owner console) · real payments/subscription.
 
 ---
 
