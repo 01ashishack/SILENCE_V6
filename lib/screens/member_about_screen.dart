@@ -57,7 +57,7 @@ class MemberAboutScreen extends StatelessWidget {
                     ),
                     _buildChangelogItem(
                       '🔒 Deletion Grace Period',
-                      'Safety-first 30-day scheduled account deletion with direct cancellation option.',
+                      'Safety-first 7-day scheduled deletion — account is frozen, with an owner-approved recovery window.',
                     ),
                     _buildChangelogItem(
                       '📊 Data Export Portability',

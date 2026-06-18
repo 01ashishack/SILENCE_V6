@@ -690,7 +690,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                               subtitle: Text(
                                 _scheduledForDeletion
                                     ? 'Your account will be permanently deleted soon.'
-                                    : 'Schedule account deletion. Data is retained for 30 days.',
+                                    : 'Schedule deletion — 7-day recovery window, then permanent.',
                                 style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
                               ),
                               trailing: _scheduledForDeletion

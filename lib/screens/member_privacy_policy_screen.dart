@@ -234,7 +234,7 @@ class _MemberPrivacyPolicyScreenState extends State<MemberPrivacyPolicyScreen> {
         'You have full control over your privacy options:\n'
         '• You can hide your nickname or study statistics from the leaderboard.\n'
         '• You can export your profile, membership, and attendance data into JSON via the Download My Data feature.\n'
-        '• You can request account deletion. Once requested, your account is scheduled for deletion with a 30-day grace period, during which you can cancel it.\n\n'
+        '• You can request account deletion. Once requested, your account is frozen and scheduled for permanent deletion after a 7-day recovery window, during which you can request recovery (reviewed by the SILENCE team).\n\n'
         '5. CHANGES TO THIS POLICY\n'
         'We may update our Privacy Policy to align with new features or security requirements. We will prompt you to accept the updated policy whenever key revisions occur.',
         style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF334155), height: 1.6),

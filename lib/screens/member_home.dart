@@ -5930,6 +5930,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       builder: (context) {
         int pendingDues = 0;
         bool checkedDues = false;
+        bool duesError = false;
 
         return StatefulBuilder(
           builder: (context, setSheetState) {
@@ -5952,6 +5953,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   })
                   .catchError((err) {
                     setSheetState(() {
+                      duesError = true;
                       checkedDues = true;
                     });
                   });
@@ -5984,6 +5986,48 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         child: CircularProgressIndicator(color: Color(0xFFE65C00)),
                       ),
                     )
+                  else if (duesError) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFECACA)),
+                      ),
+                      child: Text(
+                        "Couldn't check your pending dues right now. For your safety we can't "
+                        "process the exit until this is confirmed. Check your connection and retry.",
+                        style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF7F1D1D), height: 1.4),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+                            child: const Text('Close'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => setSheetState(() {
+                              checkedDues = false;
+                              duesError = false;
+                            }),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE65C00),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text('Retry'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ]
                   else if (pendingDues > 0) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
