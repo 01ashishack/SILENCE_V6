@@ -104,6 +104,12 @@ Full flow built; `flutter analyze` clean. **Must apply/deploy + TEST (destructiv
 - **App owner = a DB flag** `users.is_app_owner` (NOT a hardcoded uid). Designate your owner account:
   `UPDATE public.users SET is_app_owner = true WHERE email = 'you@example.com';` — the Recovery
   Console entry + owner RPCs gate on this flag. Migration: `2026-06-18_app_owner_flag.sql`.
+- **CURRENT decision (2026-06-18): recovery approval = Supabase DASHBOARD SQL (Option B)**, NOT the
+  in-app console — no owner account/flag needed yet. The in-app Owner Recovery Console + `is_app_owner`
+  flag + `app_owner_flag.sql` are built but **dormant** (entry hidden since no account is flagged);
+  enable later when a dedicated admin/owner account exists. Approve/deny meanwhile via:
+  `UPDATE users SET scheduled_for_deletion=false, deletion_scheduled_at=NULL, deletion_recovery_status='approved' WHERE id='…';`
+  (deny → `deletion_recovery_status='denied'`).
 - **Migrations to apply:** `2026-06-18_account_deletion_recovery.sql` (recovery_status col) +
   `2026-06-18_account_recovery_rpcs.sql` (RPCs + `purge_account`) + `2026-06-18_app_owner_flag.sql`
   (is_app_owner col + re-gates the owner RPCs on the flag — run this LAST).
