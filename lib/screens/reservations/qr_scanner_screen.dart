@@ -310,12 +310,21 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       debugPrint('[QR Scan] Checking membership for member: ${user.id} and library: $libraryId');
       debugPrint('[CHECKOUT STEP] Starting: membership lookup');
       debugPrint('[CHECKOUT STEP] Starting: shift lookup');
-      final membershipRes = await supabase
+      // Pick the live membership only. Using .maybeSingle() over ALL of the
+      // member's rows for this library crashes with 406 ("2 rows") when an old
+      // exited/expired membership also exists — so scope to active/trial and
+      // take the latest.
+      final membershipRows = await supabase
           .from('memberships')
           .select('*, libraries(name, verified, qr_version), shifts(name, end_time), seats(seat_label)')
           .eq('member_id', user.id)
           .eq('library_id', libraryId)
-          .maybeSingle();
+          .inFilter('status', ['active', 'trial'])
+          .order('end_date', ascending: false)
+          .limit(1);
+      final membershipRes = (membershipRows as List).isNotEmpty
+          ? Map<String, dynamic>.from(membershipRows.first as Map)
+          : null;
       debugPrint('[CHECKOUT STEP] Success: membership lookup');
       debugPrint('[CHECKOUT STEP] Success: shift lookup');
 
