@@ -88,7 +88,7 @@ BEGIN
     DELETE FROM public.join_requests         WHERE member_id  = v_uid;
     DELETE FROM public.reviews               WHERE member_id  = v_uid;
     DELETE FROM public.badges                WHERE member_id  = v_uid;
-    DELETE FROM public.referrals             WHERE referrer_id = v_uid OR referred_id = v_uid;
+    DELETE FROM public.referrals             WHERE referrer_member_id = v_uid OR referred_member_id = v_uid;
     DELETE FROM public.queries               WHERE member_id  = v_uid;
     DELETE FROM public.notifications         WHERE user_id    = v_uid;
     DELETE FROM public.transfers             WHERE member_id  = v_uid;

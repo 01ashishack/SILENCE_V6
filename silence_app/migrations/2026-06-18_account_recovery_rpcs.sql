@@ -88,7 +88,7 @@ BEGIN
     DELETE FROM public.join_requests         WHERE member_id = p_user_id;
     DELETE FROM public.reviews               WHERE member_id = p_user_id;
     DELETE FROM public.badges                WHERE member_id = p_user_id;
-    DELETE FROM public.referrals             WHERE referrer_id = p_user_id OR referred_id = p_user_id;
+    DELETE FROM public.referrals             WHERE referrer_member_id = p_user_id OR referred_member_id = p_user_id;
     DELETE FROM public.queries               WHERE member_id = p_user_id;
     DELETE FROM public.notifications         WHERE user_id   = p_user_id;
     DELETE FROM public.device_tokens         WHERE user_id   = p_user_id;
