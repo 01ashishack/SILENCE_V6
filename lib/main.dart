@@ -36,7 +36,6 @@ import 'screens/notification_preferences.dart';
 import 'screens/export_center.dart';
 import 'screens/subscription_screen.dart';
 import 'screens/audit_log_screen.dart';
-import 'screens/preview/admin_home_v2.dart';
 import 'screens/referral_settings.dart';
 import 'screens/scheduled_closures.dart';
 import 'screens/announcements_history_screen.dart';
@@ -232,7 +231,6 @@ class SilenceApp extends StatelessWidget {
         '/admin/announcements': (context) => const AnnouncementsHistoryScreen(),
         '/admin/subscription': (context) => const SubscriptionScreen(),
         '/admin/audit-log': (context) => const AuditLogScreen(),
-        '/preview/admin-v2': (context) => const AdminHomeV2(),
         '/admin/settings/referrals': (context) => const ReferralSettingsScreen(),
         '/admin/settings/closures': (context) => const ScheduledClosuresScreen(),
         '/admin/member/add': (context) => const AddMemberWizard(),
