@@ -1413,5 +1413,5 @@ BEGIN
         ORDER BY total_minutes DESC;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.library_leaderboard(uuid, uuid, date) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.library_leaderboard(uuid, uuid, date) TO authenticated;
+REVOKE ALL ON FUNCTION public.library_leaderboard(uuid, date, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.library_leaderboard(uuid, date, date) TO authenticated;
