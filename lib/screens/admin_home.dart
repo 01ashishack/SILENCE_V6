@@ -2085,8 +2085,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           const SizedBox(height: 16),
         ],
 
-        // 1. Action Required — highest priority, directly under the header.
-        if (_pendingPaymentProofsCount + _pendingJoinRequestsCount > 0) ...[
+        // 1. Needs Attention — surfaces approvals, expiring/expired members &
+        //    queries right at the top so the admin sees them on opening.
+        if (_attentionTotal > 0) ...[
           _intro(1, _buildActionRequiredBanner()),
           const SizedBox(height: 20),
         ],
@@ -2855,42 +2856,95 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     );
   }
 
+  // Total count of things needing the admin's attention — drives whether the
+  // "Needs Attention" center shows at the top of the dashboard.
+  int get _attentionTotal =>
+      _pendingJoinRequestsCount +
+      _pendingPaymentProofsCount +
+      _expiredCount +
+      _expiringSoonCount +
+      _openQueriesCount;
+
   Widget _buildActionRequiredBanner() {
-    if (_pendingPaymentProofsCount == 0 && _pendingJoinRequestsCount == 0) {
-      return const SizedBox.shrink();
+    if (_attentionTotal == 0) return const SizedBox.shrink();
+
+    final rows = <Widget>[];
+    void add(Widget w) {
+      if (rows.isNotEmpty) rows.add(const SizedBox(height: 8));
+      rows.add(w);
+    }
+
+    if (_pendingJoinRequestsCount > 0) {
+      add(_buildRedesignedActionRequiredRow(
+        icon: Icons.person_add_rounded,
+        text: 'Join requests to approve',
+        count: _pendingJoinRequestsCount,
+        accent: const Color(0xFFE65C00),
+        onTap: _navigateToReservationsRequestsTab,
+      ));
+    }
+    if (_pendingPaymentProofsCount > 0) {
+      add(_buildRedesignedActionRequiredRow(
+        icon: Icons.payment_rounded,
+        text: 'Payment proofs to verify',
+        count: _pendingPaymentProofsCount,
+        accent: const Color(0xFFE65C00),
+        onTap: _navigateToReservationsRequestsTab,
+      ));
+    }
+    if (_expiredCount > 0) {
+      add(_buildRedesignedActionRequiredRow(
+        icon: Icons.person_off_rounded,
+        text: 'Memberships expired',
+        count: _expiredCount,
+        accent: const Color(0xFFEF4444),
+        onTap: _navigateToReservationsMembersTab,
+      ));
+    }
+    if (_expiringSoonCount > 0) {
+      add(_buildRedesignedActionRequiredRow(
+        icon: Icons.hourglass_bottom_rounded,
+        text: 'Expiring within 7 days',
+        count: _expiringSoonCount,
+        accent: const Color(0xFFF59E0B),
+        onTap: _navigateToReservationsMembersTab,
+      ));
+    }
+    if (_openQueriesCount > 0) {
+      add(_buildRedesignedActionRequiredRow(
+        icon: Icons.forum_rounded,
+        text: 'Member queries to answer',
+        count: _openQueriesCount,
+        accent: const Color(0xFF3B82F6),
+        onTap: () async {
+          await _showManageQueries();
+          if (_libraryId != null && _libraryId != 'all') {
+            _loadOpenQueriesCount(_libraryId!);
+          }
+        },
+      ));
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Action Required',
-          style: GoogleFonts.outfit(
-            fontSize: 16,
-            fontWeight: FontWeight.w600, // semi-bold
-            color: const Color(0xFF1E293B),
-          ),
+        Row(
+          children: [
+            const Icon(Icons.notifications_active_rounded,
+                size: 18, color: Color(0xFFE65C00)),
+            const SizedBox(width: 8),
+            Text(
+              'Needs Attention',
+              style: GoogleFonts.outfit(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1E293B),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
-        if (_pendingPaymentProofsCount > 0) ...[
-          _buildRedesignedActionRequiredRow(
-            icon: Icons.payment_rounded,
-            text: '$_pendingPaymentProofsCount payment proofs pending review',
-            onTap: () {
-              _navigateToReservationsRequestsTab();
-            },
-          ),
-          if (_pendingJoinRequestsCount > 0) const SizedBox(height: 8),
-        ],
-        if (_pendingJoinRequestsCount > 0) ...[
-          _buildRedesignedActionRequiredRow(
-            icon: Icons.person_add_rounded,
-            text: '$_pendingJoinRequestsCount join requests pending',
-            onTap: () {
-              _navigateToReservationsRequestsTab();
-            },
-          ),
-        ],
+        ...rows,
       ],
     );
   }
@@ -2899,38 +2953,66 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     required IconData icon,
     required String text,
     required VoidCallback onTap,
+    Color accent = const Color(0xFFE65C00),
+    int? count,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              // ignore: deprecated_member_use
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 4,
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Row(
           children: [
-            Icon(icon, color: const Color(0xFFE65C00), size: 20),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: accent, size: 20),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 text,
                 style: GoogleFonts.inter(
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   color: const Color(0xFF1E293B),
                 ),
               ),
             ),
+            if (count != null) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                constraints: const BoxConstraints(minWidth: 26),
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$count',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
             const Icon(Icons.chevron_right, size: 18, color: Color(0xFF94A3B8)),
           ],
         ),
@@ -2941,6 +3023,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   void _navigateToReservationsRequestsTab() {
     setState(() {
       _reservationsInitialSubTab = 2; // Requests sub-tab
+      _currentTab = 1; // Reservations tab
+    });
+  }
+
+  void _navigateToReservationsMembersTab() {
+    setState(() {
+      _reservationsInitialSubTab = 1; // Members sub-tab
       _currentTab = 1; // Reservations tab
     });
   }
