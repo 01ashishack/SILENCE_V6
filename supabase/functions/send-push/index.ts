@@ -11,6 +11,15 @@
 //   2) supabase secrets set FIREBASE_SERVICE_ACCOUNT_B64="<paste the base64 string>"
 //   (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.)
 //
+// Lock the public function URL (recommended) — webhook shared secret:
+//   1) Pick a random secret, e.g. PowerShell:
+//        [Convert]::ToBase64String([Guid]::NewGuid().ToByteArray())
+//   2) supabase secrets set PUSH_WEBHOOK_SECRET="<that value>"
+//   3) supabase functions deploy send-push   (redeploy so it reads the secret)
+//   4) Dashboard → Database → Webhooks → send_push_on_notification → HTTP Headers:
+//        add  x-webhook-secret: <that value>   and save.
+//   Now any caller without the header gets 401; until step 2 the check is skipped.
+//
 // Deploy:
 //   supabase functions deploy send-push
 //
@@ -31,8 +40,11 @@ Deno.serve(async (req) => {
     // set, the check is skipped (so deploy order is flexible) — set it + add the
     // webhook header to lock the public function URL against abuse.
     const expectedSecret = Deno.env.get("PUSH_WEBHOOK_SECRET");
-    if (expectedSecret && req.headers.get("x-webhook-secret") !== expectedSecret) {
-      return json({ error: "unauthorized" }, 401);
+    if (expectedSecret) {
+      const provided = req.headers.get("x-webhook-secret") ?? "";
+      if (!safeEqual(provided, expectedSecret)) {
+        return json({ error: "unauthorized" }, 401);
+      }
     }
 
     const payload = await req.json();
@@ -134,4 +146,15 @@ function stringifyValues(obj: Record<string, unknown>): Record<string, string> {
     out[k] = typeof v === "string" ? v : JSON.stringify(v);
   }
   return out;
+}
+
+// Constant-time string compare for the webhook secret (avoids leaking the
+// secret via response timing). Length difference returns early — acceptable.
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
 }
