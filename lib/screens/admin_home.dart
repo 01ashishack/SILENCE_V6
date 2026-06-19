@@ -23,10 +23,16 @@ class AdminHomeScreen extends StatefulWidget {
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
 }
 
-class _AdminHomeScreenState extends State<AdminHomeScreen> {
+class _AdminHomeScreenState extends State<AdminHomeScreen>
+    with SingleTickerProviderStateMixin {
   late bool _inSetupMode;
   bool _initialLoadDone = false;
   int _currentTab = 0; // Stateful Bottom Navigation Bar index
+
+  // One-shot entrance animation for the dashboard sections (plays once after
+  // the first load; stays at its final value on later rebuilds → no flicker).
+  late final AnimationController _introCtrl;
+  bool _introStarted = false;
 
   // Step completion flags (4 steps: Profile, Basic Info, Layout, Shifts+Payment)
   bool _step1Complete = false;
@@ -121,6 +127,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _introCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
     _checkRoleGuard();
     _inSetupMode = widget.startInSetupMode;
     _loadCachedInitialData().then((_) {
@@ -166,6 +176,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     if (_joinRequestsChannel != null) {
       Supabase.instance.client.removeChannel(_joinRequestsChannel!);
     }
+    _introCtrl.dispose();
     super.dispose();
   }
 
@@ -444,6 +455,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         _setupJoinRequestsSubscription(libId);
         await _writeDashboardStatsToCache(libId);
         await _loadOpenQueriesCount(libId);
+        await _loadUnreadNotifications();
 
         try {
           _todayHoliday = await HolidayService.instance.todaysHoliday(libId);
@@ -459,6 +471,22 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   bool _hasCachedStats = false; // true once cached dashboard stats are hydrated
 
   int _openQueriesCount = 0; // unreplied (status='open') queries → Queries badge
+  int _unreadNotifications = 0; // unread in-app notifications → header bell badge
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+      final rows = await Supabase.instance.client
+          .from('notifications')
+          .select('id')
+          .eq('user_id', user.id)
+          .isFilter('read_at', null);
+      if (mounted) setState(() => _unreadNotifications = (rows as List).length);
+    } catch (e) {
+      debugPrint('Unread notifications count load failed: $e');
+    }
+  }
 
   Future<void> _loadOpenQueriesCount(String libId) async {
     try {
@@ -1120,6 +1148,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   // TAB 0: HOME / DASHBOARD TAB
   Widget _buildHomeTab() {
+    // Kick off the one-shot entrance animation the first time the loaded
+    // dashboard is built.
+    if (_initialLoadDone && !_introStarted) {
+      _introStarted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _introCtrl.forward();
+      });
+    }
     if (!_initialLoadDone) {
       return SingleChildScrollView(
         child: Column(
@@ -1583,20 +1619,49 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: Icon(
-                      Icons.notifications_none_rounded,
-                      color: Colors.white.withValues(alpha: 0.9),
-                      size: 28,
-                    ),
-                    onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/member/notifications',
-                      );
-                    },
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: Icon(
+                          Icons.notifications_none_rounded,
+                          color: Colors.white.withValues(alpha: 0.9),
+                          size: 28,
+                        ),
+                        onPressed: () {
+                          Navigator.pushNamed(
+                            context,
+                            '/member/notifications',
+                          );
+                        },
+                      ),
+                      if (_unreadNotifications > 0)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.white, width: 1.4),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _unreadNotifications > 9 ? '9+' : '$_unreadNotifications',
+                              style: GoogleFonts.inter(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                height: 1.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -1622,8 +1687,53 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               color: Colors.white.withValues(alpha: 0.85),
             ),
           ),
+          if (!_inSetupMode) ...[
+            const SizedBox(height: 16),
+            _buildHeaderSummary(),
+          ],
         ],
       ),
+    );
+  }
+
+  /// A one-glance summary strip on the header: who's in, what's pending, today's
+  /// revenue. Read-only (no new actions) — additive scannability.
+  Widget _buildHeaderSummary() {
+    final pending = _pendingPaymentProofsCount + _pendingJoinRequestsCount;
+    final inCount = _todayAttendance.length;
+    final money = _revenueToday >= 100000
+        ? '₹${(_revenueToday / 1000).toStringAsFixed(0)}k'
+        : '₹$_revenueToday';
+
+    Widget chip(IconData icon, String label) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 14, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ]),
+        );
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: [
+        chip(Icons.login_rounded, '$inCount in today'),
+        chip(Icons.pending_actions_rounded, '$pending pending'),
+        chip(Icons.payments_rounded, '$money today'),
+      ]),
     );
   }
 
@@ -1945,49 +2055,69 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   List<Map<String, dynamic>> _recentActivities = [];
 
+  /// Staggered fade + slide-up entrance for a dashboard section. Driven by the
+  /// one-shot _introCtrl, so it plays once and then renders at its final state.
+  Widget _intro(int order, Widget child) {
+    final start = (order * 0.07).clamp(0.0, 0.55);
+    final anim = CurvedAnimation(
+      parent: _introCtrl,
+      curve: Interval(start, (start + 0.45).clamp(0.0, 1.0), curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: anim,
+      builder: (context, _) => Opacity(
+        opacity: anim.value,
+        child: Transform.translate(
+          offset: Offset(0, 20 * (1 - anim.value)),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   Widget _buildOperationalDashboard() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // 0. Today-is-a-holiday banner (conditional)
         if (_todayHoliday != null) ...[
-          _buildHolidayBanner(_todayHoliday!),
+          _intro(0, _buildHolidayBanner(_todayHoliday!)),
           const SizedBox(height: 16),
         ],
 
-        // 1. Photo Carousel
-        _buildPhotoCarousel(),
-        const SizedBox(height: 16),
-
-        // 2. Library Code Card — only once a library has been created/activated
-        // (no code exists during setup, so the card is hidden then).
-        if (!_inSetupMode) ...[
-          _buildInvitationCodeCard(),
+        // 1. Action Required — highest priority, directly under the header.
+        if (_pendingPaymentProofsCount + _pendingJoinRequestsCount > 0) ...[
+          _intro(1, _buildActionRequiredBanner()),
           const SizedBox(height: 20),
         ],
 
-        // 3. Stats Section (Revenue, 2x2 grid, Live Occupancy)
-        _buildOperationalStatsSection(),
+        // 2. Stats Section (Revenue, 2x2 grid, Live Occupancy)
+        _intro(2, _buildOperationalStatsSection()),
         const SizedBox(height: 20),
 
-        // 7. Attendance Strip (Today's Attendance strip moved above Action Required Banner)
-        _buildAttendanceStrip(),
+        // 3. Today's Attendance strip
+        _intro(3, _buildAttendanceStrip()),
         const SizedBox(height: 20),
 
-        // 4. Action Required Banner (Conditional)
-        _buildActionRequiredBanner(),
+        // 4. Quick Actions Row
+        _intro(4, _buildQuickActionsRow()),
         const SizedBox(height: 20),
 
-        // 5. Quick Actions Row
-        _buildQuickActionsRow(),
+        // 5. QR Codes Row
+        _intro(5, _buildQRCodesRow()),
         const SizedBox(height: 20),
 
-        // 6. QR Codes Row (separate row below Quick Actions)
-        _buildQRCodesRow(),
+        // 6. Recent Activities Feed
+        _intro(6, _buildRecentActivityFeed()),
         const SizedBox(height: 20),
 
-        // 8. Recent Activities Feed
-        _buildRecentActivityFeed(),
+        // 7. Secondary / least daily-critical → moved to the bottom:
+        //    library code (share to grow) + decorative photo carousel.
+        if (!_inSetupMode) ...[
+          _intro(7, _buildInvitationCodeCard()),
+          const SizedBox(height: 20),
+        ],
+        _intro(8, _buildPhotoCarousel()),
       ],
     );
   }
