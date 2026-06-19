@@ -53,7 +53,6 @@ class _MembersSubTabState extends State<MembersSubTab> {
   // Search & Filter state
   final _searchController = TextEditingController();
   String _activeFilter = 'All'; // All, Active, Pending, Expired, Hold, No Seat, Pending Drafts
-  bool _isSearching = false;
   String _selectedSort = 'joining_desc';
 
   // Floor & Shift filters state
@@ -1822,96 +1821,80 @@ class _MembersSubTabState extends State<MembersSubTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!_isSearching)
-                  Row(
-                    children: [
-                      // Floor Selector dropdown
-                      Expanded(
-                        flex: 4,
-                        child: _buildCustomPopupSelector(
-                          label: 'FLOOR',
-                          selectedId: _selectedFloorId,
-                          items: _floors,
-                          isFloor: true,
-                          onChanged: (val) {
-                            setState(() {
-                              _selectedFloorId = val;
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Shift Selector dropdown
-                      Expanded(
-                        flex: 5,
-                        child: _buildCustomPopupSelector(
-                          label: 'SHIFT',
-                          selectedId: _selectedShiftId,
-                          items: _shifts,
-                          isFloor: false,
-                          onChanged: (val) {
-                            setState(() {
-                              _selectedShiftId = val;
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-
-                      // Search Icon
-                      IconButton(
-                        icon: const Icon(Icons.search, color: Color(0xFF6B7280)),
-                        onPressed: () {
+                // Row 1: Floor + Shift selectors + Sort
+                Row(
+                  children: [
+                    // Floor Selector dropdown
+                    Expanded(
+                      flex: 4,
+                      child: _buildCustomPopupSelector(
+                        label: 'FLOOR',
+                        selectedId: _selectedFloorId,
+                        items: _floors,
+                        isFloor: true,
+                        onChanged: (val) {
                           setState(() {
-                            _isSearching = true;
+                            _selectedFloorId = val;
                           });
                         },
                       ),
+                    ),
+                    const SizedBox(width: 8),
 
-                      // Sort/Tune Icon
-                      _buildSortMenuButton(),
-                    ],
-                  )
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: TextField(
-                            controller: _searchController,
-                            autofocus: true,
-                            style: GoogleFonts.inter(fontSize: 13),
-                            decoration: InputDecoration(
-                              hintText: 'Search by name, phone...',
-                              hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
-                              prefixIcon: const Icon(Icons.search, size: 18, color: Colors.grey),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.close, size: 18, color: Colors.grey),
-                                onPressed: () {
-                                  setState(() {
-                                    _searchController.clear();
-                                    _isSearching = false;
-                                  });
-                                },
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            onChanged: (val) => setState(() {}),
-                          ),
-                        ),
+                    // Shift Selector dropdown
+                    Expanded(
+                      flex: 5,
+                      child: _buildCustomPopupSelector(
+                        label: 'SHIFT',
+                        selectedId: _selectedShiftId,
+                        items: _shifts,
+                        isFloor: false,
+                        onChanged: (val) {
+                          setState(() {
+                            _selectedShiftId = val;
+                          });
+                        },
                       ),
-                      const SizedBox(width: 8),
-                      _buildSortMenuButton(),
-                    ],
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Sort/Tune Icon
+                    _buildSortMenuButton(),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Row 2: Always-visible search field
+                Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
+                  child: TextField(
+                    controller: _searchController,
+                    style: GoogleFonts.inter(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Search by name, phone...',
+                      hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
+                      prefixIcon: const Icon(Icons.search, size: 18, color: Colors.grey),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                              onPressed: () {
+                                setState(() {
+                                  _searchController.clear();
+                                });
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onChanged: (val) => setState(() {}),
+                  ),
+                ),
                 const SizedBox(height: 12),
 
                 // Scrollable Filter Chips

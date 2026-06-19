@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../utils/time_utils.dart';
 import 'layout_sub_tab.dart';
 import 'members_sub_tab.dart';
 import 'requests_sub_tab.dart';
@@ -32,7 +34,18 @@ class ReservationsTab extends StatefulWidget {
 }
 
 class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAliveClientMixin {
+  final supabase = Supabase.instance.client;
+
   int _activeSubTab = 0; // 0: Layout, 1: Members, 2: Requests, 3: Archive
+
+  // Lazily-built sub-tabs: a heavy tab (e.g. the 4800-line Layout grid) is only
+  // mounted once it has been visited, then kept alive. Saves memory/first-build
+  // cost on low-end phones when the user lands directly on another tab.
+  final Set<int> _builtTabs = {};
+
+  // Header badges
+  int _unreadNotifications = 0; // header bell badge
+  int _pendingRequestsCount = 0; // "Requests" sub-tab badge (join + seat-change + hold)
 
   final List<String> _subTabNames = [
     'Layout',
@@ -55,10 +68,12 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
   void initState() {
     super.initState();
     _activeSubTab = widget.initialSubTab;
+    _builtTabs.add(_activeSubTab);
     _selectedLibraryId = widget.libraryId;
     _selectedLibraryName = widget.libraryName;
     _selectedLibraryCover = widget.libraryCover;
     _myLibraries = widget.myLibraries;
+    _loadBadges();
   }
 
   @override
@@ -67,6 +82,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
     if (oldWidget.initialSubTab != widget.initialSubTab) {
       setState(() {
         _activeSubTab = widget.initialSubTab;
+        _builtTabs.add(_activeSubTab);
       });
     }
     if (oldWidget.libraryId != widget.libraryId ||
@@ -79,10 +95,47 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
         _selectedLibraryCover = widget.libraryCover;
         _myLibraries = widget.myLibraries;
       });
+      _loadBadges();
       // Trigger a refresh on LayoutSubTab state
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _layoutSubTabKey.currentState?.refresh();
       });
+    }
+  }
+
+  // ── Header badge counts (bell + pending requests) ──────────────────────────
+  Future<void> _loadBadges() async {
+    await Future.wait([_loadUnreadNotifications(), _loadPendingRequestsCount()]);
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+      final rows = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('user_id', user.id)
+          .isFilter('read_at', null);
+      if (mounted) setState(() => _unreadNotifications = (rows as List).length);
+    } catch (e) {
+      debugPrint('Reservations: unread notifications load failed: $e');
+    }
+  }
+
+  Future<void> _loadPendingRequestsCount() async {
+    final libId = _selectedLibraryId;
+    if (libId == null || libId.isEmpty || libId == 'null') return;
+    try {
+      final results = await Future.wait([
+        supabase.from('join_requests').select('id').eq('library_id', libId).eq('status', 'pending'),
+        supabase.from('seat_change_requests').select('id').eq('library_id', libId).eq('status', 'pending'),
+        supabase.from('hold_requests').select('id').eq('library_id', libId).eq('status', 'pending'),
+      ]);
+      final total = results.fold<int>(0, (sum, r) => sum + (r as List).length);
+      if (mounted) setState(() => _pendingRequestsCount = total);
+    } catch (e) {
+      debugPrint('Reservations: pending requests count load failed: $e');
     }
   }
 
@@ -330,7 +383,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
       );
     }
 
-    final todayFormatted = DateFormat('EEE dd/MM').format(DateTime.now()).toUpperCase();
+    final todayFormatted = DateFormat('EEE dd/MM').format(istNow()).toUpperCase();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -442,8 +495,8 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                                 Text(
                                   _getLibraryAddress(),
                                   style: GoogleFonts.inter(
-                                    fontSize: 10.5,
-                                    color: Colors.white.withValues(alpha: 0.85),
+                                    fontSize: 12,
+                                    color: Colors.white.withValues(alpha: 0.95),
                                   ),
                                 ),
                               ],
@@ -455,7 +508,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                   ),
                   const SizedBox(width: 8),
 
-                  // Header Right Side Actions (Date Pill only)
+                  // Header Right Side Actions (Date Pill + Notification Bell)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -488,6 +541,54 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                       ],
                     ),
                   ),
+                  const SizedBox(width: 4),
+
+                  // Notification Bell (consistent with Admin Home)
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: Icon(
+                          Icons.notifications_none_rounded,
+                          color: Colors.white.withValues(alpha: 0.9),
+                          size: 26,
+                        ),
+                        onPressed: () async {
+                          await Navigator.pushNamed(
+                            context,
+                            '/member/notifications',
+                          );
+                          _loadUnreadNotifications();
+                        },
+                      ),
+                      if (_unreadNotifications > 0)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.white, width: 1.4),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _unreadNotifications > 9 ? '9+' : '$_unreadNotifications',
+                              style: GoogleFonts.inter(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                height: 1.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -500,30 +601,62 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(_subTabNames.length, (index) {
                   final bool isActive = _activeSubTab == index;
+                  // Pending-count badge for the "Requests" sub-tab (index 2).
+                  final bool showBadge = index == 2 && _pendingRequestsCount > 0;
                   return Expanded(
                     child: InkWell(
                       onTap: () {
                         setState(() {
                           _activeSubTab = index;
+                          _builtTabs.add(index);
                         });
                         if (index == 0) {
                           _layoutSubTabKey.currentState?.refresh();
                         }
+                        // Keep header badges fresh as the admin moves around.
+                        _loadBadges();
                       },
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            _subTabNames[index],
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: isActive
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                              color: isActive
-                                  ? const Color(0xFFE65C00)
-                                  : const Color(0xFF6B7280),
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _subTabNames[index],
+                                style: GoogleFonts.outfit(
+                                  fontSize: 14,
+                                  fontWeight: isActive
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  color: isActive
+                                      ? const Color(0xFFE65C00)
+                                      : const Color(0xFF6B7280),
+                                ),
+                              ),
+                              if (showBadge) ...[
+                                const SizedBox(width: 5),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  constraints: const BoxConstraints(minWidth: 16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
+                                    borderRadius: BorderRadius.circular(9),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    _pendingRequestsCount > 9 ? '9+' : '$_pendingRequestsCount',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 4),
                           AnimatedContainer(
@@ -552,21 +685,29 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                 child: IndexedStack(
                   index: _activeSubTab,
                   children: [
-                    LayoutSubTab(
-                      key: _layoutSubTabKey,
-                      libraryId: _selectedLibraryId!,
-                    ), // Layout Sub-tab
-                    MembersSubTab(
-                      libraryId: _selectedLibraryId!,
-                      ownedLibraryCount: _myLibraries.length,
-                    ), // Members Sub-tab
-                    RequestsSubTab(
-                      key: ValueKey('requests_tab_${_activeSubTab == 2}_$_selectedLibraryId'),
-                      libraryId: _selectedLibraryId!,
-                    ), // Requests Sub-tab
-                    ArchiveSubTab(
-                      libraryId: _selectedLibraryId!,
-                    ), // Archive Sub-tab
+                    _builtTabs.contains(0)
+                        ? LayoutSubTab(
+                            key: _layoutSubTabKey,
+                            libraryId: _selectedLibraryId!,
+                          )
+                        : const SizedBox.shrink(), // Layout Sub-tab (lazy)
+                    _builtTabs.contains(1)
+                        ? MembersSubTab(
+                            libraryId: _selectedLibraryId!,
+                            ownedLibraryCount: _myLibraries.length,
+                          )
+                        : const SizedBox.shrink(), // Members Sub-tab (lazy)
+                    _builtTabs.contains(2)
+                        ? RequestsSubTab(
+                            key: ValueKey('requests_tab_${_activeSubTab == 2}_$_selectedLibraryId'),
+                            libraryId: _selectedLibraryId!,
+                          )
+                        : const SizedBox.shrink(), // Requests Sub-tab (lazy)
+                    _builtTabs.contains(3)
+                        ? ArchiveSubTab(
+                            libraryId: _selectedLibraryId!,
+                          )
+                        : const SizedBox.shrink(), // Archive Sub-tab (lazy)
                   ],
                 ),
               ),

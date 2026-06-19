@@ -1100,6 +1100,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   // ── Render Helpers ────────────────────────────────────────────────────────
   Widget _buildTabToggle(int index, String label, IconData icon) {
     final bool isActive = _activeRequestTab == index;
+    final int count = index == 0
+        ? _joinRequests.length
+        : (index == 1 ? _seatChangeRequests.length : _holdRequests.length);
     return Expanded(
       child: GestureDetector(
         onTap: () {
@@ -1119,14 +1122,39 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             children: [
               Icon(icon, size: 14, color: isActive ? Colors.white : const Color(0xFF64748B)),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontSize: 12,
-                  fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
-                  color: isActive ? Colors.white : const Color(0xFF64748B),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
+                    color: isActive ? Colors.white : const Color(0xFF64748B),
+                  ),
                 ),
               ),
+              if (count > 0) ...[
+                const SizedBox(width: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  constraints: const BoxConstraints(minWidth: 16),
+                  decoration: BoxDecoration(
+                    color: isActive ? Colors.white : const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    count > 9 ? '9+' : '$count',
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: isActive ? const Color(0xFFE65C00) : Colors.white,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
