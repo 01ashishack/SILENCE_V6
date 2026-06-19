@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS users (
     id_type TEXT,
     father_name TEXT,
     emergency_contact TEXT,
-    subscription_plan TEXT CHECK (subscription_plan IN ('starter', 'basic', 'pro', 'trial')),
+    subscription_plan TEXT CHECK (subscription_plan IN ('free', 'starter', 'basic', 'pro', 'trial')),
     subscription_status TEXT DEFAULT 'active' CHECK (subscription_status IN ('active', 'grace', 'readonly', 'locked', 'cancelled')),
     subscription_expiry TIMESTAMPTZ,
     referral_code TEXT,

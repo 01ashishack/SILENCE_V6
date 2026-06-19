@@ -398,6 +398,20 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
       _showSuccessSnackBar('Profile completed successfully! ✓');
       if (!mounted) return;
       Navigator.pop(context, true);
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      if (e.code == '23505') {
+        final msg = e.message.toLowerCase();
+        if (msg.contains('phone')) {
+          _showErrorSnackBar('This mobile number is already registered with another account.');
+        } else if (msg.contains('email')) {
+          _showErrorSnackBar('This email is already registered with another account.');
+        } else {
+          _showErrorSnackBar('Some of these details are already registered with another account.');
+        }
+      } else {
+        _showErrorSnackBar('Error saving profile: ${e.message}');
+      }
     } catch (e) {
       _showErrorSnackBar('Error saving profile: $e');
     } finally {
