@@ -164,21 +164,9 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
 
     setState(() => _isClaiming = true);
     try {
-      final nowStr = DateTime.now().toIso8601String();
-
-      // 1. Update libraries verified properties
-      await _supabase.from('libraries').update({
-        'verified': true,
-        'verified_at': nowStr,
-      }).eq('id', currentLibId);
-
-      // 2. Insert into verification_requests
-      await _supabase.from('verification_requests').insert({
-        'library_id': currentLibId,
-        'status': 'approved',
-        'reviewed_at': nowStr,
-        'admin_notes': 'Auto-verified based on eligibility completion.',
-      });
+      // Server re-checks eligibility + sets verified (the column is locked
+      // against direct client writes — see migrations/2026-06-18_lock_library_verified.sql).
+      await _supabase.rpc('claim_verified_badge', params: {'p_library': currentLibId});
 
       if (mounted) {
         showDialog(

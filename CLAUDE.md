@@ -136,6 +136,19 @@ check-out updates the day row.
   (per-week library leaderboard scan) still scan attendance — batch 2 (needs a small precompute or a
   scheduled recompute).
 
+### Session 2026-06-18 (k) — Honest-UI sweep + lock self-granted "Verified" badge
+Sweep result: C1 (fake-success messages) already **clean** — the old "broadcasted/Exported successfully"
+stubs are gone, bulk-announce really inserts notifications, all other success snackbars fire after a
+real await. C2 (7-day deletion copy) already **correct** everywhere (privacy policy / about /
+privacy-security / recovery console) — done in `9ea0403`; the prior "not yet updated" note was stale.
+**Found + fixed:** the library **Verified badge was self-granted** — `verified_badge_screen` wrote
+`libraries.verified=true` directly (client-side eligibility only) and the column was unlocked → a
+forgeable trust signal (dishonest "verified"). New `claim_verified_badge()` SECURITY DEFINER RPC
+re-checks all eligibility server-side; a `guard_library_verified` trigger blocks any other direct
+verified/verified_at change (`2026-06-18_lock_library_verified.sql`). Screen wired to the RPC; folded
+into canonical. `flutter analyze` clean. ⛔ apply migration + verify claim works for an eligible library
+and a direct `update ... set verified=true` is rejected.
+
 ### Session 2026-06-18 (j) — Bug sweep: fix member leaderboard broken by tenant-scope
 Full-project `flutter analyze` clean. Reviewed RLS-tightening flows: audit_log (`admin_id=auth.uid()`)
 and notifications (relationship policy) are safe — every audit write uses the current admin's id, and
