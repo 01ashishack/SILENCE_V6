@@ -281,19 +281,21 @@ permanent eligibility-gated member QR FAB; detail in `docs_fix/LAYOUT_SEAT_OVERH
 `RESERVATION_FIXES_2026-06-15.md`).
 
 ### Next action (when the user says "continue"/"GO")
-- ✅ **Wave-0 security: ALL APPLIED to live DB (2026-06-18).** role lock (P6-02), subscription/verified
+- ✅ **Wave-0 security: ALL APPLIED + verified (2026-06-18).** role lock (P6-02), subscription/verified
   lock (P6-03/06), tenant-scope users SELECT (P10-04), membership self-exit + open-UPDATE drop (P5-01),
   actor-scoped inserts (P5-08), storage owner-scoping (P10-01/02/03). Build/release: INTERNET + signing
   scaffold present (P1) — user generates the keystore.
-- **Remaining (need decision / environment / large):**
-  - **Server tier RC-1:** foundation exists (RPCs + Edge Functions); real **payments** (Razorpay) +
-    **OTP** still need it — both deferred by product decision.
-  - **Subscription enforcement:** `betaMode=true` keeps all features free/unlocked; 30-day Free window
-    is display-only. Flip + enforce later with billing.
-  - **Analytics precompute (P11-01/02):** Wave-2 perf — precompute tables/cron.
+- ✅ **IST single clock (P8-01) APPLIED + verified.** member dashboard/scanner/holidays + analytics
+  engine/tabs all on IST (`istNow`/`istWallClockToUtc`/`istDateKeyFromDb`).
+- ✅ **Analytics + badge precompute (P11-01/02) APPLIED + verified.** `member_daily_stats` trigger +
+  backfill; all badges off attendance scans; `member_is_week_top()` + `library_leaderboard()` RPCs.
+- ✅ **Setup fixes APPLIED:** `'free'` subscription_plan allowed (launch 23514); duplicate-contact
+  friendly warning (admin + member profile); member leaderboard fixed via `library_leaderboard()` RPC.
+- **Remaining (need decision / environment — NOT pure code):**
+  - **Server tier RC-1 / real payments (Razorpay = website only) / OTP** — deferred by product decision.
+  - **Subscription enforcement:** `betaMode=true` keeps features unlocked; 30-day Free window is
+    display-only. Flip + enforce later with the website/billing.
   - **iOS location crash (P14-03):** needs a Mac/iOS build.
-  - **TZ reconcile (P8-01):** one IST clock everywhere + precompute.
-- **FCM follow-ups:** foreground banner, tap→navigation, Android/iOS device test, webhook shared-secret.
 - **FCM follow-ups:** foreground banner, tap→navigation, Android/iOS device test, webhook shared-secret.
 
 ---

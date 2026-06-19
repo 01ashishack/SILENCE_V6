@@ -98,6 +98,14 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
   RPC + drop open `memberships` UPDATE, P5-01), `2026-06-18_actor_scope_inserts.sql` (relationship-scoped
   notifications/audit_log/badges/referrals inserts, P5-08). All folded into canonical. **No outstanding
   live-DB action.** (Existing 'starter'/'basic' admins reset to free+30d via the documented `set local` SQL.)
+- **✅ IST single clock + analytics/badge precompute + setup fixes APPLIED & verified (2026-06-18):**
+  `2026-06-18_subscription_plan_allow_free.sql` (allow `'free'` plan — fixes launch 23514),
+  `2026-06-18_member_daily_stats_precompute.sql` (attendance→rollup trigger + backfill, P11-01),
+  `2026-06-18_badge_precompute_batch3.sql` (early/night counts + `member_is_week_top()`, P11-02),
+  `2026-06-18_library_leaderboard_rpc.sql` (`library_leaderboard()` — fixes member leaderboard under
+  tenant-scoped users SELECT). Code: IST clock app-wide (P8-01), duplicate-contact friendly warnings.
+  **All migrations applied; no outstanding live-DB action.** Audit: 19 ✅ · 2 🟡 (out-of-app payments,
+  server-tier-partial) · 1 ⬜ (iOS P14-03 — needs a Mac).
 - **Subscription enforcement deferred** (`betaMode=true` keeps all features unlocked; 30-day window is
   display-only). Build/release: INTERNET + signing scaffold present (P1); user generates the keystore.
 - **Working tree:** clean (last code in `git log`); local-only `devtools_options.yaml` stays out of commits.
