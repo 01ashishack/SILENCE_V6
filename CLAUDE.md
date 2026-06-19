@@ -35,8 +35,9 @@
 ### Session 2026-06-19 — Analytics/admin-profile/headers overhaul + signup fix + member-home audit fixes
 Committed+pushed at **`a26943a`** (analytics + headers + profile + signup + member polish). A further
 batch of member-home audit fixes is **uncommitted** (see end). `flutter analyze` 0 errors throughout.
-**⛔ ONE migration to APPLY (then verify, then fold into `supabase_schema.sql`):**
+**✅ Migration APPLIED to live DB (2026-06-19) + folded into `supabase_schema.sql`:**
 `2026-06-19_library_display_fields.sql` (libraries.`opening_hours`, `display_members_joined`).
+**No outstanding live-DB action.**
 *(The geo `latitude/longitude` migration was dropped — coordinates are impractical for admins; the
 public profile's "View on Map" button uses `location_link` (Google Maps link) instead.)*
 

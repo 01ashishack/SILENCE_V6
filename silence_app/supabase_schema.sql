@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS libraries (
     about_text TEXT,
     emergency_phone TEXT,
     social_links JSONB DEFAULT '{}',
+    opening_hours TEXT,
+    display_members_joined TEXT,
     status TEXT DEFAULT 'setup' CHECK (status IN ('setup', 'active', 'closed')),
     verified BOOLEAN DEFAULT false,
     verified_at TIMESTAMPTZ,
