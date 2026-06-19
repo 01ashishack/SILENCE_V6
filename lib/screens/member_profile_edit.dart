@@ -474,6 +474,20 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       if (!mounted) return;
       _showSuccessSnackBar('Profile saved successfully! ✓');
       Navigator.pop(context, true);
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      if (e.code == '23505') {
+        final msg = e.message.toLowerCase();
+        if (msg.contains('phone')) {
+          _showErrorSnackBar('This mobile number is already registered with another account.');
+        } else if (msg.contains('email')) {
+          _showErrorSnackBar('This email is already registered with another account.');
+        } else {
+          _showErrorSnackBar('Some of these details are already registered with another account.');
+        }
+      } else {
+        _showErrorSnackBar(friendlyError(e));
+      }
     } catch (e) {
       _showErrorSnackBar(friendlyError(e));
     } finally {
