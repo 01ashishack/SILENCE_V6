@@ -769,49 +769,22 @@ class MemberAnalyticsService {
 
   // 6. Upgraded Leaderboard Details (Phase 2)
   Future<Map<String, dynamic>> fetchLeaderboardDetails(String libraryId, String currentMemberId, DateTime startDate, DateTime endDate) async {
-    final startStr = istWallClockToUtc(startDate).toIso8601String();
-    final endStr = istWallClockToUtc(endDate).toIso8601String();
+    // Server-side ranked leaderboard from the precomputed rollup. Returns only
+    // privacy-formatted names + minutes (members can't read others' users rows
+    // directly under the tenant-scoped SELECT, P10-04).
+    final rows = await _supabase.rpc('library_leaderboard', params: {
+      'p_library': libraryId,
+      'p_start': DateFormat('yyyy-MM-dd').format(startDate),
+      'p_end': DateFormat('yyyy-MM-dd').format(endDate),
+    });
 
-    final attendanceRes = await _supabase
-        .from('attendance')
-        .select('member_id, duration_minutes, users(id, nickname, full_name)')
-        .eq('library_id', libraryId)
-        .gte('check_in_time', startStr)
-        .lte('check_in_time', endStr)
-        .not('duration_minutes', 'is', null);
-
-    Map<String, Map<String, dynamic>> memberStats = {};
-
-    for (var record in attendanceRes) {
-      final mId = record['member_id'];
-      final duration = record['duration_minutes'] as int;
-      final userMap = record['users'] as Map<String, dynamic>?;
-      if (userMap == null) continue;
-
-      if (!memberStats.containsKey(mId)) {
-        String name = userMap['nickname'] ?? userMap['full_name'] ?? 'User';
-        if (userMap['nickname'] == null && userMap['full_name'] != null) {
-          name = userMap['full_name'].toString().split(' ').first;
-        }
-        
-        // Privacy format: "Priya S."
-        if (name.contains(' ')) {
-          final parts = name.split(' ');
-          name = '${parts.first} ${parts.last[0]}.';
-        } else if (name.length > 8) {
-          name = '${name.substring(0, 7)}...';
-        }
-
-        memberStats[mId] = {
-          'member_id': mId,
-          'name': name,
-          'total_duration': 0,
-        };
-      }
-      memberStats[mId]!['total_duration'] += duration;
-    }
-
-    List<Map<String, dynamic>> leaderboard = memberStats.values.toList();
+    final List<Map<String, dynamic>> leaderboard = ((rows as List?) ?? [])
+        .map<Map<String, dynamic>>((r) => {
+              'member_id': r['member_id'],
+              'name': (r['name'] ?? 'User').toString(),
+              'total_duration': (r['total_minutes'] as num?)?.toInt() ?? 0,
+            })
+        .toList();
     leaderboard.sort((a, b) => (b['total_duration'] as int).compareTo(a['total_duration'] as int));
 
     List<Map<String, dynamic>> rankedList = [];

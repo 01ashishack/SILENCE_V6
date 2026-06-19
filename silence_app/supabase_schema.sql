@@ -1377,3 +1377,41 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.member_is_week_top(uuid, uuid, date, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.member_is_week_top(uuid, uuid, date, date) TO authenticated;
+
+-- Library leaderboard (privacy-formatted, from the rollup) — members can't read
+-- co-members' users rows directly under tenant-scoped SELECT (P10-04), so the
+-- leaderboard is computed here. Caller must belong to / own the library.
+CREATE OR REPLACE FUNCTION public.library_leaderboard(
+    p_library uuid, p_start date, p_end date)
+RETURNS TABLE(member_id uuid, name text, total_minutes bigint)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.memberships m
+                   WHERE m.library_id = p_library AND m.member_id = auth.uid())
+       AND NOT EXISTS (SELECT 1 FROM public.libraries l
+                       WHERE l.id = p_library AND l.owner_id = auth.uid()) THEN
+        RETURN;
+    END IF;
+    RETURN QUERY
+        SELECT mds.member_id,
+               CASE
+                 WHEN u.nickname IS NOT NULL AND btrim(u.nickname) <> ''
+                     THEN split_part(btrim(u.nickname), ' ', 1)
+                 WHEN position(' ' IN btrim(coalesce(u.full_name, ''))) > 0
+                     THEN split_part(btrim(u.full_name), ' ', 1) || ' '
+                          || left(split_part(btrim(u.full_name), ' ', 2), 1) || '.'
+                 ELSE coalesce(nullif(btrim(u.full_name), ''), 'User')
+               END AS name,
+               sum(mds.total_minutes)::bigint AS total_minutes
+        FROM public.member_daily_stats mds
+        JOIN public.users u ON u.id = mds.member_id
+        WHERE mds.library_id = p_library
+          AND mds.date BETWEEN p_start AND p_end
+        GROUP BY mds.member_id, u.nickname, u.full_name
+        HAVING sum(mds.total_minutes) > 0
+        ORDER BY total_minutes DESC;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.library_leaderboard(uuid, uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.library_leaderboard(uuid, uuid, date) TO authenticated;

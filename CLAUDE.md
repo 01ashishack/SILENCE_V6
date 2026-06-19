@@ -133,6 +133,17 @@ check-out updates the day row.
   (per-week library leaderboard scan) still scan attendance — batch 2 (needs a small precompute or a
   scheduled recompute).
 
+### Session 2026-06-18 (j) — Bug sweep: fix member leaderboard broken by tenant-scope
+Full-project `flutter analyze` clean. Reviewed RLS-tightening flows: audit_log (`admin_id=auth.uid()`)
+and notifications (relationship policy) are safe — every audit write uses the current admin's id, and
+notify targets always have a membership or pending join_request. **Found + fixed:** the member
+**leaderboard** read co-members' names via a `users(...)` embed, which the tenant-scoped users SELECT
+(P10-04, applied) now blocks for member viewers → leaderboard collapsed. New SECURITY DEFINER
+`library_leaderboard(p_library,p_start,p_end)` RPC (`2026-06-18_library_leaderboard_rpc.sql`) computes
+ranked, privacy-formatted names + minutes from `member_daily_stats` (caller must belong to/own the
+library); `fetchLeaderboardDetails` now uses it. Unused `fetchLeaderboard` left as dead code.
+`flutter analyze` clean. ⛔ apply migration + verify member leaderboard shows co-members again.
+
 ### Session 2026-06-18 (i) — P11-02: badge engine fully off attendance scans
 `2026-06-18_badge_precompute_batch3.sql` — added `early_count`/`night_count` to `member_daily_stats`
 (maintained by the existing trigger + backfilled) and a `member_is_week_top()` indexed-aggregate RPC.
