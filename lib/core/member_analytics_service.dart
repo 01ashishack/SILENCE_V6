@@ -613,13 +613,30 @@ class MemberAnalyticsService {
       await _awardBadge(memberId, libraryId, '30_day_streak');
       earnedTypes.add('30_day_streak');
     }
-    // 3. 100 days club
+    // 3. 100 days club — distinct present days from the precomputed rollup
+    //    (fast + correct; the old attendance scan selected only 'id' so
+    //    check_in_time was null and the badge never awarded).
     if (!earnedTypes.contains('100_days_club')) {
-      final totalDaysRes = await _supabase.from('attendance').select('id').eq('member_id', memberId);
       final Set<String> uniqueDays = {};
-      for (var r in totalDaysRes) {
-        if (r['check_in_time'] != null) {
-          uniqueDays.add(istDateKeyFromDb(r['check_in_time'] as String));
+      try {
+        final daysRes = await _supabase
+            .from('member_daily_stats')
+            .select('date')
+            .eq('member_id', memberId)
+            .eq('present_flag', true);
+        for (var r in daysRes) {
+          if (r['date'] != null) uniqueDays.add(r['date'].toString());
+        }
+      } catch (_) {
+        // member_daily_stats unavailable → fall back to scanning attendance.
+        final totalDaysRes = await _supabase
+            .from('attendance')
+            .select('check_in_time')
+            .eq('member_id', memberId);
+        for (var r in totalDaysRes) {
+          if (r['check_in_time'] != null) {
+            uniqueDays.add(istDateKeyFromDb(r['check_in_time'] as String));
+          }
         }
       }
       if (uniqueDays.length >= 100) {
