@@ -120,6 +120,19 @@ Full flow built; `flutter analyze` clean. **Migrations APPLIED + Edge Function d
   throwaway account before relying on the cron. Self-cancel removed (recovery is owner-approved).
 - Minor: descriptive "30-day" copy in member_about / privacy_policy not yet updated to 7-day.
 
+### Session 2026-06-18 (h) — P11-01: precompute member_daily_stats
+`2026-06-18_member_daily_stats_precompute.sql` — a `SECURITY DEFINER` trigger on `attendance`
+(INSERT/UPDATE/DELETE) maintains the `member_daily_stats` rollup (present_flag + total_minutes) per
+`(member, library, IST-day)` via `recompute_member_daily_stat()`, plus a one-time backfill. IST-day
+bucketing (`AT TIME ZONE 'Asia/Kolkata'`) matches the app clock. **No Dart change** — the service's
+existing `member_daily_stats` fast path now hits indexed rows instead of scanning all attendance
+(also speeds up the `consistent` badge). Folded into canonical (backfill omitted). `flutter analyze`
+n/a (SQL only). ⛔ apply migration; verify `select count(*) from member_daily_stats > 0` + a fresh
+check-out updates the day row.
+- **P11-02 (badge N+1) — remaining:** `early_bird`/`night_owl` (need check-in hour) and `top_of_week`
+  (per-week library leaderboard scan) still scan attendance — batch 2 (needs a small precompute or a
+  scheduled recompute).
+
 ### Session 2026-06-18 (g) — P8-01 batch 1: canonical IST clock (member dashboard / scanner / holidays)
 Added canonical IST helpers to `lib/utils/time_utils.dart` — `istNow()`, `istToday()`, `istTodayKey()`,
 `istDateKeyFromDb(dbTime)`. Routed the member-facing day-boundary logic through them (was a mix of

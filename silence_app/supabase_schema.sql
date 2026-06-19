@@ -1273,3 +1273,76 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.change_my_role(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.change_my_role(text) TO authenticated;
+
+-- ============================================================================
+-- 6. Analytics precompute — member_daily_stats rollup (P11-01)
+--    Keeps member_daily_stats fresh so analytics reads the indexed rollup
+--    instead of scanning attendance. Canonical copy of
+--    migrations/2026-06-18_member_daily_stats_precompute.sql (backfill omitted).
+--    Day bucketing uses IST (Asia/Kolkata) to match the app's single clock.
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.recompute_member_daily_stat(
+    p_member uuid, p_library uuid, p_date date)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_count   integer;
+    v_present boolean;
+    v_minutes integer;
+BEGIN
+    SELECT count(*)::int,
+           bool_or(a.check_out_time IS NOT NULL OR a.session_type IS DISTINCT FROM 'incomplete'),
+           COALESCE(sum(CASE WHEN a.session_type IS DISTINCT FROM 'incomplete'
+                             THEN a.duration_minutes ELSE 0 END), 0)::int
+      INTO v_count, v_present, v_minutes
+    FROM public.attendance a
+    WHERE a.member_id = p_member
+      AND a.library_id = p_library
+      AND (a.check_in_time AT TIME ZONE 'Asia/Kolkata')::date = p_date;
+
+    IF v_count = 0 THEN
+        DELETE FROM public.member_daily_stats
+         WHERE member_id = p_member AND library_id = p_library AND date = p_date;
+        RETURN;
+    END IF;
+
+    INSERT INTO public.member_daily_stats (member_id, library_id, date, present_flag, total_minutes)
+    VALUES (p_member, p_library, p_date, COALESCE(v_present, false), COALESCE(v_minutes, 0))
+    ON CONFLICT (member_id, library_id, date)
+    DO UPDATE SET present_flag = EXCLUDED.present_flag,
+                  total_minutes = EXCLUDED.total_minutes;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.trg_attendance_daily_stats()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF (TG_OP = 'DELETE') THEN
+        PERFORM public.recompute_member_daily_stat(
+            OLD.member_id, OLD.library_id,
+            (OLD.check_in_time AT TIME ZONE 'Asia/Kolkata')::date);
+        RETURN OLD;
+    END IF;
+    PERFORM public.recompute_member_daily_stat(
+        NEW.member_id, NEW.library_id,
+        (NEW.check_in_time AT TIME ZONE 'Asia/Kolkata')::date);
+    IF (TG_OP = 'UPDATE') THEN
+        IF (OLD.member_id, OLD.library_id, (OLD.check_in_time AT TIME ZONE 'Asia/Kolkata')::date)
+           IS DISTINCT FROM
+           (NEW.member_id, NEW.library_id, (NEW.check_in_time AT TIME ZONE 'Asia/Kolkata')::date) THEN
+            PERFORM public.recompute_member_daily_stat(
+                OLD.member_id, OLD.library_id,
+                (OLD.check_in_time AT TIME ZONE 'Asia/Kolkata')::date);
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_attendance_daily_stats ON public.attendance;
+CREATE TRIGGER trg_attendance_daily_stats
+    AFTER INSERT OR UPDATE OR DELETE ON public.attendance
+    FOR EACH ROW EXECUTE FUNCTION public.trg_attendance_daily_stats();
