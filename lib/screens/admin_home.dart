@@ -82,6 +82,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
 
   // Real-time Supabase metrics additions
   int _activeTodayCount = 0;
+  int _presentNowCount = 0; // members checked in today and NOT yet checked out (live)
   int _totalActiveMembers = 0;
   int _expiringTodayCount = 0;
   int _newJoiningsToday = 0;
@@ -528,11 +529,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       // 1. Active Today: distinct members count with attendance today
       final attendanceRes = await supabase
           .from('attendance')
-          .select('member_id')
+          .select('member_id, check_out_time')
           .eq('library_id', libId)
           .gte('check_in_time', todayMidnight.toIso8601String());
 
-      _activeTodayCount = (attendanceRes as List)
+      final attList = List<Map<String, dynamic>>.from(attendanceRes);
+      _activeTodayCount = attList
+          .map((row) => row['member_id'])
+          .toSet()
+          .length;
+      // Live present = checked in today with no check-out recorded.
+      _presentNowCount = attList
+          .where((row) => row['check_out_time'] == null)
           .map((row) => row['member_id'])
           .toSet()
           .length;
@@ -1700,7 +1708,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   /// revenue. Read-only (no new actions) — additive scannability.
   Widget _buildHeaderSummary() {
     final pending = _pendingPaymentProofsCount + _pendingJoinRequestsCount;
-    final inCount = _todayAttendance.length;
+    final inCount = _activeTodayCount; // total distinct members who came in today
     final money = _revenueToday >= 100000
         ? '₹${(_revenueToday / 1000).toStringAsFixed(0)}k'
         : '₹$_revenueToday';
@@ -2673,8 +2681,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         // 1. Revenue Card (Full Width)
         _isStatsLoading ? _buildSkeletonRevenueCard() : _buildRevenueCard(),
         const SizedBox(
-          height: 8,
-        ), // Spacing reduced from 12 to 8 to make them closer
+          height: 4,
+        ), // Tight gap so the Revenue card and the 2x2 stats sit close together
         // 2. 2x2 Stats Grid
         _isStatsLoading
             ? GridView.count(
@@ -2697,14 +2705,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.35,
+                childAspectRatio: 1.15,
                 children: [
                   _buildOperationalStatCard(
                     index: 0,
-                    label: 'Active Today',
-                    value: '$_activeTodayCount / $_totalActiveMembers',
-                    subtext:
-                        '${_totalActiveMembers > 0 ? (_activeTodayCount / _totalActiveMembers * 100).toStringAsFixed(0) : 0}% active rate',
+                    label: 'Active Now',
+                    value: '$_presentNowCount / $_totalActiveMembers',
+                    subtext: 'Live in library',
                     icon: Icons.people,
                     iconColor: const Color(0xFF3B82F6),
                   ),
@@ -2783,7 +2790,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             ),
             child: Icon(icon, color: finalIconColor, size: 24),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           // Text block fills the freed space; FittedBox scales it down only on
           // very small screens so it never overflows.
           Flexible(
@@ -2797,7 +2804,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   Text(
                     value,
                     style: GoogleFonts.outfit(
-                      fontSize: 32,
+                      fontSize: 30,
                       fontWeight: FontWeight.bold,
                       color: finalValueColor,
                       height: 1.05,

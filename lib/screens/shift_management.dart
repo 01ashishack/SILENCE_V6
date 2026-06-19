@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 class ShiftManagementScreen extends StatefulWidget {
   final String? libraryId;
@@ -55,7 +56,6 @@ class _ShiftModel {
 
 class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
   static const _orange = Color(0xFFE65C00);
-  static const _bg = Color(0xFFFBF5EE);
   static const _dark = Color(0xFF1A1A2E);
   static const _grey = Color(0xFF6B7280);
 
@@ -364,6 +364,8 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
 
       _showSuccess('Shifts & payment options saved successfully! ✓');
       if (!mounted) return;
+      await _showOpeningHoursReminder();
+      if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
       _showError('Error saving: $e');
@@ -372,28 +374,47 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     }
   }
 
+  // After shift timings change, remind the admin to keep the public "Opening
+  // Hours" label (set separately in About & Info) in sync.
+  Future<void> _showOpeningHoursReminder() async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.access_time_rounded, color: _orange, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Update Opening Hours?',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17, color: _dark),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'You changed your shift timings. The "Opening Hours" shown on your public library profile are set separately — please update them in Profile → Library Management → About & Info so members see the correct timings.',
+          style: GoogleFonts.inter(fontSize: 13.5, color: const Color(0xFF475569), height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Got it', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _orange,
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: _bg,
-          appBar: AppBar(
-            backgroundColor: _orange,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text('Shifts & Pay Method Setup',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            centerTitle: true,
-          ),
-          body: _isLoading
+    return AppGradientScaffold(
+      title: 'Shifts & Pay Method Setup',
+      body: _isLoading
             ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(_orange)))
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -468,8 +489,6 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                   ],
                 ),
               ),
-        ),
-      ),
     );
   }
 

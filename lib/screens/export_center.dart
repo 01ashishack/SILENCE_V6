@@ -7,6 +7,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/calendar_picker.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 class ExportCenterScreen extends StatefulWidget {
   const ExportCenterScreen({super.key});
@@ -47,33 +49,30 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     });
   }
 
-  Future<void> _selectDateRange(BuildContext context) async {
-    final picked = await showDateRangePicker(
-      context: context,
-      initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
+  Future<void> _selectDateRange() async {
+    // Uses the app's custom calendar (single-date) twice — pick start, then
+    // end — to stay consistent with the rest of the app instead of the stock
+    // Material range picker.
+    final lastAllowed = DateTime.now().add(const Duration(days: 365));
+    final start = await showCalendarGridBottomSheet(
+      context,
+      initialDate: _startDate,
       firstDate: DateTime(2025),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFE65C00),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF1E293B),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      lastDate: lastAllowed,
     );
-    if (!mounted) return;
-    if (picked != null) {
-      setState(() {
-        _startDate = picked.start;
-        _endDate = picked.end;
-        _selectedPreset = 'Custom';
-      });
-    }
+    if (!mounted || start == null) return;
+    final end = await showCalendarGridBottomSheet(
+      context,
+      initialDate: _endDate.isBefore(start) ? start : _endDate,
+      firstDate: start,
+      lastDate: lastAllowed,
+    );
+    if (!mounted || end == null) return;
+    setState(() {
+      _startDate = start;
+      _endDate = end.isBefore(start) ? start : end;
+      _selectedPreset = 'Custom';
+    });
   }
 
   Future<String?> _firstOwnedLibraryId() async {
@@ -627,26 +626,9 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('dd MMM yyyy');
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              'Exports & Reports Center',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            centerTitle: true,
-          ),
-          body: Stack(
+    return AppGradientScaffold(
+      title: 'Exports & Reports Center',
+      body: Stack(
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -672,7 +654,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                         if (_selectedPreset == 'Custom') ...[
                           const SizedBox(height: 8),
                           InkWell(
-                            onTap: () => _selectDateRange(context),
+                            onTap: () => _selectDateRange(),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                               decoration: BoxDecoration(
@@ -785,8 +767,6 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 ),
             ],
           ),
-        ),
-      ),
     );
   }
 
@@ -809,7 +789,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
         onSelected: (selected) {
           if (selected) {
             if (preset == 'Custom') {
-              _selectDateRange(context);
+              _selectDateRange();
             } else {
               _applyPreset(preset);
             }

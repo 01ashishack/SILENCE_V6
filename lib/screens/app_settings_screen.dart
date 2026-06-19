@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 class AppSettingsScreen extends StatefulWidget {
   const AppSettingsScreen({super.key});
@@ -173,26 +174,9 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              'App Settings',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            centerTitle: true,
-          ),
-          body: _isLoading
+    return AppGradientScaffold(
+      title: 'App Settings',
+      body: _isLoading
               ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(20.0),
@@ -292,8 +276,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                     ],
                   ),
                 ),
-        ),
-      ),
     );
   }
 

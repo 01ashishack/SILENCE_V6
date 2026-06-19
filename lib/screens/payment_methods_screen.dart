@@ -6,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../utils/upi_launcher.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/states.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 /// Admin-facing screen to manage how members pay this library: a cash toggle and
 /// a list of UPI IDs. These are the exact values members see as deep-link app
@@ -128,14 +129,8 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffold,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text('Payment Methods', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-      ),
+    return AppGradientScaffold(
+      title: 'Payment Methods',
       body: _loading
           ? const LoadingState(kind: SkeletonKind.spinner, message: 'Loading…')
           : _error != null

@@ -151,85 +151,101 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     }
   }
 
+  bool _isAlreadyRegisteredError(Object e) {
+    final msg = (e is AuthException ? e.message : e.toString()).toLowerCase();
+    return msg.contains('already') || msg.contains('registered') || msg.contains('exists');
+  }
+
   Future<void> _handleSignup() async {
     if (!_signupFormKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
+    final supabase = Supabase.instance.client;
+    final email = _signupEmailController.text.trim();
+    final password = _signupPasswordController.text;
+    final name = _signupNameController.text.trim();
+
     try {
-      final supabase = Supabase.instance.client;
-      final response = await supabase.auth.signUp(
-        email: _signupEmailController.text.trim(),
-        password: _signupPasswordController.text,
-        data: {
-          'full_name': _signupNameController.text.trim(),
-        },
-      );
-
-      if (response.user != null) {
-        // Create user profile record
-        try {
-          await supabase.from('users').upsert({
-            'id': response.user!.id,
-            'email': response.user!.email!,
-            'full_name': _signupNameController.text.trim(),
-            'nickname': _signupNameController.text.trim().split(' ').first,
-            'role': null, // role = null as per requirements
-          });
-        } catch (dbErr) {
-          if (dbErr is PostgrestException) {
-            rethrow;
-          }
-          // If upsert fails (e.g. trigger constraints), try updating the record
+      AuthResponse response;
+      try {
+        response = await supabase.auth.signUp(
+          email: email,
+          password: password,
+          data: {'full_name': name},
+        );
+      } on AuthException catch (e) {
+        // The email already exists in auth — almost always a previous half-
+        // finished attempt (e.g. the profile write failed last time). Instead of
+        // dead-ending on "already registered", seamlessly sign in with the SAME
+        // credentials the user just typed and continue the flow.
+        if (_isAlreadyRegisteredError(e)) {
           try {
-            await supabase.from('users').update({
-              'full_name': _signupNameController.text.trim(),
-              'nickname': _signupNameController.text.trim().split(' ').first,
-              'role': null,
-            }).eq('id', response.user!.id);
+            response = await supabase.auth.signInWithPassword(email: email, password: password);
+          } on AuthException catch (signInErr) {
             if (!mounted) return;
-          } catch (updateErr) {
-            debugPrint('DB user update failed: $updateErr');
-            if (updateErr is PostgrestException) {
-              rethrow;
+            final m = signInErr.message.toLowerCase();
+            if (m.contains('not confirmed') || m.contains('confirm')) {
+              _showErrorSnackBar('Please confirm your email, then login.');
+            } else {
+              _showErrorSnackBar('This email is already registered. Please login.');
             }
+            _tabController.animateTo(0); // switch to Login tab
+            return;
           }
+        } else {
+          rethrow;
         }
-
-        _showSuccessSnackBar('Account created successfully!');
-        if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed('/role-select');
       }
+
+      // Supabase returns an obfuscated user with empty identities when the email
+      // already exists and confirmations are on.
+      final user = response.user;
+      if (user != null && (user.identities?.isEmpty ?? false) && response.session == null) {
+        if (!mounted) return;
+        _showErrorSnackBar('Email already registered. Please login.');
+        _tabController.animateTo(0);
+        return;
+      }
+
+      if (user == null) {
+        if (!mounted) return;
+        _showErrorSnackBar('Signup failed. Please try again.');
+        return;
+      }
+
+      // No session = email confirmation is required. We have NO valid JWT yet, so
+      // we must NOT write the profile row (that's what caused the JWT error). Tell
+      // the user to confirm + login; the profile is created on first login below
+      // is not needed — login flow + role-select handle a missing row.
+      if (response.session == null) {
+        if (!mounted) return;
+        _showSuccessSnackBar('Confirm your email, then login to continue.');
+        _tabController.animateTo(0);
+        return;
+      }
+
+      // Session is active → valid JWT → safe to create/repair the profile row.
+      // This write is the real "signup success" marker.
+      await supabase.from('users').upsert({
+        'id': user.id,
+        'email': user.email ?? email,
+        'full_name': name,
+        'nickname': name.split(' ').first,
+        'role': null,
+      });
+
+      if (!mounted) return;
+      _showSuccessSnackBar('Account created successfully!');
+      Navigator.of(context).pushReplacementNamed('/role-select');
     } on PostgrestException catch (e) {
       if (!mounted) return;
-      if (e.code == '23505' && e.message.contains('users_email_key') == true) {
-        // Duplicate email
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('User already exists. Please login.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      } else {
-        // Other Postgrest error
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Signup failed: ${e.message}')),
-        );
-      }
+      _showErrorSnackBar('Signup failed: ${e.message}');
     } on AuthException catch (e) {
       if (!mounted) return;
-      if (e.message.toLowerCase().contains('already') || e.message.toLowerCase().contains('registered')) {
-        _showErrorSnackBar('Email already registered. Please login instead.');
-      } else {
-        _showErrorSnackBar(e.message);
-      }
+      _showErrorSnackBar(e.message);
     } catch (e) {
       if (!mounted) return;
-      final String errStr = e.toString();
-      if (errStr.toLowerCase().contains('already') || errStr.toLowerCase().contains('registered')) {
-        _showErrorSnackBar('Email already registered. Please login instead.');
-      } else {
-        _showErrorSnackBar('Signup failed. Please try again.');
-      }
+      _showErrorSnackBar('Signup failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

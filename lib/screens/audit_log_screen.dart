@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 class AuditEntry {
   final String id;
@@ -114,26 +115,9 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
   Widget build(BuildContext context) {
     final filteredList = _getFilteredLogs();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              'Security Audit Log',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            centerTitle: true,
-          ),
-          body: _isLoading
+    return AppGradientScaffold(
+      title: 'Security Audit Log',
+      body: _isLoading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00)))
               : Column(
                   children: [
@@ -260,8 +244,6 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                     ),
                   ],
                 ),
-        ),
-      ),
     );
   }
 

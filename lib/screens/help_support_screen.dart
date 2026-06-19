@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/admin_settings_service.dart';
 import '../utils/error_messages.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 class HelpSupportScreen extends StatefulWidget {
   const HelpSupportScreen({super.key});
@@ -214,26 +215,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              'Help & Support',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            centerTitle: true,
-          ),
-          body: _isLoading
+    return AppGradientScaffold(
+      title: 'Help & Support',
+      body: _isLoading
               ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
@@ -370,8 +354,6 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                     ],
                   ),
                 ),
-        ),
-      ),
     );
   }
 

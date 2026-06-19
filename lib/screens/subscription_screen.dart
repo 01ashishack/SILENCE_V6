@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/plan_service.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 /// Library-owner subscription screen.
 ///
@@ -138,24 +139,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text('Subscription',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            centerTitle: true,
-          ),
-          body: _isLoading
+    return AppGradientScaffold(
+      title: 'Subscription',
+      body: _isLoading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00)))
               : RefreshIndicator(
                   color: const Color(0xFFE65C00),
@@ -181,8 +167,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ),
                   ),
                 ),
-        ),
-      ),
     );
   }
 

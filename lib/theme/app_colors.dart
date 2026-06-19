@@ -13,7 +13,19 @@ class AppColors {
   // ── Brand ────────────────────────────────────────────────────────────────
   static const Color primary = Color(0xFFE65C00); // brand orange
   static const Color primaryDark = Color(0xFFB44900); // pressed / deep orange
+  static const Color primaryLight = Color(0xFFFF6B00); // header gradient top
   static const Color secondary = Color(0xFF0F172A); // sleek dark slate
+
+  // Canonical brand header gradient (top-left → bottom-right). Use everywhere a
+  // curved orange header is drawn so the shade never drifts (#FF6B00 → #E65C00).
+  static const LinearGradient headerGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [primaryLight, primary],
+  );
+
+  // Standard card corner radius across the app.
+  static const double cardRadius = 16.0;
 
   // ── Surfaces ─────────────────────────────────────────────────────────────
   static const Color scaffold = Color(0xFFFBF5EE); // premium warm cream

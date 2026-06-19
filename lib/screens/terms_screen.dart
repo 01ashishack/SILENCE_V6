@@ -1,31 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 class TermsScreen extends StatelessWidget {
   const TermsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              'Terms & Conditions',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            centerTitle: true,
-          ),
-          body: SingleChildScrollView(
+    return AppGradientScaffold(
+      title: 'Terms & Conditions',
+      body: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Container(
               padding: const EdgeInsets.all(20),
@@ -70,8 +54,6 @@ class TermsScreen extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
     );
   }
 

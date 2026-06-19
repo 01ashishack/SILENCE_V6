@@ -1664,10 +1664,12 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               }
 
               if (memberPhoto != null && memberPhoto.isNotEmpty) {
-                innerWidget = Image.network(
-                  memberPhoto,
-                  fit: BoxFit.cover,
-                  errorBuilder: (ctx, err, stack) => const Icon(Icons.person, size: 22, color: Colors.white),
+                innerWidget = SizedBox.expand(
+                  child: Image.network(
+                    memberPhoto,
+                    fit: BoxFit.cover,
+                    errorBuilder: (ctx, err, stack) => const Icon(Icons.person, size: 22, color: Colors.white),
+                  ),
                 );
               } else {
                 innerWidget = const Icon(Icons.person, size: 22, color: Colors.white);

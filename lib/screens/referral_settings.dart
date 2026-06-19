@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/admin_settings_service.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 class ReferralSettingsScreen extends StatefulWidget {
   const ReferralSettingsScreen({super.key});
@@ -99,26 +100,9 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              'Referrals Settings',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            centerTitle: true,
-          ),
-          body: _isLoading
+    return AppGradientScaffold(
+      title: 'Referrals Settings',
+      body: _isLoading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00)))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
@@ -309,8 +293,6 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                     ],
                   ),
                 ),
-        ),
-      ),
     );
   }
 

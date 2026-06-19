@@ -58,7 +58,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   // Dynamic Profile Fields
   String _adminName = '';
   String? _adminPhotoUrl;
-  String _subscriptionPlan = 'trial';
   List<Map<String, dynamic>> _myLibrariesList = [];
   bool? _currentLibraryVerified;
   DateTime? _currentLibraryVerifiedAt;
@@ -136,11 +135,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               address.isNotEmpty &&
               photoUrl.isNotEmpty;
 
+          PlanService.instance.hydrateFromRow(userData); // single source of truth for plan name
           setState(() {
             _isProfileComplete = isComplete;
             _adminName = userData['full_name'] ?? widget.adminName;
             _adminPhotoUrl = userData['photo_url'];
-            _subscriptionPlan = userData['subscription_plan'] ?? 'trial';
             _isAppOwner = userData['is_app_owner'] == true;
           });
         }
@@ -736,7 +735,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                                         ),
                                         if (_currentLibraryVerified ?? false) ...[
                                           const SizedBox(width: 4),
-                                          const Icon(Icons.verified, color: Colors.blue, size: 20),
+                                          const Icon(Icons.verified, color: Color(0xFFE65C00), size: 20),
                                         ],
                                       ],
                                     ),
@@ -772,11 +771,9 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                (_subscriptionPlan.isEmpty ||
-                                        _subscriptionPlan.toLowerCase() == 'trial' ||
-                                        _subscriptionPlan.toLowerCase() == 'free')
-                                    ? 'Free Tier'
-                                    : (_subscriptionPlan.toLowerCase() == 'pro' || _subscriptionPlan.toLowerCase() == 'pro_plan' ? 'Premium' : _subscriptionPlan[0].toUpperCase() + _subscriptionPlan.substring(1)),
+                                // Single source of truth — same plan name as the
+                                // Subscription screen & feature gating (Free/Pro/Premium).
+                                PlanService.instance.displayPlanName,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
                                   color: Colors.white.withValues(alpha: 0.70),
@@ -785,38 +782,20 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF10B981),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      'All systems operational',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        color: Colors.white.withValues(alpha: 0.8),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ],
                           ),
                         ),
                       ],
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 1.5 Library Profile Completeness
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: _buildProfileCompletenessCard(),
                 ),
 
                 const SizedBox(height: 24),
@@ -942,7 +921,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               feature: AdminFeature.auditLog, featureLabel: 'Audit log'),
                           _buildSettingsItem(context, Icons.card_giftcard_outlined, 'Referral Rewards', '/admin/settings/referrals',
                               feature: AdminFeature.referralConfig, featureLabel: 'Referral rewards'),
-                          _buildSettingsItem(context, Icons.person_outline_rounded, 'Edit Profile Details', '/admin/profile/complete'),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -955,6 +933,13 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           _buildSettingsItem(context, Icons.info_outline, 'About Us', '/admin/about-us'),
                           _buildSettingsItem(context, Icons.support_agent, 'Help & Support', '/admin/help-support'),
                           _buildSettingsItem(context, Icons.gavel, 'Terms & Conditions', '/admin/terms'),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Privacy & Account (sensitive / destructive actions live here)
+                      _buildSettingsGroup(
+                        title: 'Privacy & Account',
+                        items: [
                           ListTile(
                             leading: const Icon(Icons.swap_horiz, size: 20, color: Color(0xFFEF4444)),
                             title: Text(
@@ -968,49 +953,37 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                             trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
                             onTap: _showChangeRoleDialog,
                           ),
+                          ListTile(
+                            leading: const Icon(Icons.logout, size: 20, color: Colors.redAccent),
+                            title: Text(
+                              'Logout',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF1E293B),
+                              ),
+                            ),
+                            trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
+                            onTap: _showLogoutConfirmation,
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.delete_forever, size: 20, color: Color(0xFFDC2626)),
+                            title: Text(
+                              'Delete Account',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFFDC2626),
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Request permanent deletion of your account & library',
+                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF991B1B)),
+                            ),
+                            trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFFDC2626)),
+                            onTap: _handleDeleteAccount,
+                          ),
                         ],
-                      ),
-                      const SizedBox(height: 24),
-                      ListTile(
-                        onTap: _showLogoutConfirmation,
-                        tileColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.red.withValues(alpha: 0.2)),
-                        ),
-                        leading: const Icon(Icons.logout, color: Colors.redAccent),
-                        title: Text(
-                          'Logout',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.redAccent,
-                          ),
-                        ),
-                        trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.redAccent),
-                      ),
-                      const SizedBox(height: 12),
-                      ListTile(
-                        onTap: _handleDeleteAccount,
-                        tileColor: const Color(0xFFFEF2F2),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.red.withValues(alpha: 0.25)),
-                        ),
-                        leading: const Icon(Icons.delete_forever, color: Color(0xFFDC2626)),
-                        title: Text(
-                          'Delete Account',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFFDC2626),
-                          ),
-                        ),
-                        subtitle: Text(
-                          'Request permanent deletion of your account & library',
-                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF991B1B)),
-                        ),
-                        trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFFDC2626)),
                       ),
                       const SizedBox(height: 40),
                     ],
@@ -1252,6 +1225,130 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     }
   }
 
+  // ── Library profile completeness (drives the progress bar) ─────────────────
+  // The currently-managed library (or the first one) used for the progress card.
+  Map<String, dynamic>? get _activeLibrary {
+    if (_myLibrariesList.isEmpty) return null;
+    final id = _selectedLibraryIdToManage ?? widget.libraryId;
+    return _myLibrariesList.firstWhere(
+      (l) => l['id'] == id,
+      orElse: () => _myLibrariesList.first,
+    );
+  }
+
+  // Honest checklist straight off the library row — what still needs filling
+  // to make the public library profile rich (and qualify for the badge).
+  List<String> _missingProfileDetails(Map<String, dynamic> lib) {
+    final missing = <String>[];
+    final cover = (lib['cover_photo_url'] ?? '').toString().trim();
+    final photos = (lib['photos'] as List?) ?? const [];
+    if (cover.isEmpty && photos.isEmpty) missing.add('Cover photo');
+    if ((lib['about_text'] ?? '').toString().trim().isEmpty) missing.add('About');
+    final amenities = (lib['amenities'] as List?) ?? const [];
+    if (amenities.isEmpty) missing.add('Amenities');
+    if ((lib['rules'] ?? '').toString().trim().isEmpty) missing.add('Rules');
+    if ((lib['address_street'] ?? '').toString().trim().isEmpty) missing.add('Address');
+    if ((lib['emergency_phone'] ?? '').toString().trim().isEmpty) missing.add('Emergency contact');
+    final social = lib['social_links'];
+    final hasSocial = social is Map && social.isNotEmpty;
+    if (!hasSocial) missing.add('Social links');
+    return missing;
+  }
+
+  Widget _buildProfileCompletenessCard() {
+    final lib = _activeLibrary;
+    if (lib == null) return const SizedBox.shrink();
+
+    final missing = _missingProfileDetails(lib);
+    const total = 7;
+    final filled = total - missing.length;
+    final pct = (filled / total).clamp(0.0, 1.0);
+    final bool isComplete = missing.isEmpty;
+    const Color accent = Color(0xFF16A34A); // green progress bar
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(isComplete ? Icons.verified_rounded : Icons.auto_graph_rounded, size: 18, color: accent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Library Profile',
+                  style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                ),
+              ),
+              Text(
+                '${(pct * 100).round()}%',
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: accent),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 8,
+              backgroundColor: const Color(0xFFF1F5F9),
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (isComplete)
+            Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF16A34A)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Profile fully optimised — boosts visibility & helps you qualify for the verified badge.',
+                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569), height: 1.4),
+                  ),
+                ),
+              ],
+            )
+          else ...[
+            Text(
+              'Add these to optimise your profile & qualify for the verified badge:',
+              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), height: 1.4),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: missing.map((m) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFFEDD5)),
+                  ),
+                  child: Text(
+                    m,
+                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF9A3412)),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildSettingsGroup({required String title, required List<Widget> items}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1322,6 +1419,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     final String? coverUrl = lib['cover_photo_url'];
     final int members = lib['member_count'] ?? 0;
     final int occupancy = lib['occupancy_pct'] ?? 0;
+    final String openingHours = (lib['opening_hours'] ?? '').toString().trim();
 
     return GestureDetector(
       onTap: () {
@@ -1427,6 +1525,27 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               ),
                             ],
                           ),
+                          if (openingHours.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.access_time, size: 12, color: Color(0xFFE65C00)),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    openingHours,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1600,13 +1719,17 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 crossAxisSpacing: 12,
                 childAspectRatio: 0.9,
                 children: [
+                  _buildGridItem(Icons.person_outline_rounded, 'Edit Profile', () {
+                    Navigator.pushNamed(context, '/admin/profile/complete').then((_) => _loadProfileData());
+                  }),
                   _buildGridItem(Icons.info_outline, 'Basic Details', _showBasicDetailsBottomSheet),
+                  _buildGridItem(Icons.menu_book_outlined, 'About & Info', _showLibraryDetailsBottomSheet),
                   _buildGridItem(Icons.widgets_outlined, 'Amenities', _showAmenitiesBottomSheet),
                   _buildGridItem(Icons.access_time, 'Shift & Plan', _navigateToShiftManagement),
                   _buildGridItem(Icons.payments_outlined, 'Payment Methods', _openPaymentMethods),
                   _buildGridItem(Icons.link, 'Social Links', _showSocialLinksBottomSheet),
-                  _buildGridItem(Icons.rule_folder, 'Rules', _showRulesBottomSheet),
                   _buildGridItem(Icons.collections, 'Gallery', _showGalleryBottomSheet),
+                  _buildGridItem(Icons.rule_folder, 'Rules', _showRulesBottomSheet),
                 ],
               ),
             ],
@@ -1660,6 +1783,219 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
       _loadProfileData();
       widget.onLibraryUpdated?.call();
     });
+  }
+
+  // ── Library "About & Info" — About, Opening Hours and Members-Joined label.
+  // All three are admin-editable and saved on the library row, so they stay in
+  // sync wherever they're shown (public profile + this tab + completeness bar).
+  Future<void> _showLibraryDetailsBottomSheet() async {
+    final lib = _selectedLibrary;
+    if (lib == null) return;
+    final libId = lib['id'];
+
+    // Opening hours are owned by Shift & Plan — shown read-only here.
+    List<Map<String, dynamic>> shifts = [];
+    try {
+      final res = await _supabase
+          .from('shifts')
+          .select('name, start_time, end_time, shift_type')
+          .eq('library_id', libId)
+          .eq('is_archived', false);
+      shifts = List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      debugPrint('Error fetching shifts for details sheet: $e');
+    }
+    if (!mounted) return;
+
+    final aboutCtrl = TextEditingController(text: lib['about_text'] ?? '');
+    final hoursCtrl = TextEditingController(text: lib['opening_hours'] ?? '');
+    final membersCtrl = TextEditingController(text: lib['display_members_joined'] ?? '');
+    bool saving = false;
+
+    String fmt(String? t) {
+      if (t == null || t.isEmpty) return '';
+      try {
+        final p = t.split(':');
+        final dt = DateTime(2026, 1, 1, int.parse(p[0]), p.length > 1 ? int.parse(p[1]) : 0);
+        return DateFormat.jm().format(dt);
+      } catch (_) {
+        return t;
+      }
+    }
+
+    final String shiftRef = shifts.isEmpty
+        ? ''
+        : shifts.map((s) {
+            final type = (s['shift_type'] ?? 'fixed').toString();
+            return type == 'hourly'
+                ? '${s['name'] ?? 'Shift'}: hourly'
+                : '${s['name'] ?? 'Shift'}: ${fmt(s['start_time']?.toString())}–${fmt(s['end_time']?.toString())}';
+          }).join('   •   ');
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheet) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+                top: 24,
+                left: 24,
+                right: 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'About & Info',
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Shown on your public library profile.',
+                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // About (editable)
+                    Text(
+                      'About Library',
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: aboutCtrl,
+                      maxLines: 4,
+                      maxLength: 600,
+                      style: GoogleFonts.inter(fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'Describe your library — the vibe, facilities, who it suits best...',
+                        hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE65C00)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Opening Hours (editable — shown on the public profile)
+                    Text(
+                      'Opening Hours',
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: hoursCtrl,
+                      style: GoogleFonts.inter(fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. 6:00 AM – 11:00 PM',
+                        hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
+                        prefixIcon: const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFFE65C00)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE65C00)),
+                        ),
+                      ),
+                    ),
+                    if (shiftRef.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Your shifts: $shiftRef',
+                        style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+
+                    // Members Joined (editable label — social proof on profile)
+                    Text(
+                      'Members Joined',
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: membersCtrl,
+                      style: GoogleFonts.inter(fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. 500+',
+                        hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
+                        prefixIcon: const Icon(Icons.groups_rounded, size: 18, color: Color(0xFFE65C00)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE65C00)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Shown as social proof, e.g. "500+ members already joined".',
+                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
+                    ),
+                    const SizedBox(height: 20),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                final navigator = Navigator.of(sheetContext);
+                                final aboutText = aboutCtrl.text.trim();
+                                setSheet(() => saving = true);
+                                try {
+                                  await _supabase.from('libraries').update({
+                                    'about_text': aboutText,
+                                    'opening_hours': hoursCtrl.text.trim(),
+                                    'display_members_joined': membersCtrl.text.trim(),
+                                  }).eq('id', libId);
+                                  if (!mounted) return;
+                                  navigator.pop();
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Library details saved ✓'),
+                                      backgroundColor: Color(0xFFE65C00),
+                                    ),
+                                  );
+                                  _loadProfileData(); // refreshes the completeness bar
+                                  widget.onLibraryUpdated?.call();
+                                } catch (e) {
+                                  setSheet(() => saving = false);
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('Error: ${friendlyError(e)}')),
+                                  );
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE65C00),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: saving
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : Text('Save', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showBasicDetailsBottomSheet() {
@@ -2046,6 +2382,28 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Where these rules appear (member-facing, not public profile).
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, size: 15, color: Color(0xFF2563EB)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'These rules are shown to your members inside the member app — not on your public library profile.',
+                              style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF1E40AF), height: 1.35),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Expanded(

@@ -447,6 +447,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           shiftName: shift['name'] ?? 'N/A',
         );
 
+        // Notify the library owner that a member checked in (non-blocking).
+        _notifyOwnerAttendance(libraryId, true);
+
       } else {
         // ------------------
         // CHECK-OUT COOLDOWN & CONFIRMATION
@@ -797,6 +800,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       // Reset scan counters
       _cooldownScansCount = 0;
 
+      // Notify the library owner that a member checked out (non-blocking).
+      _notifyOwnerAttendance(activeSession['library_id']?.toString() ?? '', false);
+
       final nowIst = toIST(checkOutTimeUtc);
       final parts = shiftEndTimeStr.split(':');
       int endHour = 14;
@@ -856,6 +862,37 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           _isProcessingScan = false;
         });
       }
+    }
+  }
+
+  // Notify the library owner when a member checks in/out. RLS allows a member
+  // with a membership at the library to notify that library's owner. Best-effort
+  // and non-blocking — a failure never affects the scan result.
+  Future<void> _notifyOwnerAttendance(String libraryId, bool isCheckIn) async {
+    if (libraryId.isEmpty) return;
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+      final lib = await supabase.from('libraries').select('owner_id').eq('id', libraryId).maybeSingle();
+      final ownerId = lib?['owner_id'];
+      if (ownerId == null) return;
+
+      String name = 'A member';
+      try {
+        final u = await supabase.from('users').select('full_name').eq('id', user.id).maybeSingle();
+        final fn = (u?['full_name'] ?? '').toString().trim();
+        if (fn.isNotEmpty) name = fn;
+      } catch (_) {}
+
+      await supabase.from('notifications').insert({
+        'user_id': ownerId,
+        'title': isCheckIn ? 'Member checked in' : 'Member checked out',
+        'body': isCheckIn ? '$name just checked in.' : '$name just checked out.',
+        'data': {'type': isCheckIn ? 'check_in' : 'check_out'},
+      });
+    } catch (e) {
+      debugPrint('Owner attendance notification failed: $e');
     }
   }
 

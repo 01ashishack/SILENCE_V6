@@ -704,6 +704,22 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         }
       }
 
+      // Notify the library owner about the new join request.
+      // RLS allows an applicant → related-library-owner notification.
+      try {
+        final ownerId = _library?['owner_id'];
+        if (ownerId != null) {
+          await supabase.from('notifications').insert({
+            'user_id': ownerId,
+            'title': 'New join request',
+            'body': 'A new member has applied to join your library. Review it in Reservations → Requests.',
+            'data': {'type': 'join_request'},
+          });
+        }
+      } catch (e) {
+        debugPrint('Owner join-request notification failed: $e');
+      }
+
       // 4. Save optional referral
       final refCode = _referralCtrl.text.trim();
       if (refCode.isNotEmpty) {

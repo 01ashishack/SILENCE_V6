@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/states.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 /// APP-OWNER-only console to review account-recovery requests. Lists users who
 /// requested recovery within their 7-day deletion window; the owner Approves
@@ -139,13 +140,8 @@ class _OwnerRecoveryConsoleScreenState extends State<OwnerRecoveryConsoleScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffold,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        title: Text('Recovery Console', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-      ),
+    return AppGradientScaffold(
+      title: 'Recovery Console',
       body: _loading
           ? const LoadingState()
           : _error != null

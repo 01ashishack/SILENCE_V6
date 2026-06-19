@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../core/admin_settings_service.dart';
+import '../widgets/app_gradient_scaffold.dart';
 
 class VerifiedBadgeScreen extends StatefulWidget {
   final String? libraryId;
@@ -215,26 +216,9 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
   Widget build(BuildContext context) {
     final bool passesAll = _setupComplete && _active30Days && _adminPremium && _has10Members && _has50Checkins && _profileComplete;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              'Verified Badge Status',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            centerTitle: true,
-          ),
-          body: _isLoading
+    return AppGradientScaffold(
+      title: 'Verified Badge Status',
+      body: _isLoading
               ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
@@ -429,8 +413,6 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
                     ],
                   ),
                 ),
-        ),
-      ),
     );
   }
 

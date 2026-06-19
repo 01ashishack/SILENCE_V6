@@ -62,7 +62,6 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
   final List<String> _examCategories = [
     'UPSC', 'NEET', 'JEE', 'SSC', 'PCS', 'CAT', 'Banking', 'State PCS', 'Class 10-12', 'Other'
   ];
-  final List<String> _idDocTypes = ['Aadhaar', 'PAN Card', 'Voter ID', 'Driving License', 'Passport', 'Other'];
 
   @override
   void initState() {
@@ -970,29 +969,27 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('ID Verification Documents', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+          Text('ID Verification', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+          const SizedBox(height: 4),
+          Text(
+            'Upload a clear photo of your ID. Front is required.',
+            style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B)),
+          ),
           const SizedBox(height: 16),
-          
-          _buildDocRow('ID Proof (Front / Full)', _idDocType1, _idDocumentUrl, _idProofStatus, 'id_doc_1', (v) {
-            if (v != null) setState(() => _idDocType1 = v);
-          }),
-          const Divider(height: 24),
-          _buildDocRow('Other Side (if required for your ID)', _idDocType2, _idDocument2Url, _idProof2Status, 'id_doc_2', (v) {
-            if (v != null) setState(() => _idDocType2 = v);
-          }),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildIdPhotoTile('ID Front', true, _idDocumentUrl, _idProofStatus, 'id_doc_1')),
+              const SizedBox(width: 12),
+              Expanded(child: _buildIdPhotoTile('ID Back', false, _idDocument2Url, _idProof2Status, 'id_doc_2')),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildDocRow(
-    String label, 
-    String docType, 
-    String? docUrl, 
-    String status, 
-    String uploadType,
-    ValueChanged<String?> onTypeChanged
-  ) {
+  Widget _buildIdPhotoTile(String label, bool isRequired, String? docUrl, String status, String uploadType) {
     Color statusColor = Colors.grey;
     if (status == 'Verified') statusColor = const Color(0xFF10B981);
     if (status == 'Under Review') statusColor = const Color(0xFFF59E0B);
@@ -1002,71 +999,58 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                status,
-                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
-              ),
-            )
+            Text(label, style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+            if (isRequired)
+              Text('  *', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
           ],
         ),
-        const SizedBox(height: 8),
-        StyledDropdownButton<String>(
-          value: docType,
-          items: _idDocTypes,
-          itemLabelBuilder: (String type) => type,
-          onChanged: onTypeChanged,
-          title: 'Select ID Type',
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         GestureDetector(
           onTap: () => _pickAndUploadPhoto(uploadType: uploadType),
           child: Container(
-            height: 110,
+            height: 120,
             width: double.infinity,
             decoration: BoxDecoration(
               color: const Color(0xFFFBF5EE),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
             child: docUrl != null && docUrl.isNotEmpty
                 ? Stack(
+                    fit: StackFit.expand,
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                         child: CachedNetworkImage(
                           imageUrl: docUrl,
                           fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
                         ),
                       ),
                       Container(
-                        color: Colors.black26,
-                        child: const Center(
-                          child: Icon(Icons.cloud_done, color: Colors.white, size: 28),
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                      )
+                        child: const Center(child: Icon(Icons.edit, color: Colors.white, size: 22)),
+                      ),
                     ],
                   )
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.cloud_upload_outlined, size: 24, color: Color(0xFFE65C00)),
-                      const SizedBox(height: 4),
-                      Text('Upload Document', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                      const Icon(Icons.add_a_photo_outlined, size: 24, color: Color(0xFFE65C00)),
+                      const SizedBox(height: 6),
+                      Text('Add Photo', style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                     ],
                   ),
           ),
-        )
+        ),
+        const SizedBox(height: 6),
+        Text(
+          status,
+          style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: statusColor),
+        ),
       ],
     );
   }

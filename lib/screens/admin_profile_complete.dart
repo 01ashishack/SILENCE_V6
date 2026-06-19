@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/image_optimizer.dart';
+import '../widgets/app_gradient_scaffold.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -421,26 +422,9 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE65C00),
-      body: SafeArea(
-        top: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFE65C00),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              'Complete Profile',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            centerTitle: true,
-          ),
-          body: _isLoading
+    return AppGradientScaffold(
+      title: 'Complete Profile',
+      body: _isLoading
               ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))))
               : Form(
                   key: _formKey,
@@ -761,9 +745,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                   ),
                 ),
               ),
-            ),
-          ),
-        );
+    );
   }
 
   String _getMonthName(int month) {

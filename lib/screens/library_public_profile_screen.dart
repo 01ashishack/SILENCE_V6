@@ -49,6 +49,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
   List<Map<String, dynamic>> _reviews = [];
   bool _hasActiveMembership = false;
   bool _hasReviewed = false;
+  int _membersServed = 0; // distinct members who have ever joined this library
 
   // Active UI States
   double _avgRating = 0.0;
@@ -274,6 +275,22 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       if (!mounted) return;
       _shifts = List<Map<String, dynamic>>.from(shiftsRes);
 
+      // 2b. Members served — distinct members who have ever joined (any status).
+      // Honest "trusted by N students" social-proof stat.
+      try {
+        final msRes = await _supabase
+            .from('memberships')
+            .select('member_id')
+            .eq('library_id', libraryId);
+        final distinct = List<Map<String, dynamic>>.from(msRes)
+            .map((m) => m['member_id'])
+            .where((id) => id != null)
+            .toSet();
+        _membersServed = distinct.length;
+      } catch (e) {
+        debugPrint('Error counting members served: $e');
+      }
+
       // 3. Fetch reviews
       try {
         final reviewsRes = await _supabase
@@ -365,9 +382,39 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     }
   }
 
+  // Mini stat used in the public-profile quick-stats strip.
+  Widget _publicStat(IconData icon, String value, String label) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFFE65C00)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _publicStatDivider() {
+    return Container(width: 1, height: 34, color: const Color(0xFFE2E8F0));
+  }
+
   String _getOperatingHours(List<dynamic> shifts) {
     if (shifts.isEmpty) return "Hours Not Configured";
-    
+        
     int minMin = 1440;
     int maxMin = 0;
     bool covers24h = false;
@@ -839,7 +886,9 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                           Icon(Icons.access_time, size: 14, color: Colors.white.withValues(alpha: 0.8)),
                           const SizedBox(width: 6),
                           Text(
-                            _getOperatingHours(_shifts),
+                            (_library?['opening_hours'] ?? '').toString().trim().isNotEmpty
+                                ? _library!['opening_hours'].toString()
+                                : _getOperatingHours(_shifts),
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.9),
@@ -870,6 +919,35 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Quick stats (social proof): members served · rating · reviews
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        _publicStat(
+                          Icons.groups_rounded,
+                          (_library?['display_members_joined'] ?? '').toString().trim().isNotEmpty
+                              ? _library!['display_members_joined'].toString()
+                              : (_membersServed > 0 ? '$_membersServed' : '—'),
+                          'Members joined',
+                        ),
+                        _publicStatDivider(),
+                        _publicStat(Icons.star_rounded, _reviewCount > 0 ? _avgRating.toStringAsFixed(1) : '—', 'Rating'),
+                        _publicStatDivider(),
+                        _publicStat(Icons.rate_review_outlined, '$_reviewCount', 'Reviews'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
                   // 2. Amenities Section
                   if (amenities.isNotEmpty) ...[
                     Text(
