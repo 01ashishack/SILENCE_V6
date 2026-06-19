@@ -943,6 +943,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           _buildSettingsItem(context, Icons.card_giftcard_outlined, 'Referral Rewards', '/admin/settings/referrals',
                               feature: AdminFeature.referralConfig, featureLabel: 'Referral rewards'),
                           _buildSettingsItem(context, Icons.person_outline_rounded, 'Edit Profile Details', '/admin/profile/complete'),
+                          _buildSettingsItem(context, Icons.auto_awesome_outlined, '✨ Preview New Look (V2)', '/preview/admin-v2'),
                         ],
                       ),
                       const SizedBox(height: 16),
