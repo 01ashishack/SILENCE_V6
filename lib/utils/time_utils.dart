@@ -65,3 +65,25 @@ DateTime parseShiftTime(String timeStr, DateTime dateInIst) {
   }
   return DateTime(dateInIst.year, dateInIst.month, dateInIst.day, hour, minute, second);
 }
+
+// ── Canonical IST clock (P8-01) ─────────────────────────────────────────────
+// Day boundaries ("today", streaks, "studied today", closures) must use IST
+// (UTC+5:30) as the single source of truth — NOT DateTime.now() (device-local)
+// or a UTC date-key (off-by-one between 00:00–05:30 IST). Use these everywhere.
+
+/// Current wall-clock time in IST.
+DateTime istNow() => toIST(DateTime.now().toUtc());
+
+/// Today at 00:00 in IST (date-only).
+DateTime istToday() {
+  final n = istNow();
+  return DateTime(n.year, n.month, n.day);
+}
+
+/// `yyyy-MM-dd` for today, in IST.
+String istTodayKey() => DateFormat('yyyy-MM-dd').format(istNow());
+
+/// `yyyy-MM-dd` (IST) for a DB timestamp string (e.g. attendance.check_in_time),
+/// tolerant of values with or without a trailing `Z`.
+String istDateKeyFromDb(String dbTime) =>
+    DateFormat('yyyy-MM-dd').format(toIST(parseDBTimeToUtc(dbTime)));

@@ -471,7 +471,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       _todayHolidays = {};
       if (joinedLibIds.isNotEmpty) {
         try {
-          final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+          final todayStr = istTodayKey();
           final closureRes = await supabase
               .from('scheduled_closures')
               .select('library_id, reason, start_date, end_date')
@@ -501,11 +501,13 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         final checkIn = a['check_in_time'] as String?;
         final checkOut = a['check_out_time'] as String?;
         if (checkIn != null) {
-          final localIn = DateTime.parse(checkIn).toLocal();
-          studyDates.add(DateFormat('yyyy-MM-dd').format(localIn));
+          // Bucket the study day in IST (not device-local) so streaks agree
+          // regardless of device timezone (P8-01).
+          studyDates.add(istDateKeyFromDb(checkIn));
           if (checkOut != null) {
-            final localOut = DateTime.parse(checkOut).toLocal();
-            hoursSum += localOut.difference(localIn).inMinutes / 60.0;
+            final inUtc = DateTime.parse(checkIn);
+            final outUtc = DateTime.parse(checkOut);
+            hoursSum += outUtc.difference(inUtc).inMinutes / 60.0;
           }
         }
       }
@@ -972,8 +974,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   int _calculateCurrentStreak(Set<String> studyDates) {
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final yesterdayStr = DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 1)));
+    final todayStr = DateFormat('yyyy-MM-dd').format(istNow());
+    final yesterdayStr = DateFormat('yyyy-MM-dd').format(istNow().subtract(const Duration(days: 1)));
     
     bool hasToday = studyDates.contains(todayStr);
     bool hasYesterday = studyDates.contains(yesterdayStr);
@@ -981,7 +983,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     if (!hasToday && !hasYesterday) return 0;
     
     int streak = 0;
-    DateTime current = hasToday ? DateTime.now() : DateTime.now().subtract(const Duration(days: 1));
+    DateTime current = hasToday ? istNow() : istNow().subtract(const Duration(days: 1));
     
     while (true) {
       final curStr = DateFormat('yyyy-MM-dd').format(current);
@@ -1034,7 +1036,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   /// Current calendar week, Sunday → Saturday (fixed order, not a rolling 7
   /// days). Each entry: dayLabel (S/M/T/W/T/F/S), attended, isToday, isFuture.
   List<Map<String, dynamic>> _getLast7DaysAttendance(Set<String> studyDates) {
-    final now = DateTime.now();
+    final now = istNow();
     final today = DateTime(now.year, now.month, now.day);
     // weekday: Mon=1..Sun=7 → days since the most recent Sunday.
     final sunday = today.subtract(Duration(days: today.weekday % 7));
@@ -1089,7 +1091,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final hasTrial = _allMemberships.any((m) => m['status'] == 'trial');
     if (hasTrial) return MemberState.trial;
 
-    final today = DateTime.now();
+    final today = istNow();
     final todayPlus7 = today.add(const Duration(days: 7));
 
     // 2. active (end_date > today + 7)
@@ -1314,7 +1316,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         return null; // eligible to check in / out
       case MemberState.expired:
         final expiredM = _allMemberships.firstWhere(
-          (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(DateTime.now())),
+          (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(istNow())),
           orElse: () => {},
         );
         if (expiredM.isNotEmpty) {
@@ -2200,7 +2202,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   // STAGE 7: EXPIRED
   Widget _buildExpiredState() {
     final expiredM = _allMemberships.firstWhere(
-      (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(DateTime.now())),
+      (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(istNow())),
       orElse: () => {},
     );
     if (expiredM.isEmpty) return const SizedBox.shrink();

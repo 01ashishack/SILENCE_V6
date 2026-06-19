@@ -120,6 +120,22 @@ Full flow built; `flutter analyze` clean. **Migrations APPLIED + Edge Function d
   throwaway account before relying on the cron. Self-cancel removed (recovery is owner-approved).
 - Minor: descriptive "30-day" copy in member_about / privacy_policy not yet updated to 7-day.
 
+### Session 2026-06-18 (g) — P8-01 batch 1: canonical IST clock (member dashboard / scanner / holidays)
+Added canonical IST helpers to `lib/utils/time_utils.dart` — `istNow()`, `istToday()`, `istTodayKey()`,
+`istDateKeyFromDb(dbTime)`. Routed the member-facing day-boundary logic through them (was a mix of
+device-local `.toLocal()` and UTC date-keys):
+- **Closure "today" key (always off-by-one 00:00–05:30 IST):** `qr_scanner_screen` + `member_home` now
+  use `istTodayKey()`.
+- **Streaks / study-days:** `member_home` `_studyDates` bucketing → `istDateKeyFromDb`; `_calculateCurrentStreak`,
+  `_getLast7DaysAttendance`, `_computeMemberState` + expired lookups → `istNow()`/`istToday()`.
+- **Holidays:** `holiday_service.todaysHoliday` / reopen check → `istNow()`.
+- `flutter analyze` clean. ⛔ device-verify streak/“studied today”/closure near midnight.
+- **P8-01 batch 2 (deferred):** the analytics ENGINE (`member_analytics_service`) + analytics TABS
+  (`member_analytics_tab`, `admin_analytics_tab`) build query ranges as `DateTime(y,m,d).toUtc()`
+  (device-local midnight). Correct on IST devices today; making them IST-exact needs an
+  IST-midnight-as-UTC transform + per-view testing (revenue, attendance rate, leaderboard). Do as a
+  tested unit.
+
 ### Session 2026-06-18 (f) — P5-08: actor-scope the forgeable inserts — APPLIED
 `2026-06-18_actor_scope_inserts.sql` (+ folded into canonical) — **applied to live DB 2026-06-18**.
 Replaced the open `WITH CHECK (auth.uid() IS NOT NULL)` on **notifications / audit_log / badges / referrals** with
@@ -203,8 +219,10 @@ Function. No code change this session; docs synced. Now live:
 ### Key reframes (these OVERRIDE the old spec/audit "fixes")
 - **Member ↔ library-admin payment is OUT OF APP.** Real `upi://pay` deep-link + "I have paid";
   admin verifies in their bank app + confirms. No in-app gateway, no screenshot-theatre.
-- **Subscription (app-owner ↔ library-owner):** NOT in-app Razorpay — store IAP or website+Razorpay
-  (TBD). First 1–2 months free tier; subscription screen shows mock plans (Free/₹499/₹799).
+- **Subscription (app-owner ↔ library-owner):** NOT in-app — **DECIDED (2026-06-18): Razorpay on the
+  website only** for subscription management; the app just READS `subscription_*` (written by the
+  website/webhook). In-app subscription screen shows the plan + a 30-day Free window (display-only;
+  `betaMode=true` keeps features unlocked). First 1–2 months free tier.
 - **Member-side "create hold" REMOVED** — only admins hold/resume; members request an early resume.
 - **Identity verification (email/phone OTP): built but DISABLED.**
 - **Notifications:** in-app center real; **FCM push foundation shipped + web-verified** (see above).

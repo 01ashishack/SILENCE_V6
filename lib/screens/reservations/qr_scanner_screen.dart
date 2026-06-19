@@ -279,7 +279,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       //    Canonical table: scheduled_closures(start_date..end_date inclusive).
       try {
         debugPrint('[CHECKOUT STEP] Starting: closure lookup');
-        final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+        final todayStr = istTodayKey();
         debugPrint('[QR Scan] Checking library closure for date: $todayStr');
         final closureRows = await supabase
             .from('scheduled_closures')

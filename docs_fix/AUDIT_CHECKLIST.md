@@ -51,7 +51,7 @@
 | 15 | P9-01 | Notifications hardcoded "all caught up" stub | ✅ | real notification center + notify on approve/reject/hold/seat/holiday/query/payment |
 | 16 | P5-03 | 7 code tables missing from schema | ✅ | **Phase C applied to live DB** — all 6 tables created with RLS (`settings`,`streaks`,`member_daily_stats`,`leads`,`verification_requests`,`draft_members`); RLS check = `relrowsecurity=true` for all 6 |
 | 17 | P5-02 | 4 conflicting `expenditures` schemas | ✅ | **Phase C applied** — canonical schema unified, loose files superseded, `admin_analytics_tab` normalized to lowercase keys, existing rows migrated (§D) |
-| 18 | P8-01 | Three contradictory "which day" defs (TZ) | 🟡 | one IST clock used in member_home / activities / holidays; full reconcile + precompute pending |
+| 18 | P8-01 | Three contradictory "which day" defs (TZ) | 🟡 | **batch 1 done (2026-06-18):** canonical `istNow/istToday/istTodayKey/istDateKeyFromDb` in `time_utils`; member dashboard + scanner closure-key + streaks + holidays routed through IST. **Batch 2 pending:** analytics engine + tabs range-builders (device-local→IST midnight-as-UTC) |
 | 19 | P11-01 | Analytics fast-path tables absent | ⬜ | Wave 2 precompute |
 | 20 | P11-02 | Badge engine N+1 | ⬜ | Wave 2 |
 | 21 | P1-01/P1-02 | Release manifest missing INTERNET + debug-signed | ✅ | INTERNET permission present in manifest; release `signingConfig` wired to `key.properties` (gitignored) with debug fallback — user generates the keystore (`key.properties.example`) |

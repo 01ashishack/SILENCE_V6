@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'time_utils.dart';
 
 /// A single library closure / holiday.
 ///
@@ -100,7 +101,7 @@ class HolidayService {
 
   /// Convenience: today's holiday for a library (null if open).
   Future<Holiday?> todaysHoliday(String libraryId) =>
-      holidayOn(libraryId, DateTime.now());
+      holidayOn(libraryId, istNow());
 
   /// Create a closure. [start]..[end] inclusive; pass the same date for a
   /// single-day holiday. Returns the created [Holiday]. Notifies members when
@@ -142,7 +143,7 @@ class HolidayService {
   Future<void> removeHoliday(String id, {Holiday? holiday}) async {
     await _supabase.from('scheduled_closures').delete().eq('id', id);
     if (holiday == null || !holiday.notifyMembers) return;
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(istNow());
     final endDay = _dateOnly(holiday.endDate);
     if (endDay.isBefore(today)) return; // a past closure — nothing to reopen
     await notifyMembersOfReopen(holiday);
