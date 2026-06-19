@@ -14,6 +14,7 @@ import 'past_library_detail_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/shimmer_box.dart';
+import '../utils/time_utils.dart';
 
 
 class MemberHistoryTab extends StatefulWidget {
@@ -80,7 +81,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
 
   // Helper: Get Resolved Date Range
   DateTimeRange? _getDateRange() {
-    final now = DateTime.now();
+    final now = istNow();
     final todayStart = DateTime(now.year, now.month, now.day);
     final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
@@ -344,9 +345,6 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     }
     final uniqueDaysPresent = presentDays.length;
 
-    // Elapsed Days
-    final elapsedDays = range.end.difference(range.start).inDays + 1;
-
     // Closed Days
     final Set<String> uniqueClosed = {};
     for (var c in _closures) {
@@ -358,10 +356,25 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         uniqueClosed.add(dateStr.toString().split('T').first);
       }
     }
-    final closedDaysCount = uniqueClosed.length;
-
-    // Absent Days = Total days - studied days - closed days
-    int calcAbsent = elapsedDays - uniqueDaysPresent - closedDaysCount;
+    // Absent = days the member actually had an active membership, the library
+    // was open, they were NOT present, and the day is not in the future.
+    // Matches _generateSessionsList exactly (the old `elapsedDays − present −
+    // closed` blindly counted every day in range, inflating absences for the
+    // period before the member joined and for future custom-range days).
+    final now = istNow();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final rangeEndDay = DateTime(range.end.year, range.end.month, range.end.day);
+    int calcAbsent = 0;
+    var cursor = DateTime(range.start.year, range.start.month, range.start.day);
+    while (!cursor.isAfter(rangeEndDay) && !cursor.isAfter(todayDate)) {
+      final key = DateFormat('yyyy-MM-dd').format(cursor);
+      if (!presentDays.contains(key) &&
+          !uniqueClosed.contains(key) &&
+          _hasActiveMembershipOn(cursor)) {
+        calcAbsent++;
+      }
+      cursor = cursor.add(const Duration(days: 1));
+    }
     _absentCount = calcAbsent < 0 ? 0 : calcAbsent;
 
     // Average Hours per Present Day

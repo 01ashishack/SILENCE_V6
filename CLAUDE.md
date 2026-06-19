@@ -32,6 +32,54 @@
 - **Live DB project ref:** `kndeshxeerldamafweru` (`lib/core/supabase_config.dart`). Branch `main`,
   remote `origin` (github.com/01ashishack/SILENCE_V6).
 
+### Session 2026-06-19 — Analytics/admin-profile/headers overhaul + signup fix + member-home audit fixes
+Committed+pushed at **`a26943a`** (analytics + headers + profile + signup + member polish). A further
+batch of member-home audit fixes is **uncommitted** (see end). `flutter analyze` 0 errors throughout.
+**⛔ ONE migration to APPLY (then verify, then fold into `supabase_schema.sql`):**
+`2026-06-19_library_display_fields.sql` (libraries.`opening_hours`, `display_members_joined`).
+*(The geo `latitude/longitude` migration was dropped — coordinates are impractical for admins; the
+public profile's "View on Map" button uses `location_link` (Google Maps link) instead.)*
+
+- **Admin Analytics tab** (`admin_analytics_tab.dart` + new `lib/widgets/charts/analytics_painters.dart`):
+  filter change re-processes cached raw (no re-fetch); every chart painter has a correct `shouldRepaint`
+  (no per-frame repaint); fetch joins trimmed to needed columns; bigger KPI cards; smooth (Catmull-Rom)
+  line chart; 10 painters extracted to a widget file; header date → IST; **Refund Requests** stat folded
+  into Net Profit subtitle (`Expenses ₹X · Refunds N`); **'Today' preset removed** from Revenue + Shifts&Plans,
+  default **This Month**; Floor/Shift selectors Expanded (no blank gap).
+- **Unified admin sub-screen header**: new `lib/widgets/app_gradient_scaffold.dart` (curved orange-gradient
+  header) applied to **14 sub-screens** (About/Help/Terms/Audit/App-Settings/Referrals/Subscription/Shifts/
+  Exports/Announcements/Verified-Badge/Edit-Profile/Recovery/Payment-Methods). New tokens in `AppColors`:
+  `headerGradient`, `primaryLight`, `cardRadius`. Export now uses the app's custom calendar (was stock range picker).
+- **Admin Profile tab** (`admin_profile_tab.dart`): library-profile **completeness progress bar** (green) +
+  pending-detail chips; sections reordered priority-wise; new **Privacy & Account** section (Change Role +
+  Logout + Delete Account moved there); **About & Info** option on the Library-Management card — admin edits
+  **About / Opening Hours / Members-Joined label**, all synced to the public profile + completeness bar;
+  Library-Management grid reorder (Edit Profile first, Rules last) + Rules sheet note ("shown in member app,
+  not public profile"); plan name now via `PlanService.displayPlanName` (Free/Pro/Premium — was raw 'Starter');
+  removed fake "All systems operational"; verified tick orange.
+- **Public profile** (`library_public_profile_screen.dart`): shows manual `opening_hours` (else shift-derived)
+  + a stats strip (Members joined / Rating / Reviews) using admin's `display_members_joined`.
+- **Signup fix** (`auth_screen.dart`): profile-row write only when a session exists (kills the JWT error);
+  on "already registered" it auto signs-in with the same creds (no dead "already member"); confirmation-pending → Login tab.
+- **Admin Home**: top "in today" = total who came today; "Active Now" card = LIVE present (checked-in, not
+  out) / total; stat-card sizing + gap fixed; **new notifications** — join request → admin, member check-in/out → admin
+  (approve/reject→member already existed). Notifications rely on the applied actor-scope RLS (no new migration).
+- **Member**: profile-edit ID upload → **Front (required) + Back** photos (matches add-member wizard); seat-grid
+  avatar `BoxFit.cover` (was original-ratio with blue gaps).
+- **Member-home AUDIT fixes (uncommitted batch):**
+  - **C1** unguarded `setState` in `finally` → `mounted`-guarded (join_flow ×2, member_profile_tab photo).
+  - **C2** join_flow `maybeSingle()` on non-unique filters → `.limit(1)`; referral block isolated + non-fatal (runs post-commit).
+  - **H1** Explore distance feature **removed entirely** (lat/long impractical for admins): dropped GPS/
+    `geolocator` permission prompt, `_calculateDistance`, distance display, and the lat/long fields in
+    admin Basic Details. Members reach a library's location via the public-profile "View on Map" button
+    (uses admin's `location_link` Google-Maps link, with address-search fallback).
+  - **H2** History "Absent" miscount → absent now scoped to active-membership days, open days, ≤ today (matches the list).
+  - **H3** Analytics tab had no error state → real `ErrorState`+retry on first-load failure (no fake zeros).
+  - **H4** member_home one big `try` → non-critical tail (announcements/streak/activities) isolated so it can't drop core data to stale cache.
+  - **H5 + M1** timezone: renewal gate, history ranges/absent loop, trial days-left, `_daysLeftDateOnly` all on `istNow()`.
+  - **Deferred (noted):** P1 streak full-attendance scan (perf); M2 multi-library single-state; M3 profile expired-as-active;
+    M5 notifications 100-cap; M6 profile pull-to-refresh.
+
 ### Session 2026-06-17 — Add-Member wizard fixes (verified by user on-device)
 All in `lib/screens/admin/` (+ migrations). `flutter analyze` clean on touched files. Committed+pushed.
 - **ID upload rework** (`add_member_step1.dart`): removed doc-type dropdown; single **"Upload ID"** =

@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:geolocator/geolocator.dart';
 import 'library_public_profile_screen.dart';
 import '../utils/error_messages.dart';
 
@@ -24,9 +22,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
   List<Map<String, dynamic>> _filteredLibraries = [];
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounceTimer;
-
-  bool _hasRequestedLocation = false;
-  Position? _currentPosition;
 
   // Suggest Form Controllers
   final _suggestNameController = TextEditingController();
@@ -95,44 +90,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _onSearchChanged() {
-    final query = _searchController.text.trim();
-    if (query.isNotEmpty && !_hasRequestedLocation) {
-      _requestLocation();
-    }
     if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
       _filterLibraries();
     });
-  }
-
-  Future<void> _requestLocation() async {
-    if (_hasRequestedLocation) return;
-    _hasRequestedLocation = true;
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
-      }
-      
-      if (permission == LocationPermission.deniedForever) return;
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: const Duration(seconds: 3),
-      );
-      if (mounted) {
-        setState(() {
-          _currentPosition = position;
-        });
-        _filterLibraries();
-      }
-    } catch (e) {
-      debugPrint('Error getting location: $e');
-    }
   }
 
   void _filterLibraries() {
@@ -151,51 +112,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
       return name.contains(query) || city.contains(query) || code.contains(query);
     }).toList();
 
-    // Sort by location if available, else by name
-    if (_currentPosition != null) {
-      matched.sort((a, b) {
-        final aLat = a['latitude'] as num?;
-        final aLng = a['longitude'] as num?;
-        final bLat = b['latitude'] as num?;
-        final bLng = b['longitude'] as num?;
-
-        if (aLat == null || aLng == null) return 1;
-        if (bLat == null || bLng == null) return -1;
-
-        final distA = _calculateDistance(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-          aLat.toDouble(),
-          aLng.toDouble(),
-        );
-        final distB = _calculateDistance(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-          bLat.toDouble(),
-          bLng.toDouble(),
-        );
-        return distA.compareTo(distB);
-      });
-    } else {
-      matched.sort((a, b) {
-        final nameA = (a['name'] ?? '').toString().toLowerCase();
-        final nameB = (b['name'] ?? '').toString().toLowerCase();
-        return nameA.compareTo(nameB);
-      });
-    }
+    matched.sort((a, b) {
+      final nameA = (a['name'] ?? '').toString().toLowerCase();
+      final nameB = (b['name'] ?? '').toString().toLowerCase();
+      return nameA.compareTo(nameB);
+    });
 
     setState(() {
       _filteredLibraries = matched;
     });
-  }
-
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const p = 0.017453292519943295;
-    final c = cos;
-    final a = 0.5 - c((lat2 - lat1) * p)/2 + 
-          c(lat1 * p) * c(lat2 * p) * 
-          (1 - c((lon2 - lon1) * p))/2;
-    return 12742 * asin(sqrt(a)); // 2 * R; R = 6371 km
   }
 
 
@@ -599,22 +524,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final amenities = lib['amenities'] as List? ?? [];
     final shifts = lib['shifts'] as List? ?? [];
 
-    // Distance calculation
-    double? distanceKm;
-    final aLat = lib['latitude'] as num?;
-    final aLng = lib['longitude'] as num?;
-    if (_currentPosition != null && aLat != null && aLng != null) {
-      distanceKm = _calculateDistance(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-        aLat.toDouble(),
-        aLng.toDouble(),
-      );
-    }
-    final distanceText = distanceKm != null 
-        ? '${distanceKm.toStringAsFixed(1)} km away' 
-        : null;
-
     // Minimum starting price
     int startingPrice = 0;
     for (var s in shifts) {
@@ -723,28 +632,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
                       const SizedBox(width: 4),
-                      Text(
-                        address,
-                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                      if (distanceText != null) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF3ED),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            distanceText,
-                            style: GoogleFonts.inter(
-                              fontSize: 10, 
-                              fontWeight: FontWeight.bold, 
-                              color: const Color(0xFFE65C00),
-                            ),
-                          ),
+                      Expanded(
+                        child: Text(
+                          address,
+                          style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),

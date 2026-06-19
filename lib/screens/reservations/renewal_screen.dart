@@ -10,6 +10,7 @@ import '../../core/image_optimizer.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/upi_launcher.dart';
 import '../../utils/form_draft.dart';
+import '../../utils/time_utils.dart';
 import '../../widgets/states/states.dart';
 
 class RenewalScreen extends StatefulWidget {
@@ -221,7 +222,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
           final end = DateTime.tryParse(endRaw);
           if (end != null) {
             _currentEndDate = end;
-            final now = DateTime.now();
+            final now = istNow();
             final today = DateTime(now.year, now.month, now.day);
             final endDay = DateTime(end.year, end.month, end.day);
             _daysLeft = endDay.difference(today).inDays;

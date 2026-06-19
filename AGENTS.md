@@ -73,10 +73,13 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
 
 ## 5. Current state (keep this in sync)
 
-- Branch `main`. Latest committed checkpoint: **`9ea0403`** (2026-06-18) — member-exit dues
-  fail-open (P7-08) + 7-day deletion copy. Recent: account-deletion 7-day recovery flow, app-owner
-  flag, storage-PII move, FCM push foundation, add-member wizard fixes, audit-fix batch. HEAD is
-  **fully synced with `origin/main`** (0 ahead / 0 behind).
+- Branch `main`. Latest committed checkpoint: **`a26943a`** (2026-06-19) — Analytics overhaul +
+  unified admin sub-screen headers (`AppGradientScaffold`) + admin-profile restructure (completeness
+  bar, Privacy section, About&Info) + signup JWT fix + member-area polish. **A further member-home
+  audit-fix batch (C1/C2/H1–H5) is uncommitted** (see CLAUDE.md 2026-06-19 entry).
+- **⛔ ONE migration to APPLY** (then verify, then fold into `supabase_schema.sql`):
+  `silence_app/migrations/2026-06-19_library_display_fields.sql` (opening_hours, display_members_joined).
+  *(lat/long geo feature dropped — `location_link` "View on Map" used instead.)*
 - **Phase C** schema reconciliation: authored AND **applied to the live DB** (6 new tables RLS-on) —
   see `docs_fix/PHASE_C_SCHEMA.md`. Earlier payments/users RLS hotfixes also applied.
 - **✅ All previously-pending migrations APPLIED to the live DB (2026-06-18):**

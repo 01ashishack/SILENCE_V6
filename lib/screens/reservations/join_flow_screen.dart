@@ -390,9 +390,11 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       debugPrint('Error loading join flow details: $e');
       _errorMessage = e.toString();
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       if (_exitedMembershipToWelcome != null && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _showWelcomeBackBottomSheet();
@@ -604,6 +606,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
           .eq('member_id', user.id)
           .eq('library_id', widget.libraryId)
           .inFilter('status', ['active', 'trial', 'pending'])
+          .limit(1)
           .maybeSingle();
 
       if (existing != null) {
@@ -720,26 +723,32 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         debugPrint('Owner join-request notification failed: $e');
       }
 
-      // 4. Save optional referral
+      // 4. Save optional referral. This runs AFTER the join_request is already
+      // committed, so it must never throw out to the outer catch (that would
+      // show "submit failed" for a request that actually succeeded). Best-effort.
       final refCode = _referralCtrl.text.trim();
       if (refCode.isNotEmpty) {
-        // Find referrer by nickname or profile code if configured
-        final referrerRes = await supabase
-            .from('users')
-            .select('id')
-            .eq('nickname', refCode)
-            .maybeSingle();
+        try {
+          // nickname is not unique → limit(1) so a collision can't throw.
+          final referrerRes = await supabase
+              .from('users')
+              .select('id')
+              .eq('nickname', refCode)
+              .limit(1)
+              .maybeSingle();
 
-        if (referrerRes != null) {
-          await supabase.from('referrals').insert({
-            'referrer_member_id': referrerRes['id'],
-            'referred_member_id': user.id,
-            'library_id': widget.libraryId,
-            'referral_code_used': refCode,
-            'status': 'pending',
-            'reward_days': 3, // Reward 3 days by default
-          });
-          if (!mounted) return;
+          if (referrerRes != null) {
+            await supabase.from('referrals').insert({
+              'referrer_member_id': referrerRes['id'],
+              'referred_member_id': user.id,
+              'library_id': widget.libraryId,
+              'referral_code_used': refCode,
+              'status': 'pending',
+              'reward_days': 3, // Reward 3 days by default
+            });
+          }
+        } catch (e) {
+          debugPrint('Referral save failed (non-fatal): $e');
         }
       }
 
@@ -757,9 +766,11 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         );
       }
     } finally {
-      setState(() {
-        _isSubmitting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 

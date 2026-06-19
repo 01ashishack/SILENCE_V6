@@ -2009,8 +2009,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     final pinCtrl = TextEditingController(text: lib['address_pincode'] ?? '');
     final locationLinkCtrl = TextEditingController(text: lib['location_link'] ?? '');
     final emergencyCtrl = TextEditingController(text: lib['emergency_phone'] ?? '');
-    final latitudeCtrl = TextEditingController(text: lib['latitude']?.toString() ?? '');
-    final longitudeCtrl = TextEditingController(text: lib['longitude']?.toString() ?? '');
 
     showModalBottomSheet(
       context: context,
@@ -2085,26 +2083,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: latitudeCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Latitude', hintText: 'e.g. 22.7196'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: longitudeCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Longitude', hintText: 'e.g. 75.8577'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
                 TextField(
                   controller: locationLinkCtrl,
                   decoration: const InputDecoration(labelText: 'Google Maps Link', hintText: 'https://maps.google.com/...'),
@@ -2127,8 +2105,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                         'address_pincode': pinCtrl.text.trim(),
                         'location_link': locationLinkCtrl.text.trim(),
                         'emergency_phone': emergencyCtrl.text.trim(),
-                        'latitude': double.tryParse(latitudeCtrl.text.trim()),
-                        'longitude': double.tryParse(longitudeCtrl.text.trim()),
                       }).eq('id', lib['id']);
 
                       if (sheetContext.mounted) {

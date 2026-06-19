@@ -437,9 +437,11 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         );
       }
     } finally {
-      setState(() {
-        _isUploadingPhoto = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isUploadingPhoto = false;
+        });
+      }
     }
   }
 

@@ -9,6 +9,7 @@ import '../utils/time_utils.dart';
 import '../utils/attendance_format.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/shimmer_box.dart';
+import '../widgets/states/error_state.dart';
 import 'notifications_screen.dart';
 
 // Import removed to avoid unused library dependency
@@ -33,6 +34,7 @@ class MemberAnalyticsTab extends StatefulWidget {
 
 class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticKeepAliveClientMixin {
   bool _isLoading = true;
+  String? _errorMessage; // set when the first load fails (shows ErrorState instead of fake zeros)
 
   // Global period filters
   String _dateFilter = 'this_month'; // 'today', 'this_week', 'this_month', 'all_time'
@@ -279,6 +281,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     if (!_hasLoadedOnce) {
       setState(() => _isLoading = true);
     }
+    _errorMessage = null;
 
     final String memberId = widget.userProfile!['id'];
     final uniqueLibs = _getUniqueLibraries();
@@ -335,6 +338,10 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
 
     } catch (e) {
       debugPrint('Error loading member analytics data: $e');
+      // Don't show fake zeros on a failed FIRST load — surface a real error so
+      // the member knows it's a fetch problem, not "no activity". A refresh
+      // failure with data already on screen keeps the (stale) data instead.
+      if (!_hasLoadedOnce) _errorMessage = friendlyError(e);
     }
 
     if (mounted) {
@@ -574,9 +581,11 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         children: [
           _buildHeaderAndFilters(),
           Expanded(
-            child: _isLoading
-                ? _buildShimmerLoading()
-                : RefreshIndicator(
+            child: _errorMessage != null
+                ? ErrorState(error: _errorMessage, onRetry: _loadAllData)
+                : _isLoading
+                    ? _buildShimmerLoading()
+                    : RefreshIndicator(
                     color: const Color(0xFFE65C00),
                     onRefresh: _loadAllData,
                     child: SingleChildScrollView(

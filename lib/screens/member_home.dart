@@ -7,7 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:share_plus/share_plus.dart';
 import '../core/offline_sync.dart';
 import '../core/cache_service.dart';
@@ -70,10 +69,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   Map<String, dynamic>? _activeAttendance;
   Map<String, dynamic>? _lastCompletedAttendance;
   
-  // Location
-  bool _hasRequestedLocation = false;
-  Position? _currentPosition;
-  
   // Explore list in cache
   List<Map<String, dynamic>> _exploreLibraries = [];
   
@@ -123,8 +118,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     _checkRoleGuard();
     _loadCachedLibraries();
     _hydrateFromCacheThenLoad();
-    _requestLocation();
-    
+
     // Start listening for internet status to sync offline scans
     WidgetsBinding.instance.addPostFrameCallback((_) {
       OfflineSyncManager.instance.startListening(context);
@@ -215,35 +209,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         }
       }
     } catch (_) {}
-  }
-
-  Future<void> _requestLocation() async {
-    if (_hasRequestedLocation) return;
-    _hasRequestedLocation = true;
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
-      }
-      
-      if (permission == LocationPermission.deniedForever) return;
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: const Duration(seconds: 3),
-      );
-      if (mounted) {
-        setState(() {
-          _currentPosition = position;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error getting location: $e');
-    }
   }
 
   /// Render instantly from cached profile/memberships, then refresh in the
@@ -425,6 +390,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
       CacheService.instance.writeCache('explore_libraries_list', _exploreLibraries);
 
+      // ── Non-critical extras (announcements, streak, activity feed) ─────────
+      // Wrapped separately so a failure here NEVER discards the core profile /
+      // memberships / state already loaded above (previously any error dropped
+      // the whole screen to stale cache).
+      try {
       // Load Announcements for my joined libraries
       final joinedLibIds = allMemberships
           .map((m) => m['library_id'] as String)
@@ -616,6 +586,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
       activities.sort((a, b) => (b['time'] as DateTime).compareTo(a['time'] as DateTime));
       _recentActivities = activities.take(15).toList();
+      } catch (eNonCritical) {
+        debugPrint('Non-critical home data (announcements/streak/activities) failed: $eNonCritical');
+      }
 
     } catch (e) {
       debugPrint('Error loading member home data: $e');
@@ -964,15 +937,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     }
   }
 
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const p = 0.017453292519943295;
-    final c = cos;
-    final a = 0.5 - c((lat2 - lat1) * p)/2 + 
-          c(lat1 * p) * c(lat2 * p) * 
-          (1 - c((lon2 - lon1) * p))/2;
-    return 12742 * asin(sqrt(a)); // 2 * R; R = 6371 km
-  }
-
   int _calculateCurrentStreak(Set<String> studyDates) {
     final todayStr = DateFormat('yyyy-MM-dd').format(istNow());
     final yesterdayStr = DateFormat('yyyy-MM-dd').format(istNow().subtract(const Duration(days: 1)));
@@ -1189,35 +1153,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   List<Map<String, dynamic>> _getNearLibraries() {
     List<Map<String, dynamic>> list = List.from(_exploreLibraries);
-    if (_currentPosition != null) {
-      list.sort((a, b) {
-        final aLat = a['latitude'] as num?;
-        final aLng = a['longitude'] as num?;
-        final bLat = b['latitude'] as num?;
-        final bLng = b['longitude'] as num?;
-        if (aLat == null || aLng == null) return 1;
-        if (bLat == null || bLng == null) return -1;
-        final distA = _calculateDistance(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-          aLat.toDouble(),
-          aLng.toDouble(),
-        );
-        final distB = _calculateDistance(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-          bLat.toDouble(),
-          bLng.toDouble(),
-        );
-        return distA.compareTo(distB);
-      });
-    } else {
-      list.sort((a, b) {
-        final nameA = (a['name'] ?? '').toString().toLowerCase();
-        final nameB = (b['name'] ?? '').toString().toLowerCase();
-        return nameA.compareTo(nameB);
-      });
-    }
+    list.sort((a, b) {
+      final nameA = (a['name'] ?? '').toString().toLowerCase();
+      final nameB = (b['name'] ?? '').toString().toLowerCase();
+      return nameA.compareTo(nameB);
+    });
     return list;
   }
 
@@ -1435,7 +1375,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     if (end == null) return -1;
     final e = end.toLocal();
     final endDay = DateTime(e.year, e.month, e.day);
-    final now = DateTime.now();
+    final now = istNow();
     final today = DateTime(now.year, now.month, now.day);
     return endDay.difference(today).inDays;
   }
@@ -2041,13 +1981,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final trialMembership = _allMemberships.firstWhere((m) => m['status'] == 'trial', orElse: () => {});
     if (trialMembership.isEmpty) return const SizedBox.shrink();
     
-    int trialDaysLeft = 0;
-    if (trialMembership['end_date'] != null) {
-      try {
-        trialDaysLeft = DateTime.parse(trialMembership['end_date']).difference(DateTime.now()).inDays;
-        if (trialDaysLeft < 0) trialDaysLeft = 0;
-      } catch (_) {}
-    }
+    int trialDaysLeft = _daysLeftDateOnly(DateTime.tryParse(trialMembership['end_date']?.toString() ?? ''));
+    if (trialDaysLeft < 0) trialDaysLeft = 0;
 
     return RefreshIndicator(
       onRefresh: _loadInitialData,
@@ -3276,20 +3211,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final photos = lib['photos'] as List? ?? [];
     final shifts = lib['shifts'] as List? ?? [];
     
-    // Distance
-    double? distanceKm;
-    final aLat = lib['latitude'] as num?;
-    final aLng = lib['longitude'] as num?;
-    if (_currentPosition != null && aLat != null && aLng != null) {
-      distanceKm = _calculateDistance(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-        aLat.toDouble(),
-        aLng.toDouble(),
-      );
-    }
-    final distanceText = distanceKm != null ? '${distanceKm.toStringAsFixed(1)} km' : null;
-
     // Minimum starting price
     int startingPrice = 0;
     for (var s in shifts) {
@@ -3369,12 +3290,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                           )
                         else
                           Text('New', style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500], fontWeight: FontWeight.bold)),
-                        
-                        if (distanceText != null)
-                          Text(
-                            distanceText,
-                            style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFFE65C00), fontWeight: FontWeight.bold),
-                          ),
                       ],
                     ),
                     const SizedBox(height: 6),
