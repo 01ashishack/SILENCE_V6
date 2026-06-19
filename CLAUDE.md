@@ -133,6 +133,14 @@ check-out updates the day row.
   (per-week library leaderboard scan) still scan attendance — batch 2 (needs a small precompute or a
   scheduled recompute).
 
+### Session 2026-06-18 (i) — P11-02: badge engine fully off attendance scans
+`2026-06-18_badge_precompute_batch3.sql` — added `early_count`/`night_count` to `member_daily_stats`
+(maintained by the existing trigger + backfilled) and a `member_is_week_top()` indexed-aggregate RPC.
+`member_analytics_service`: `early_bird`/`night_owl` now sum the rollup; `top_of_week` calls the RPC per
+week (was 4 full library attendance scans). Combined with (h), badge sync no longer scans attendance on
+analytics load. Folded into canonical (table cols + recompute body + RPC). `flutter analyze` clean.
+⛔ apply migration + verify badges still award.
+
 ### Session 2026-06-18 (g) — P8-01 batch 1: canonical IST clock (member dashboard / scanner / holidays)
 Added canonical IST helpers to `lib/utils/time_utils.dart` — `istNow()`, `istToday()`, `istTodayKey()`,
 `istDateKeyFromDb(dbTime)`. Routed the member-facing day-boundary logic through them (was a mix of

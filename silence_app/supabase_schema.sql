@@ -529,6 +529,8 @@ CREATE TABLE IF NOT EXISTS member_daily_stats (
     date DATE NOT NULL,
     present_flag BOOLEAN DEFAULT false,
     total_minutes INTEGER DEFAULT 0,
+    early_count INTEGER DEFAULT 0,
+    night_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now(),
     CONSTRAINT uq_mds_member_library_date UNIQUE (member_id, library_id, date)
 );
@@ -1290,12 +1292,16 @@ DECLARE
     v_count   integer;
     v_present boolean;
     v_minutes integer;
+    v_early   integer;
+    v_night   integer;
 BEGIN
     SELECT count(*)::int,
            bool_or(a.check_out_time IS NOT NULL OR a.session_type IS DISTINCT FROM 'incomplete'),
            COALESCE(sum(CASE WHEN a.session_type IS DISTINCT FROM 'incomplete'
-                             THEN a.duration_minutes ELSE 0 END), 0)::int
-      INTO v_count, v_present, v_minutes
+                             THEN a.duration_minutes ELSE 0 END), 0)::int,
+           count(*) FILTER (WHERE extract(hour FROM (a.check_in_time AT TIME ZONE 'Asia/Kolkata')) < 7)::int,
+           count(*) FILTER (WHERE extract(hour FROM (a.check_in_time AT TIME ZONE 'Asia/Kolkata')) >= 20)::int
+      INTO v_count, v_present, v_minutes, v_early, v_night
     FROM public.attendance a
     WHERE a.member_id = p_member
       AND a.library_id = p_library
@@ -1307,11 +1313,15 @@ BEGIN
         RETURN;
     END IF;
 
-    INSERT INTO public.member_daily_stats (member_id, library_id, date, present_flag, total_minutes)
-    VALUES (p_member, p_library, p_date, COALESCE(v_present, false), COALESCE(v_minutes, 0))
+    INSERT INTO public.member_daily_stats
+        (member_id, library_id, date, present_flag, total_minutes, early_count, night_count)
+    VALUES (p_member, p_library, p_date, COALESCE(v_present, false),
+            COALESCE(v_minutes, 0), COALESCE(v_early, 0), COALESCE(v_night, 0))
     ON CONFLICT (member_id, library_id, date)
-    DO UPDATE SET present_flag = EXCLUDED.present_flag,
-                  total_minutes = EXCLUDED.total_minutes;
+    DO UPDATE SET present_flag  = EXCLUDED.present_flag,
+                  total_minutes = EXCLUDED.total_minutes,
+                  early_count   = EXCLUDED.early_count,
+                  night_count   = EXCLUDED.night_count;
 END;
 $$;
 
@@ -1346,3 +1356,24 @@ DROP TRIGGER IF EXISTS trg_attendance_daily_stats ON public.attendance;
 CREATE TRIGGER trg_attendance_daily_stats
     AFTER INSERT OR UPDATE OR DELETE ON public.attendance
     FOR EACH ROW EXECUTE FUNCTION public.trg_attendance_daily_stats();
+
+-- Weekly library leader (rank 1, ties allowed) from the rollup (P11-02 top_of_week).
+CREATE OR REPLACE FUNCTION public.member_is_week_top(
+    p_library uuid, p_member uuid, p_start date, p_end date)
+RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+    WITH totals AS (
+        SELECT member_id, sum(total_minutes) AS mins
+        FROM public.member_daily_stats
+        WHERE library_id = p_library AND date BETWEEN p_start AND p_end
+        GROUP BY member_id
+    )
+    SELECT COALESCE(
+        (SELECT mins FROM totals WHERE member_id = p_member) > 0
+        AND (SELECT mins FROM totals WHERE member_id = p_member)
+            >= COALESCE((SELECT max(mins) FROM totals), 0),
+    false);
+$$;
+REVOKE ALL ON FUNCTION public.member_is_week_top(uuid, uuid, date, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.member_is_week_top(uuid, uuid, date, date) TO authenticated;

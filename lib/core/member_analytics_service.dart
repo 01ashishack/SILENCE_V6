@@ -644,15 +644,27 @@ class MemberAnalyticsService {
         earnedTypes.add('100_days_club');
       }
     }
-    // 4 & 5. Early bird and night owl
+    // 4 & 5. Early bird and night owl — summed from the precomputed rollup.
     if (!earnedTypes.contains('early_bird') || !earnedTypes.contains('night_owl')) {
-      final timesRes = await _supabase.from('attendance').select('check_in_time').eq('member_id', memberId);
       int earlyCount = 0;
       int nightCount = 0;
-      for (var r in timesRes) {
-        DateTime dt = toIST(DateTime.parse(r['check_in_time']));
-        if (dt.hour < 7) earlyCount++;
-        if (dt.hour >= 20) nightCount++;
+      try {
+        final rows = await _supabase
+            .from('member_daily_stats')
+            .select('early_count, night_count')
+            .eq('member_id', memberId);
+        for (var r in rows) {
+          earlyCount += (r['early_count'] as int?) ?? 0;
+          nightCount += (r['night_count'] as int?) ?? 0;
+        }
+      } catch (_) {
+        // Fallback if member_daily_stats / columns unavailable.
+        final timesRes = await _supabase.from('attendance').select('check_in_time').eq('member_id', memberId);
+        for (var r in timesRes) {
+          DateTime dt = toIST(DateTime.parse(r['check_in_time']));
+          if (dt.hour < 7) earlyCount++;
+          if (dt.hour >= 20) nightCount++;
+        }
       }
       if (!earnedTypes.contains('early_bird') && earlyCount >= 5) {
         await _awardBadge(memberId, libraryId, 'early_bird');
@@ -690,22 +702,22 @@ class MemberAnalyticsService {
         debugPrint('Error checking consistent badge: $e');
       }
     }
-    // 7. Top of week (ranked #1 on leaderboard any week)
+    // 7. Top of week (ranked #1 on leaderboard any week) — computed from the
+    //    precomputed rollup via an indexed RPC (was 4 full library scans).
     if (!earnedTypes.contains('top_of_week')) {
       try {
         final now = istNow();
         // Check current and last 3 weeks
         for (int w = 0; w < 4; w++) {
           final weekStart = now.subtract(Duration(days: now.weekday - 1 + (w * 7)));
-          final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-          final lbDetails = await fetchLeaderboardDetails(
-            libraryId,
-            memberId,
-            DateTime(weekStart.year, weekStart.month, weekStart.day),
-            DateTime(weekEnd.year, weekEnd.month, weekEnd.day, 23, 59, 59),
-          );
-          final rank = lbDetails['currentUserRank'] as int?;
-          if (rank == 1) {
+          final weekEnd = weekStart.add(const Duration(days: 6));
+          final isTop = await _supabase.rpc('member_is_week_top', params: {
+            'p_library': libraryId,
+            'p_member': memberId,
+            'p_start': DateFormat('yyyy-MM-dd').format(weekStart),
+            'p_end': DateFormat('yyyy-MM-dd').format(weekEnd),
+          });
+          if (isTop == true) {
             await _awardBadge(memberId, libraryId, 'top_of_week');
             earnedTypes.add('top_of_week');
             break;

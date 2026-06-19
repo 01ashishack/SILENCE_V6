@@ -53,11 +53,11 @@
 | 17 | P5-02 | 4 conflicting `expenditures` schemas | ✅ | **Phase C applied** — canonical schema unified, loose files superseded, `admin_analytics_tab` normalized to lowercase keys, existing rows migrated (§D) |
 | 18 | P8-01 | Three contradictory "which day" defs (TZ) | ✅ | **IST is now the single clock (2026-06-18).** Batch 1: `istNow/istToday/istTodayKey/istDateKeyFromDb` + member dashboard/scanner/holidays. Batch 2: `istWallClockToUtc` helper; analytics **engine** (`member_analytics_service`) + **tabs** (member/admin) build ranges from `istNow()` and convert query bounds via `istWallClockToUtc` (fixes the 5.5h-off analytics window); attendance/revenue bucketing → IST. Device-verify analytics numbers |
 | 19 | P11-01 | Analytics fast-path tables absent | ✅ | `member_daily_stats` now precomputed via an attendance trigger + backfill (`2026-06-18_member_daily_stats_precompute.sql`, IST-day rollups); the service's existing fast-path now hits indexed rows instead of full attendance scans |
-| 20 | P11-02 | Badge engine N+1 | 🟡 | `100_days_club` (now via daily-stats; also fixed a latent `select('id')` bug that never awarded it) + `consistent` use the fast path; `early_bird`/`night_owl` + `top_of_week` still scan (batch 3) |
+| 20 | P11-02 | Badge engine N+1 | ✅ | all badge checks now read the precomputed rollup: `100_days_club`/`consistent`/`early_bird`/`night_owl` via `member_daily_stats`, `top_of_week` via the indexed `member_is_week_top()` RPC — no more per-analytics-load attendance scans (`2026-06-18_badge_precompute_batch3.sql`) |
 | 21 | P1-01/P1-02 | Release manifest missing INTERNET + debug-signed | ✅ | INTERNET permission present in manifest; release `signingConfig` wired to `key.properties` (gitignored) with debug fallback — user generates the keystore (`key.properties.example`) |
 | 22 | P14-03 | iOS crashes on location screen | ⛔ | needs device/iOS build |
 
-**Criticals closed: 18 ✅ · 3 🟡 (P0-01 payments, P6-01 server-tier-partial, P11-02 badge N+1 partial) · 1 ⬜ (P14-03 iOS). All Wave-0 RLS/storage/identity locks applied 2026-06-18; IST is the single clock app-wide; analytics fast-path precomputed.**
+**Criticals closed: 19 ✅ · 2 🟡 (P0-01 payments, P6-01 server-tier-partial) · 1 ⬜ (P14-03 iOS — needs a Mac). All Wave-0 RLS/storage/identity locks applied 2026-06-18; IST is the single clock app-wide; analytics + badges fully precomputed.**
 
 ---
 
