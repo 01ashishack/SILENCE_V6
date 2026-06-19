@@ -64,9 +64,12 @@ All in `lib/screens/admin/` (+ migrations). `flutter analyze` clean on touched f
   on `notifications` INSERT calls it; it reads recipient `device_tokens` (service role) → **FCM HTTP v1**
   (service account = base64 secret `FIREBASE_SERVICE_ACCOUNT_B64`). Deployed `--no-verify-jwt`; webhook
   `send_push_on_notification` wired. **✅ Verified end-to-end on web.** All committed+pushed.
-- **Pending FCM:** foreground heads-up banner (`flutter_local_notifications`), tap→navigation,
-  Android/iOS device test (iOS needs Apple Developer + APNs key), **shared-secret header** to harden the
-  `--no-verify-jwt` webhook→function call.
+- **FCM status (verified 2026-06-18):** foreground heads-up banner + tap→navigation are **DONE & wired**
+  (`push_notification_service.dart`: `_showForegroundNotification` via `flutter_local_notifications`,
+  `_routeFromData`; `main.dart` has the background handler + `navigatorKey` + `initialize()`).
+  Webhook shared-secret **check is in code** (constant-time, `send-push`). **Remaining = NOT code:**
+  (a) config — set `PUSH_WEBHOOK_SECRET` + add `x-webhook-secret` header to the `send_push_on_notification`
+  webhook; (b) on-device test — Android phone, and iOS (needs Apple Developer + APNs key).
 - **Subscription decision (2026-06-17):** **in-app Razorpay ruled out**; either store IAP OR
   website+Razorpay. See `docs_fix/UIUX_OVERHAUL_DECISIONS.md` + `SUBSCRIPTION_ARCHITECTURE.md`.
 
@@ -296,7 +299,8 @@ permanent eligibility-gated member QR FAB; detail in `docs_fix/LAYOUT_SEAT_OVERH
   - **Subscription enforcement:** `betaMode=true` keeps features unlocked; 30-day Free window is
     display-only. Flip + enforce later with the website/billing.
   - **iOS location crash (P14-03):** needs a Mac/iOS build.
-- **FCM follow-ups:** foreground banner, tap→navigation, Android/iOS device test, webhook shared-secret.
+- **FCM (verified done in code):** foreground banner + tap→nav implemented & wired; webhook-secret check
+  in code. Remaining = config (set `PUSH_WEBHOOK_SECRET` + webhook header) + on-device test (Android; iOS needs Mac/Apple).
 
 ---
 

@@ -120,9 +120,9 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
   redesign (profile photos + check-in/out times on a white card, separate In/Out entries);
   **permanent eligibility-gated QR FAB** on member home.
 - Next candidates (user-directed — confirm scope first): on-device smoke test of the 2026-06-15
-  reservation batch + account-deletion/recovery flow (now that migrations are live); commit the two
-  pending FCM build edits; FCM follow-ups (foreground banner, tap→nav, device test, webhook
-  shared-secret); optional DB cleanup of orphaned `seats` rows; real payments; OTP; security RLS
+  reservation batch + account-deletion/recovery flow (now that migrations are live); FCM remaining is
+  config + device test only (foreground banner + tap→nav + webhook-secret check already in code);
+  optional DB cleanup of orphaned `seats` rows; real payments; OTP; security RLS
   Wave 0/1.
 
 
