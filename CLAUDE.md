@@ -130,11 +130,13 @@ device-local `.toLocal()` and UTC date-keys):
   `_getLast7DaysAttendance`, `_computeMemberState` + expired lookups → `istNow()`/`istToday()`.
 - **Holidays:** `holiday_service.todaysHoliday` / reopen check → `istNow()`.
 - `flutter analyze` clean. ⛔ device-verify streak/“studied today”/closure near midnight.
-- **P8-01 batch 2 (deferred):** the analytics ENGINE (`member_analytics_service`) + analytics TABS
-  (`member_analytics_tab`, `admin_analytics_tab`) build query ranges as `DateTime(y,m,d).toUtc()`
-  (device-local midnight). Correct on IST devices today; making them IST-exact needs an
-  IST-midnight-as-UTC transform + per-view testing (revenue, attendance rate, leaderboard). Do as a
-  tested unit.
+- **P8-01 batch 2 (DONE 2026-06-18):** added `istWallClockToUtc()` helper. Analytics ENGINE
+  (`member_analytics_service`) + TABS (`member_analytics_tab`, `admin_analytics_tab`) now build all
+  ranges from `istNow()` and convert query bounds via `istWallClockToUtc()` (was naive
+  `DateTime(y,m,d).toIso8601String()`/`.toUtc()` → the window was 5.5h off even on IST devices for the
+  engine). Attendance/streak/revenue bucketing → `istDateKeyFromDb`/`toIST`. Relative windows
+  (last-7/180d) and export date-stamps left as-is. `flutter analyze` clean. ⛔ device-verify analytics
+  numbers (revenue, attendance rate, leaderboard, heatmap, today/this-week filters).
 
 ### Session 2026-06-18 (f) — P5-08: actor-scope the forgeable inserts — APPLIED
 `2026-06-18_actor_scope_inserts.sql` (+ folded into canonical) — **applied to live DB 2026-06-18**.

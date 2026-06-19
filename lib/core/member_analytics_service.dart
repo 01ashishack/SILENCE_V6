@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
+import '../utils/time_utils.dart';
 
 class MemberAnalyticsService {
   static final MemberAnalyticsService instance = MemberAnalyticsService._init();
@@ -130,7 +131,7 @@ class MemberAnalyticsService {
         int daysPresent = presentDays.length;
         int closedDaysCount = await _fetchClosuresCount(libraryId, startDate, endDate, memberLibraryIds: memberLibraryIds);
 
-        final DateTime now = DateTime.now();
+        final DateTime now = istNow();
         final DateTime elapsedEnd = endDate.isAfter(now) ? now : endDate;
         int elapsedDays = elapsedEnd.difference(effectiveStart).inDays + 1;
         if (elapsedDays < 1) elapsedDays = 1;
@@ -155,8 +156,8 @@ class MemberAnalyticsService {
     }
 
     // 2. Fallback: Query raw attendance table and calculate in Dart
-    final startStr = startDate.toIso8601String();
-    final endStr = endDate.toIso8601String();
+    final startStr = istWallClockToUtc(startDate).toIso8601String();
+    final endStr = istWallClockToUtc(endDate).toIso8601String();
 
     var attendanceQuery = _supabase.from('attendance').select();
     if (libraryId != null && libraryId != 'all') {
@@ -182,7 +183,7 @@ class MemberAnalyticsService {
 
       if (checkOut != null || sessionType != 'incomplete') {
         final checkInTimeStr = record['check_in_time'] as String;
-        final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.parse(checkInTimeStr).toLocal());
+        final dateStr = istDateKeyFromDb(checkInTimeStr);
         presentDays.add(dateStr);
       }
 
@@ -194,7 +195,7 @@ class MemberAnalyticsService {
     int daysPresent = presentDays.length;
     int closedDaysCount = await _fetchClosuresCount(libraryId, startDate, endDate, memberLibraryIds: memberLibraryIds);
 
-    final DateTime now = DateTime.now();
+    final DateTime now = istNow();
     final DateTime elapsedEnd = endDate.isAfter(now) ? now : endDate;
     int elapsedDays = elapsedEnd.difference(effectiveStart).inDays + 1;
     if (elapsedDays < 1) elapsedDays = 1;
@@ -310,8 +311,8 @@ class MemberAnalyticsService {
 
   // 2. Fetch Leaderboard (Phase 2 Stub / Existing code preserved)
   Future<List<Map<String, dynamic>>> fetchLeaderboard(String libraryId, DateTime startDate, DateTime endDate) async {
-    final startStr = startDate.toIso8601String();
-    final endStr = endDate.toIso8601String();
+    final startStr = istWallClockToUtc(startDate).toIso8601String();
+    final endStr = istWallClockToUtc(endDate).toIso8601String();
 
     final attendanceRes = await _supabase
         .from('attendance')
@@ -408,14 +409,14 @@ class MemberAnalyticsService {
       final sessionType = r['session_type'] as String?;
       final checkOut = r['check_out_time'];
       if (checkOut != null || sessionType != 'incomplete') {
-        attendedDays.add(DateFormat('yyyy-MM-dd').format(DateTime.parse(r['check_in_time']).toLocal()));
+        attendedDays.add(istDateKeyFromDb(r['check_in_time']));
       }
     }
 
     int currentStreak = 0;
     int bestStreak = 0;
 
-    DateTime today = DateTime.now();
+    DateTime today = istNow();
     DateTime ptr = today;
 
     while (true) {
@@ -476,13 +477,13 @@ class MemberAnalyticsService {
 
   /// Calculates status for the current week's 7 days (Monday to Sunday)
   Future<List<Map<String, dynamic>>> _calculateLast7Days(String memberId, String libraryId) async {
-    final now = DateTime.now();
+    final now = istNow();
     final todayStr = DateFormat('yyyy-MM-dd').format(now);
     final monday = now.subtract(Duration(days: now.weekday - 1));
 
     // Fetch this week's attendance
-    final startStr = DateTime(monday.year, monday.month, monday.day).toIso8601String();
-    final endStr = DateTime(now.year, now.month, now.day, 23, 59, 59).toIso8601String();
+    final startStr = istWallClockToUtc(DateTime(monday.year, monday.month, monday.day)).toIso8601String();
+    final endStr = istWallClockToUtc(DateTime(now.year, now.month, now.day, 23, 59, 59)).toIso8601String();
 
     final attendanceRes = await _supabase
         .from('attendance')
@@ -511,7 +512,7 @@ class MemberAnalyticsService {
     for (var r in attendanceRes) {
       final sessionType = r['session_type'] as String?;
       final checkOut = r['check_out_time'];
-      final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.parse(r['check_in_time']).toLocal());
+      final dateStr = istDateKeyFromDb(r['check_in_time']);
       if (checkOut != null || sessionType != 'incomplete') {
         attendedDays.add(dateStr);
       } else {
@@ -561,8 +562,8 @@ class MemberAnalyticsService {
   /// Fetches all sessions for a specific date (used by Day Attendance Popup S076)
   Future<List<Map<String, dynamic>>> fetchDaySessions(String memberId, String dateStr) async {
     final date = DateTime.parse(dateStr);
-    final startStr = DateTime(date.year, date.month, date.day).toIso8601String();
-    final endStr = DateTime(date.year, date.month, date.day, 23, 59, 59).toIso8601String();
+    final startStr = istWallClockToUtc(DateTime(date.year, date.month, date.day)).toIso8601String();
+    final endStr = istWallClockToUtc(DateTime(date.year, date.month, date.day, 23, 59, 59)).toIso8601String();
 
     final response = await _supabase
         .from('attendance')
@@ -574,8 +575,8 @@ class MemberAnalyticsService {
 
     final List<dynamic> list = response as List<dynamic>;
     return list.map((item) {
-      final checkIn = DateTime.parse(item['check_in_time']).toLocal();
-      final checkOut = item['check_out_time'] != null ? DateTime.parse(item['check_out_time']).toLocal() : null;
+      final checkIn = toIST(DateTime.parse(item['check_in_time']));
+      final checkOut = item['check_out_time'] != null ? toIST(DateTime.parse(item['check_out_time'])) : null;
       return {
         'id': item['id'],
         'check_in': DateFormat('hh:mm a').format(checkIn),
@@ -618,7 +619,7 @@ class MemberAnalyticsService {
       final Set<String> uniqueDays = {};
       for (var r in totalDaysRes) {
         if (r['check_in_time'] != null) {
-          uniqueDays.add(DateFormat('yyyy-MM-dd').format(DateTime.parse(r['check_in_time'] as String).toLocal()));
+          uniqueDays.add(istDateKeyFromDb(r['check_in_time'] as String));
         }
       }
       if (uniqueDays.length >= 100) {
@@ -632,7 +633,7 @@ class MemberAnalyticsService {
       int earlyCount = 0;
       int nightCount = 0;
       for (var r in timesRes) {
-        DateTime dt = DateTime.parse(r['check_in_time']).toLocal();
+        DateTime dt = toIST(DateTime.parse(r['check_in_time']));
         if (dt.hour < 7) earlyCount++;
         if (dt.hour >= 20) nightCount++;
       }
@@ -648,7 +649,7 @@ class MemberAnalyticsService {
     // 6. Consistent (90%+ attendance rate in any calendar month)
     if (!earnedTypes.contains('consistent')) {
       try {
-        final now = DateTime.now();
+        final now = istNow();
         // Check last 6 months
         for (int m = 0; m < 6; m++) {
           final checkMonth = DateTime(now.year, now.month - m, 1);
@@ -675,7 +676,7 @@ class MemberAnalyticsService {
     // 7. Top of week (ranked #1 on leaderboard any week)
     if (!earnedTypes.contains('top_of_week')) {
       try {
-        final now = DateTime.now();
+        final now = istNow();
         // Check current and last 3 weeks
         for (int w = 0; w < 4; w++) {
           final weekStart = now.subtract(Duration(days: now.weekday - 1 + (w * 7)));
@@ -739,8 +740,8 @@ class MemberAnalyticsService {
 
   // 6. Upgraded Leaderboard Details (Phase 2)
   Future<Map<String, dynamic>> fetchLeaderboardDetails(String libraryId, String currentMemberId, DateTime startDate, DateTime endDate) async {
-    final startStr = startDate.toIso8601String();
-    final endStr = endDate.toIso8601String();
+    final startStr = istWallClockToUtc(startDate).toIso8601String();
+    final endStr = istWallClockToUtc(endDate).toIso8601String();
 
     final attendanceRes = await _supabase
         .from('attendance')
@@ -842,8 +843,8 @@ class MemberAnalyticsService {
       query = query.inFilter('library_id', memberLibraryIds);
     }
 
-    final startStr = startDate.toIso8601String();
-    final endStr = endDate.toIso8601String();
+    final startStr = istWallClockToUtc(startDate).toIso8601String();
+    final endStr = istWallClockToUtc(endDate).toIso8601String();
 
     final attendanceRes = await query
         .eq('member_id', memberId)
@@ -906,7 +907,7 @@ class MemberAnalyticsService {
       if (sessionType == 'incomplete') continue;
 
       final checkInTimeStr = record['check_in_time'] as String;
-      final checkIn = DateTime.parse(checkInTimeStr).toLocal();
+      final checkIn = toIST(DateTime.parse(checkInTimeStr));
       final libId = record['library_id'] as String;
       final durationMins = (record['duration_minutes'] as num?)?.toDouble() ?? 0.0;
       final double hours = durationMins / 60.0;
@@ -993,8 +994,8 @@ class MemberAnalyticsService {
       attQuery = attQuery.inFilter('library_id', memberLibraryIds);
     }
 
-    final startStr = startDate.toIso8601String();
-    final endStr = endDate.toIso8601String();
+    final startStr = istWallClockToUtc(startDate).toIso8601String();
+    final endStr = istWallClockToUtc(endDate).toIso8601String();
 
     final attendanceRes = await attQuery
         .eq('member_id', memberId)
@@ -1024,7 +1025,7 @@ class MemberAnalyticsService {
       if (sessionType == 'incomplete') continue;
 
       final checkInTimeStr = r['check_in_time'] as String;
-      final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.parse(checkInTimeStr).toLocal());
+      final dateStr = istDateKeyFromDb(checkInTimeStr);
       final durationMins = (r['duration_minutes'] as num?)?.toDouble() ?? 0.0;
       final double hours = durationMins / 60.0;
 
@@ -1073,15 +1074,15 @@ class MemberAnalyticsService {
 
     final response = await query
         .eq('member_id', memberId)
-        .gte('check_in_time', startDate.toIso8601String())
-        .lte('check_in_time', endDate.toIso8601String())
+        .gte('check_in_time', istWallClockToUtc(startDate).toIso8601String())
+        .lte('check_in_time', istWallClockToUtc(endDate).toIso8601String())
         .order('check_in_time', ascending: true);
 
     final List<dynamic> list = response as List<dynamic>;
     return list.map((item) {
-      final checkIn = DateTime.parse(item['check_in_time']).toLocal();
+      final checkIn = toIST(DateTime.parse(item['check_in_time']));
       final checkOut = item['check_out_time'] != null
-          ? DateTime.parse(item['check_out_time']).toLocal()
+          ? toIST(DateTime.parse(item['check_out_time']))
           : null;
 
       final durationMins = item['duration_minutes'] as int? ?? 0;

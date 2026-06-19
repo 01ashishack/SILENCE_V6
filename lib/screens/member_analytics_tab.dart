@@ -5,6 +5,7 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/member_analytics_service.dart';
 import '../utils/csv_exporter.dart';
+import '../utils/time_utils.dart';
 import '../utils/attendance_format.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/shimmer_box.dart';
@@ -89,7 +90,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   Timer? _debounceTimer;
 
   static DateTimeRange _getMonthRange() {
-    final now = DateTime.now();
+    final now = istNow();
     return DateTimeRange(
       start: DateTime(now.year, now.month, 1),
       end: DateTime(now.year, now.month, now.day, 23, 59, 59),
@@ -114,7 +115,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   }
 
   DateTimeRange _getLeaderboardDateRange() {
-    final now = DateTime.now();
+    final now = istNow();
     if (_leaderboardPeriod == 'this_week') {
       final start = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
       final end = DateTime(now.year, now.month, now.day, 23, 59, 59);
@@ -242,7 +243,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   }
 
   void _setDateFilter(String filter) {
-    final now = DateTime.now();
+    final now = istNow();
     DateTime start;
     DateTime end = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
@@ -394,7 +395,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     DateTime end;
 
     if (_dateFilter == 'all_time') {
-      end = DateTime.now();
+      end = istNow();
       start = end.subtract(const Duration(days: 364));
     } else {
       start = DateTime(_heatmapMonth.year, _heatmapMonth.month, 1);
@@ -439,7 +440,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     if (_chartData.isNotEmpty) return _chartData;
 
     final List<Map<String, dynamic>> data = [];
-    final now = DateTime.now();
+    final now = istNow();
     if (_dateFilter == 'today') {
       data.add({
         'label': DateFormat('EEEE').format(now),
@@ -493,7 +494,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   }
 
   bool _isYesterdayClosed() {
-    final yesterdayStr = DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 1)));
+    final yesterdayStr = DateFormat('yyyy-MM-dd').format(istNow().subtract(const Duration(days: 1)));
     for (var day in _last7Days) {
       if (day['dateStr'] == yesterdayStr && day['status'] == 'closed') {
         return true;

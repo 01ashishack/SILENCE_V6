@@ -15,6 +15,7 @@ import 'reservations/member_detail_screen.dart';
 import '../widgets/states/shimmer_box.dart';
 import '../core/plan_service.dart';
 import '../widgets/upgrade_sheet.dart';
+import '../utils/time_utils.dart';
 
 
 class AdminAnalyticsTab extends StatefulWidget {
@@ -66,7 +67,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
 
   // Tab-independent Date filters
   // Attendance: weekday pills or custom range
-  DateTime _attDate = DateTime.now();
+  DateTime _attDate = istNow();
   DateTimeRange? _attCustomRange;
   bool _isAttCustomSelected = false;
 
@@ -256,12 +257,12 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }
 
   List<DateTime> _getWeekdayDays() {
-    final now = DateTime.now();
+    final now = istNow();
     return List.generate(7, (i) => DateTime(now.year, now.month, now.day - (6 - i)));
   }
 
   DateTimeRange _getRangeForPreset(String filter, DateTimeRange? customRange) {
-    final now = DateTime.now();
+    final now = istNow();
     final todayStart = DateTime(now.year, now.month, now.day);
     final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
@@ -418,7 +419,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     // Holidays in the current month (range-aware: count each closed calendar
     // day that falls inside this month, de-duplicated).
     try {
-      final now = DateTime.now();
+      final now = istNow();
       final monthStart = DateTime(now.year, now.month, 1);
       final monthEnd = DateTime(now.year, now.month + 1, 0); // last day
       String fmt(DateTime d) =>
@@ -477,8 +478,8 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       final prevStart = currentRange.start.subtract(duration);
       final prevEnd = currentRange.start.subtract(const Duration(seconds: 1));
 
-      final fetchStartIso = prevStart.toUtc().toIso8601String();
-      final fetchEndIso = currentRange.end.toUtc().toIso8601String();
+      final fetchStartIso = istWallClockToUtc(prevStart).toIso8601String();
+      final fetchEndIso = istWallClockToUtc(currentRange.end).toIso8601String();
 
       // Construction of Attendance query date range
       DateTimeRange attRange;
@@ -523,8 +524,8 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
             .from('expenditures')
             .select()
             .eq('library_id', libraryId)
-            .gte('expense_date', currentRange.start.toUtc().toIso8601String())
-            .lte('expense_date', currentRange.end.toUtc().toIso8601String())
+            .gte('expense_date', istWallClockToUtc(currentRange.start).toIso8601String())
+            .lte('expense_date', istWallClockToUtc(currentRange.end).toIso8601String())
             .order('expense_date', ascending: false)
             .catchError((err) {
               debugPrint('expenditures select failed: $err');
@@ -538,8 +539,8 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
             .from('attendance')
             .select('*, member_id(*), memberships(*, seats(*), shifts(*))')
             .eq('library_id', libraryId)
-            .gte('check_in_time', attRange.start.toUtc().toIso8601String())
-            .lte('check_in_time', attRange.end.toUtc().toIso8601String())
+            .gte('check_in_time', istWallClockToUtc(attRange.start).toIso8601String())
+            .lte('check_in_time', istWallClockToUtc(attRange.end).toIso8601String())
             .order('check_in_time', ascending: false),
         _supabase
             .from('seats')
@@ -616,7 +617,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     double expiredPending = 0.0;
     double expiring7DaysPending = 0.0;
 
-    final now = DateTime.now();
+    final now = istNow();
     final today = DateTime(now.year, now.month, now.day);
     final in7Days = today.add(const Duration(days: 7));
 
@@ -634,7 +635,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       final String status = p['status'] ?? 'pending';
       final String method = (p['method'] ?? 'cash').toString().toLowerCase();
 
-      final payDate = DateTime.parse(p['payment_date']).toLocal();
+      final payDate = toIST(DateTime.parse(p['payment_date']));
 
       if (status == 'confirmed') {
         if (payDate.isAfter(currentRange.start.subtract(const Duration(seconds: 1))) &&
@@ -2039,7 +2040,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                           onTap: () {
                             setState(() {
                               _isAttCustomSelected = false;
-                              _attDate = DateTime.now();
+                              _attDate = istNow();
                               _attCustomRange = null;
                             });
                             _triggerActiveTabFetch();
@@ -3100,8 +3101,8 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       final String? coStr = att['check_out_time'];
       if (ciStr == null) continue;
 
-      final checkIn = DateTime.parse(ciStr).toLocal();
-      final checkOut = coStr != null ? DateTime.parse(coStr).toLocal() : null;
+      final checkIn = toIST(DateTime.parse(ciStr));
+      final checkOut = coStr != null ? toIST(DateTime.parse(coStr)) : null;
 
       if (checkOut == null) {
         checkedIn++;

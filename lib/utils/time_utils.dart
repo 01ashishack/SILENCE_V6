@@ -87,3 +87,17 @@ String istTodayKey() => DateFormat('yyyy-MM-dd').format(istNow());
 /// tolerant of values with or without a trailing `Z`.
 String istDateKeyFromDb(String dbTime) =>
     DateFormat('yyyy-MM-dd').format(toIST(parseDBTimeToUtc(dbTime)));
+
+/// Interpret [istWallClock]'s Y/M/D/H/M/S as IST wall-clock values and return
+/// the equivalent UTC instant — used to build DB query bounds (gte/lte) against
+/// UTC-stored timestamps from an IST-built date range. Example: IST midnight
+/// 2026-06-19 00:00 → 2026-06-18 18:30:00Z.
+DateTime istWallClockToUtc(DateTime istWallClock) => DateTime.utc(
+      istWallClock.year,
+      istWallClock.month,
+      istWallClock.day,
+      istWallClock.hour,
+      istWallClock.minute,
+      istWallClock.second,
+      istWallClock.millisecond,
+    ).subtract(const Duration(hours: 5, minutes: 30));
