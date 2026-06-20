@@ -38,6 +38,10 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
   String? _photoUrl;
   String? _idDocumentUrl;
   String? _idDocument2Url;
+  // Originals (to detect if the nickname was auto-derived from the name vs
+  // deliberately customised — so a name fix follows through to the leaderboard).
+  String _origFullName = '';
+  String _origNickname = '';
   DateTime? _dob;
   String _examCategory = 'UPSC';
   String _gender = 'male';
@@ -104,6 +108,8 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         if (userData != null) {
           _nameController.text = userData['full_name'] ?? '';
           _nicknameController.text = userData['nickname'] ?? '';
+          _origFullName = (userData['full_name'] ?? '').toString();
+          _origNickname = (userData['nickname'] ?? '').toString();
           _phoneController.text = userData['phone'] ?? '';
           _addressController.text = userData['address'] ?? '';
           _fatherNameController.text = userData['father_name'] ?? '';
@@ -425,7 +431,18 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       }
 
       final String name = _nameController.text.trim();
-      final String nickname = _nicknameController.text.trim();
+      final String nicknameInput = _nicknameController.text.trim();
+      // The leaderboard displays the nickname. If the nickname was merely
+      // auto-derived from the OLD name (never customised by the member), follow
+      // the corrected name so the leaderboard updates too. A nickname the member
+      // deliberately set is preserved.
+      final bool nicknameWasAutoDerived =
+          _origNickname.isEmpty || _origNickname == _origFullName.trim().split(' ').first;
+      final String nickname = nicknameInput.isEmpty
+          ? name.split(' ').first
+          : ((nicknameWasAutoDerived && nicknameInput == _origNickname)
+              ? name.split(' ').first
+              : nicknameInput);
       final String phone = _phoneController.text.trim();
       final String address = _addressController.text.trim();
       final String fatherName = _fatherNameController.text.trim();
@@ -436,7 +453,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       final Map<String, dynamic> upsertData = {
         'id': user.id,
         'full_name': name,
-        'nickname': nickname.isNotEmpty ? nickname : name.split(' ').first,
+        'nickname': nickname,
         'phone': phone,
         'gender': _gender,
         'date_of_birth': dobStr,
@@ -457,6 +474,15 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       if (emergencyContact.isNotEmpty) upsertData['emergency_contact'] = emergencyContact;
 
       await supabase.from('users').upsert(upsertData, onConflict: 'id');
+
+      // Keep the Supabase Auth user metadata (Authentication → Users display
+      // name) in sync with the profile name — otherwise the dashboard keeps the
+      // original signup name forever.
+      try {
+        await supabase.auth.updateUser(UserAttributes(data: {'full_name': name}));
+      } catch (e) {
+        debugPrint('Auth metadata name sync failed (non-fatal): $e');
+      }
 
       // Local fallbacks are best-effort: a prefs hiccup must NOT turn a
       // successful DB save into an error.
