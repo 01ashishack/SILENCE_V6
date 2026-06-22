@@ -208,9 +208,13 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       _payments = List<Map<String, dynamic>>.from(payRes);
 
       // 2. Fetch ALL check-ins in selected period (to build in-memory sessions + calculate stats)
+      // NOTE: `attendance` has no direct seat_id FK, so the seat is read through
+      // its membership (`memberships.seat_id → seats`). Embedding `seats(...)`
+      // directly here throws a PostgREST relationship error and blanks the whole
+      // tab, which looked like "every sub-tab just shows Refresh".
       var attQuery = _supabase
           .from('attendance')
-          .select('*, libraries(name), shifts(name), seats(seat_label)')
+          .select('*, libraries(name), shifts(name), memberships(seats(seat_label))')
           .eq('member_id', user.id);
 
       if (_selectedLibraryId != 'All') {
@@ -224,6 +228,15 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
 
       final attRes = await attQuery.order('check_in_time', ascending: false);
       _attendanceLogs = List<Map<String, dynamic>>.from(attRes);
+
+      // Flatten membership→seat back onto each row so the existing renderers
+      // that read `data['seats']['seat_label']` keep working unchanged.
+      for (final row in _attendanceLogs) {
+        final ms = row['memberships'];
+        if (ms is Map && ms['seats'] != null) {
+          row['seats'] = ms['seats'];
+        }
+      }
 
       // Calculate aggregate stats
       _calculateSessionStats(_attendanceLogs, range);

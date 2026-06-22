@@ -805,26 +805,26 @@ class MemberAnalyticsService {
     int userRankIndex = rankedList.indexWhere((e) => e['member_id'] == currentMemberId);
     Map<String, dynamic>? currentUserRow;
     int? currentUserRank;
-    double gapToTop5 = 0.0;
+    double gapToTop = 0.0;
 
     if (userRankIndex != -1) {
       currentUserRow = rankedList[userRankIndex];
       currentUserRank = currentUserRow['rank'];
     }
 
-    if (rankedList.length >= 5) {
-      final double hours5th = rankedList[4]['hours'] as double;
+    if (rankedList.length >= 10) {
+      final double hours10th = rankedList[9]['hours'] as double;
       final double myHours = currentUserRow != null ? (currentUserRow['hours'] as double) : 0.0;
-      if (myHours < hours5th) {
-        gapToTop5 = hours5th - myHours;
+      if (myHours < hours10th) {
+        gapToTop = hours10th - myHours;
       }
     }
 
     return {
-      'leaderboard': rankedList.take(5).toList(),
+      'leaderboard': rankedList.take(10).toList(),
       'currentUserRow': currentUserRow,
       'currentUserRank': currentUserRank,
-      'gapToTop5': gapToTop5,
+      'gapToTop5': gapToTop,
       'totalMembersCount': rankedList.length,
     };
   }

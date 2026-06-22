@@ -1032,9 +1032,9 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         crossAxisCount: 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 1.25,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
+        childAspectRatio: 1.55,
         children: [
           _buildStatCard(
             title: 'Days Present',
@@ -1098,7 +1098,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -1122,7 +1122,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     title,
                     style: GoogleFonts.inter(
                       color: const Color(0xFF64748B),
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1137,17 +1137,17 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   value,
                   style: GoogleFonts.outfit(
                     color: valueColor,
-                    fontSize: 22,
+                    fontSize: 30,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 if (subValue != null) ...[
-                  const SizedBox(height: 1),
+                  const SizedBox(height: 2),
                   Text(
                     subValue,
                     style: GoogleFonts.inter(
                       color: const Color(0xFF94A3B8),
-                      fontSize: 9,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -1174,7 +1174,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           const SizedBox(width: 2),
           Text(
             'Flat',
-            style: GoogleFonts.inter(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
+            style: GoogleFonts.inter(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ],
       );
@@ -1188,7 +1188,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           const SizedBox(width: 2),
           Text(
             'Same',
-            style: GoogleFonts.inter(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
+            style: GoogleFonts.inter(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ],
       );
@@ -1207,7 +1207,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         const SizedBox(width: 2),
         Text(
           '$sign$valStr$unit vs last',
-          style: GoogleFonts.inter(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+          style: GoogleFonts.inter(color: color, fontSize: 11, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -1753,8 +1753,15 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                 ),
               )
             else ...[
-              // Top 5 Members List
-              ..._leaderboardList.map((entry) {
+              // Top 10 members — scrollable when there are many; the member's own
+              // pinned row (rendered below) stays fixed and never scrolls away.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  physics: const ClampingScrollPhysics(),
+                  children: _leaderboardList.map((entry) {
                 final rank = entry['rank'] as int;
                 final isMe = entry['member_id'] == widget.userProfile?['id'];
                 
@@ -1812,10 +1819,13 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     ],
                   ),
                 );
-              }),
+                  }).toList(),
+                ),
+              ),
 
-              // Dotted divider and current user row if outside top 5
-              if (_currentUserLeaderboardRow != null && _currentUserLeaderboardRank != null && _currentUserLeaderboardRank! > 5) ...[
+              // Dotted divider and current user row if outside top 10 — this row
+              // is OUTSIDE the scroll area above, so it's always visible.
+              if (_currentUserLeaderboardRow != null && _currentUserLeaderboardRank != null && _currentUserLeaderboardRank! > 10) ...[
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 4.0),
                   child: Divider(color: Color(0xFFCBD5E1), thickness: 1.0),
@@ -1870,7 +1880,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                 Padding(
                   padding: const EdgeInsets.only(left: 4.0),
                   child: Text(
-                    'Gap to top 5: need ${_leaderboardGapToTop5.toStringAsFixed(1)}h more',
+                    'Gap to top 10: need ${_leaderboardGapToTop5.toStringAsFixed(1)}h more',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -2117,7 +2127,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                           color = const Color(0xFFE65C00);
                         } else if (hours >= 2.0) {
                           color = const Color(0xFFFF9A4D);
-                        } else if (hours >= 1.0) {
+                        } else if (hours > 0.0 || _heatmapData[dateStr] != null) {
                           color = const Color(0xFFFFCBA0);
                         } else {
                           color = Colors.white;
@@ -2203,7 +2213,9 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         color = const Color(0xFFE65C00);
       } else if (hours >= 2.0) {
         color = const Color(0xFFFF9A4D);
-      } else if (hours >= 1.0) {
+      } else if (hours > 0.0 || _heatmapData[dateStr] != null) {
+        // Present that day (any attendance record) — always shade it, even if
+        // the session was short or its duration wasn't computed yet.
         color = const Color(0xFFFFCBA0);
       } else {
         color = Colors.white;
@@ -2272,15 +2284,29 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  DateFormat('MMMM yyyy').format(_heatmapMonth),
-                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                InkWell(
+                  onTap: _pickHeatmapMonthYear,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          DateFormat('MMMM yyyy').format(_heatmapMonth),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.arrow_drop_down, color: Color(0xFFE65C00), size: 22),
+                      ],
+                    ),
+                  ),
                 ),
                 Row(
                   children: [
                     IconButton(
                       icon: const Icon(Icons.chevron_left, color: Color(0xFFE65C00)),
-                      onPressed: _heatmapMonth.isBefore(DateTime.now().subtract(const Duration(days: 360)))
+                      onPressed: (_heatmapMonth.year <= 2020 && _heatmapMonth.month == 1)
                           ? null
                           : () {
                               setState(() {
@@ -2322,13 +2348,113 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     );
   }
 
+  // Month + year picker for the calendar heatmap. A year stepper (← 20xx →)
+  // bounded between 2020 and the current year, plus a 12-month grid; picking a
+  // month jumps the heatmap and reloads its data.
+  Future<void> _pickHeatmapMonthYear() async {
+    final now = DateTime.now();
+    int pickerYear = _heatmapMonth.year;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    final result = await showDialog<DateTime>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setLocal) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              contentPadding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              content: SizedBox(
+                width: 300,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Year stepper
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left, color: Color(0xFFE65C00)),
+                          onPressed: pickerYear <= 2020 ? null : () => setLocal(() => pickerYear--),
+                        ),
+                        Text(
+                          '$pickerYear',
+                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right, color: Color(0xFFE65C00)),
+                          onPressed: pickerYear >= now.year ? null : () => setLocal(() => pickerYear++),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Month grid
+                    GridView.count(
+                      crossAxisCount: 4,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 1.6,
+                      children: List.generate(12, (i) {
+                        final monthNum = i + 1;
+                        final isFuture = pickerYear == now.year && monthNum > now.month;
+                        final isSelected = pickerYear == _heatmapMonth.year && monthNum == _heatmapMonth.month;
+                        return GestureDetector(
+                          onTap: isFuture ? null : () => Navigator.pop(context, DateTime(pickerYear, monthNum, 1)),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE2E8F0)),
+                            ),
+                            child: Center(
+                              child: Text(
+                                months[i],
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isFuture
+                                      ? const Color(0xFFCBD5E1)
+                                      : isSelected
+                                          ? Colors.white
+                                          : const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B))),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result != null && mounted) {
+      setState(() => _heatmapMonth = result);
+      _loadHeatmapDataOnly();
+    }
+  }
+
   Widget _buildHeatmapLegend({required bool showClosed}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _legendItem(Colors.white, '0h'),
+        _legendItem(Colors.white, 'Absent'),
         const SizedBox(width: 8),
-        _legendItem(const Color(0xFFFFCBA0), '1-2h'),
+        _legendItem(const Color(0xFFFFCBA0), '<2h'),
         const SizedBox(width: 8),
         _legendItem(const Color(0xFFFF9A4D), '2-4h'),
         const SizedBox(width: 8),

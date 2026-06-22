@@ -32,9 +32,40 @@
 - **Live DB project ref:** `kndeshxeerldamafweru` (`lib/core/supabase_config.dart`). Branch `main`,
   remote `origin` (github.com/01ashishack/SILENCE_V6).
 
-### Session 2026-06-19 — Analytics/admin-profile/headers overhaul + signup fix + member-home audit fixes
-Committed+pushed at **`a26943a`** (analytics + headers + profile + signup + member polish). A further
-batch of member-home audit fixes is **uncommitted** (see end). `flutter analyze` 0 errors throughout.
+### Session 2026-06-20 — Member-home visual overhaul + History/Analytics fixes
+Builds on the still-uncommitted member-home work; this batch is being committed now (see commit at end).
+`flutter analyze` 0 issues on all touched files. **No DB/migration changes.**
+- **Member-home membership card** (`member_home.dart`, `_buildMembershipCard`): reworked into a
+  **library ID-card** — header shows the **library cover photo + library name (big) + city** (was member
+  photo/name), verified tick kept; soft **warm-cream gradient** (`white → #FFF7F0`) instead of the earlier
+  status-green wash (user: green looked bad); status-tinted shadow + colored left border retained; Renew
+  moved into the top-right ⋮ menu; colorful tinted info chips (Seat/Shift/Timing/Joined/Plan/Price).
+- **Active Session card** (`_buildActiveSessionCard`): redesigned — **green-gradient header** with a
+  "LIVE SESSION" badge + big running HH:MM:SS timer + "Checked in at…", white body with shift-progress
+  bar, Seat + Shift chips, full-width **Shift Timing** row (fixes the truncated `07:00 AM–07…`),
+  time-remaining/overtime tinted box, motivational line, orange Check Out CTA. **Seat "pending" bug:**
+  the active-attendance query had no seats join → now `memberships(*, seats(*))` so the real seat shows.
+- **Previous/Yesterday session card** (`_buildPreviousSessionCard`): removed the `widthFactor 0.82`
+  wrapper (full-width again, just compact height) — only Date + Duration + Check-In + Check-Out.
+- **History tab — "every sub-tab shows Refresh" ROOT CAUSE FIXED** (`member_history_tab.dart`): the
+  attendance fetch joined `seats(seat_label)` directly, but `attendance` has **no `seat_id` FK** →
+  PostgREST relationship error blanked the whole tab into the error state. Switched to
+  `memberships(seats(seat_label))` (valid path) and flatten `seats` back onto each row so renderers are
+  unchanged. Sessions/Payments/Memberships load again.
+- **Analytics tab** (`member_analytics_tab.dart` + `member_analytics_service.dart`):
+  - 4 stat cards: shorter (`childAspectRatio 1.25→1.55`) + bigger text (value 22→30, title 10→12) to
+    kill the blank space.
+  - **Leaderboard → top 10** (was top 5; service `.take(10)` + gap-to-10th); list scrolls in a capped
+    box while the member's own **pinned rank row stays fixed** below (never scrolls out) when outside top 10.
+  - **Calendar heatmap fix:** present days were only shaded at `hours ≥ 1.0`, so short/uncomputed days
+    stayed white (only today's border showed) — now **any attendance day** gets ≥ the lightest tier, with
+    2-4h / 4h+ intensities on top (both month + year views; legend → Absent/<2h/2-4h/4h+). Added **month+year
+    picker** (tap the calendar title → year stepper 2020→now + 12-month grid); back-chevron relaxed to 2020.
+
+
+Committed+pushed at **`a26943a`** (analytics + headers + profile + signup + member polish). The
+follow-up member-home audit-fix batch + the 2026-06-20 visual overhaul / history / analytics work are
+**now committed** (see the 2026-06-20 session above). `flutter analyze` 0 errors throughout.
 **✅ Migration APPLIED to live DB (2026-06-19) + folded into `supabase_schema.sql`:**
 `2026-06-19_library_display_fields.sql` (libraries.`opening_hours`, `display_members_joined`).
 **No outstanding live-DB action.**
@@ -67,7 +98,7 @@ public profile's "View on Map" button uses `location_link` (Google Maps link) in
   (approve/reject→member already existed). Notifications rely on the applied actor-scope RLS (no new migration).
 - **Member**: profile-edit ID upload → **Front (required) + Back** photos (matches add-member wizard); seat-grid
   avatar `BoxFit.cover` (was original-ratio with blue gaps).
-- **Member-home AUDIT fixes (uncommitted batch):**
+- **Member-home AUDIT fixes (now committed — see 2026-06-20 session):**
   - **C1** unguarded `setState` in `finally` → `mounted`-guarded (join_flow ×2, member_profile_tab photo).
   - **C2** join_flow `maybeSingle()` on non-unique filters → `.limit(1)`; referral block isolated + non-fatal (runs post-commit).
   - **H1** Explore distance feature **removed entirely** (lat/long impractical for admins): dropped GPS/

@@ -275,7 +275,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
       final attendanceFuture = supabase
           .from('attendance')
-          .select('*, memberships(*), shifts(*), libraries(*)')
+          .select('*, memberships(*, seats(*)), shifts(*), libraries(*)')
           .eq('member_id', currentUser.id)
           .isFilter('check_out_time', null)
           .order('check_in_time', ascending: false)
@@ -406,6 +406,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             .from('announcements')
             .select('*, libraries(name)')
             .inFilter('library_id', joinedLibIds)
+            .gte('sent_at', DateTime.now().toUtc().subtract(const Duration(hours: 24)).toIso8601String())
             .order('sent_at', ascending: false)
             .limit(5);
 
@@ -875,6 +876,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       return {
         'duration': formatDurationHuman(duration),
         'check_in_time': formatTimeIST(checkInTime),
+        'check_out_time': formatTimeIST(checkOutTime),
         'library_name': libName,
         'shift_name': shiftName,
         'seat_label': seatLabel,
@@ -1908,6 +1910,21 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   // STAGE 4: ACTIVE MEMBER (normal)
+  Widget _sectionHeader(IconData icon, String title, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+          child: Icon(icon, size: 15, color: color),
+        ),
+        const SizedBox(width: 8),
+        Text(title, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+      ],
+    );
+  }
+
   Widget _buildActiveState() {
     return RefreshIndicator(
       onRefresh: _loadInitialData,
@@ -1940,30 +1957,21 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   const SizedBox(height: 16),
 
                   // Quick actions row
-                  Text(
-                    'Quick Actions',
-                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                  ),
+                  _sectionHeader(Icons.bolt_rounded, 'Quick Actions', const Color(0xFFF59E0B)),
                   const SizedBox(height: 12),
                   _buildQuickActionsRow(),
                   const SizedBox(height: 24),
 
                   // Announcements
                   if (_announcements.isNotEmpty) ...[
-                    Text(
-                      'Announcements',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                    ),
+                    _sectionHeader(Icons.campaign_rounded, 'Announcements', const Color(0xFF0EA5E9)),
                     const SizedBox(height: 10),
                     _buildAnnouncementsSection(),
                     const SizedBox(height: 24),
                   ],
 
                   // Recent Activities
-                  Text(
-                    'Recent Activities',
-                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                  ),
+                  _sectionHeader(Icons.history_rounded, 'Recent Activities', const Color(0xFF7C3AED)),
                   const SizedBox(height: 12),
                   _buildActivitiesTimeline(),
                   const SizedBox(height: 80),
@@ -3337,6 +3345,14 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final library = membership['libraries'] as Map<String, dynamic>? ?? {};
     final shift = membership['shifts'] as Map<String, dynamic>? ?? {};
     final seat = membership['seats'] as Map<String, dynamic>? ?? {};
+    final libName = (library['name'] ?? 'SILENCE Zone').toString();
+    final libInitial = libName.trim().isNotEmpty ? libName.trim()[0].toUpperCase() : 'L';
+    final libPhoto = (library['cover_photo_url'] ?? '').toString().isNotEmpty
+        ? library['cover_photo_url'].toString()
+        : ((library['photos'] is List && (library['photos'] as List).isNotEmpty)
+            ? (library['photos'] as List).first.toString()
+            : '');
+    final libCity = (library['address_city'] ?? '').toString();
     
     Color borderColor;
     String statusLabel;
@@ -3674,50 +3690,111 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            const Color(0xFFFFF7F0),
+          ],
+        ),
         borderRadius: BorderRadius.circular(16),
         border: Border(left: BorderSide(color: borderColor, width: 4)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 4)),
+          BoxShadow(color: borderColor.withValues(alpha: 0.13), blurRadius: 16, offset: const Offset(0, 6)),
         ],
       ),
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: prominent library name + status chip
+          // Header: ID-card style — library photo + library name (big) + city, status + menu
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: const Color(0xFFFFF1E8),
+                backgroundImage: libPhoto.isNotEmpty ? CachedNetworkImageProvider(libPhoto) : null,
+                child: libPhoto.isEmpty
+                    ? Text(
+                        libInitial,
+                        style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
               Expanded(
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Flexible(
-                      child: Text(
-                        library['name'] ?? 'SILENCE Zone',
-                        style: GoogleFonts.outfit(fontSize: 21, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), height: 1.1),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            libName,
+                            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), height: 1.1),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isVerified) ...[
+                          const SizedBox(width: 5),
+                          const Icon(Icons.verified, color: Colors.blue, size: 16),
+                        ],
+                      ],
                     ),
-                    if (isVerified) ...[
-                      const SizedBox(width: 6),
-                      const Icon(Icons.verified, color: Colors.blue, size: 18),
-                    ]
+                    if (libCity.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(Icons.location_on_rounded, size: 13, color: Colors.grey[500]),
+                          const SizedBox(width: 2),
+                          Flexible(
+                            child: Text(
+                              libCity,
+                              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: borderColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  statusLabel,
-                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: borderColor),
-                ),
+              const SizedBox(width: 6),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: borderColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: borderColor),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 30,
+                        height: 30,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.more_vert, color: Color(0xFF94A3B8), size: 20),
+                          tooltip: 'Options',
+                          onPressed: () => _openMembershipMoreOptions(membership),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               )
             ],
           ),
@@ -3727,17 +3804,19 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             children: [
               Expanded(
                 child: _cardInfoItem(
-                  Icons.event_seat_outlined,
+                  Icons.event_seat_rounded,
                   'Seat',
                   seat.isNotEmpty ? (seat['seat_label'] ?? 'Pending') : 'Pending',
+                  accent: const Color(0xFFE65C00),
                   valueColor: const Color(0xFFE65C00),
                 ),
               ),
               Expanded(
                 child: _cardInfoItem(
-                  Icons.wb_sunny_outlined,
+                  Icons.wb_sunny_rounded,
                   'Shift',
                   shift.isNotEmpty ? (shift['name'] ?? 'Shift') : 'Pending',
+                  accent: const Color(0xFFF59E0B),
                 ),
               ),
             ],
@@ -3746,15 +3825,17 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           Row(
             children: [
               Expanded(
-                child: _cardInfoItem(Icons.schedule_rounded, 'Timing', _formatShiftRange(shift)),
+                child: _cardInfoItem(Icons.schedule_rounded, 'Timing', _formatShiftRange(shift),
+                    accent: const Color(0xFF6366F1)),
               ),
               Expanded(
                 child: _cardInfoItem(
-                  Icons.calendar_today_outlined,
+                  Icons.calendar_today_rounded,
                   'Joined',
                   membership['start_date'] != null
                       ? DateFormat('dd MMM yyyy').format(DateTime.parse(membership['start_date']))
                       : '—',
+                  accent: const Color(0xFF22C55E),
                 ),
               ),
             ],
@@ -3764,7 +3845,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             children: [
               Expanded(
                 child: _cardInfoItem(
-                  Icons.receipt_long_outlined,
+                  Icons.workspace_premium_rounded,
                   'Plan',
                   membership['plan_type'] == 'monthly'
                       ? 'Monthly'
@@ -3773,13 +3854,15 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                           : membership['plan_type'] == '6_month'
                               ? '6-Month'
                               : 'Trial',
+                  accent: const Color(0xFF7C3AED),
                 ),
               ),
               Expanded(
                 child: _cardInfoItem(
-                  Icons.payments_outlined,
+                  Icons.payments_rounded,
                   'Price',
                   _membershipPriceLabel(membership, shift),
+                  accent: const Color(0xFF10B981),
                 ),
               ),
             ],
@@ -3811,20 +3894,31 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             ),
           ],
           const SizedBox(height: 18),
-          buildButtons(),
+          // Active card is ID-style — its actions (Renew/Seat/Exit) live in the
+          // top-right ⋮ menu. Other states keep their inline CTA buttons.
+          if (state != MemberState.active) buildButtons(),
         ],
       ),
     );
   }
 
-  /// One labeled info cell for the membership card (icon + small label + bold
-  /// value). Wrapped in Expanded by callers; value ellipsizes to avoid overflow.
-  Widget _cardInfoItem(IconData icon, String label, String value, {Color? valueColor}) {
+  /// One labeled info cell for the membership card: a soft tinted icon chip +
+  /// small label + bold value. Wrapped in Expanded by callers; value ellipsizes.
+  Widget _cardInfoItem(IconData icon, String label, String value,
+      {Color accent = const Color(0xFFE65C00), Color? valueColor}) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 16, color: Colors.grey[500]),
-        const SizedBox(width: 8),
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 17, color: accent),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3939,237 +4033,252 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: const Color(0xFF22C55E).withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: Container(
-              width: 4,
-              color: const Color(0xFF22C55E),
+          // ===== Green gradient header: live status + big running timer =====
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF15803D), Color(0xFF22C55E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title + Date
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      "TODAY'S SESSION",
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF94A3B8),
-                        letterSpacing: 1.5,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'LIVE SESSION',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     Text(
                       formatDateIST(checkInTime.toUtc()),
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: const Color(0xFF64748B),
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                ValueListenableBuilder<Duration>(
+                  valueListenable: _sessionDurationNotifier,
+                  builder: (context, dur, child) {
+                    return Text(
+                      formatDurationHMS(dur),
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 42,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1.0,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.login_rounded, size: 14, color: Colors.white.withValues(alpha: 0.85)),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Checked in at ${formatTimeIST(checkInTime.toUtc())}',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                
-                // Columns: details and progress arc
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      flex: 65,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF22C55E),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Checked In',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF22C55E),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Check-in: ${formatTimeIST(checkInTime.toUtc())}',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: const Color(0xFF475569),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$shiftName · ${formatShiftTimeString(shiftStartTimeStr)} – ${formatShiftTimeString(shiftEndTimeStr)}',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: const Color(0xFF64748B),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      flex: 35,
-                      child: ValueListenableBuilder<double>(
-                        valueListenable: _shiftProgressNotifier,
-                        builder: (context, progress, child) {
-                          return Center(
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 80,
-                                  height: 80,
-                                  child: CircularProgressIndicator(
-                                    value: progress,
-                                    strokeWidth: 8,
-                                    backgroundColor: const Color(0xFFF1F5F9),
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
-                                  ),
-                                ),
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    ValueListenableBuilder<Duration>(
-                                      valueListenable: _sessionDurationNotifier,
-                                      builder: (context, dur, child) {
-                                        return Text(
-                                          formatDurationHuman(dur),
-                                          style: GoogleFonts.inter(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: const Color(0xFF1E293B),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    Text(
-                                      'of ${formatDurationHuman(Duration(minutes: shiftDurationMinutes))} shift',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 8,
-                                        color: const Color(0xFF64748B),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                
-                // Stacked Timers
-                ValueListenableBuilder<Duration>(
-                  valueListenable: _sessionDurationNotifier,
-                  builder: (context, dur, child) {
+              ],
+            ),
+          ),
+          // ===== White body: progress, info chips, remaining, CTA =====
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Shift progress
+                ValueListenableBuilder<double>(
+                  valueListenable: _shiftProgressNotifier,
+                  builder: (context, progress, child) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'SESSION DURATION',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF64748B),
-                            letterSpacing: 1.0,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'SHIFT PROGRESS',
+                              style: GoogleFonts.outfit(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF64748B),
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                            Text(
+                              '${(progress * 100).clamp(0, 100).toStringAsFixed(0)}% · ${formatDurationHuman(Duration(minutes: shiftDurationMinutes))} shift',
+                              style: GoogleFonts.inter(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          formatDurationHMS(dur),
-                          style: GoogleFonts.spaceMono(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1E293B),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Started ${formatTimeIST(checkInTime.toUtc())}',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: const Color(0xFF94A3B8),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF22C55E)),
+                            minHeight: 8,
                           ),
                         ),
                       ],
                     );
                   },
                 ),
-                const SizedBox(height: 16),
-                const Divider(color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
+                // Seat + Shift info chips
+                Row(
+                  children: [
+                    Expanded(
+                      child: _cardInfoItem(
+                        Icons.event_seat_rounded,
+                        'Seat',
+                        seatLabel,
+                        accent: const Color(0xFFE65C00),
+                        valueColor: const Color(0xFFE65C00),
+                      ),
+                    ),
+                    Expanded(
+                      child: _cardInfoItem(
+                        Icons.wb_sunny_rounded,
+                        'Shift',
+                        shiftName,
+                        accent: const Color(0xFFF59E0B),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _cardInfoItem(
+                  Icons.schedule_rounded,
+                  'Shift Timing',
+                  '${formatShiftTimeString(shiftStartTimeStr)} – ${formatShiftTimeString(shiftEndTimeStr)}',
+                  accent: const Color(0xFF6366F1),
+                ),
+                const SizedBox(height: 18),
+                // Time remaining / overtime
                 ValueListenableBuilder<Duration>(
                   valueListenable: _shiftRemainingNotifier,
                   builder: (context, rem, child) {
                     final isOvertime = rem.isNegative;
                     final absRem = rem.abs();
-                    return Column(
+                    final accent = isOvertime ? const Color(0xFFEF4444) : const Color(0xFFF97316);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isOvertime ? Icons.error_outline_rounded : Icons.hourglass_bottom_rounded,
+                            size: 20,
+                            color: accent,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              isOvertime ? 'Overtime since shift end' : 'Time remaining in shift',
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            formatDurationHMS(absRem),
+                            style: GoogleFonts.spaceMono(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+                // Motivational message
+                ValueListenableBuilder<double>(
+                  valueListenable: _shiftProgressNotifier,
+                  builder: (context, progress, child) {
+                    return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          isOvertime ? 'OVERTIME DURATION' : 'TIME REMAINING',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: isOvertime ? const Color(0xFFEF4444) : const Color(0xFF64748B),
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          formatDurationHMS(absRem),
-                          style: GoogleFonts.spaceMono(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: isOvertime ? const Color(0xFFEF4444) : const Color(0xFFF97316),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          isOvertime ? 'Overtime since shift end time' : 'Until shift ends',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: const Color(0xFF94A3B8),
+                        const Icon(Icons.auto_awesome_rounded, size: 15, color: Color(0xFFF59E0B)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _getMotivationalMessage(progress),
+                            style: GoogleFonts.inter(
+                              fontSize: 12.5,
+                              fontStyle: FontStyle.italic,
+                              color: const Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],
@@ -4177,67 +4286,26 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   },
                 ),
                 const SizedBox(height: 20),
-                
-                // Motivational message
-                ValueListenableBuilder<double>(
-                  valueListenable: _shiftProgressNotifier,
-                  builder: (context, progress, child) {
-                    return Text(
-                      '"${_getMotivationalMessage(progress)}"',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontStyle: FontStyle.italic,
-                        color: const Color(0xFF64748B),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                
-                // Seat + shift info
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Seat: $seatLabel',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF475569),
-                      ),
-                    ),
-                    Text(
-                      'Shift: $shiftName',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF475569),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                
                 // Check Out button
                 SizedBox(
                   width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
+                  height: 54,
+                  child: ElevatedButton.icon(
                     onPressed: _onCheckOutPressed,
+                    icon: const Icon(Icons.logout_rounded, size: 20),
+                    label: Text(
+                      'Check Out',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFE65C00),
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      'Check Out',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   ),
@@ -4765,7 +4833,15 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Icon(Icons.location_off_outlined, color: Color(0xFF64748B), size: 24),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1E8),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.location_off_rounded, color: Color(0xFFE65C00), size: 22),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -4876,68 +4952,54 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final prev = _previousSession;
     if (prev == null) return const SizedBox.shrink();
 
-    return Container(
-      margin: const EdgeInsets.only(top: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                (prev['title'] as String?)?.toUpperCase() ?? "PREVIOUS SESSION",
-                style: GoogleFonts.outfit(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF94A3B8),
-                  letterSpacing: 1.0,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(top: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF9FAFB),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: title + date
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  (prev['title'] as String?)?.toUpperCase() ?? "PREVIOUS SESSION",
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF94A3B8),
+                    letterSpacing: 1.0,
+                  ),
                 ),
-              ),
-              Text(
-                prev['date'] ?? '',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF64748B),
+                Text(
+                  prev['date'] ?? '',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF64748B),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          
-          // 3-stat row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStatItem('Duration', prev['duration'] ?? 'N/A'),
-              _buildStatItem('Check-In', prev['check_in_time'] ?? 'N/A'),
-              _buildStatItem('Streak', prev['streak'] ?? 'N/A'),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Divider(color: Color(0xFFE5E7EB)),
-          const SizedBox(height: 8),
-          
-          // Footer
-          Center(
-            child: Text(
-              '${prev['library_name']} · ${prev['shift_name']} · Seat ${prev['seat_label']}',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: const Color(0xFF64748B),
-                fontWeight: FontWeight.w500,
-              ),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            // Only: Duration · Check-In · Check-Out
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildStatItem('Duration', prev['duration'] ?? 'N/A'),
+                _buildStatItem('Check-In', prev['check_in_time'] ?? 'N/A'),
+                _buildStatItem('Check-Out', prev['check_out_time'] ?? 'N/A'),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -4979,16 +5041,38 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         children: [
           Row(
             children: [
-              const Icon(Icons.local_fire_department, color: Color(0xFFE65C00), size: 28),
-              const SizedBox(width: 8),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFFFF8A3D), Color(0xFFE65C00)]),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.local_fire_department_rounded, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 10),
               Text(
                 'Study Streak',
                 style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
               ),
               const Spacer(),
-              Text(
-                _currentStreak == 1 ? '1 Day' : '$_currentStreak Days',
-                style: GoogleFonts.spaceMono(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1E8),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.local_fire_department_rounded, color: Color(0xFFE65C00), size: 15),
+                    const SizedBox(width: 4),
+                    Text(
+                      _currentStreak == 1 ? '1 Day' : '$_currentStreak Days',
+                      style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+                    ),
+                  ],
+                ),
               )
             ],
           ),
@@ -5010,10 +5094,16 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               final isFuture = day['isFuture'] as bool;
 
               Color circleColor;
+              Gradient? circleGradient;
               Widget? inner;
               if (attended) {
                 circleColor = const Color(0xFF22C55E);
-                inner = const Icon(Icons.check, color: Colors.white, size: 18);
+                circleGradient = const LinearGradient(
+                  colors: [Color(0xFF34D399), Color(0xFF16A34A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                );
+                inner = const Icon(Icons.check_rounded, color: Colors.white, size: 18);
               } else if (isFuture) {
                 circleColor = const Color(0xFFF8FAFC);
                 inner = null;
@@ -5028,8 +5118,12 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: circleColor,
+                      color: circleGradient == null ? circleColor : null,
+                      gradient: circleGradient,
                       shape: BoxShape.circle,
+                      boxShadow: attended
+                          ? [BoxShadow(color: const Color(0xFF22C55E).withValues(alpha: 0.35), blurRadius: 6, offset: const Offset(0, 2))]
+                          : null,
                       border: isToday
                           ? Border.all(color: const Color(0xFFE65C00), width: 2)
                           : (isFuture ? Border.all(color: Colors.grey[200]!) : null),
@@ -5097,108 +5191,21 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             label: 'Contact Admin',
             icon: Icons.support_agent,
             onPressed: _openContactAdmin,
+            accent: const Color(0xFF0EA5E9),
           ),
           const SizedBox(width: 8),
           _buildQuickActionButton(
             label: 'Refer & Earn',
-            icon: Icons.card_giftcard_outlined,
+            icon: Icons.card_giftcard_rounded,
             onPressed: _openReferSheet,
+            accent: const Color(0xFF7C3AED),
           ),
           const SizedBox(width: 8),
           _buildQuickActionButton(
             label: 'Renew',
-            icon: Icons.autorenew,
+            icon: Icons.autorenew_rounded,
             onPressed: _openRenewForPrimary,
-          ),
-          const SizedBox(width: 8),
-          _buildQuickActionButton(
-            label: 'Find Library',
-            icon: Icons.explore_outlined,
-            onPressed: () {
-              Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
-            },
-          ),
-          const SizedBox(width: 8),
-          _buildQuickActionButton(
-            label: 'Join by Code',
-            icon: Icons.qr_code_2_rounded,
-            onPressed: _openJoinByCodeDialog,
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Quick "join a library by its code" — same flow as Explore's Join-with-Code,
-  /// surfaced on the home screen so a member can join without searching.
-  void _openJoinByCodeDialog() {
-    final codeCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Join by library code',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Enter the code your library shared with you.',
-                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
-            const SizedBox(height: 14),
-            TextField(
-              controller: codeCtrl,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Library Code',
-                hintText: 'e.g. SIL-4K9M-2P',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE65C00),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () async {
-              final code = codeCtrl.text.trim();
-              if (code.isEmpty) return;
-              final nav = Navigator.of(ctx);
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                final libRes = await Supabase.instance.client
-                    .from('libraries')
-                    .select('id')
-                    .eq('library_code', code)
-                    .maybeSingle();
-                if (libRes == null) {
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('Library not found. Check the code and try again.')),
-                  );
-                  return;
-                }
-                nav.pop();
-                if (!mounted) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => LibraryPublicProfileScreen(
-                      libraryId: libRes['id'],
-                      isAdmin: false,
-                      showProceedButton: true,
-                    ),
-                  ),
-                ).then((_) => _loadInitialData());
-              } catch (e) {
-                messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
-              }
-            },
-            child: Text('Find Library', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+            accent: const Color(0xFFE65C00),
           ),
         ],
       ),
@@ -5340,25 +5347,33 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildQuickActionButton({required String label, required IconData icon, required VoidCallback onPressed}) {
+  Widget _buildQuickActionButton({required String label, required IconData icon, required VoidCallback onPressed, Color accent = const Color(0xFFE65C00)}) {
     return Container(
       width: 100,
-      height: 70,
+      height: 76,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4)],
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: const Color(0xFFE65C00), size: 20),
-              const SizedBox(height: 6),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accent, size: 19),
+              ),
+              const SizedBox(height: 7),
               Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
             ],
           ),
@@ -5537,38 +5552,64 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               ],
             ),
             padding: const EdgeInsets.all(12),
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      libraryName,
-                      style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
-                    ),
-                    Text(
-                      sentTime,
-                      style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500]),
-                    )
-                  ],
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: (isUnread ? const Color(0xFFE65C00) : const Color(0xFF94A3B8)).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.campaign_rounded, size: 18, color: isUnread ? const Color(0xFFE65C00) : const Color(0xFF94A3B8)),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  announce['title'] ?? 'Notice',
-                  style: GoogleFonts.inter(
-                    fontSize: 13, 
-                    fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
-                    color: const Color(0xFF1E293B)
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            libraryName,
+                            style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
+                          ),
+                          Text(
+                            sentTime,
+                            style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500]),
+                          )
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        announce['title'] ?? 'Notice',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                          color: const Color(0xFF1E293B)
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        announce['message'] ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  announce['message'] ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
-                ),
+                if (isUnread) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(top: 4),
+                    decoration: const BoxDecoration(color: Color(0xFFE65C00), shape: BoxShape.circle),
+                  ),
+                ],
               ],
             ),
           ),
@@ -5797,6 +5838,26 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.autorenew_rounded, color: Color(0xFFE65C00)),
+                title: Text('Renew Plan', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(context);
+                  final lib = membership['libraries'] as Map<String, dynamic>? ?? {};
+                  final sh = membership['shifts'] as Map<String, dynamic>? ?? {};
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RenewalScreen(
+                        libraryId: lib['id'] ?? '',
+                        initialShiftId: sh['id'],
+                        initialPlan: membership['plan_type'],
+                      ),
+                    ),
+                  ).then((_) => _loadInitialData());
+                },
+              ),
+              const Divider(),
               ListTile(
                 leading: const Icon(Icons.event_seat, color: Color(0xFFE65C00)),
                 title: Text('Change Seat', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
