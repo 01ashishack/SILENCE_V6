@@ -32,7 +32,84 @@
 - **Live DB project ref:** `kndeshxeerldamafweru` (`lib/core/supabase_config.dart`). Branch `main`,
   remote `origin` (github.com/01ashishack/SILENCE_V6).
 
-### Session 2026-06-22 — Shift overtime + out-of-shift check-in approvals + analytics/safe-area fixes
+### Session 2026-06-23 (d) — CSV export crash fix (web "_Namespace") + key mismatch
+`flutter analyze` 0 issues. **No DB/migration changes.**
+- **CSV "Unsupported operation: _Namespace" fixed**: CSV sharing wrote a temp file via `dart:io`
+  `Directory.systemTemp`, which throws on web (PDF worked because `printing` shares bytes). Now branches on
+  `kIsWeb`: **web → share bytes via `XFile.fromData`**, **native → temp file** (the proven path). Fixed in
+  `csv_exporter.dart` `_shareFile` and the member-history combined CSV (`member_history_tab.dart`).
+- **CSV key mismatch fixed**: `MemberAnalyticsService.fetchAttendanceForExport` didn't supply `shift`,
+  `is_overtime`, and its `seat` was always N/A (attendance has no seat column). Now joins
+  `memberships(seats(seat_label))` and returns shift + overtime + real seat, so the member's own attendance
+  CSV columns fill correctly.
+
+
+`flutter analyze` 0 issues. **No DB/migration changes.**
+- **Member-wise attendance** (`attendance_export_preview.dart`): replaced the flat member-name chips with
+  **faceted filters — Shift / Floor / Category** (+ a **Members** checklist), each opening a multi-select
+  bottom-sheet (default **All**). Effective member set = facet-filtered ∩ manual member selection. Loads
+  shift/floor (via `floors`)/`exam_category` per member.
+- **Export Center** (`export_center.dart`): removed the top Today/Week/Month/Custom bar. Tapping **CSV/PDF**
+  on a report now opens a **period chooser** (Today / This Week / This Month / Custom Range) and then exports
+  for the chosen range. The **Attendance Log** card now has **Date-wise / Member-wise** buttons that open the
+  full attendance preview screen (its own filters + CSV/PDF).
+- Files: `lib/screens/reports/attendance_export_preview.dart`, `lib/screens/export_center.dart`.
+- (Library facet omitted — the Export Center / analytics are already scoped to a single library.)
+
+
+`flutter analyze` 0 issues (whole project). **No DB/migration changes.**
+- **PDF layout/logo fixes** (`pdf_exporter.dart`): top margin 122→18 (killed the big blank strip above the
+  letterhead), bottom 58→20; header logo switched to the pure-white `WHITE_WITH_TAGLINE.png` at 42px (was
+  blending into the orange); footer logo switched to `BLack_name_with_tag.png` at 26px (bigger). **Times now
+  render in IST** in both PDF & CSV (was UTC). **Members Roster** gained a **Joined** column.
+- **New report types** in the shared engine: `exportExpenses`, `exportMemberwiseAttendance` (grouped per
+  member: Date/Check-in/Check-out/Duration/Overtime).
+- **Attendance preview screen** (`lib/screens/reports/attendance_export_preview.dart`): the admin Analytics
+  Attendance tab "Preview & Export" now opens this. **Date-wise** → date/range picker + every member's
+  attendance (Member, Seat, Check-in, Check-out, Duration, Overtime). **Member-wise** → month stepper +
+  member multi-select (All / one / more) + per-member sessions. Both export CSV/PDF from the preview via the
+  shared engines (respecting the on-screen filter).
+- **Revenue preview screen** (`lib/screens/reports/revenue_report_preview.dart`): the Revenue tab "Export &
+  View Reports" buttons now open this (Revenue & Expenses / Expenses / Payments) with a **date filter**
+  (Today/Week/Month/Custom, default This Month) and **working** CSV+PDF exports that emit the filtered data —
+  the old `_showReportGridModal` (with dead `debugPrint` placeholder exports) is removed.
+- **Member-detail ("profile") attendance export**: CSV now carries the overtime flag + shift; PDF reshape
+  (Member/Seat/Shift) was fixed earlier.
+- **Files:** `lib/utils/pdf_exporter.dart`, `lib/utils/csv_exporter.dart`,
+  `lib/screens/reports/attendance_export_preview.dart` (new), `lib/screens/reports/revenue_report_preview.dart`
+  (new), `lib/screens/admin_analytics_tab.dart`, `lib/screens/reservations/member_detail_screen.dart`.
+- **Note:** header white logo assumes `WHITE_WITH_TAGLINE.png` is a true-white wordmark; if it still blends,
+  swap the asset. The empty mid-page area on a near-empty report is inherent to a full-page A4 layout.
+
+
+`flutter analyze` 0 issues (whole project). **No DB/migration changes.** Reworked all PDF/CSV exports to 10/10.
+- **One engine, no divergence:** `export_center.dart` (admin Exports & Reports Center) no longer has its own
+  inline PDF/CSV logic — it now only fetches rows and delegates to the shared `PdfExporter` / `CsvExporter`.
+  Every screen (admin center, admin analytics, member history/analytics, member-detail) shares one output format.
+- **₹ glyph fixed:** `pdf_exporter.dart` now embeds Noto Sans (via `PdfGoogleFonts`, cached) as the document
+  theme, so the rupee symbol renders instead of a blank box; graceful fallback to the base font if offline.
+- **PDF redesign:** brand orange letterhead band with the **white logo** (`transparent_logo_with_white_name.png`),
+  KPI summary tiles, zebra tables with right-aligned money + bold **TOTAL** rows, footer with the **dark logo**
+  (`transparent_logo_with_black_name.png`) + page numbers; receipt uses the **app icon** (`only_icon.png`).
+  Money via `NumberFormat en_IN` (₹1,00,000 grouping).
+- **CSV machine-friendly:** column header is row 1 (clean import), amount columns are plain numbers labelled
+  `(INR)` (so `=SUM()` works), single sortable `yyyy-MM-dd[ HH:mm]` dates, a trailing `# Summary` block with
+  totals + meta, and a UTF-8 BOM so Excel detects encoding.
+- **Bug fixes:** admin single-member **PDF attendance** now reshapes rows (was N/A for Member/Seat/Shift);
+  Export Center **occupancy** relabelled an honest "current snapshot"; **revenue** now merges `expenditures`
+  into a real daily P&L with cash/UPI split + grand total.
+- **Completeness:** added **Upcoming Expirations** + **Attendance Summary** (member-wise check-ins/hours/avg)
+  to the shared engine; replaced the old hack that mis-rendered member-wise hours through `exportDues`
+  (and removed a `$widget.libraryName` interpolation bug in the old inline CSV). Overtime `+OT` tag flows
+  through attendance lists, history, PDF and CSV.
+- **Files:** `lib/utils/pdf_exporter.dart` (rewritten), `lib/utils/csv_exporter.dart` (rewritten),
+  `lib/screens/export_center.dart` (rewritten — delegates), `lib/screens/reservations/member_detail_screen.dart`,
+  `lib/screens/admin_analytics_tab.dart`.
+- **Note:** Noto Sans is fetched on first use (network, then cached) like the app's existing GoogleFonts usage;
+  bundle a TTF later if fully-offline ₹ rendering is required. Member History's combined CSV (3 datasets in one
+  file) stays a multi-section format by design; its PDF path uses the shared engine.
+
+
 `flutter analyze` 0 issues (whole project). Committed+pushed at **`5e9212e`**.
 - **✅ Migration APPLIED to live DB (2026-06-22)** + folded into `supabase_schema.sql`:
   `silence_app/migrations/2026-06-22_overtime_and_checkin_approvals.sql` — adds

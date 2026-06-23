@@ -4,12 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../utils/csv_exporter.dart';
-import '../utils/pdf_exporter.dart';
 import '../core/calendar_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:io';
+import 'reports/attendance_export_preview.dart';
+import 'reports/revenue_report_preview.dart';
 import 'reservations/member_detail_screen.dart';
 import '../widgets/states/shimmer_box.dart';
 import '../core/plan_service.dart';
@@ -1171,96 +1169,6 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
               ),
             );
           },
-        );
-      },
-    );
-  }
-
-  // --- Reports Display Modal ---
-  void _showReportGridModal(String title, List<Map<String, dynamic>> items, List<String> columns, VoidCallback onExportCsv, VoidCallback onExportPdf) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            width: double.infinity,
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                      ),
-                    ),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SingleChildScrollView(
-                      child: DataTable(
-                        headingRowColor: WidgetStateProperty.all(const Color(0xFFFFF7F4)),
-                        columns: columns.map((col) => DataColumn(label: Text(col, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12)))).toList(),
-                        rows: items.map((row) {
-                          return DataRow(
-                            cells: columns.map((col) {
-                              return DataCell(Text(row[col]?.toString() ?? 'N/A', style: GoogleFonts.inter(fontSize: 12)));
-                            }).toList(),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.download, size: 16, color: Color(0xFFE65C00)),
-                        label: Text('Export CSV', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, fontSize: 13)),
-                        style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFFE65C00))),
-                        onPressed: () async {
-                          if (!await ensurePlan(context, AdminFeature.export, featureLabel: 'Exporting reports')) {
-                            return;
-                          }
-                          onExportCsv();
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.picture_as_pdf, size: 16, color: Colors.white),
-                        label: Text('Export PDF', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-                        onPressed: () async {
-                          if (!await ensurePlan(context, AdminFeature.export, featureLabel: 'Exporting reports')) {
-                            return;
-                          }
-                          onExportPdf();
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
         );
       },
     );
@@ -3017,82 +2925,19 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 children: [
                   SizedBox(
                     width: (MediaQuery.of(context).size.width - 64 - 10) / 2,
-                    child: _buildReportBtn('Revenue Report', () {
-                      final summaries = _allExpenses.map((e) => {
-                        'date': DateFormat('dd MMM yyyy').format(DateTime.parse(e['expense_date']).toLocal()),
-                        'revenue': _totalRevenue,
-                        'expenses': e['amount'],
-                        'net_profit': _netProfit,
-                      }).toList();
-
-                      _showReportGridModal(
-                        'Revenue Summary Report',
-                        summaries,
-                        const ['date', 'revenue', 'expenses', 'net_profit'],
-                        () => CsvExporter.exportRevenueSummary(libraryName: widget.libraryName, summary: summaries),
-                        () => debugPrint('PDF Export Revenue placeholder'),
-                      );
-                    }),
+                    child: _buildReportBtn('Revenue & Expenses', () => _openRevenuePreview(RevenueReportType.revenue)),
                   ),
                   SizedBox(
                     width: (MediaQuery.of(context).size.width - 64 - 10) / 2,
-                    child: _buildReportBtn('Expense Report', () {
-                      final data = _allExpenses.map((e) => {
-                        'category': _expenseCategoryLabel((e['category'] ?? '').toString()),
-                        'amount': e['amount'],
-                        'date': DateFormat('dd MMM yyyy').format(DateTime.parse(e['expense_date']).toLocal()),
-                      }).toList();
-
-                      _showReportGridModal(
-                        'Expenses Breakdown Report',
-                        data,
-                        const ['category', 'amount', 'date'],
-                        () => debugPrint('CSV Export Expense placeholder'),
-                        () => debugPrint('PDF Export Expense placeholder'),
-                      );
-                    }),
+                    child: _buildReportBtn('Expense Report', () => _openRevenuePreview(RevenueReportType.expenses)),
                   ),
                   SizedBox(
                     width: (MediaQuery.of(context).size.width - 64 - 10) / 2,
-                    child: _buildReportBtn('Payment History', () {
-                      final data = _recentConfirmedPayments.map((p) => {
-                        'id': p['id'].toString().substring(0, 8),
-                        'member_name': p['member_id']?['full_name'] ?? 'N/A',
-                        'amount': p['amount'],
-                        'method': p['method'],
-                        'status': p['status'],
-                        'payment_date': DateFormat('dd MMM yyyy').format(DateTime.parse(p['payment_date']).toLocal()),
-                      }).toList();
-
-                      _showReportGridModal(
-                        'Payments Confirmation Log',
-                        data,
-                        const ['id', 'member_name', 'amount', 'method', 'status', 'payment_date'],
-                        () => CsvExporter.exportPayments(libraryName: widget.libraryName, payments: data),
-                        () => debugPrint('PDF Export Payment placeholder'),
-                      );
-                    }),
+                    child: _buildReportBtn('Payment History', () => _openRevenuePreview(RevenueReportType.payments)),
                   ),
                   SizedBox(
                     width: (MediaQuery.of(context).size.width - 64 - 10) / 2,
-                    child: _buildReportBtn('Payment Details', () {
-                      final data = _recentConfirmedPayments.map((p) => {
-                        'txId': p['id'].toString().substring(0, 8),
-                        'member': p['member_id']?['full_name'] ?? 'N/A',
-                        'phone': p['member_id']?['phone'] ?? 'N/A',
-                        'email': p['member_id']?['email'] ?? 'N/A',
-                        'amount': p['amount'],
-                        'date': DateFormat('dd MMM yyyy').format(DateTime.parse(p['payment_date']).toLocal()),
-                      }).toList();
-
-                      _showReportGridModal(
-                        'Individual Detailed Payments',
-                        data,
-                        const ['txId', 'member', 'phone', 'email', 'amount', 'date'],
-                        () => debugPrint('CSV Export Details placeholder'),
-                        () => debugPrint('PDF Export Details placeholder'),
-                      );
-                    }),
+                    child: _buildReportBtn('Payment Details', () => _openRevenuePreview(RevenueReportType.payments)),
                   ),
                 ],
               ),
@@ -3340,7 +3185,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     ];
   }
 
-  Future<void> _triggerAttendanceCsvExport() async {
+  Future<void> _openRevenuePreview(RevenueReportType type) async {
     if (!_isProfileComplete) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -3363,70 +3208,20 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       return;
     }
     if (!mounted) return;
-    if (_attendanceTableToggle == 'date_wise') {
-      final logs = _attendanceLogs.map((l) {
-        final name = l['member_id']?['full_name'] ?? 'N/A';
-        final ci = l['check_in_time'];
-        final co = l['check_out_time'];
-        final sName = l['memberships']?['shifts']?['name'] ?? 'N/A';
-        return {
-          'member_name': name,
-          'check_in_time': ci,
-          'check_out_time': co,
-          'shift_name': sName,
-        };
-      }).toList();
-      await CsvExporter.exportAttendance(libraryName: widget.libraryName, logs: logs);
-    } else {
-      final Map<String, int> checkinCounts = {};
-      final Map<String, double> totalHours = {};
-      final Map<String, String> planTypes = {};
-      final Map<String, String> memberNames = {};
-
-      for (var att in _attendanceLogs) {
-        final member = att['member_id'];
-        if (member == null) continue;
-        final mId = member['id'].toString();
-        final name = member['full_name'] ?? 'Member';
-        memberNames[mId] = name;
-        checkinCounts[mId] = (checkinCounts[mId] ?? 0) + 1;
-
-        final ciStr = att['check_in_time'];
-        final coStr = att['check_out_time'];
-        if (ciStr != null) {
-          final ci = DateTime.parse(ciStr);
-          final co = coStr != null ? DateTime.parse(coStr) : DateTime.now();
-          final diff = co.difference(ci).inMinutes / 60.0;
-          totalHours[mId] = (totalHours[mId] ?? 0.0) + diff;
-        }
-
-        final plan = att['memberships']?['plan_type'] ?? 'monthly';
-        planTypes[mId] = plan == '3_month' ? '3-Month' : (plan == '6_month' ? '6-Month' : 'Monthly');
-      }
-
-      final buffer = StringBuffer();
-      buffer.writeln('SILENCE Member-wise Attendance Summary');
-      buffer.writeln('Library:,$widget.libraryName');
-      buffer.writeln('Export Date:,${DateFormat('dd MMM yyyy').format(DateTime.now())}');
-      buffer.writeln();
-      buffer.writeln('Member Name,Active Plan,Total Check-ins,Total Hours,Avg Hours/Session');
-
-      memberNames.forEach((mId, name) {
-        final plan = planTypes[mId] ?? 'Monthly';
-        final checkins = checkinCounts[mId] ?? 0;
-        final hours = totalHours[mId] ?? 0.0;
-        final avg = checkins == 0 ? 0.0 : hours / checkins;
-        buffer.writeln('"$name","$plan","$checkins","${hours.toStringAsFixed(1)}","${avg.toStringAsFixed(1)}"');
-      });
-
-      final tempDir = Directory.systemTemp;
-      final tempFile = File('${tempDir.path}/${widget.libraryName.replaceAll(' ', '_')}_member_attendance.csv');
-      await tempFile.writeAsString(buffer.toString());
-      await Share.shareXFiles([XFile(tempFile.path, mimeType: 'text/csv')], subject: 'SILENCE Member-wise Attendance Summary');
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RevenueReportPreviewScreen(
+          libraryId: widget.libraryId!,
+          libraryName: widget.libraryName,
+          libraryAddress: _libraryAddress,
+          type: type,
+        ),
+      ),
+    );
   }
 
-  Future<void> _triggerAttendancePdfExport() async {
+  Future<void> _openAttendancePreview() async {
     if (!_isProfileComplete) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -3449,80 +3244,19 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       return;
     }
     if (!mounted) return;
-    if (_attendanceTableToggle == 'date_wise') {
-      final logs = _attendanceLogs.map((l) {
-        final name = l['member_id']?['full_name'] ?? 'N/A';
-        final ci = l['check_in_time'];
-        final co = l['check_out_time'];
-        final seatLabel = l['memberships']?['seats']?['seat_label'] ?? 'N/A';
-        final sName = l['memberships']?['shifts']?['name'] ?? 'N/A';
-        return {
-          'member_name': name,
-          'check_in_time': ci,
-          'check_out_time': co,
-          'seat_label': seatLabel,
-          'shift_name': sName,
-        };
-      }).toList();
-
-      final rangeStr = _attCustomRange != null
-          ? '${DateFormat('dd MMM yyyy').format(_attCustomRange!.start)} - ${DateFormat('dd MMM yyyy').format(_attCustomRange!.end)}'
-          : DateFormat('dd MMM yyyy').format(_attDate);
-
-      await PdfExporter.exportAttendance(
-        libraryName: widget.libraryName,
-        libraryAddress: _libraryAddress,
-        dateRange: rangeStr,
-        logs: logs,
-      );
-    } else {
-      final Map<String, int> checkinCounts = {};
-      final Map<String, double> totalHours = {};
-      final Map<String, String> planTypes = {};
-      final Map<String, String> memberNames = {};
-
-      for (var att in _attendanceLogs) {
-        final member = att['member_id'];
-        if (member == null) continue;
-        final mId = member['id'].toString();
-        final name = member['full_name'] ?? 'Member';
-        memberNames[mId] = name;
-        checkinCounts[mId] = (checkinCounts[mId] ?? 0) + 1;
-
-        final ciStr = att['check_in_time'];
-        final coStr = att['check_out_time'];
-        if (ciStr != null) {
-          final ci = DateTime.parse(ciStr);
-          final co = coStr != null ? DateTime.parse(coStr) : DateTime.now();
-          final diff = co.difference(ci).inMinutes / 60.0;
-          totalHours[mId] = (totalHours[mId] ?? 0.0) + diff;
-        }
-
-        final plan = att['memberships']?['plan_type'] ?? 'monthly';
-        planTypes[mId] = plan == '3_month' ? '3-Month' : (plan == '6_month' ? '6-Month' : 'Monthly');
-      }
-
-      final List<Map<String, dynamic>> duesReport = [];
-      memberNames.forEach((mId, name) {
-        final plan = planTypes[mId] ?? 'Monthly';
-        final checkins = checkinCounts[mId] ?? 0;
-        final hours = totalHours[mId] ?? 0.0;
-
-        duesReport.add({
-          'member_name': name,
-          'email': plan,
-          'phone': checkins.toString(),
-          'amount': double.tryParse(hours.toStringAsFixed(1)) ?? 0.0,
-          'due_date': null,
-        });
-      });
-
-      await PdfExporter.exportDues(
-        libraryName: widget.libraryName,
-        libraryAddress: _libraryAddress,
-        dues: duesReport,
-      );
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AttendanceExportPreviewScreen(
+          libraryId: widget.libraryId!,
+          libraryName: widget.libraryName,
+          libraryAddress: _libraryAddress,
+          mode: _attendanceTableToggle == 'date_wise'
+              ? AttendanceExportMode.dateWise
+              : AttendanceExportMode.memberWise,
+        ),
+      ),
+    );
   }
 
   Widget _buildAttendanceTabView() {
@@ -3977,59 +3711,29 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              isSmallScreen
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.download, size: 16, color: Color(0xFFE65C00)),
-                          label: Text('Export CSV', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, fontSize: 13)),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFFE65C00)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                          onPressed: _triggerAttendanceCsvExport,
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.picture_as_pdf, size: 16, color: Colors.white),
-                          label: Text('Export PDF', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE65C00),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                          onPressed: _triggerAttendancePdfExport,
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.download, size: 16, color: Color(0xFFE65C00)),
-                            label: Text('Export CSV', style: GoogleFonts.inter(color: const Color(0xFFE65C00), fontWeight: FontWeight.bold, fontSize: 13)),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFFE65C00)),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                            ),
-                            onPressed: _triggerAttendanceCsvExport,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.picture_as_pdf, size: 16, color: Colors.white),
-                            label: Text('Export PDF', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE65C00),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                            ),
-                            onPressed: _triggerAttendancePdfExport,
-                          ),
-                        ),
-                      ],
-                    ),
+              const SizedBox(height: 6),
+              Text(
+                _attendanceTableToggle == 'date_wise'
+                    ? "Pick a day or range, preview every member's attendance, then export."
+                    : 'Pick a month and one/more/all members, preview, then export.',
+                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), height: 1.35),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _openAttendancePreview,
+                  icon: const Icon(Icons.visibility_outlined, size: 18, color: Colors.white),
+                  label: Text('Preview & Export',
+                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65C00),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

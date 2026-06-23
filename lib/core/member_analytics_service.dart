@@ -1066,7 +1066,7 @@ class MemberAnalyticsService {
     required DateTime endDate,
     List<String>? memberLibraryIds,
   }) async {
-    var query = _supabase.from('attendance').select('*, libraries(name), shifts(name)');
+    var query = _supabase.from('attendance').select('*, libraries(name), shifts(name), memberships(seats(seat_label))');
     if (libraryId != 'all') {
       query = query.eq('library_id', libraryId);
     } else if (memberLibraryIds != null && memberLibraryIds.isNotEmpty) {
@@ -1091,14 +1091,20 @@ class MemberAnalyticsService {
       final mins = durationMins % 60;
       final durationStr = hrs > 0 ? '${hrs}h ${mins}m' : '${mins}m';
 
+      // Seat comes through the membership (attendance has no seat column).
+      final ms = item['memberships'];
+      final seatLabel = (ms is Map && ms['seats'] is Map) ? ms['seats']['seat_label'] : null;
+
       return {
         'date': DateFormat('dd MMM yyyy').format(checkIn),
         'check_in': DateFormat('hh:mm a').format(checkIn),
         'check_out': checkOut != null ? DateFormat('hh:mm a').format(checkOut) : 'Active',
         'duration': durationStr,
+        'shift': item['shifts']?['name'] ?? '',
         'session_type': (item['session_type'] ?? 'normal').toString(),
+        'is_overtime': item['is_overtime'] == true,
         'library': item['libraries']?['name'] ?? 'Library',
-        'seat': item['seat_label'] ?? item['seat_id'] ?? 'N/A',
+        'seat': seatLabel ?? 'N/A',
       };
     }).toList();
   }

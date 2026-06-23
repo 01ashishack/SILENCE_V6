@@ -783,6 +783,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               'check_out': a['check_out_time'] != null ? _fmt(a['check_out_time'], 'hh:mm a') : 'Open',
               'duration': a['duration_minutes'] != null ? _fmtStudyMinutes((a['duration_minutes'] as num).toInt()) : '',
               'session_type': a['session_type'] ?? 'normal',
+              'is_overtime': a['is_overtime'] == true,
+              'shift': (_membershipData?['shifts']?['name'] ?? '').toString(),
               'library': '',
               'seat': seat,
             }).toList();
@@ -794,7 +796,18 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       }
     } else {
       if (attn.isNotEmpty) {
-        await PdfExporter.exportAttendance(libraryName: memberName, libraryAddress: 'Member report', dateRange: rangeLabel, logs: attn);
+        final shiftName = (_membershipData?['shifts']?['name'] ?? '').toString();
+        final logs = attn.map((a) => {
+              'member_name': memberName,
+              'seat_label': seat,
+              'shift_name': shiftName,
+              'check_in_time': a['check_in_time'],
+              'check_out_time': a['check_out_time'],
+              'duration_minutes': a['duration_minutes'],
+              'session_type': a['session_type'] ?? 'normal',
+              'is_overtime': a['is_overtime'] == true,
+            }).toList();
+        await PdfExporter.exportAttendance(libraryName: memberName, libraryAddress: 'Member report', dateRange: rangeLabel, logs: logs);
       }
       if (pays.isNotEmpty) {
         final withName = pays.map((p) => {...p, 'member_name': memberName}).toList();

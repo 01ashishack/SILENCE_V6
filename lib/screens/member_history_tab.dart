@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -1553,10 +1555,6 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             children: [
-              // Summary stats strip
-              _buildPaymentsSummaryStrip(totalPaid, totalPending, totalCount),
-              const SizedBox(height: 16),
-
               // Filter chips
               _buildPaymentsFilterChips(),
               const SizedBox(height: 16),
@@ -1598,30 +1596,6 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     );
   }
 
-  Widget _buildPaymentsSummaryStrip(double paid, double pending, int count) {
-    final isDuesPending = pending > 0;
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatChip('Total Paid', '₹${paid.toInt()}', Icons.check_circle, const Color(0xFF22C55E)),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _buildStatChip(
-            'Pending Dues',
-            '₹${pending.toInt()}',
-            Icons.pending,
-            isDuesPending ? const Color(0xFFD97706) : const Color(0xFF16A34A),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _buildStatChip('Total Payments', '$count Invoices', Icons.receipt_long, const Color(0xFFE65C00)),
-        ),
-      ],
-    );
-  }
-
   Widget _buildPaymentsFilterChips() {
     final filters = ['All', 'Confirmed', 'Pending', 'Rejected', 'Cash', 'UPI'];
     return SizedBox(
@@ -1658,15 +1632,10 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
   }
 
   Widget _buildPaymentMonthHeader(String month, List<Map<String, dynamic>> list) {
-    final double monthSum = list
-        .where((p) => p['status'] == 'confirmed')
-        .fold<double>(0.0, (sum, p) => sum + (p['amount'] as num? ?? 0).toDouble());
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(month, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
-        Text('Month Collections: ₹${monthSum.toInt()}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF16A34A))),
       ],
     );
   }
@@ -3062,10 +3031,18 @@ class _ExportOptionsBottomSheetState extends State<ExportOptionsBottomSheet> {
           }
         }
 
-        final tempDir = Directory.systemTemp;
-        final file = File('${tempDir.path}/$filePrefix.csv');
-        await file.writeAsString(buffer.toString());
-        await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')], subject: 'Silence Study Record Export');
+        final content = '\uFEFF${buffer.toString()}';
+        if (kIsWeb) {
+          final bytes = Uint8List.fromList(utf8.encode(content));
+          await Share.shareXFiles(
+            [XFile.fromData(bytes, mimeType: 'text/csv', name: '$filePrefix.csv')],
+            subject: 'Silence Study Record Export',
+          );
+        } else {
+          final file = File('${Directory.systemTemp.path}/$filePrefix.csv');
+          await file.writeAsString(content);
+          await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')], subject: 'Silence Study Record Export');
+        }
 
       } else if (format == 'PDF') {
         // PDF Generation using PdfExporter
