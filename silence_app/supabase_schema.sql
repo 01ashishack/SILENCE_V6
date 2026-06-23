@@ -203,6 +203,13 @@ CREATE TABLE IF NOT EXISTS attendance (
     check_out_time TIMESTAMPTZ,
     duration_minutes INTEGER,
     session_type TEXT DEFAULT 'normal' CHECK (session_type IN ('normal', 'manual', 'auto_checkout', 'incomplete', 'admin_edited')),
+    -- Overtime bookkeeping (2026-06-22). is_overtime = ran past shift end or was
+    -- an approved out-of-shift check-in; overtime_minutes is HARD-capped at 30;
+    -- overtime_warned dedupes the "shift ended" warning. Maintained by the
+    -- scanner (manual checkout) and process_shift_overtime() (cron).
+    is_overtime BOOLEAN NOT NULL DEFAULT false,
+    overtime_minutes INTEGER NOT NULL DEFAULT 0,
+    overtime_warned BOOLEAN NOT NULL DEFAULT false,
     edited_by_admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
     edit_reason TEXT,
     qr_version INTEGER,
@@ -286,6 +293,32 @@ CREATE TABLE IF NOT EXISTS hold_requests (
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Check-in Approvals Table (2026-06-22)
+-- A member scanning OUTSIDE their shift window (earlier than 15 min before start,
+-- or after end) files a PENDING row + notifies the owner; the owner approves /
+-- rejects in the Requests tab. On approval the member re-scans and the
+-- (overtime-tagged) check-in proceeds. Members can only file PENDING rows and
+-- read their own — the 'used' flip goes through consume_checkin_approval().
+CREATE TABLE IF NOT EXISTS checkin_approvals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    membership_id UUID NOT NULL REFERENCES memberships(id) ON DELETE CASCADE,
+    member_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    shift_id UUID REFERENCES shifts(id) ON DELETE SET NULL,
+    attempted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'rejected', 'expired', 'used')),
+    decided_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    decided_at TIMESTAMPTZ,
+    approval_expires_at TIMESTAMPTZ,
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_checkin_approvals_library_status
+    ON checkin_approvals (library_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_checkin_approvals_member_status
+    ON checkin_approvals (member_id, status);
 
 -- Transfers Table
 CREATE TABLE IF NOT EXISTS transfers (
@@ -650,6 +683,7 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE join_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE seat_change_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hold_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checkin_approvals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE add_ons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE member_add_ons ENABLE ROW LEVEL SECURITY;
@@ -916,6 +950,22 @@ CREATE POLICY "Member insert hold request" ON hold_requests
     FOR INSERT WITH CHECK (member_id = auth.uid());
 
 CREATE POLICY "Admin update hold request" ON hold_requests
+    FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
+    WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+
+-- 4.12b Check-in Approvals Policies (2026-06-22)
+CREATE POLICY "Member view own checkin approvals" ON checkin_approvals
+    FOR SELECT USING (member_id = auth.uid());
+
+-- Member can only FILE pending requests (no self-approve; the 'used' flip is
+-- done by the SECURITY DEFINER consume_checkin_approval() RPC).
+CREATE POLICY "Member file checkin approval" ON checkin_approvals
+    FOR INSERT WITH CHECK (member_id = auth.uid() AND status = 'pending');
+
+CREATE POLICY "Admin view checkin approvals" ON checkin_approvals
+    FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+
+CREATE POLICY "Admin decide checkin approval" ON checkin_approvals
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
     WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
@@ -1417,6 +1467,97 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.library_leaderboard(uuid, date, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.library_leaderboard(uuid, date, date) TO authenticated;
+
+-- Check-in approval consume + shift overtime processor (2026-06-22). Canonical
+-- copies of migrations/2026-06-22_overtime_and_checkin_approvals.sql. The cron
+-- SCHEDULING lives only in the migration (so a fresh canonical apply doesn't try
+-- to schedule); these are the structural functions the app/cron depend on.
+CREATE OR REPLACE FUNCTION public.consume_checkin_approval(p_id uuid)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_uid uuid := auth.uid();
+    v_row public.checkin_approvals%ROWTYPE;
+BEGIN
+    IF v_uid IS NULL THEN
+        RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
+    END IF;
+    SELECT * INTO v_row FROM public.checkin_approvals WHERE id = p_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Approval not found' USING errcode = 'P0002';
+    END IF;
+    IF v_row.member_id <> v_uid THEN
+        RAISE EXCEPTION 'Not your approval' USING errcode = '42501';
+    END IF;
+    IF v_row.status <> 'approved' THEN
+        RAISE EXCEPTION 'Approval is not in an approved state' USING errcode = 'P0001';
+    END IF;
+    UPDATE public.checkin_approvals
+       SET status = 'used', decided_at = COALESCE(decided_at, now())
+     WHERE id = p_id;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.consume_checkin_approval(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.consume_checkin_approval(uuid) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.process_shift_overtime()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    r              RECORD;
+    v_shift_end    TIMESTAMPTZ;
+    v_cap_checkout TIMESTAMPTZ;
+    v_warned       INTEGER := 0;
+    v_closed       INTEGER := 0;
+    v_dur          INTEGER;
+    v_ot           INTEGER;
+BEGIN
+    FOR r IN
+        SELECT a.id, a.member_id, a.check_in_time, a.overtime_warned,
+               s.end_time, s.name AS shift_name
+          FROM public.attendance a
+          JOIN public.shifts s ON s.id = a.shift_id
+         WHERE a.check_out_time IS NULL
+    LOOP
+        v_shift_end := (((r.check_in_time AT TIME ZONE 'Asia/Kolkata')::date
+                          + r.end_time) AT TIME ZONE 'Asia/Kolkata');
+        v_cap_checkout := GREATEST(v_shift_end, r.check_in_time) + interval '30 minutes';
+
+        IF now() >= v_cap_checkout THEN
+            v_dur := GREATEST(0, CEIL(EXTRACT(EPOCH FROM (v_cap_checkout - r.check_in_time)) / 60.0))::int;
+            v_ot  := 30;
+            UPDATE public.attendance
+               SET check_out_time   = v_cap_checkout,
+                   duration_minutes = v_dur,
+                   session_type     = 'auto_checkout',
+                   is_overtime      = true,
+                   overtime_minutes = v_ot
+             WHERE id = r.id;
+            INSERT INTO public.notifications (user_id, title, body, data)
+            VALUES (r.member_id, 'Auto checked out',
+                    'You did not check out, so we automatically checked you out 30 minutes after your '
+                    || r.shift_name || ' shift ended. This session is tagged as overtime.',
+                    jsonb_build_object('type', 'auto_checkout'));
+            v_closed := v_closed + 1;
+        ELSIF now() >= v_shift_end AND NOT r.overtime_warned
+              AND r.check_in_time < v_shift_end THEN
+            UPDATE public.attendance SET overtime_warned = true WHERE id = r.id;
+            INSERT INTO public.notifications (user_id, title, body, data)
+            VALUES (r.member_id, 'Your shift has ended',
+                    'Your ' || r.shift_name || ' shift is over. Please scan to check out. '
+                    || 'If you stay, the extra time counts as overtime and you will be auto-checked-out '
+                    || 'after 30 minutes.',
+                    jsonb_build_object('type', 'shift_end'));
+            v_warned := v_warned + 1;
+        END IF;
+    END LOOP;
+    RETURN jsonb_build_object('warned', v_warned, 'auto_closed', v_closed, 'ran_at', now());
+END;
+$$;
+REVOKE ALL ON FUNCTION public.process_shift_overtime() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.process_shift_overtime() TO service_role;
 
 -- Library "Verified" badge lock (P6-family — was self-assertable). Canonical
 -- copy of migrations/2026-06-18_lock_library_verified.sql. verified/verified_at

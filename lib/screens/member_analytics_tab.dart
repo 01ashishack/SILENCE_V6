@@ -903,52 +903,67 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: Colors.white.withValues(alpha: 0.28),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.85), width: 2),
                     ),
                     child: const Center(
                       child: Text('❄', style: TextStyle(fontSize: 16, color: Colors.white)),
                     ),
                   );
                 } else if (status == 'today_partial') {
+                  // Today, not scanned yet: solid white ring with a filled centre
+                  // so "today" reads clearly against the orange card.
                   circleWidget = Container(
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.transparent,
+                      color: Colors.white.withValues(alpha: 0.18),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+                      border: Border.all(color: Colors.white, width: 2.5),
                     ),
                     child: Center(
                       child: Container(
                         width: 12,
                         height: 12,
                         decoration: const BoxDecoration(
-                          color: Color(0xFFE65C00),
+                          color: Colors.white,
                           shape: BoxShape.circle,
                         ),
                       ),
                     ),
                   );
                 } else if (status == 'future') {
+                  // Upcoming day: subtle but still legible dashed-feel ring.
                   circleWidget = Container(
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.transparent,
+                      color: Colors.white.withValues(alpha: 0.06),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white30, width: 1.5),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 1.5),
                     ),
                   );
                 } else {
+                  // Missed / absent past day: clearly-bordered hollow ring with a
+                  // faint fill so it's distinct from "future" and visible on orange.
                   circleWidget = Container(
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.transparent,
+                      color: Colors.white.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white60, width: 1.5),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 2),
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 10,
+                        height: 2.5,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
                   );
                 }
@@ -966,7 +981,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                       Text(
                         label,
                         style: GoogleFonts.inter(
-                          color: Colors.white70,
+                          color: Colors.white.withValues(alpha: 0.92),
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1034,7 +1049,9 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: 14,
         crossAxisSpacing: 14,
-        childAspectRatio: 1.55,
+        // Taller cells than before (1.55 overflowed by ~9-11px once the value
+        // font grew to 30 and Total Hours added an avg/day subtitle).
+        childAspectRatio: 1.28,
         children: [
           _buildStatCard(
             title: 'Days Present',
@@ -1509,28 +1526,52 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                                 Builder(builder: (_) {
                                   final tag = attendanceTag(log['session_type']);
                                   final bool incomplete = log['session_type'] == 'incomplete';
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: incomplete
-                                          ? const Color(0xFFFFF1F2)
-                                          : tag.isManual
-                                              ? const Color(0xFFFFF7E6)
-                                              : const Color(0xFFEFF6FF),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      tag.label.toUpperCase(),
-                                      style: GoogleFonts.inter(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: incomplete
-                                            ? const Color(0xFFE11D48)
-                                            : tag.isManual
-                                                ? const Color(0xFFB45309)
-                                                : const Color(0xFF2563EB),
+                                  final bool isOvertime = log['is_overtime'] == true;
+                                  return Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isOvertime) ...[
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFF1F2),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            'OVERTIME',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: const Color(0xFFE11D48),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: incomplete
+                                              ? const Color(0xFFFFF1F2)
+                                              : tag.isManual
+                                                  ? const Color(0xFFFFF7E6)
+                                                  : const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          tag.label.toUpperCase(),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: incomplete
+                                                ? const Color(0xFFE11D48)
+                                                : tag.isManual
+                                                    ? const Color(0xFFB45309)
+                                                    : const Color(0xFF2563EB),
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   );
                                 }),
                               ],
@@ -2563,6 +2604,41 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     {'type': 'top_of_week', 'title': 'Top of the Week', 'emoji': '👑', 'condition': 'Rank #1 on leaderboard for a week'},
   ];
 
+  /// Badge definitions ordered so EARNED badges come first (most recently earned
+  /// first), then the still-locked ones in their canonical order — the member
+  /// sees their achievements up front instead of having to scroll past locked
+  /// ones. Stable: ties keep canonical order.
+  List<Map<String, String>> get _orderedBadgeDefinitions {
+    DateTime? earnedAt(String type) {
+      final b = _earnedBadges.firstWhere(
+        (e) => e['badge_type'] == type,
+        orElse: () => const {},
+      );
+      final raw = b['created_at'];
+      return raw is String ? DateTime.tryParse(raw) : null;
+    }
+
+    final earned = <Map<String, String>>[];
+    final locked = <Map<String, String>>[];
+    for (final def in _allBadgeDefinitions) {
+      if (_earnedBadges.any((b) => b['badge_type'] == def['type'])) {
+        earned.add(def);
+      } else {
+        locked.add(def);
+      }
+    }
+    // Most recently earned first; unknown dates fall back to canonical order.
+    earned.sort((a, b) {
+      final da = earnedAt(a['type']!);
+      final db = earnedAt(b['type']!);
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return db.compareTo(da);
+    });
+    return [...earned, ...locked];
+  }
+
   Widget _buildBadgesSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -2597,10 +2673,10 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
               height: 90,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: _allBadgeDefinitions.length,
+                itemCount: _orderedBadgeDefinitions.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
-                  final badgeDef = _allBadgeDefinitions[index];
+                  final badgeDef = _orderedBadgeDefinitions[index];
                   final String type = badgeDef['type']!;
                   final bool isEarned = _earnedBadges.any((b) => b['badge_type'] == type);
 

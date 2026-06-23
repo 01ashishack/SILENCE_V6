@@ -148,7 +148,9 @@ class PdfExporter {
                 duration = '${hrs}h ${mins}m';
               }
 
-              return [name, seat, checkin, checkout, shift, duration, attendanceTag(l['session_type']).label];
+              final typeLabel = attendanceTag(l['session_type']).label +
+                  (l['is_overtime'] == true ? ' +OT' : '');
+              return [name, seat, checkin, checkout, shift, duration, typeLabel];
             }).toList();
 
             elements.add(

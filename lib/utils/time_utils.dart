@@ -28,6 +28,24 @@ String formatDurationHuman(Duration duration) {
   return '${minutes}m';
 }
 
+/// Format a raw shift TIME string ('HH:mm[:ss]') as a 12-hour clock label
+/// (e.g. '07:00 AM'). Returns 'N/A' for null/empty/unparseable input.
+String formatShiftTimeString(String? timeStr) {
+  if (timeStr == null || timeStr.isEmpty) return 'N/A';
+  try {
+    final parts = timeStr.split(':');
+    int hour = 0;
+    int minute = 0;
+    if (parts.length >= 2) {
+      hour = int.tryParse(parts[0]) ?? 0;
+      minute = int.tryParse(parts[1].split(' ').first) ?? 0;
+    }
+    return DateFormat('hh:mm a').format(DateTime(2026, 1, 1, hour, minute));
+  } catch (_) {
+    return 'N/A';
+  }
+}
+
 DateTime parseDBTimeToUtc(String timeStr) {
   if (timeStr.endsWith('Z') || timeStr.contains('+')) {
     return DateTime.parse(timeStr).toUtc();

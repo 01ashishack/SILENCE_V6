@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/error_messages.dart';
+import '../../utils/time_utils.dart';
 import '../../widgets/states/shimmer_box.dart';
 
 class RequestsSubTab extends StatefulWidget {
@@ -23,12 +24,14 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   bool _isApproving = false;
 
   // Horizontal Toggle
-  int _activeRequestTab = 0; // 0: Join Requests, 1: Seat Changes, 2: Hold Requests
+  int _activeRequestTab = 0; // 0: Join, 1: Seat Changes, 2: Holds, 3: Check-ins
 
   // Lists
   List<Map<String, dynamic>> _joinRequests = [];
   List<Map<String, dynamic>> _seatChangeRequests = [];
   List<Map<String, dynamic>> _holdRequests = [];
+  // Out-of-shift check-in approval requests (2026-06-22).
+  List<Map<String, dynamic>> _checkinApprovals = [];
 
   // Local state tracking for UPI confirmations (Request ID -> confirmed in UI)
   final Set<String> _confirmedPaymentsInUi = {};
@@ -105,11 +108,21 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   // ── Setup Realtime ────────────────────────────────────────────────────────
   void _setupRealtimeSubscription() {
     _requestsChannel = supabase
-        .channel('public:join_requests')
+        .channel('public:requests_sub_tab')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'join_requests',
+          callback: (payload) {
+            if (mounted) {
+              _fetchRequests();
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'checkin_approvals',
           callback: (payload) {
             if (mounted) {
               _fetchRequests();
@@ -146,6 +159,14 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           .eq('status', 'pending')
           .order('created_at', ascending: true);
 
+      // 4. Fetch pending out-of-shift Check-in approvals
+      final checkinRes = await supabase
+          .from('checkin_approvals')
+          .select('*, member_id(id, full_name, phone, photo_url), shifts(name, start_time, end_time)')
+          .eq('library_id', widget.libraryId)
+          .eq('status', 'pending')
+          .order('created_at', ascending: true);
+
       final joinList = List<Map<String, dynamic>>.from(joinRes);
 
       // Honest amount per join request (plan price − discount). Low volume
@@ -168,6 +189,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           _joinRequests = joinList;
           _seatChangeRequests = List<Map<String, dynamic>>.from(changeRes);
           _holdRequests = List<Map<String, dynamic>>.from(holdRes);
+          _checkinApprovals = List<Map<String, dynamic>>.from(checkinRes);
           _requestAmounts = amounts;
           _isLoading = false;
         });
@@ -750,6 +772,242 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     }
   }
 
+  // ── Out-of-shift Check-in Approvals (2026-06-22) ─────────────────────────
+  Future<void> _approveCheckinApproval(Map<String, dynamic> r) async {
+    final requestId = r['id']?.toString();
+    final memberId =
+        r['member_id']?['id']?.toString() ?? r['member_id']?.toString();
+    if (requestId == null || memberId == null) return;
+    try {
+      setState(() => _isLoading = true);
+      // Approved rows are usable for 30 minutes — the member must re-scan within
+      // that window. Stored as a real UTC instant.
+      final expires = DateTime.now().toUtc().add(const Duration(minutes: 30));
+      await supabase.from('checkin_approvals').update({
+        'status': 'approved',
+        'decided_by': supabase.auth.currentUser?.id,
+        'decided_at': DateTime.now().toUtc().toIso8601String(),
+        'approval_expires_at': expires.toIso8601String(),
+      }).eq('id', requestId);
+
+      await _notifyMember(
+        memberId: memberId,
+        title: 'Check-in approved',
+        message: 'The admin approved your out-of-shift check-in. Scan the QR again '
+            'within 30 minutes to check in — this session will count as overtime.',
+        type: 'checkin_approved',
+      );
+      await _logAudit(
+        title: 'Check-in approval granted',
+        details: 'Approved out-of-shift check-in for member $memberId.',
+        category: AuditLogger.categoryMembers,
+      );
+      await _fetchRequests();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Check-in approved. The member can scan again now.')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not approve: ${friendlyError(e)}')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _rejectCheckinApproval(Map<String, dynamic> r) async {
+    final requestId = r['id']?.toString();
+    final memberId =
+        r['member_id']?['id']?.toString() ?? r['member_id']?.toString();
+    if (requestId == null || memberId == null) return;
+
+    final reasonController = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Reject Check-in', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Reject this out-of-shift check-in? The member will be told to contact you.',
+                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569))),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Reason (optional)', hintText: 'e.g. Come during your shift hours'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    final reason = reasonController.text.trim();
+    try {
+      setState(() => _isLoading = true);
+      await supabase.from('checkin_approvals').update({
+        'status': 'rejected',
+        'decided_by': supabase.auth.currentUser?.id,
+        'decided_at': DateTime.now().toUtc().toIso8601String(),
+        'note': reason.isNotEmpty ? reason : null,
+      }).eq('id', requestId);
+
+      await _notifyMember(
+        memberId: memberId,
+        title: 'Check-in not approved',
+        message: reason.isNotEmpty
+            ? 'Your out-of-shift check-in was not approved. Reason: $reason. Please contact the admin.'
+            : 'Your out-of-shift check-in was not approved. Please contact the admin.',
+        type: 'checkin_rejected',
+      );
+      await _logAudit(
+        title: 'Check-in approval rejected',
+        details: 'Rejected out-of-shift check-in for member $memberId.${reason.isNotEmpty ? ' Reason: $reason' : ''}',
+        category: AuditLogger.categoryMembers,
+      );
+      await _fetchRequests();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not reject: ${friendlyError(e)}')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildCheckinApprovalCard(Map<String, dynamic> r) {
+    final member = r['member_id'];
+    final String name = (member is Map ? member['full_name'] : null)?.toString() ?? 'Member';
+    final String photo = (member is Map ? member['photo_url'] : null)?.toString() ?? '';
+    final String shiftName = r['shifts']?['name']?.toString() ?? 'their shift';
+    final String? attemptedRaw = r['attempted_at']?.toString();
+    final String attemptedStr = attemptedRaw != null
+        ? formatTimeIST(parseDBTimeToUtc(attemptedRaw))
+        : '—';
+    final String shiftStart = r['shifts']?['start_time']?.toString() ?? '';
+    final String shiftEnd = r['shifts']?['end_time']?.toString() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFFFFF7F0),
+                backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                child: photo.isEmpty ? const Icon(Icons.person, color: Color(0xFFE65C00)) : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                    const SizedBox(height: 2),
+                    Text('Wants to check in at $attemptedStr (outside shift)',
+                        style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF6B7280))),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text('OVERTIME',
+                    style: GoogleFonts.inter(fontSize: 8.5, fontWeight: FontWeight.bold, color: const Color(0xFFE11D48))),
+              ),
+            ],
+          ),
+          const Divider(height: 20),
+          Row(
+            children: [
+              const Icon(Icons.wb_sunny_outlined, size: 14, color: Color(0xFFD97706)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  shiftStart.isNotEmpty && shiftEnd.isNotEmpty
+                      ? '$shiftName · ${formatShiftTimeString(shiftStart)} – ${formatShiftTimeString(shiftEnd)}'
+                      : shiftName,
+                  style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Approving lets this member check in now; the time counts as overtime.',
+            style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF94A3B8)),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _rejectCheckinApproval(r),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    foregroundColor: const Color(0xFF64748B),
+                  ),
+                  child: const Text('Reject'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isProfileComplete
+                      ? () => _approveCheckinApproval(r)
+                      : () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
+                              backgroundColor: const Color(0xFFE65C00),
+                            ),
+                          );
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Approve'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Approve handler: a RENEWAL extends the member's existing membership (keeps
   /// the same seat, no false "duplicate" prompt); a fresh join goes through the
   /// seat picker.
@@ -1102,7 +1360,11 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     final bool isActive = _activeRequestTab == index;
     final int count = index == 0
         ? _joinRequests.length
-        : (index == 1 ? _seatChangeRequests.length : _holdRequests.length);
+        : index == 1
+            ? _seatChangeRequests.length
+            : index == 2
+                ? _holdRequests.length
+                : _checkinApprovals.length;
     return Expanded(
       child: GestureDetector(
         onTap: () {
@@ -1525,11 +1787,13 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              _buildTabToggle(0, 'Join Requests', Icons.person_add_outlined),
+              _buildTabToggle(0, 'Joins', Icons.person_add_outlined),
               const SizedBox(width: 8),
-              _buildTabToggle(1, 'Seat Changes', Icons.swap_horiz_rounded),
+              _buildTabToggle(1, 'Seats', Icons.swap_horiz_rounded),
               const SizedBox(width: 8),
               _buildTabToggle(2, 'Holds', Icons.pause_circle_outline),
+              const SizedBox(width: 8),
+              _buildTabToggle(3, 'Check-ins', Icons.login_rounded),
             ],
           ),
         ),
@@ -1716,6 +1980,29 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                     ),
                                   );
                                 },
+                              ),
+
+                        // Toggle 3: Out-of-shift Check-in approvals
+                        _checkinApprovals.isEmpty
+                            ? SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Container(
+                                  height: MediaQuery.of(context).size.height * 0.5,
+                                  alignment: Alignment.center,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.login_rounded, size: 64, color: Colors.grey[300]),
+                                      const SizedBox(height: 16),
+                                      Text('No pending check-in approvals.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                itemCount: _checkinApprovals.length,
+                                itemBuilder: (ctx, index) => _buildCheckinApprovalCard(_checkinApprovals[index]),
                               ),
                       ],
                     ),

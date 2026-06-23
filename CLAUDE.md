@@ -32,7 +32,39 @@
 - **Live DB project ref:** `kndeshxeerldamafweru` (`lib/core/supabase_config.dart`). Branch `main`,
   remote `origin` (github.com/01ashishack/SILENCE_V6).
 
-### Session 2026-06-20 — Member-home visual overhaul + History/Analytics fixes
+### Session 2026-06-22 — Shift overtime + out-of-shift check-in approvals + analytics/safe-area fixes
+`flutter analyze` 0 issues (whole project). **⚠️ NEW MIGRATION — USER MUST APPLY (see below).**
+- **⚠️ OUTSTANDING LIVE-DB ACTION:** apply `silence_app/migrations/2026-06-22_overtime_and_checkin_approvals.sql`
+  **before/with shipping this build.** It adds `attendance.is_overtime/overtime_minutes/overtime_warned`,
+  the `checkin_approvals` table (+RLS), `consume_checkin_approval(uuid)` RPC, and the
+  `process_shift_overtime()` cron (every 5 min). **Until applied, check-in/checkout will fail** (the app
+  writes `is_overtime`) — folded into canonical `supabase_schema.sql`. Cron needs `pg_cron` (else schedule
+  `process_shift_overtime()` manually in Dashboard → Database → Cron).
+- **Overtime (30-min hard cap) + auto-checkout:** manual checkout (`qr_scanner_screen.dart`) caps the
+  recorded check-out at `greatest(shiftEnd, checkIn)+30min`, tags `is_overtime`/`overtime_minutes` (≤30).
+  `process_shift_overtime()` (cron) **WARNs once** ("your shift ended, please check out") when a session
+  passes shift end, then **auto-checks-out** 30 min later (`session_type='auto_checkout'`, overtime-tagged),
+  notifying the member. Active-session card now shows "Overtime (max 30 min)" + the auto-checkout clock.
+- **Out-of-shift check-in approval flow:** scanning earlier than 15 min before shift start, or after shift
+  end, files a **pending `checkin_approvals`** row + notifies the owner, and shows the member a warning
+  (wait for approval / contact admin) — **no attendance written**. Admin approves/rejects in a new
+  **"Check-ins" tab** in Requests (`requests_sub_tab.dart`); approval is valid 30 min and notifies the
+  member to re-scan; the resulting check-in is **overtime-tagged** and the approval is burned via
+  `consume_checkin_approval()`. Rejection notifies the member to contact the admin.
+- **Overtime tag surfaced** in member analytics session list, history list, **PDF & CSV** exports (`+OT`).
+- **Notifications** (`notifications_screen.dart`): icons/routes for `shift_end`, `auto_checkout`,
+  `checkin_approved`, `checkin_rejected`, `checkin_approval_request`.
+- **Analytics fixes** (`member_analytics_tab.dart` + `member_analytics_service.dart`):
+  - **Streak count bug fixed** — `fetchStreak` now computes current/best FROM ATTENDANCE (authoritative);
+    the unmaintained `streaks` table is only a defensive floor for best (a stale `current_streak=0` row no
+    longer forces "0 Day Streak" when present days exist).
+  - **Week-day circles** made clearly visible on the orange card (filled rings/centres per state).
+  - **Stat-card overflow fixed** — `childAspectRatio 1.55→1.28` (the 30px value + avg/day subtitle overflowed).
+  - **Achievements: earned badges first** via `_orderedBadgeDefinitions` (most-recently-earned first, then locked).
+- **Member safe-area color** (`member_home.dart`): all four member tabs open on the orange header, so the
+  status-bar inset is now always primary orange (was cream over Analytics/History → mismatched their orange headers).
+
+
 Builds on the still-uncommitted member-home work; this batch is being committed now (see commit at end).
 `flutter analyze` 0 issues on all touched files. **No DB/migration changes.**
 - **Member-home membership card** (`member_home.dart`, `_buildMembershipCard`): reworked into a

@@ -176,7 +176,8 @@ class CsvExporter {
       final checkIn = l['check_in'] ?? 'N/A';
       final checkOut = l['check_out'] ?? 'N/A';
       final duration = l['duration'] ?? 'N/A';
-      final sessionType = attendanceTag(l['session_type']).label;
+      final sessionType = attendanceTag(l['session_type']).label +
+          (l['is_overtime'] == true ? ' +OT' : '');
       final library = l['library'] ?? 'N/A';
       final seat = l['seat'] ?? 'N/A';
 

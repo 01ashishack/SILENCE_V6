@@ -363,30 +363,11 @@ class MemberAnalyticsService {
 
   // 3. Streak Calculation
   Future<Map<String, dynamic>> fetchStreak(String memberId, String libraryId) async {
-    // 3.1 Attempt to query streaks table
-    try {
-      final streakRes = await _supabase
-          .from('streaks')
-          .select('current_streak, longest_streak, last_present_date')
-          .eq('member_id', memberId)
-          .eq('library_id', libraryId)
-          .maybeSingle();
-
-      if (streakRes != null) {
-        // Query last 7 days of details
-        final last7Days = await _calculateLast7Days(memberId, libraryId);
-        return {
-          'current': streakRes['current_streak'] ?? 0,
-          'best': streakRes['longest_streak'] ?? 0,
-          'lastPresentDate': streakRes['last_present_date'],
-          'last7Days': last7Days,
-        };
-      }
-    } catch (e) {
-      debugPrint('streaks table not available: $e');
-    }
-
-    // 3.2 Fallback: Calculate streak and last 7 days in Dart
+    // Compute current + best streak FROM ATTENDANCE — this is authoritative.
+    // The `streaks` table is not maintained anywhere in the app, so a stale row
+    // there (typically current_streak = 0) must never short-circuit and return
+    // early; that bug made the card show "0 Day Streak" even with present days.
+    // We only consult that table afterwards as a defensive floor for all-time best.
     final attendanceRes = await _supabase
         .from('attendance')
         .select('check_in_time, check_out_time, session_type')
@@ -465,6 +446,22 @@ class MemberAnalyticsService {
     }
 
     if (currentStreak > bestStreak) bestStreak = currentStreak;
+
+    // Defensive floor only: if a maintained streaks row reports a higher
+    // all-time best, keep the larger. Never lets the table lower the computed
+    // current/best.
+    try {
+      final streakRes = await _supabase
+          .from('streaks')
+          .select('longest_streak')
+          .eq('member_id', memberId)
+          .eq('library_id', libraryId)
+          .maybeSingle();
+      final tableBest = streakRes?['longest_streak'] as int?;
+      if (tableBest != null && tableBest > bestStreak) bestStreak = tableBest;
+    } catch (e) {
+      debugPrint('streaks table not available: $e');
+    }
 
     final last7Days = await _calculateLast7Days(memberId, libraryId);
 
@@ -583,6 +580,8 @@ class MemberAnalyticsService {
         'check_out': checkOut != null ? DateFormat('hh:mm a').format(checkOut) : 'Active',
         'duration_minutes': item['duration_minutes'] ?? 0,
         'session_type': item['session_type'] ?? 'normal',
+        'is_overtime': item['is_overtime'] == true,
+        'overtime_minutes': item['overtime_minutes'] ?? 0,
         'library_name': item['libraries']?['name'] ?? 'SILENCE Study Zone',
         'seat': item['seat_label'] ?? item['seat_id'] ?? 'N/A',
         'shift': item['shifts']?['name'] ?? 'N/A',

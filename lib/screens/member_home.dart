@@ -1165,27 +1165,18 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
 
 
-  /// Top safe-area (status bar) color must match the CURRENT tab's header so the
-  /// inset blends in. Home & Profile have an orange header; Analytics & History
-  /// open on the cream page background.
-  Color get _topSafeAreaColor {
-    switch (_currentBottomTab) {
-      case 0: // Home — orange header
-      case 3: // Profile — orange header
-        return const Color(0xFFE65C00);
-      default: // Analytics / History — cream page bg
-        return const Color(0xFFFBF5EE);
-    }
-  }
+  /// Top safe-area (status bar) color. All four member tabs now open on the
+  /// brand orange gradient header, so the inset is the single primary orange on
+  /// every tab — no more cream strip above Analytics/History that mismatched
+  /// their orange headers.
+  Color get _topSafeAreaColor => const Color(0xFFE65C00);
 
   @override
   Widget build(BuildContext context) {
-    // Status-bar icons: light on the orange header, dark on the cream pages.
-    final bool darkTop = _topSafeAreaColor == const Color(0xFFE65C00);
+    // Status-bar icons are always light — the inset is the orange header on
+    // every tab.
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: darkTop
-          ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent)
-          : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+      value: SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent),
       child: Scaffold(
       // Top inset = current tab's header color; bottom inset handled below.
       backgroundColor: _topSafeAreaColor,
@@ -4216,45 +4207,69 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   accent: const Color(0xFF6366F1),
                 ),
                 const SizedBox(height: 18),
-                // Time remaining / overtime
+                // Time remaining / overtime (overtime capped at 30 min, then the
+                // server auto-checks-out). Auto-checkout clock = shift end + 30m.
                 ValueListenableBuilder<Duration>(
                   valueListenable: _shiftRemainingNotifier,
                   builder: (context, rem, child) {
                     final isOvertime = rem.isNegative;
-                    final absRem = rem.abs();
+                    const overtimeCap = Duration(minutes: 30);
+                    final rawOver = rem.abs();
+                    final cappedOver = isOvertime && rawOver > overtimeCap ? overtimeCap : rawOver;
+                    final capReached = isOvertime && rawOver >= overtimeCap;
                     final accent = isOvertime ? const Color(0xFFEF4444) : const Color(0xFFF97316);
+                    final autoCheckoutLabel =
+                        DateFormat('hh:mm a').format(shiftEndIst.add(overtimeCap));
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         color: accent.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            isOvertime ? Icons.error_outline_rounded : Icons.hourglass_bottom_rounded,
-                            size: 20,
-                            color: accent,
+                          Row(
+                            children: [
+                              Icon(
+                                isOvertime ? Icons.error_outline_rounded : Icons.hourglass_bottom_rounded,
+                                size: 20,
+                                color: accent,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  isOvertime ? 'Overtime (max 30 min)' : 'Time remaining in shift',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                formatDurationHMS(isOvertime ? cappedOver : rem),
+                                style: GoogleFonts.spaceMono(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: accent,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              isOvertime ? 'Overtime since shift end' : 'Time remaining in shift',
+                          if (isOvertime) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              capReached
+                                  ? 'Overtime maxed — you will be auto-checked-out shortly.'
+                                  : 'Please check out. Auto check-out at $autoCheckoutLabel (shift end + 30 min).',
                               style: GoogleFonts.inter(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF475569),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: accent,
                               ),
                             ),
-                          ),
-                          Text(
-                            formatDurationHMS(absRem),
-                            style: GoogleFonts.spaceMono(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: accent,
-                            ),
-                          ),
+                          ],
                         ],
                       ),
                     );

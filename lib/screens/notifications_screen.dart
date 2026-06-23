@@ -105,6 +105,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         case 'expiry':
         case 'renewal':
         case 'badge':
+        case 'shift_end':
+        case 'auto_checkout':
+        case 'checkin_approved':
+        case 'checkin_rejected':
           Navigator.of(context).pushNamed('/member/home');
           break;
         case 'query':
@@ -113,6 +117,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         case 'new_join_request':
         case 'payment':
         case 'payment_submitted':
+        case 'checkin_approval_request':
           Navigator.of(context).pushNamed('/admin/home');
           break;
         case 'announcement':
@@ -402,7 +407,16 @@ class _NotifStyle {
         return const _NotifStyle(Icons.forum_rounded, AppColors.info);
       case 'expiry':
       case 'renewal':
+      case 'shift_end':
         return const _NotifStyle(Icons.schedule_rounded, AppColors.warning);
+      case 'auto_checkout':
+        return const _NotifStyle(Icons.logout_rounded, AppColors.danger);
+      case 'checkin_approved':
+        return const _NotifStyle(Icons.login_rounded, AppColors.success);
+      case 'checkin_rejected':
+        return const _NotifStyle(Icons.block_rounded, AppColors.danger);
+      case 'checkin_approval_request':
+        return const _NotifStyle(Icons.login_rounded, AppColors.info);
       default:
         return const _NotifStyle(Icons.notifications_rounded, AppColors.primary);
     }

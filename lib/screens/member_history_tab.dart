@@ -1245,6 +1245,8 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       badgeLabel = 'SYNCED';
     }
 
+    final bool isOvertime = (s['data'] is Map) && s['data']['is_overtime'] == true;
+
     return InkWell(
       onTap: () => _showDayDetailBottomSheet(s),
       child: Container(
@@ -1275,13 +1277,29 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                         '$dateStr • $ciTime - $coTime',
                         style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(4)),
-                        child: Text(
-                          badgeLabel,
-                          style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: badgeTxt),
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isOvertime) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(4)),
+                              child: Text(
+                                'OVERTIME',
+                                style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: const Color(0xFFE11D48)),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(4)),
+                            child: Text(
+                              badgeLabel,
+                              style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: badgeTxt),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -3000,7 +3018,10 @@ class _ExportOptionsBottomSheetState extends State<ExportOptionsBottomSheet> {
           buffer.writeln('Date,Type,Details,Timeline');
           for (var s in widget.attendance) {
             final dateStr = DateFormat('yyyy-MM-dd').format(s['date']);
-            final type = s['type'] == 'present' ? 'Present (${s['session_type'].toString().toUpperCase()})' : s['type'].toString().toUpperCase();
+            final bool isOt = s['type'] == 'present' && (s['data'] is Map) && s['data']['is_overtime'] == true;
+            final type = s['type'] == 'present'
+                ? 'Present (${s['session_type'].toString().toUpperCase()}${isOt ? ' +OT' : ''})'
+                : s['type'].toString().toUpperCase();
             String details = '';
             String timeline = '';
 
@@ -3060,6 +3081,8 @@ class _ExportOptionsBottomSheetState extends State<ExportOptionsBottomSheet> {
               'check_out_time': data['check_out_time'],
               'shift_name': data['shifts']?['name'] ?? 'N/A',
               'seat_label': data['seats']?['seat_label'] ?? 'N/A',
+              'session_type': data['session_type'] ?? 'normal',
+              'is_overtime': data['is_overtime'] == true,
             });
           }
           await PdfExporter.exportAttendance(

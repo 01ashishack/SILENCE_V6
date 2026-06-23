@@ -316,7 +316,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       // take the latest.
       final membershipRows = await supabase
           .from('memberships')
-          .select('*, libraries(name, verified, qr_version), shifts(name, end_time), seats(seat_label)')
+          .select('*, libraries(name, verified, qr_version), shifts(id, name, start_time, end_time), seats(seat_label)')
           .eq('member_id', user.id)
           .eq('library_id', libraryId)
           .inFilter('status', ['active', 'trial'])
@@ -416,11 +416,63 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
         // activeSession != null branch (checkout), so no duplicate-open risk.
 
         // ------------------
+        // SHIFT-WINDOW GATE (out-of-shift check-in needs admin approval)
+        // ------------------
+        // Allowed without approval = from 15 min before shift start until shift
+        // end. Outside that, the member needs the admin to approve this check-in,
+        // and the time then counts as OVERTIME.
+        final nowUtc = DateTime.now().toUtc();
+        final nowIst = toIST(nowUtc);
+        final shiftStartTimeStr = shift['start_time'] as String? ?? '06:00:00';
+        final shiftEndTimeStr = shift['end_time'] as String? ?? '14:00:00';
+        final shiftStartIst = _shiftDateTimeIst(shiftStartTimeStr, nowIst);
+        final shiftEndIst = _shiftDateTimeIst(shiftEndTimeStr, nowIst);
+        final windowOpenIst = shiftStartIst.subtract(const Duration(minutes: 15));
+        final bool withinWindow =
+            !nowIst.isBefore(windowOpenIst) && !nowIst.isAfter(shiftEndIst);
+
+        bool isOvertimeCheckin = false;
+        String? approvalToConsume;
+
+        if (!withinWindow) {
+          // Is there an APPROVED, unexpired approval to ride in on?
+          final approved = await supabase
+              .from('checkin_approvals')
+              .select('id, approval_expires_at')
+              .eq('member_id', user.id)
+              .eq('library_id', libraryId)
+              .eq('status', 'approved')
+              .order('created_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
+          final String? expiresStr = approved?['approval_expires_at'] as String?;
+          final bool approvedValid = approved != null &&
+              (expiresStr == null ||
+                  parseDBTimeToUtc(expiresStr).isAfter(nowUtc));
+
+          if (approvedValid) {
+            // Ride the approval in — counts as overtime; mark it used after.
+            isOvertimeCheckin = true;
+            approvalToConsume = approved['id']?.toString();
+          } else {
+            // No valid approval → file/await one and STOP (no check-in yet).
+            await _requestOutOfShiftApproval(
+              membershipId: membershipId,
+              libraryId: libraryId,
+              shiftId: shift['id'] ?? membershipRes['shift_id'],
+              shiftName: shift['name']?.toString() ?? 'your',
+              attemptedIst: nowIst,
+              beforeStart: nowIst.isBefore(windowOpenIst),
+            );
+            return;
+          }
+        }
+
+        // ------------------
         // PERFORM CHECK-IN
         // ------------------
-        final nowUtc = DateTime.now().toUtc();
         final nowStr = nowUtc.toIso8601String();
-        debugPrint('[QR Scan] Performing check-in with membershipId: $membershipId');
+        debugPrint('[QR Scan] Performing check-in with membershipId: $membershipId (overtime=$isOvertimeCheckin)');
         final insertResponse = await supabase.from('attendance').insert({
           'membership_id': membershipId,
           'member_id': user.id,
@@ -429,19 +481,31 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           'check_in_time': nowStr,
           'check_out_time': null,
           'session_type': 'normal',
+          'is_overtime': isOvertimeCheckin,
           'qr_version': qrVersion,
           'device_id': 'mobile',
         }).select();
         debugPrint('[QR Scan] Check-in insert response: $insertResponse');
+
+        // An approved out-of-shift check-in: burn the approval so it can't be
+        // reused (best-effort, non-blocking).
+        if (approvalToConsume != null) {
+          try {
+            await supabase.rpc('consume_checkin_approval', params: {'p_id': approvalToConsume});
+          } catch (e) {
+            debugPrint('[QR Scan] consume_checkin_approval failed: $e');
+          }
+        }
         if (!mounted) return;
 
-        final nowIst = toIST(nowUtc);
         _showSuccess(
           isCheckIn: true,
           libraryName: libName,
           seatLabel: seatLabel,
           timeStr: DateFormat('hh:mm a').format(nowIst),
-          durationStr: '',
+          durationStr: isOvertimeCheckin
+              ? 'Outside shift hours — this session is tagged as overtime.'
+              : '',
           isOffline: false,
           checkInTimeStr: DateFormat('hh:mm a').format(nowIst),
           shiftName: shift['name'] ?? 'N/A',
@@ -777,8 +841,41 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
   }) async {
     try {
       final supabase = Supabase.instance.client;
-      final checkOutTimeUtc = DateTime.now().toUtc();
-      final durationMinutes = checkOutTimeUtc.difference(checkInTime).inMinutes;
+
+      // Overtime is HARD-capped at 30 min. Compute the shift end on the
+      // CHECK-IN's IST date (so a session left open across days caps correctly),
+      // then cap the recorded check-out at  greatest(shiftEnd, checkIn) + 30min.
+      final parts = shiftEndTimeStr.split(':');
+      int endHour = 14;
+      int endMinute = 0;
+      if (parts.length >= 2) {
+        endHour = int.tryParse(parts[0]) ?? 14;
+        endMinute = int.tryParse(parts[1].split(' ').first) ?? 0;
+        if (shiftEndTimeStr.toLowerCase().contains('pm') && endHour < 12) {
+          endHour += 12;
+        } else if (shiftEndTimeStr.toLowerCase().contains('am') && endHour == 12) {
+          endHour = 0;
+        }
+      }
+      final checkInIst = toIST(checkInTime);
+      // IST wall-clock of shift end (isUtc, IST numbers) → true UTC instant.
+      final shiftEndIstWall = DateTime.utc(checkInIst.year, checkInIst.month, checkInIst.day, endHour, endMinute);
+      final shiftEndUtc = shiftEndIstWall.subtract(const Duration(hours: 5, minutes: 30));
+
+      final nowUtc = DateTime.now().toUtc();
+      final overtimeAnchorUtc = checkInTime.isAfter(shiftEndUtc) ? checkInTime : shiftEndUtc;
+      final capCheckoutUtc = overtimeAnchorUtc.add(const Duration(minutes: 30));
+      final checkOutTimeUtc = nowUtc.isAfter(capCheckoutUtc) ? capCheckoutUtc : nowUtc;
+
+      int durationMinutes = checkOutTimeUtc.difference(checkInTime).inMinutes;
+      if (durationMinutes < 0) durationMinutes = 0;
+
+      final bool beyondShiftEnd = checkOutTimeUtc.isAfter(shiftEndUtc);
+      final bool wasOvertimeCheckin = activeSession['is_overtime'] == true;
+      final bool isOvertime = beyondShiftEnd || wasOvertimeCheckin;
+      int overtimeMinutes = beyondShiftEnd ? checkOutTimeUtc.difference(shiftEndUtc).inMinutes : 0;
+      if (overtimeMinutes < 0) overtimeMinutes = 0;
+      if (overtimeMinutes > 30) overtimeMinutes = 30;
 
       debugPrint('[CHECKOUT STEP] Starting: attendance update');
       debugPrint('[QR Scan Audit] Checkout API call initiated for session: ${activeSession['id']}');
@@ -786,6 +883,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       final updateResponse = await supabase.from('attendance').update({
         'check_out_time': checkOutTimeUtc.toIso8601String(),
         'duration_minutes': durationMinutes,
+        'is_overtime': isOvertime,
+        'overtime_minutes': overtimeMinutes,
       }).eq('id', activeSession['id']).select();
       debugPrint('[CHECKOUT STEP] Success: attendance update');
       debugPrint('[QR Scan Audit] Supabase response received: $updateResponse');
@@ -803,30 +902,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       // Notify the library owner that a member checked out (non-blocking).
       _notifyOwnerAttendance(activeSession['library_id']?.toString() ?? '', false);
 
-      final nowIst = toIST(checkOutTimeUtc);
-      final parts = shiftEndTimeStr.split(':');
-      int endHour = 14;
-      int endMinute = 0;
-      if (parts.length >= 2) {
-        endHour = int.tryParse(parts[0]) ?? 14;
-        endMinute = int.tryParse(parts[1]) ?? 0;
-        if (shiftEndTimeStr.toLowerCase().contains('pm') && endHour < 12) {
-          endHour += 12;
-        } else if (shiftEndTimeStr.toLowerCase().contains('am') && endHour == 12) {
-          endHour = 0;
-        }
-      }
-      final shiftEndIst = DateTime.utc(
-        nowIst.year,
-        nowIst.month,
-        nowIst.day,
-        endHour,
-        endMinute,
-      );
-
-      final isOvertime = nowIst.isAfter(shiftEndIst);
-      final overtimeDuration = isOvertime ? nowIst.difference(shiftEndIst) : Duration.zero;
-      final overtimeStr = isOvertime ? formatDurationHuman(overtimeDuration) : '';
+      final overtimeStr = overtimeMinutes > 0 ? formatDurationHuman(Duration(minutes: overtimeMinutes)) : '';
 
       final checkInTimeIst = toIST(checkInTime);
       final checkOutTimeIst = toIST(checkOutTimeUtc);
@@ -842,7 +918,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
         isOffline: false,
         checkInTimeStr: DateFormat('hh:mm a').format(checkInTimeIst),
         checkOutTimeStr: DateFormat('hh:mm a').format(checkOutTimeIst),
-        shiftEndTimeStr: DateFormat('hh:mm a').format(shiftEndIst),
+        shiftEndTimeStr: DateFormat('hh:mm a').format(shiftEndIstWall),
         overtimeStr: overtimeStr,
         shiftName: shiftName,
       );
@@ -893,6 +969,116 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       });
     } catch (e) {
       debugPrint('Owner attendance notification failed: $e');
+    }
+  }
+
+  /// Build a shift TIME ('HH:mm[:ss][ am/pm]') as an IST wall-clock instant on
+  /// [dateInIst]'s date. Returned as a `DateTime.utc` whose Y/M/D/H/M are the IST
+  /// values, so it compares directly against `toIST(...)` results (which are also
+  /// isUtc with IST wall-clock numbers) — matching the rest of this screen.
+  DateTime _shiftDateTimeIst(String timeStr, DateTime dateInIst) {
+    final parts = timeStr.split(':');
+    int hour = 0, minute = 0;
+    if (parts.isNotEmpty) hour = int.tryParse(parts[0]) ?? 0;
+    if (parts.length >= 2) minute = int.tryParse(parts[1].split(' ').first) ?? 0;
+    final lower = timeStr.toLowerCase();
+    if (lower.contains('pm') && hour < 12) {
+      hour += 12;
+    } else if (lower.contains('am') && hour == 12) {
+      hour = 0;
+    }
+    return DateTime.utc(dateInIst.year, dateInIst.month, dateInIst.day, hour, minute);
+  }
+
+  /// Member scanned to check in OUTSIDE their shift window and has no valid
+  /// approval. File a PENDING checkin_approval (unless one is already pending) +
+  /// notify the library owner, then show the member a warning card telling them
+  /// to wait for approval or contact the admin. No attendance row is written.
+  Future<void> _requestOutOfShiftApproval({
+    required dynamic membershipId,
+    required String libraryId,
+    required dynamic shiftId,
+    required String shiftName,
+    required DateTime attemptedIst,
+    required bool beforeStart,
+  }) async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    final whenStr = DateFormat('hh:mm a').format(attemptedIst);
+    try {
+      if (user != null) {
+        // Don't pile up duplicate pending requests.
+        final existing = await supabase
+            .from('checkin_approvals')
+            .select('id')
+            .eq('member_id', user.id)
+            .eq('library_id', libraryId)
+            .eq('status', 'pending')
+            .limit(1)
+            .maybeSingle();
+
+        if (existing == null) {
+          await supabase.from('checkin_approvals').insert({
+            'membership_id': membershipId,
+            'member_id': user.id,
+            'library_id': libraryId,
+            'shift_id': shiftId,
+            // attemptedIst is IST wall-clock carried in an isUtc DateTime → take
+            // it back to the true UTC instant before storing the timestamptz.
+            'attempted_at': attemptedIst.subtract(const Duration(hours: 5, minutes: 30)).toIso8601String(),
+            'status': 'pending',
+          });
+          // Notify the owner (member → owner is allowed by RLS).
+          await _notifyOwnerCheckinRequest(libraryId, whenStr, shiftName);
+        }
+      }
+    } catch (e) {
+      debugPrint('[QR Scan] Out-of-shift approval request failed: $e');
+    }
+
+    if (!mounted) return;
+    _handleFailure(
+      'Approval Needed',
+      beforeStart
+          ? 'You are trying to check in before your $shiftName shift hours ($whenStr). '
+              'We have asked the admin to approve this check-in. Once approved you will get a '
+              'notification — then scan again. This time will count as overtime. '
+              'You can also contact the admin.'
+          : 'You are trying to check in outside your $shiftName shift hours ($whenStr). '
+              'We have asked the admin to approve this check-in. Once approved you will get a '
+              'notification — then scan again. This time will count as overtime. '
+              'You can also contact the admin.',
+    );
+  }
+
+  /// Notify the library owner that a member is requesting an out-of-shift
+  /// check-in approval. Best-effort + non-blocking.
+  Future<void> _notifyOwnerCheckinRequest(
+      String libraryId, String whenStr, String shiftName) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+      final lib = await supabase.from('libraries').select('owner_id').eq('id', libraryId).maybeSingle();
+      final ownerId = lib?['owner_id'];
+      if (ownerId == null) return;
+
+      String name = 'A member';
+      try {
+        final u = await supabase.from('users').select('full_name').eq('id', user.id).maybeSingle();
+        final fn = (u?['full_name'] ?? '').toString().trim();
+        if (fn.isNotEmpty) name = fn;
+      } catch (_) {}
+
+      await supabase.from('notifications').insert({
+        'user_id': ownerId,
+        'title': 'Check-in approval needed',
+        'body': '$name is trying to check in for the $shiftName shift at $whenStr, '
+            'outside their shift hours. Approve or reject it in Requests.',
+        'data': {'type': 'checkin_approval_request'},
+      });
+    } catch (e) {
+      debugPrint('Owner check-in approval notification failed: $e');
     }
   }
 
