@@ -32,6 +32,50 @@
 - **Live DB project ref:** `kndeshxeerldamafweru` (`lib/core/supabase_config.dart`). Branch `main`,
   remote `origin` (github.com/01ashishack/SILENCE_V6).
 
+### ⏳ REMAINING TASKS (open — not started)
+
+**R1. Google + Apple social login (UI exists, wiring is a stub).**
+`auth_screen.dart` already shows Google/Apple buttons but `_handleOAuth()` just shows a "disabled"
+message. To finish:
+- **Code (agent):** add `google_sign_in` + `sign_in_with_apple` deps; replace `_handleOAuth` with the
+  native ID-token flow → `supabase.auth.signInWithIdToken(...)` (web/desktop fallback =
+  `signInWithOAuth`); after sign-in **bootstrap the `users` row** (id/email/full_name from OAuth
+  metadata, role=null) and route exactly like login (role null → `/role-select`, else admin/member
+  home); capture Apple name on FIRST sign-in only; handle user-cancel without an error snackbar.
+- **Console (user, no code):** Google Cloud OAuth clients (Web + Android with debug+release **SHA-1/256**
+  + iOS); enable Google in **Supabase → Auth → Providers** (paste client id/secret + authorized client
+  ids); enable Apple (Service ID + Team ID + Key ID + .p8) — **needs paid Apple Developer + a Mac**.
+- **Decision:** account-linking (Google email == existing email/password) — link vs separate identity.
+- **Plan:** ship **Google first (Android + web)** from Windows; **Apple later** with the iOS build.
+
+**R2. ⚠️ No Mac for Apple Sign-In / iOS.** Alternatives: ship Android+Google first (no Mac needed);
+later use a **cloud Mac** (MacinCloud/MacStadium) or **CI macOS runner** (Codemagic/Bitrise/GitHub
+Actions) for the iOS build/test. A **paid Apple Developer account (~₹8k/yr)** is required for Apple
+Sign-In + App Store regardless.
+
+**R3. Move all Google/Firebase to a dedicated BUSINESS Gmail.**
+- **Preferred = TRANSFER ownership, do NOT recreate**: add the new business Gmail as **Owner** in
+  Google Cloud (IAM) + Firebase (Project settings → Users and permissions), verify, then remove the old
+  owner. Link/transfer the **billing account** separately. **If transferred, the project stays
+  `silence-v6` → NO code/FCM changes needed.**
+- **Only if a NEW Firebase project is created instead** (avoid this), the agent must update:
+  `lib/firebase_options.dart`, `android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist`,
+  Google OAuth client IDs, and the **FCM service-account/key secret** in the Supabase `send-push` Edge
+  Function — plus re-register SHA fingerprints. (Much more work + risk.)
+- GitHub / Supabase being on **different emails is fine** — no dependency between them.
+
+
+### Session 2026-06-23 (e) — Member top-bar / status-bar color unified across tabs & states
+`flutter analyze` 0 issues. **No DB/migration changes.**
+- All 4 member tabs' headers unified to the brand `[#E65C00, #C44E00]` **vertical** gradient
+  (`topCenter→bottomCenter`) so the header's top edge is one uniform colour (Analytics was the odd one
+  using brighter `#FF6B00`; Profile was already correct). History + Home stage gradients also made vertical.
+- `member_home._topSafeAreaColor` is now **dynamic** = the current header's first colour: Home → the current
+  `MemberState` colour (orange / amber-pending / red-expired / purple-trial / amber-hold / grey-exited);
+  Analytics/History/Profile → `#E65C00`. Status-bar strip now matches the header in **every** tab and Home
+  state with no seam (fixes the "yellow home but orange/white status bar" mismatch).
+- Files: `member_home.dart`, `member_analytics_tab.dart`, `member_history_tab.dart`.
+
 ### Session 2026-06-23 (d) — CSV export crash fix (web "_Namespace") + key mismatch
 `flutter analyze` 0 issues. **No DB/migration changes.**
 - **CSV "Unsupported operation: _Namespace" fixed**: CSV sharing wrote a temp file via `dart:io`

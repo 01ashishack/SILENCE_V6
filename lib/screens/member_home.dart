@@ -1165,11 +1165,17 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
 
 
-  /// Top safe-area (status bar) color. All four member tabs now open on the
-  /// brand orange gradient header, so the inset is the single primary orange on
-  /// every tab — no more cream strip above Analytics/History that mismatched
-  /// their orange headers.
-  Color get _topSafeAreaColor => const Color(0xFFE65C00);
+  /// Top safe-area (status-bar) color. It must EXACTLY match the colour at the
+  /// very top of the current tab's header so there's no visible seam. Because
+  /// every header gradient now starts (top edge) with its first colour, we use
+  /// that first colour here. Home is state-driven (orange / amber-pending /
+  /// red-expired / purple-trial …); the other three tabs share the brand orange.
+  Color get _topSafeAreaColor {
+    if (_currentBottomTab == 0) {
+      return _getHeaderGradient(_getMemberState()).colors.first;
+    }
+    return const Color(0xFFE65C00);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3094,45 +3100,50 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   }
 
   LinearGradient _getHeaderGradient(MemberState state) {
+    // Vertical gradients: the TOP edge is a single uniform colour (the first
+    // colour), so the status-bar strip (which uses that same first colour) meets
+    // the header with no visible seam across the full width.
+    const begin = Alignment.topCenter;
+    const end = Alignment.bottomCenter;
     switch (state) {
       case MemberState.freshInstall:
       case MemberState.profileCompleteNoLib:
       case MemberState.active:
         return const LinearGradient(
           colors: [Color(0xFFE65C00), Color(0xFFC44E00)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: begin,
+          end: end,
         );
       case MemberState.applicationPending:
       case MemberState.expiringSoon:
         return const LinearGradient(
           colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: begin,
+          end: end,
         );
       case MemberState.trial:
         return const LinearGradient(
           colors: [Color(0xFF7C3AED), Color(0xFF5B21B6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: begin,
+          end: end,
         );
       case MemberState.expired:
         return const LinearGradient(
           colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: begin,
+          end: end,
         );
       case MemberState.onHold:
         return const LinearGradient(
           colors: [Color(0xFFD97706), Color(0xFFB45309)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: begin,
+          end: end,
         );
       case MemberState.exited:
         return const LinearGradient(
           colors: [Color(0xFF6B7280), Color(0xFF4B5563)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: begin,
+          end: end,
         );
     }
   }

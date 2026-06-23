@@ -625,9 +625,9 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
       width: double.infinity,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFFF6B00), Color(0xFFE65C00)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          colors: [Color(0xFFE65C00), Color(0xFFC44E00)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(24),

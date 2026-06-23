@@ -603,8 +603,8 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFFE65C00), Color(0xFFC44E00)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(28),
