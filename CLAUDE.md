@@ -33,13 +33,13 @@
   remote `origin` (github.com/01ashishack/SILENCE_V6).
 
 ### Session 2026-06-22 — Shift overtime + out-of-shift check-in approvals + analytics/safe-area fixes
-`flutter analyze` 0 issues (whole project). **⚠️ NEW MIGRATION — USER MUST APPLY (see below).**
-- **⚠️ OUTSTANDING LIVE-DB ACTION:** apply `silence_app/migrations/2026-06-22_overtime_and_checkin_approvals.sql`
-  **before/with shipping this build.** It adds `attendance.is_overtime/overtime_minutes/overtime_warned`,
-  the `checkin_approvals` table (+RLS), `consume_checkin_approval(uuid)` RPC, and the
-  `process_shift_overtime()` cron (every 5 min). **Until applied, check-in/checkout will fail** (the app
-  writes `is_overtime`) — folded into canonical `supabase_schema.sql`. Cron needs `pg_cron` (else schedule
-  `process_shift_overtime()` manually in Dashboard → Database → Cron).
+`flutter analyze` 0 issues (whole project). Committed+pushed at **`5e9212e`**.
+- **✅ Migration APPLIED to live DB (2026-06-22)** + folded into `supabase_schema.sql`:
+  `silence_app/migrations/2026-06-22_overtime_and_checkin_approvals.sql` — adds
+  `attendance.is_overtime/overtime_minutes/overtime_warned`, the `checkin_approvals` table (+RLS),
+  `consume_checkin_approval(uuid)` RPC, and the `process_shift_overtime()` cron (every 5 min).
+  **No outstanding live-DB action.** *(If `pg_cron` wasn't present, confirm `process_shift_overtime()` is
+  scheduled manually — Dashboard → Database → Cron, every 5 min — else shift-end warnings + auto-checkout won't fire.)*
 - **Overtime (30-min hard cap) + auto-checkout:** manual checkout (`qr_scanner_screen.dart`) caps the
   recorded check-out at `greatest(shiftEnd, checkIn)+30min`, tags `is_overtime`/`overtime_minutes` (≤30).
   `process_shift_overtime()` (cron) **WARNs once** ("your shift ended, please check out") when a session
