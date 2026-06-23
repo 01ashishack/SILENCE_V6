@@ -12,7 +12,7 @@
   - [ ] `silence_app/migrations/2026-06-12_users_owner_update_rls.sql` → member **photos + ID docs** persist, member **profile edits** save.
 - [ ] **Pick the right device.** Camera, image-crop and runtime permissions are **mobile-only** → test on an **Android device/emulator** for full coverage. On the **Windows** build, gallery-based upload works but "Take Photo" only shows a friendly message (by design).
 - [ ] **Know what is mocked / disabled** (do NOT log these as bugs):
-  - Razorpay subscription = **mock plans** ("free during beta"); email/phone **OTP = disabled**; **FCM push = foundation shipped (web-verified); Android/iOS device test pending**; members-tab **bulk Announce/Export = stubbed** snackbars.
+  - Razorpay subscription = **mock plans** ("free during beta"); email/phone **OTP = disabled**; **FCM push = foundation shipped (web-verified); Android/iOS device test pending**; members-tab **bulk Announce = stubbed** snackbar. *(Bulk member CSV Export now works via the shared engine.)*
 
 ### Smoke test of THIS session's fixes
 - [ ] Add a member with a **photo + 1 ID proof** → open their profile: avatar shows, **ID Documents render** (not "No documents uploaded"). Card in Members list also shows the avatar.
@@ -136,6 +136,17 @@
 - [ ] Profile: edit (photo upload), privacy/security, notification prefs, help/support, referral, account deletion.
 
 ## 13. Cross-cutting (watch during every test)
+
+- [ ] **Exports & Reports (2026-06-23 overhaul)** — test on **web (Chrome) AND a mobile build**:
+  - [ ] Admin Profile → **Exports & Reports**: top has NO preset bar; tapping **CSV/PDF** on a report first asks the **period** (Today/Week/Month/Custom) then shares the file. **CSV must NOT crash** ("_Namespace" is fixed).
+  - [ ] Export Center → **Attendance Log** card has **Date-wise / Member-wise** buttons → opens the preview screen.
+  - [ ] Analytics → **Attendance** tab → **Preview & Export**: Date-wise (date/range filter shows every member's Name/Seat/In/Out/Duration/Overtime); Member-wise (month + **Shift/Floor/Category facet filters** + Members checklist, default **All**) → grouped per member.
+  - [ ] Analytics → **Revenue** tab → report buttons open a **date-filtered preview** with **working** CSV **and** PDF (no dead buttons).
+  - [ ] **PDF look**: orange letterhead band with a **visible white logo** (not blended), no big blank strip above it, footer black-name-with-tag logo, **₹ amounts render** (not boxes), times in **IST**, totals rows present. Members Roster has a **Joined** column.
+  - [ ] **CSV opens in Excel/Sheets**: header on row 1, amounts are plain numbers, `=SUM()` works, dates sortable.
+  - [ ] Member: History → Export (CSV/PDF) and Analytics → "Export My Attendance CSV" both work and show Shift/Overtime/Seat.
+
+## 13b. General cross-cutting (watch during every test)
 
 - [ ] **No dishonest UI** — never shows success/"paid"/"notified"/"uploaded" for something that didn't happen.
 - [ ] Errors show **friendlyError** copy, never raw `$e`.

@@ -368,3 +368,19 @@ The 3-phase plan above is complete; ongoing user-directed work is logged in dedi
   attendance redesign, permanent eligibility-gated member QR FAB). ⛔ Includes a **pending migration**:
   `silence_app/migrations/2026-06-15_join_requests_payment_status.sql`.
 - See `CLAUDE.md` §0 + `AGENTS.md` §5 for the canonical current state.
+
+### 2026-06-22 → 23 — Overtime / check-in approvals + Exports overhaul
+- **Shift overtime + out-of-shift check-in approvals** (committed `5e9212e`). ⛔ Includes an **applied**
+  migration `silence_app/migrations/2026-06-22_overtime_and_checkin_approvals.sql` (attendance overtime
+  columns, `checkin_approvals` table + RLS, `consume_checkin_approval()` RPC, `process_shift_overtime()` cron).
+- **Exports overhaul** (committed `cf3bc89`): unified `PdfExporter` / `CsvExporter` (one engine, no second
+  code path). Redesigned PDF — brand letterhead band (white logo) + footer (black-name-with-tag), tighter
+  margins, KPI tiles, zebra tables with totals, embedded **Noto Sans** so the ₹ glyph renders, IST times,
+  Members Roster gains a **Joined** column. Machine-friendly CSV (header row 1, numeric INR columns, sortable
+  dates, trailing summary, UTF-8 BOM). **Fixed the web CSV crash** (`Unsupported operation: _Namespace`) by
+  branching on `kIsWeb` — bytes via `XFile.fromData` on web, temp file on native.
+- **Preview screens** (new, `lib/screens/reports/`): `attendance_export_preview.dart` (date-wise + faceted
+  member-wise — Shift/Floor/Category + member checklist, default All) and `revenue_report_preview.dart`
+  (date-filtered, working CSV/PDF). Admin Analytics attendance tab + Export Center route to them; Export
+  Center now asks the period on each export tap and offers date-wise/member-wise for the Attendance Log.
+- **No DB change in the exports batch.** Canonical current state stays in `CLAUDE.md` §0.
