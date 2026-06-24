@@ -69,6 +69,25 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-24 (h) — Audit Batch 4 (scale/polish: L6, M5, H4, M4)
+
+`flutter analyze` **0 issues**.
+- **L6** — `main.dart` silences `debugPrint` in `kReleaseMode` (member IDs / library codes no longer leak
+  to device logs; verbose in debug/profile).
+- **M5** — `CacheService.writeCacheTimed()`/`readCacheFresh(ttl)` added; member-home explore-library cache
+  now written timed + read with a 24h freshness gate (genuinely stale offline lists aren't shown forever).
+- **H4** — new immutable `sanitize_display_name()` (letters/spaces/.'- only, strips digits/URLs, cap 20);
+  `library_leaderboard()` formats names through it so an unmoderated nickname (phone/URL) isn't broadcast.
+  Migration `2026-06-24_leaderboard_name_sanitize.sql` + folded into schema.
+- **M4** — `purge_old_notifications()` + weekly pg_cron job deletes READ notifications older than 60 days
+  (unread never deleted). Migration `2026-06-24_notifications_purge.sql` + folded into schema. (Client-side
+  list pagination deferred.)
+- **Deferred (with rationale):** H1 cron health-probe (DR safety net; live DB currently has all jobs),
+  M3 leaderboard materialization (premature — fine to hundreds/library), M6 multi-library member-home
+  aggregate state (UX edge).
+- **⏳ APPLY to live DB:** `2026-06-24_leaderboard_name_sanitize.sql`, `2026-06-24_notifications_purge.sql`.
+- Files: `main.dart`, `cache_service.dart`, `member_home.dart`, `supabase_schema.sql`, 2 migrations (new).
+
 ### Session 2026-06-24 (g) — Audit Batch 3 (finance hardening: M7 + C5)
 
 `flutter analyze` **0 issues**.
@@ -84,7 +103,7 @@ Sign-In + App Store regardless.
   `(sent_at AT TIME ZONE 'Asia/Kolkata')::date` is STABLE, not IMMUTABLE, so it can't be indexed). The
   existing per-run EXISTS guard + single daily cron makes double-fire very unlikely; revisit only if cron
   parallelism is introduced.
-- **⏳ APPLY to live DB:** `silence_app/migrations/2026-06-24_renew_membership_rpc.sql`.
+- **✅ APPLIED to live DB (2026-06-24):** `silence_app/migrations/2026-06-24_renew_membership_rpc.sql`.
 - Files: `admin_renew_sheet.dart`, `supabase_schema.sql`, migration (new).
 
 ### Session 2026-06-24 (f) — Audit Batch 2 (trust + quick wins, client-only)

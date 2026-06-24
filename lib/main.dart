@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -75,6 +76,12 @@ void main() {
   // replaces silent red screens / swallowed crashes (audit P12-01).
   runZonedGuarded<Future<void>>(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // L6: in release builds, silence debugPrint so member IDs / library codes
+    // logged throughout the app never leak to device logs. Verbose in debug.
+    if (kReleaseMode) {
+      debugPrint = (String? message, {int? wrapWidth}) {};
+    }
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);

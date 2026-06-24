@@ -208,7 +208,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   Future<void> _loadCachedLibraries() async {
     try {
-      final cached = await CacheService.instance.readCache('explore_libraries_list');
+      final cached = await CacheService.instance
+          .readCacheFresh('explore_libraries_list', const Duration(hours: 24));
       if (cached != null && cached is List) {
         if (mounted) {
           setState(() {
@@ -396,7 +397,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
       await _determineCurrentState();
 
-      CacheService.instance.writeCache('explore_libraries_list', _exploreLibraries);
+      CacheService.instance.writeCacheTimed('explore_libraries_list', _exploreLibraries);
 
       // ── Non-critical extras (announcements, streak, activity feed) ─────────
       // Wrapped separately so a failure here NEVER discards the core profile /

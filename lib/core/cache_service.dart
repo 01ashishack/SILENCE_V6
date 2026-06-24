@@ -42,4 +42,24 @@ class CacheService {
       await p.remove(key);
     } catch (_) {}
   }
+
+  /// Write with a `_storedAt` envelope so readers can enforce freshness (M5).
+  Future<void> writeCacheTimed(String key, dynamic data) async {
+    await writeCache(key, {
+      '_storedAt': DateTime.now().toUtc().toIso8601String(),
+      'data': data,
+    });
+  }
+
+  /// Read a timed cache entry. Returns null if missing, malformed, or older
+  /// than [ttl] — so genuinely stale data (e.g. an offline-for-days library
+  /// list) is not shown indefinitely. Pair with [writeCacheTimed].
+  Future<dynamic> readCacheFresh(String key, Duration ttl) async {
+    final raw = await readCache(key);
+    if (raw is! Map || raw['_storedAt'] == null) return null;
+    final ts = DateTime.tryParse(raw['_storedAt'].toString());
+    if (ts == null) return null;
+    if (DateTime.now().toUtc().difference(ts) > ttl) return null;
+    return raw['data'];
+  }
 }

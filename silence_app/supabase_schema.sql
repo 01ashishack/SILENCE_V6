@@ -1439,6 +1439,19 @@ GRANT EXECUTE ON FUNCTION public.member_is_week_top(uuid, uuid, date, date) TO a
 -- Library leaderboard (privacy-formatted, from the rollup) — members can't read
 -- co-members' users rows directly under tenant-scoped SELECT (P10-04), so the
 -- leaderboard is computed here. Caller must belong to / own the library.
+-- Names are run through sanitize_display_name() (H4) so an unmoderated nickname
+-- (e.g. a phone number or URL) isn't broadcast to co-members.
+CREATE OR REPLACE FUNCTION public.sanitize_display_name(p text)
+RETURNS text
+LANGUAGE sql IMMUTABLE
+AS $$
+  SELECT left(
+           btrim(
+             regexp_replace(coalesce(p, ''), '[^[:alpha:][:space:].''\-]', '', 'g')
+           ),
+           20);
+$$;
+
 CREATE OR REPLACE FUNCTION public.library_leaderboard(
     p_library uuid, p_start date, p_end date)
 RETURNS TABLE(member_id uuid, name text, total_minutes bigint)
@@ -1453,14 +1466,16 @@ BEGIN
     END IF;
     RETURN QUERY
         SELECT mds.member_id,
-               CASE
-                 WHEN u.nickname IS NOT NULL AND btrim(u.nickname) <> ''
-                     THEN split_part(btrim(u.nickname), ' ', 1)
-                 WHEN position(' ' IN btrim(coalesce(u.full_name, ''))) > 0
-                     THEN split_part(btrim(u.full_name), ' ', 1) || ' '
-                          || left(split_part(btrim(u.full_name), ' ', 2), 1) || '.'
-                 ELSE coalesce(nullif(btrim(u.full_name), ''), 'User')
-               END AS name,
+               COALESCE(NULLIF(public.sanitize_display_name(
+                 CASE
+                   WHEN u.nickname IS NOT NULL AND btrim(u.nickname) <> ''
+                       THEN split_part(btrim(u.nickname), ' ', 1)
+                   WHEN position(' ' IN btrim(coalesce(u.full_name, ''))) > 0
+                       THEN split_part(btrim(u.full_name), ' ', 1) || ' '
+                            || left(split_part(btrim(u.full_name), ' ', 2), 1) || '.'
+                   ELSE coalesce(nullif(btrim(u.full_name), ''), 'User')
+                 END
+               ), ''), 'User') AS name,
                sum(mds.total_minutes)::bigint AS total_minutes
         FROM public.member_daily_stats mds
         JOIN public.users u ON u.id = mds.member_id
@@ -1885,6 +1900,29 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.renew_membership(uuid, text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.renew_membership(uuid, text, text) TO authenticated;
+
+-- ── Notifications retention (2026-06-24, audit M4). Canonical copy of
+--    migrations/2026-06-24_notifications_purge.sql. Weekly pg_cron purge of
+--    READ notifications older than 60 days (cron scheduled in the migration). ──
+CREATE OR REPLACE FUNCTION public.purge_old_notifications()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_deleted bigint;
+BEGIN
+    WITH del AS (
+        DELETE FROM public.notifications
+         WHERE read_at IS NOT NULL
+           AND sent_at < now() - interval '60 days'
+        RETURNING 1
+    )
+    SELECT count(*) INTO v_deleted FROM del;
+    RETURN jsonb_build_object('deleted', v_deleted, 'ran_at', now());
+END;
+$$;
+REVOKE ALL ON FUNCTION public.purge_old_notifications() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.purge_old_notifications() TO service_role;
 
 
 -- copy of migrations/2026-06-18_lock_library_verified.sql. verified/verified_at
