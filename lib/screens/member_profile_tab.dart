@@ -14,7 +14,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/image_optimizer.dart';
-import 'notifications_screen.dart';
 import 'contact_admin_screen.dart';
 import 'reservations/renewal_screen.dart';
 import 'reservations/join_flow_screen.dart';
@@ -582,23 +581,13 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
       ),
       child: Column(
         children: [
-          // Top Row (Title + Bell Icon)
+          // Top Row (Title)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const SizedBox(width: 32), // spacer for symmetry
               Text(
                 'Profile',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              IconButton(
-                icon: const Icon(Icons.notifications_none, color: Colors.white, size: 24),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const NotificationsScreen()),
-                  );
-                },
+                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
               ),
             ],
           ),

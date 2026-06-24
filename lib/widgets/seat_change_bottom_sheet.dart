@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/notification_service.dart';
 
 class SeatChangeBottomSheet extends StatefulWidget {
   final Map<String, dynamic> membership;
@@ -113,6 +114,14 @@ class _SeatChangeBottomSheetState extends State<SeatChangeBottomSheet> {
         'reason': finalReason,
         'status': 'pending',
       });
+
+      // Notify the library owner there's a seat-change request to review.
+      await NotificationService.notifyLibraryOwner(
+        libraryId: library['id']?.toString() ?? '',
+        title: 'Seat change request',
+        body: 'A member has requested a seat change. Review it in Reservations → Requests.',
+        type: 'seat_change_request',
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -85,14 +85,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
       switch (type) {
         case 'query_reply':
+        case 'new_query':
+        case 'refund_request':
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const ContactAdminScreen()),
           );
           break;
+        // ── member destinations → member home ──
         case 'approval':
         case 'approved':
         case 'join_approved':
         case 'payment_confirmed':
+        case 'payment_received':
         case 'rejection':
         case 'rejected':
         case 'join_rejected':
@@ -102,22 +106,46 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         case 'hold_lifted':
         case 'seat_change':
         case 'seat_reassigned':
+        case 'seat_assigned':
+        case 'seat_change_approved':
+        case 'seat_change_rejected':
+        case 'membership_renewed':
+        case 'membership_transferred':
+        case 'membership_removed':
+        case 'membership_removed_refund':
+        case 'membership_exited':
         case 'expiry':
         case 'renewal':
         case 'badge':
+        case 'leaderboard':
+        case 'referral_credited':
+        case 'streak_reminder':
         case 'shift_end':
         case 'auto_checkout':
         case 'checkin_approved':
         case 'checkin_rejected':
+        case 'attendance_manual':
+        case 'holiday':
+        case 'reopen':
+        case 'closure':
           Navigator.of(context).pushNamed('/member/home');
           break;
+        // ── admin destinations → admin home ──
         case 'query':
-        case 'new_query':
         case 'join_request':
         case 'new_join_request':
+        case 'seat_change_request':
+        case 'hold_request':
         case 'payment':
         case 'payment_submitted':
         case 'checkin_approval_request':
+        case 'member_exited':
+        case 'check_in':
+        case 'check_out':
+        case 'new_review':
+        case 'expiring_digest':
+        case 'daily_summary':
+        case 'dues_digest':
           Navigator.of(context).pushNamed('/admin/home');
           break;
         case 'announcement':
@@ -383,36 +411,77 @@ class _NotifStyle {
       case 'approved':
       case 'join_approved':
       case 'payment_confirmed':
+      case 'checkin_approved':
+      case 'seat_change_approved':
+      case 'membership_renewed':
         return const _NotifStyle(Icons.check_circle_rounded, AppColors.success);
       case 'rejection':
       case 'rejected':
       case 'join_rejected':
       case 'payment_rejected':
+      case 'seat_change_rejected':
         return const _NotifStyle(Icons.cancel_rounded, AppColors.danger);
       case 'announcement':
         return const _NotifStyle(Icons.campaign_rounded, AppColors.primary);
       case 'hold':
       case 'hold_approved':
       case 'hold_lifted':
+      case 'hold_request':
         return const _NotifStyle(Icons.pause_circle_rounded, AppColors.warning);
       case 'seat_change':
       case 'seat_reassigned':
+      case 'seat_assigned':
+      case 'seat_change_request':
         return const _NotifStyle(Icons.event_seat_rounded, AppColors.info);
       case 'badge':
         return const _NotifStyle(Icons.emoji_events_rounded, AppColors.primary);
+      case 'leaderboard':
+        return const _NotifStyle(Icons.leaderboard_rounded, AppColors.primary);
+      case 'referral_credited':
+        return const _NotifStyle(Icons.card_giftcard_rounded, AppColors.success);
+      case 'streak_reminder':
+        return const _NotifStyle(Icons.local_fire_department_rounded, AppColors.warning);
       case 'holiday':
       case 'closure':
+      case 'reopen':
         return const _NotifStyle(Icons.beach_access_rounded, AppColors.warning);
       case 'query_reply':
+      case 'new_query':
         return const _NotifStyle(Icons.forum_rounded, AppColors.info);
+      case 'refund_request':
+        return const _NotifStyle(Icons.currency_rupee_rounded, AppColors.warning);
+      case 'new_review':
+        return const _NotifStyle(Icons.star_rounded, AppColors.warning);
+      case 'new_join_request':
+      case 'join_request':
+        return const _NotifStyle(Icons.person_add_rounded, AppColors.info);
+      case 'payment_submitted':
+      case 'payment':
+        return const _NotifStyle(Icons.payments_rounded, AppColors.success);
+      case 'daily_summary':
+      case 'dues_digest':
+        return const _NotifStyle(Icons.insights_rounded, AppColors.primary);
+      case 'expiring_digest':
+        return const _NotifStyle(Icons.event_busy_rounded, AppColors.warning);
+      case 'member_exited':
+      case 'membership_exited':
+      case 'membership_removed':
+      case 'membership_removed_refund':
+      case 'membership_transferred':
+        return const _NotifStyle(Icons.exit_to_app_rounded, AppColors.danger);
       case 'expiry':
       case 'renewal':
       case 'shift_end':
         return const _NotifStyle(Icons.schedule_rounded, AppColors.warning);
+      case 'payment_received':
+        return const _NotifStyle(Icons.hourglass_top_rounded, AppColors.info);
       case 'auto_checkout':
         return const _NotifStyle(Icons.logout_rounded, AppColors.danger);
-      case 'checkin_approved':
+      case 'check_in':
+      case 'attendance_manual':
         return const _NotifStyle(Icons.login_rounded, AppColors.success);
+      case 'check_out':
+        return const _NotifStyle(Icons.logout_rounded, AppColors.info);
       case 'checkin_rejected':
         return const _NotifStyle(Icons.block_rounded, AppColors.danger);
       case 'checkin_approval_request':

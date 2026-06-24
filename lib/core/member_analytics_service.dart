@@ -747,10 +747,33 @@ class MemberAnalyticsService {
       });
       await _supabase.from('notifications').insert({
         'user_id': memberId,
-        'title': 'New Badge Earned!',
-        'body': 'You just unlocked the $badgeType badge. Keep it up!',
+        'title': 'New badge earned! 🏅',
+        'body': 'You just unlocked the "${_badgeLabel(badgeType)}" badge. Keep it up!',
+        'data': {'type': 'badge', 'route': '/member/home', 'badge_type': badgeType},
       });
     } catch (_) {}
+  }
+
+  /// Friendly display name for a badge type (for notification copy).
+  String _badgeLabel(String type) {
+    switch (type) {
+      case '7_day_streak':
+        return '7-Day Streak';
+      case '30_day_streak':
+        return '30-Day Streak';
+      case 'early_bird':
+        return 'Early Bird';
+      case 'night_owl':
+        return 'Night Owl';
+      case '100_days_club':
+        return '100 Days Club';
+      case 'consistent':
+        return 'Consistent';
+      case 'top_of_week':
+        return 'Top of the Week';
+      default:
+        return type.replaceAll('_', ' ');
+    }
   }
 
   // 5. Referrals (Existing preserved)

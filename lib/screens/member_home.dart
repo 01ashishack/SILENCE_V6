@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import '../core/offline_sync.dart';
 import '../core/cache_service.dart';
 import '../utils/time_utils.dart';
+import '../services/notification_service.dart';
 import '../utils/holiday_service.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/states.dart';
@@ -1543,7 +1544,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               Stack(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                    icon: const Icon(Icons.notifications_none, color: Colors.white, size: 24),
                     onPressed: () async {
                       await Navigator.push(
                         context,
@@ -1574,7 +1575,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           const SizedBox(height: 16),
           Text(
             greeting,
-            style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+            style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 4),
           Text(
@@ -6250,6 +6251,17 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                               await supabase.rpc('exit_my_membership',
                                   params: {'p_membership_id': membership['id']});
 
+                              // Notify the owner that a member left.
+                              final exitLibId = membership['library_id']?.toString();
+                              if (exitLibId != null && exitLibId.isNotEmpty) {
+                                await NotificationService.notifyLibraryOwner(
+                                  libraryId: exitLibId,
+                                  title: 'Member left',
+                                  body: 'A member has exited your library. Their seat is now free.',
+                                  type: 'member_exited',
+                                );
+                              }
+
                               // Optional refund REQUEST → goes to the admin as a query.
                               if (wantRefund && daysLeft > 0) {
                                 final uid = supabase.auth.currentUser?.id;
@@ -6265,6 +6277,13 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                                         '${reason.isEmpty ? '' : ' Reason: $reason'}',
                                     'status': 'open',
                                   });
+                                  // Ping the owner about the refund request.
+                                  await NotificationService.notifyLibraryOwner(
+                                    libraryId: libId.toString(),
+                                    title: 'Refund request',
+                                    body: 'A member who exited with $daysLeft day(s) left has requested a refund. See Queries.',
+                                    type: 'refund_request',
+                                  );
                                 }
                               }
 

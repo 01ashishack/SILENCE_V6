@@ -10,7 +10,6 @@ import '../utils/attendance_format.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/shimmer_box.dart';
 import '../widgets/states/error_state.dart';
-import 'notifications_screen.dart';
 
 // Import removed to avoid unused library dependency
 
@@ -630,8 +629,8 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           end: Alignment.bottomCenter,
         ),
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
         ),
       ),
       padding: EdgeInsets.only(
@@ -649,21 +648,10 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                 Text(
                   'Analytics',
                   style: GoogleFonts.outfit(
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.notifications_none, color: Colors.white),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsScreen(),
-                      ),
-                    );
-                  },
                 ),
               ],
             ),

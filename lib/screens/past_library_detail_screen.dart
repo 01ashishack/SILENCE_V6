@@ -9,6 +9,7 @@ import 'member_history_tab.dart';
 import 'reservations/join_flow_screen.dart';
 import 'library_public_profile_screen.dart';
 import 'notifications_screen.dart';
+import '../services/notification_service.dart';
 
 class PastLibraryDetailScreen extends StatefulWidget {
   final String membershipId;
@@ -623,6 +624,14 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
         'rating': _selectedStars,
         'review_text': _reviewController.text.trim().isEmpty ? null : _reviewController.text.trim(),
       });
+
+      // Notify the library owner about the new review.
+      await NotificationService.notifyLibraryOwner(
+        libraryId: libraryId.toString(),
+        title: 'New review',
+        body: 'A member left a $_selectedStars★ review on your library.',
+        type: 'new_review',
+      );
 
       // Reload/update the details
       await _loadPastLibraryDetails();

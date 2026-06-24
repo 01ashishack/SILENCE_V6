@@ -65,6 +65,32 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-24 (a) — Notifications: shared helper + full coverage + click-redirect audit
+
+`flutter analyze` **0 issues (whole project)**. **No DB/migration changes** (time-based digests still pending — see below).
+- **New `lib/services/notification_service.dart`** — single place that writes `notifications` rows with a
+  consistent payload `{type, route?, ...extra}`. Methods: `send`, `sendMany`, `notifyLibraryOwner`,
+  `routeForType` (type → canonical named route, only routes that exist in the table). All sends are
+  best-effort (never throw into the caller — a failed notification must never break the action).
+- **Newly-wired button-triggered notifications** (were missing): `seat_change_request` → owner
+  (`seat_change_bottom_sheet.dart`); `new_review` → owner (`library_public_profile_screen.dart` +
+  `past_library_detail_screen.dart`); `member_exited` + `refund_request` → owner (`member_home.dart` on
+  self-exit); `badge` payload upgraded with `type`/`route`/friendly label (`member_analytics_service.dart`).
+- **Click-redirect audit of ALL existing notifications** — `notifications_screen.dart` `_onTapNotification`
+  switch + `_NotifStyle.forType` (icon/colour) now cover every `type` used anywhere in the app. Found &
+  fixed 3 types that had NO route/icon (fell to default bell, no navigation): **`check_in`/`check_out`**
+  (owner attendance pings → `/admin/home`, login/logout icons) and **`attendance_manual`** (admin manual
+  check-in/out of a member → `/member/home`, login icon). Member types → `/member/home`, admin → `/admin/home`;
+  `query_reply`/`new_query`/`refund_request` → `ContactAdminScreen`; `announcement` → in-place dialog.
+- **Verified existing loops are intact**: admin query **reply** → member `query_reply`; member **query**
+  → owner `new_query`; join/payment/hold/renew/transfer/seat all carry a covered `type`.
+- **Still pending (separate batch — needs a pg_cron migration the USER applies, like the overtime one):**
+  time-based notifications — expiry reminders (3d/1d/today), admin expiring-members digest, streak
+  reminder, daily collection summary, dues digest. Their `type`s are already mapped in `routeForType`.
+- Files: `notification_service.dart` (new), `notifications_screen.dart`, `seat_change_bottom_sheet.dart`,
+  `library_public_profile_screen.dart`, `past_library_detail_screen.dart`, `member_home.dart`,
+  `member_analytics_service.dart`.
+
 ### Session 2026-06-23 (e) — Member top-bar / status-bar color unified across tabs & states
 `flutter analyze` 0 issues. **No DB/migration changes.**
 - All 4 member tabs' headers unified to the brand `[#E65C00, #C44E00]` **vertical** gradient

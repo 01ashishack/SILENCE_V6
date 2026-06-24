@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'reservations/join_flow_screen.dart';
 import 'member_profile_edit.dart';
+import '../services/notification_service.dart';
 
 
 class LibraryPublicProfileScreen extends StatefulWidget {
@@ -571,6 +572,14 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                             'rating': selectedRating,
                             'review_text': commentCtrl.text.trim(),
                           });
+
+                          // Notify the library owner about the new review.
+                          await NotificationService.notifyLibraryOwner(
+                            libraryId: libraryId,
+                            title: 'New review',
+                            body: 'A member left a $selectedRating★ review on your library.',
+                            type: 'new_review',
+                          );
 
                           navigator.pop();
                           if (mounted) {
