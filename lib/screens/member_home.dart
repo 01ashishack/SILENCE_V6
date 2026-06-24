@@ -1380,7 +1380,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         return null; // eligible to check in / out
       case MemberState.expired:
         final expiredM = _allMemberships.firstWhere(
-          (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(istNow())),
+          (m) => _isExpiredMembership(m),
           orElse: () => {},
         );
         if (expiredM.isNotEmpty) {
@@ -1495,6 +1495,19 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   /// Whole days from today (date-only, local) until [end]. 0 = ends today (still
   /// the last active day), negative = already past. Avoids the `.inDays`
   /// truncation that wrongly showed "0 days left" on the final active day.
+  /// Canonical "is this membership expired?" test — status 'expired', or an
+  /// active membership whose end_date is already past (IST). Kept in one place
+  /// so the expired-state screens don't duplicate/diverge the predicate (H8).
+  bool _isExpiredMembership(Map<String, dynamic> m) {
+    if (m['status'] == 'expired') return true;
+    if (m['status'] == 'active' && m['end_date'] != null) {
+      try {
+        return DateTime.parse(m['end_date']).isBefore(istNow());
+      } catch (_) {}
+    }
+    return false;
+  }
+
   int _daysLeftDateOnly(DateTime? end) {
     if (end == null) return -1;
     final e = end.toLocal();
@@ -2267,7 +2280,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   // STAGE 7: EXPIRED
   Widget _buildExpiredState() {
     final expiredM = _allMemberships.firstWhere(
-      (m) => m['status'] == 'expired' || (m['status'] == 'active' && m['end_date'] != null && DateTime.parse(m['end_date']).isBefore(istNow())),
+      (m) => _isExpiredMembership(m),
       orElse: () => {},
     );
     if (expiredM.isEmpty) return const SizedBox.shrink();

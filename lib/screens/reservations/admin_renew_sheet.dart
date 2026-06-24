@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../utils/error_messages.dart';
 import '../../utils/audit_logger.dart';
+import '../../utils/time_utils.dart';
 
 /// Admin-side **direct** membership renewal.
 ///
@@ -120,8 +121,9 @@ class _AdminRenewSheetState extends State<_AdminRenewSheet> {
     final months = _durationMonths(_plan);
     final amount = _priceFor(_plan);
     try {
-      // Extend from the later of (current end, today).
-      DateTime base = DateTime.now();
+      // Extend from the later of (current end, today). Use IST so the date
+      // boundary matches every member-facing calculation (H7).
+      DateTime base = istNow();
       final endStr = widget.membership['end_date']?.toString();
       if (endStr != null) {
         final cur = DateTime.tryParse(endStr);

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'notification_service.dart';
 
 /// Registers this device for FCM push, shows a heads-up banner when a push
 /// arrives while the app is in the FOREGROUND (Android), routes taps to the
@@ -156,14 +157,34 @@ class PushNotificationService {
   }
 
   /// All taps (FCM tap, cold-start, local-notification tap) funnel here.
-  /// v1: open the in-app notifications screen (where the alert lives).
+  /// Deep-links using the notification payload: an explicit `data.route`, else
+  /// the canonical route for `data.type` (NotificationService.routeForType).
+  /// Falls back to the in-app notifications center when neither resolves (e.g.
+  /// query_reply / announcement — handled inside that screen). Previously this
+  /// ALWAYS opened `/member/notifications`, ignoring the payload (audit H3).
   void _routeFromData(Map<String, dynamic> data) {
     final nav = navigatorKey.currentState;
     if (nav == null) return;
+
+    String? route;
+    final rawRoute = data['route'];
+    if (rawRoute is String && rawRoute.trim().isNotEmpty) {
+      route = rawRoute.trim();
+    } else {
+      final type = data['type'];
+      if (type is String && type.isNotEmpty) {
+        route = NotificationService.routeForType(type);
+      }
+    }
+    route ??= '/member/notifications'; // user-scoped center (works for any role)
+
     try {
-      nav.pushNamed('/member/notifications');
+      nav.pushNamed(route);
     } catch (e) {
-      debugPrint('FCM tap navigation failed: $e');
+      debugPrint('FCM tap navigation failed ($route): $e');
+      try {
+        nav.pushNamed('/member/notifications');
+      } catch (_) {}
     }
   }
 

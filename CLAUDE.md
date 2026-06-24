@@ -69,6 +69,24 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-24 (f) — Audit Batch 2 (trust + quick wins, client-only)
+
+`flutter analyze` **0 issues**. **No DB changes.**
+- **H3** — FCM tap routing fixed: `_routeFromData` now deep-links via `data['route']` → else
+  `NotificationService.routeForType(data['type'])` → else the user-scoped notifications center. Previously
+  it ALWAYS opened `/member/notifications`, ignoring the payload (the advertised deep-link never happened).
+- **H5** — `main.dart` textTheme built from `Typography.material2021().black` instead of
+  `Theme.of(context)` (which, above the MaterialApp, silently dropped the custom theme).
+- **H7** — admin-renew extends `end_date` from `istNow()` (was device-local `DateTime.now()` → off-by-one
+  for non-IST devices).
+- **H8** — extracted `_isExpiredMembership()` helper in member_home; both expired-state `firstWhere`
+  predicates now call it (DRY; behavior unchanged — both already used `istNow()`).
+- **M1** — deleted dead `MemberAnalyticsService.fetchLeaderboard()` (superseded by the RPC-based
+  `fetchLeaderboardDetails()`).
+- **Deferred:** L5 (`minCheckoutMinutes` is intentionally 0 — re-enabling is a product decision, left as-is).
+- Files: `push_notification_service.dart`, `main.dart`, `admin_renew_sheet.dart`, `member_home.dart`,
+  `member_analytics_service.dart`.
+
 ### Session 2026-06-24 (e) — Audit re-audit: Batch 1 (attendance data integrity: C1/C2/C4)
 
 `flutter analyze` **0 issues**. Fixes the 3 confirmed-critical attendance-integrity bugs from the

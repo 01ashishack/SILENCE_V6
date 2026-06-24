@@ -161,9 +161,11 @@ class SilenceApp extends StatelessWidget {
           surfaceTintColor: Colors.transparent,
         ),
         
-        // Custom Typography
+        // Custom Typography. Build from a concrete Typography (NOT
+        // Theme.of(context) — that context is above this MaterialApp, so it
+        // yields the framework default and silently drops our theme) (H5).
         textTheme: GoogleFonts.interTextTheme(
-          Theme.of(context).textTheme,
+          Typography.material2021().black,
         ),
         
         // Form field decorations
