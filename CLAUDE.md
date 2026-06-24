@@ -69,6 +69,27 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-24 (j) — Re-audit Batch 5b: atomic approve_join_request RPC (C3 + C5/M7)
+
+`flutter analyze` **0 issues**.
+- New `approve_join_request(p_request_id, p_seat_id)` SECURITY DEFINER RPC
+  (`migrations/2026-06-24_approve_join_request_rpc.sql`, folded into `supabase_schema.sql`): owner-checked,
+  requires the request still 'pending', **atomically claims the seat** (`UPDATE seats … WHERE status='vacant'
+  RETURNING`; 0 rows → raises → full rollback, so **no double-booking** — closes C3 on this path),
+  **derives the amount** from `shifts.price_*` − discount + add-on prices (no client-trusted amount),
+  renews/creates the membership (IST dates), records the confirmed payment, inserts member_add_ons,
+  approves the request, notifies + audits — **all in one transaction** (closes C5/M7 on the join path).
+- `requests_sub_tab.dart` `_approveJoinRequestTransaction` now calls the RPC instead of ~7 separate client
+  writes; success snackbar uses the RPC's returned seat label. (The 5a add-on M8 branch is now moot — it's
+  all-or-nothing in the txn.)
+- **⏳ APPLY to live DB:** `silence_app/migrations/2026-06-24_approve_join_request_rpc.sql`.
+- **⚠️ DEVICE-TEST REQUIRED** (critical daily flow): approve a join (new + renewal), concurrent-seat race
+  (second admin gets "Seat is no longer available", nothing half-written), add-ons persisted, payment
+  confirmed with server amount, request → approved.
+- **STILL OPEN:** the **add-member wizard** (`add_member_wizard.dart`) is the other non-atomic
+  membership+seat+payment path (C3/C5/M7) — defer to a follow-up RPC. C2 offline full re-validation also open.
+- Files: `requests_sub_tab.dart`, `supabase_schema.sql`, migration (new).
+
 ### Session 2026-06-24 (i) — Re-audit follow-ups Batch 5a (N1/N3/M8/Missed-1)
 
 `flutter analyze` **0 issues**. Closes the safe, contained residuals the re-audit found.
@@ -83,7 +104,7 @@ Sign-In + App Store regardless.
   device-local `DateTime.now()` → off-by-one expiry for non-IST admins). Same bug the H7 fix missed.
 - **M8** — add-on insert failure in `requests_sub_tab` is no longer silent: the approval snackbar turns
   amber and says "add-ons could NOT be saved — please add them manually" (honest UI).
-- **⏳ APPLY to live DB:** `silence_app/migrations/2026-06-24_name_unicode_and_amount_bound.sql`.
+- **✅ APPLIED to live DB (2026-06-24):** `silence_app/migrations/2026-06-24_name_unicode_and_amount_bound.sql`.
 - **STILL OPEN (next, larger + needs device testing):** C5/M7 atomicity on the join-approval +
   add-member-wizard money paths (route through an `approve_join_request` / shared RPC) and C3 (pending-seat
   + non-atomic `seats.status` flip — best fixed together with that RPC); C2 full offline-sync re-validation.

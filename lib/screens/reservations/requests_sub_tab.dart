@@ -337,175 +337,21 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     if (_isApproving) return; // ignore double-taps
     _isApproving = true;
     try {
-      final String seatId = seat['id'];
       final String seatLabel = seat['seat_label'];
-      final String memberId = request['member_id']['id'];
       final String requestId = request['id'];
       final String memberName = request['member_id']['full_name'] ?? 'Member';
 
-      // 1. Re-validate vacancy at DB level to prevent race conditions
-      final seatCheck = await supabase.from('seats').select('status').eq('id', seatId).single();
-      if (!mounted) return;
-      if (seatCheck['status'] != 'vacant') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Seat just assigned, pick another! ⚠', style: TextStyle(color: Colors.white)), backgroundColor: Colors.red),
-        );
-        return;
-      }
-
-      // 2. Set seat status to occupied
-      await supabase.from('seats').update({
-        'status': 'occupied',
-        'occupied_by_member_id': memberId,
-      }).eq('id', seatId);
-      if (!mounted) return;
-
-      // 3. Set request status to approved
-      await supabase.from('join_requests').update({
-        'status': 'approved',
-      }).eq('id', requestId);
-      if (!mounted) return;
-
-      final String planType = (request['plan_type'] ?? 'monthly').toString();
-      int durationMonths = 1;
-      if (planType == '3_month') durationMonths = 3;
-      if (planType == '6_month') durationMonths = 6;
-
-      // Selected add-ons carried on the request (may be absent on older rows).
-      final List<String> addOnIds = (request['selected_addon_ids'] is List)
-          ? List<String>.from(
-              (request['selected_addon_ids'] as List).map((e) => e.toString()))
-          : <String>[];
-
-      // Fetch add-on prices/deposits once (for amount + member_add_ons rows).
-      List<Map<String, dynamic>> addOnRows = [];
-      if (addOnIds.isNotEmpty) {
-        try {
-          final res = await supabase
-              .from('add_ons')
-              .select('id, price, refundable_deposit')
-              .inFilter('id', addOnIds);
-          addOnRows = List<Map<String, dynamic>>.from(res);
-        } catch (e) {
-          debugPrint('add_ons price lookup failed: $e');
-        }
-      }
-      final int addOnsTotal = addOnRows.fold<int>(
-          0, (sum, a) => sum + ((a['price'] as int?) ?? 0));
-
-      // Real amount = plan price + add-ons − discount. No hardcoded figures.
-      final int planAmount = await _computeApprovalAmount(
-        shiftId: request['shift_id']?.toString(),
-        planType: planType,
-        discount: (request['discount_amount'] as int?) ?? 0,
-      );
-      final int amount = planAmount + addOnsTotal;
-
-      String membershipId;
-
-      // Check if member already has an active/expiring membership in this library
-      final existingMembership = await supabase
-          .from('memberships')
-          .select('id, end_date, seat_id, shift_id, status')
-          .eq('member_id', memberId)
-          .eq('library_id', widget.libraryId)
-          .inFilter('status', ['active', 'trial', 'expiring', 'expired'])
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
-      if (!mounted) return;
-
-      final bool isRenewal = existingMembership != null;
-
-      if (isRenewal) {
-        // RENEWAL: Extend existing membership
-        DateTime currentEndDate = DateTime.parse(existingMembership['end_date']);
-        if (currentEndDate.isBefore(istNow())) {
-          currentEndDate = istNow(); // if expired, start from today (IST, N1)
-        }
-        DateTime newEndDate = _addMonths(currentEndDate, durationMonths);
-
-        await supabase.from('memberships').update({
-          'end_date': newEndDate.toIso8601String().substring(0, 10),
-          'status': 'active',
-          'seat_id': seatId,
-          'shift_id': request['shift_id'],
-        }).eq('id', existingMembership['id']);
-        if (!mounted) return;
-
-        membershipId = existingMembership['id'];
-      } else {
-        // NEW MEMBERSHIP: Create membership
-        final start = istNow(); // IST so the expiry boundary is correct (N1)
-        final end = _addMonths(start, durationMonths);
-
-        final membership = await supabase.from('memberships').insert({
-          'member_id': memberId,
-          'library_id': widget.libraryId,
-          'shift_id': request['shift_id'],
-          'seat_id': seatId,
-          'plan_type': planType,
-          'start_date': start.toIso8601String().substring(0, 10),
-          'end_date': end.toIso8601String().substring(0, 10),
-          'status': 'active',
-        }).select('id').single();
-        if (!mounted) return;
-
-        membershipId = membership['id'];
-      }
-
-      // 5. Create confirmed payment record (real, derived amount)
-      await supabase.from('payments').insert({
-        'membership_id': membershipId,
-        'member_id': memberId,
-        'library_id': widget.libraryId,
-        'amount': amount,
-        'method': request['payment_method'] ?? 'cash',
-        'status': 'confirmed',
-        'payment_date': DateTime.now().toIso8601String(),
-        'confirmed_by_admin_id': supabase.auth.currentUser?.id,
-        'proof_url': request['payment_proof_url'],
-        'upi_sender_name': request['upi_sender_name'],
+      // Atomic server-side approval (audit C3 + C5/M7): claims the seat, derives
+      // the amount, and upserts membership + payment + add-ons + request status +
+      // notification + audit in ONE transaction. A seat race or any mid-step
+      // failure rolls the whole thing back — no double-booking, no half-approval.
+      final res = await supabase.rpc('approve_join_request', params: {
+        'p_request_id': requestId,
+        'p_seat_id': seat['id'],
       });
-      if (!mounted) return;
-
-      // 5b. Persist selected add-ons against this membership.
-      bool addOnsSaved = true;
-      if (addOnRows.isNotEmpty) {
-        try {
-          final rows = addOnRows
-              .map((a) => {
-                    'membership_id': membershipId,
-                    'add_on_id': a['id'],
-                    'deposit_paid': (a['refundable_deposit'] as int?) ?? 0,
-                  })
-              .toList();
-          await supabase.from('member_add_ons').insert(rows);
-        } catch (e) {
-          addOnsSaved = false; // M8: surface this to the admin (no silent drop)
-          debugPrint('member_add_ons insert failed: $e');
-        }
-      }
-      if (!mounted) return;
-
-      // 6. Notify the member (honest: only after the writes succeed).
-      await _notifyMember(
-        memberId: memberId,
-        title: isRenewal ? 'Membership renewed' : 'Welcome aboard!',
-        message: isRenewal
-            ? 'Your renewal is confirmed. Seat $seatLabel is assigned. Payment of ₹$amount recorded.'
-            : 'Your membership is approved. Seat $seatLabel is assigned. Payment of ₹$amount recorded. You can check in now.',
-        type: isRenewal ? 'join_approved' : 'join_approved',
-      );
-
-      // 7. Audit trail.
-      await _logAudit(
-        action: isRenewal ? 'membership_renew' : 'membership_approve',
-        category: AuditLogger.categoryMembers,
-        title: isRenewal ? 'Renewed membership' : 'Approved join request',
-        details:
-            '$memberName · ${_planLabel(planType)} · seat $seatLabel · ₹$amount',
-      );
+      final data = (res is List && res.isNotEmpty) ? res.first : res;
+      final assignedSeat =
+          (data is Map ? data['seat_label'] : null)?.toString() ?? seatLabel;
 
       _fetchRequests();
       if (!mounted) return;
@@ -513,10 +359,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            "Member $memberName approved and seat $seatLabel assigned successfully.${addOnsSaved ? '' : ' Note: add-ons could NOT be saved — please add them manually.'}",
+            "Member $memberName approved and seat $assignedSeat assigned successfully.",
             style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500),
           ),
-          backgroundColor: addOnsSaved ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
+          backgroundColor: const Color(0xFF22C55E),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
