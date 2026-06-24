@@ -357,9 +357,11 @@ All in `lib/screens/admin/` (+ migrations). `flutter analyze` clean on touched f
 - **FCM status (verified 2026-06-18):** foreground heads-up banner + tap→navigation are **DONE & wired**
   (`push_notification_service.dart`: `_showForegroundNotification` via `flutter_local_notifications`,
   `_routeFromData`; `main.dart` has the background handler + `navigatorKey` + `initialize()`).
-  Webhook shared-secret **check is in code** (constant-time, `send-push`). **Remaining = NOT code:**
-  (a) config — set `PUSH_WEBHOOK_SECRET` + add `x-webhook-secret` header to the `send_push_on_notification`
-  webhook; (b) on-device test — Android phone, and iOS (needs Apple Developer + APNs key).
+  Webhook shared-secret **check is in code** (constant-time, `send-push`). **✅ ANDROID ON-DEVICE VERIFIED
+  (2026-06-24)** — token saved to `device_tokens`, heads-up banner in foreground + background, tap opens the
+  notification center. Firebase project unchanged after the owner transfer (silence-v6) so no config churn.
+  **Remaining = OPTIONAL/iOS only:** (a) hardening — set `PUSH_WEBHOOK_SECRET` + `x-webhook-secret` header on
+  the `send_push_on_notification` webhook; (b) iOS push (needs Apple Developer + APNs key, with R2).
 - **Subscription decision (2026-06-17):** **in-app Razorpay ruled out**; either store IAP OR
   website+Razorpay. See `docs_fix/UIUX_OVERHAUL_DECISIONS.md` + `SUBSCRIPTION_ARCHITECTURE.md`.
 
