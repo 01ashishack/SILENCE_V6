@@ -1393,6 +1393,99 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     );
   }
 
+  /// Past (dead) join requests — rejected + withdrawn — shown in a sheet.
+  Future<void> _showPastRequests() async {
+    List<Map<String, dynamic>> past = [];
+    try {
+      final res = await supabase
+          .from('join_requests')
+          .select('*, member_id(full_name), shifts(name)')
+          .eq('library_id', widget.libraryId)
+          .inFilter('status', ['rejected', 'withdrawn'])
+          .order('created_at', ascending: false)
+          .limit(100);
+      past = List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      debugPrint('past requests load failed: $e');
+    }
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) => DraggableScrollableSheet(
+        initialChildSize: 0.7, maxChildSize: 0.95, minChildSize: 0.4, expand: false,
+        builder: (sheetCtx, scrollCtrl) => Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            Text('Past requests', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text('Rejected & withdrawn', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
+            const SizedBox(height: 12),
+            Expanded(
+              child: past.isEmpty
+                  ? Center(child: Text('No past requests.', style: GoogleFonts.inter(color: const Color(0xFF94A3B8))))
+                  : ListView.separated(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      itemCount: past.length,
+                      separatorBuilder: (_, i) => const SizedBox(height: 10),
+                      itemBuilder: (ctx, i) {
+                        final r = past[i];
+                        final nm = (r['member_id']?['full_name'] ?? 'Member').toString();
+                        final st = (r['status'] ?? '').toString();
+                        final withdrawn = st == 'withdrawn';
+                        final reason = (r['rejection_reason'] ?? '').toString().trim();
+                        final created = r['created_at']?.toString() ?? '';
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(child: Text(nm, style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.bold))),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: withdrawn ? const Color(0xFFE2E8F0) : const Color(0xFFFEE2E2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(withdrawn ? 'WITHDRAWN' : 'REJECTED',
+                                        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold,
+                                            color: withdrawn ? const Color(0xFF475569) : const Color(0xFFB91C1C))),
+                                  ),
+                                ],
+                              ),
+                              if (created.length >= 10) ...[
+                                const SizedBox(height: 2),
+                                Text(created.substring(0, 10), style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                              ],
+                              if (!withdrawn && reason.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text('Reason: $reason', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF991B1B), fontStyle: FontStyle.italic)),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Small pill on a join-request card: Renewal / Existing(offline) / New.
   Widget _memberTypePill({required bool isRenewal, required bool isExisting}) {
     late final String label;
@@ -1977,28 +2070,43 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                     child: IndexedStack(
                       index: _activeRequestTab,
                       children: [
-                        // Toggle 0: Join Requests list
-                        _joinRequests.isEmpty
-                            ? SingleChildScrollView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                child: Container(
-                                  height: MediaQuery.of(context).size.height * 0.5,
-                                  alignment: Alignment.center,
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.assignment_turned_in_outlined, size: 64, color: Colors.grey[300]),
-                                      const SizedBox(height: 16),
-                                      Text('No pending join requests.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : ListView.builder(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                itemCount: _joinRequests.length,
-                                itemBuilder: (ctx, index) => _buildJoinRequestCard(_joinRequests[index]),
+                        // Toggle 0: Join Requests list (+ Past requests entry)
+                        Column(
+                          children: [
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _showPastRequests,
+                                icon: const Icon(Icons.history, size: 16),
+                                label: const Text('Past requests'),
+                                style: TextButton.styleFrom(foregroundColor: const Color(0xFF64748B)),
                               ),
+                            ),
+                            Expanded(
+                              child: _joinRequests.isEmpty
+                                  ? SingleChildScrollView(
+                                      physics: const AlwaysScrollableScrollPhysics(),
+                                      child: Container(
+                                        height: MediaQuery.of(context).size.height * 0.5,
+                                        alignment: Alignment.center,
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.assignment_turned_in_outlined, size: 64, color: Colors.grey[300]),
+                                            const SizedBox(height: 16),
+                                            Text('No pending join requests.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      physics: const AlwaysScrollableScrollPhysics(),
+                                      itemCount: _joinRequests.length,
+                                      itemBuilder: (ctx, index) => _buildJoinRequestCard(_joinRequests[index]),
+                                    ),
+                            ),
+                          ],
+                        ),
 
                         // Toggle 1: Seat Changes list (Placeholder / simple Empty matching specs)
                         _seatChangeRequests.isEmpty

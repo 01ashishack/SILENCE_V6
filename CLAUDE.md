@@ -69,10 +69,22 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
-### Session 2026-06-25 — Joining-process overhaul (5c) — IN PROGRESS
+### Session 2026-06-25 — Joining-process overhaul (5c) — ✅ COMPLETE (device-test pending)
 
 User-directed improvements to the whole join/approval flow. **No inflated scope** — "existing member"
 = an OFFLINE member being migrated in (admin sets their real historical joining date).
+- **5c-iii reject templates + review sheet + tag + discount/start-date DONE** — reject dialog has 4
+  quick-pick reason chips; tapping a join-request card opens an applicant review sheet (personal details,
+  ID docs front/back zoomable, payment proof, plan/shift/joining date, returning-member history) with
+  Approve/Reject; each card shows a New / Existing(offline) / Renewal pill; the confirm-assignment dialog
+  lets the admin set the start/joining date + an optional discount+reason → passed to RPC v2.
+- **5c-iv Past requests DONE** — "Past requests" button above the join list opens a sheet of rejected +
+  withdrawn requests with status pill + reason.
+- `flutter analyze` 0 issues. **⚠️ DEVICE-TEST the whole flow** (submit→home; reject→reason+reapply to
+  same library; approve new/existing with discount+date; existing-member joining date now shows; Past sheet).
+- **Note:** the renewal-request path (`_approveRenewalRequest`) is still a separate non-atomic flow — a
+  follow-up could route it through the RPC too (it keeps the existing seat, so needs a tweak).
+- Files: `requests_sub_tab.dart` (+ earlier `join_flow_screen.dart`, `member_home.dart`, schema, migration).
 - **5c-i DONE — `approve_join_request` v2** (`migrations/2026-06-25_approve_join_request_v2.sql`, folded into
   schema; DROPs the 2-arg, adds `p_discount`/`p_discount_reason`/`p_start_date`, all defaulting NULL so the
   existing 2-arg client call still works): honors `existing_member_join_date` (or admin override) as the
