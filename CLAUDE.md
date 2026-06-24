@@ -34,7 +34,11 @@
 
 ### ⏳ REMAINING TASKS (open — not started)
 
-**R1. Google + Apple social login (UI exists, wiring is a stub).**
+**R1. Google social login — ✅ DONE + DEVICE-VERIFIED (2026-06-24).** Apple still stubbed.
+`auth_screen.dart` `_handleGoogleSignIn()` does the native flow: `GoogleSignIn.instance.initialize(serverClientId: SupabaseConfig.googleWebClientId)` → `authenticate()` → `authorizationClient` for the access token → `supabase.auth.signInWithIdToken(provider: google, idToken, accessToken)`; web falls back to `signInWithOAuth`. After sign-in it bootstraps the `users` row (`_routeAfterAuth`) and routes like login (role null → `/role-select`, else admin/member home); user-cancel (`GoogleSignInException.canceled`) is silent. `google_sign_in: ^7.2.0`. **Web client ID `1085738355311-4pbt15ndhhcngedpp28ob8ru2bsl7bdl...` baked as the `googleWebClientId` default** (public, safe in-APK; `--dart-define=GOOGLE_WEB_CLIENT_ID=` still overrides) so plain `flutter run`/`build` work without flags. **Console DONE (user):** OAuth consent screen (External, test users), Web + Android (`com.silence.app.silence` + debug SHA-1 `7E:39:...:63`) client IDs, Supabase Google provider enabled (Web+Android client IDs, Web secret). Apple → "coming soon".
+- **⚠️ Before Play Store:** add the **release keystore SHA-1** to the Android OAuth client (debug SHA-1 only works for `flutter run`/debug APK). Consent screen is in **Testing** → only added test users can log in until Published.
+
+**R1-old. Google + Apple social login (UI exists, wiring is a stub).**
 `auth_screen.dart` already shows Google/Apple buttons but `_handleOAuth()` just shows a "disabled"
 message. To finish:
 - **Code (agent):** add `google_sign_in` + `sign_in_with_apple` deps; replace `_handleOAuth` with the
@@ -64,6 +68,18 @@ Sign-In + App Store regardless.
   Function — plus re-register SHA fingerprints. (Much more work + risk.)
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
+
+### Session 2026-06-24 (b) — Google Sign-In (native) wired + device-verified
+
+`flutter analyze` **0 issues**. **No DB/migration changes.**
+- `google_sign_in: ^7.2.0`. `auth_screen.dart`: real `_handleGoogleSignIn()` (v7 API: `initialize(serverClientId:)`
+  → `authenticate()` → `authorizationClient.authorizeScopes` → `signInWithIdToken(google,...)`); `_routeAfterAuth`
+  bootstraps the `users` row + routes like email login; cancel = silent; web = `signInWithOAuth` fallback.
+- `supabase_config.dart`: `googleWebClientId`/`googleIosClientId` (dart-define overridable). **Web client ID baked
+  as default** so every build works without flags. Android client ID + Web client secret live only in Supabase/console.
+- **User completed the console side** (consent screen + Web/Android OAuth clients + Supabase provider) and **verified
+  Google login works on device.** Apple still a "coming soon" stub (R2 — needs Mac + paid Apple acct).
+- Files: `pubspec.yaml`, `lib/core/supabase_config.dart`, `lib/screens/auth_screen.dart`.
 
 ### Session 2026-06-24 (a) — Notifications: shared helper + full coverage + click-redirect audit
 

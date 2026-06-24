@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/gestures.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../core/supabase_config.dart';
 
 
 class AuthScreen extends StatefulWidget {
@@ -27,6 +30,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   bool _isLoading = false;
   bool _obscureLoginPassword = true;
+  static bool _googleInitialized = false;
   bool _obscureSignupPassword = true;
   bool _obscureSignupConfirmPassword = true;
   String _passwordStrength = '';
@@ -252,7 +256,126 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _handleOAuth(String provider) async {
-    _showErrorSnackBar('$provider login support is disabled in Milestone 1.');
+    if (provider == 'Google') {
+      await _handleGoogleSignIn();
+      return;
+    }
+    // Apple Sign-In needs a paid Apple Developer account + a Mac to build/test.
+    // Tracked as remaining task R1/R2 — kept honest instead of faking it.
+    _showErrorSnackBar('Apple sign-in is coming soon.');
+  }
+
+  /// Native Google sign-in (google_sign_in v7) → Supabase `signInWithIdToken`.
+  /// On web there is no native dialog, so we fall back to the redirect-based
+  /// `signInWithOAuth` flow. After a successful sign-in we bootstrap the
+  /// `users` row (first social login) and route exactly like email login.
+  Future<void> _handleGoogleSignIn() async {
+    final supabase = Supabase.instance.client;
+
+    // Web / desktop: redirect-based OAuth (no native Credential Manager).
+    if (kIsWeb) {
+      try {
+        await supabase.auth.signInWithOAuth(OAuthProvider.google);
+        // Session resumes via redirect; AuthGate/splash handles routing.
+      } catch (e) {
+        _showErrorSnackBar('Could not start Google sign-in. Please try again.');
+      }
+      return;
+    }
+
+    if (SupabaseConfig.googleWebClientId.isEmpty) {
+      _showErrorSnackBar(
+          'Google sign-in is not configured yet. Add the Web client ID first.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final googleSignIn = GoogleSignIn.instance;
+      if (!_googleInitialized) {
+        await googleSignIn.initialize(
+          serverClientId: SupabaseConfig.googleWebClientId,
+          clientId: SupabaseConfig.googleIosClientId.isEmpty
+              ? null
+              : SupabaseConfig.googleIosClientId,
+        );
+        _googleInitialized = true;
+      }
+
+      // Opens the native account chooser (throws GoogleSignInException on cancel).
+      final googleUser = await googleSignIn.authenticate();
+
+      final idToken = googleUser.authentication.idToken;
+      if (idToken == null) {
+        throw const AuthException('No ID token returned by Google.');
+      }
+
+      // Authorize the scopes we need to also obtain an access token.
+      const scopes = ['email', 'profile'];
+      final authorization =
+          await googleUser.authorizationClient.authorizationForScopes(scopes) ??
+              await googleUser.authorizationClient.authorizeScopes(scopes);
+
+      final response = await supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: authorization.accessToken,
+      );
+
+      final user = response.user;
+      if (user == null) {
+        throw const AuthException('Google sign-in failed. Please try again.');
+      }
+
+      final metaName = (user.userMetadata?['full_name'] ??
+              user.userMetadata?['name'] ??
+              googleUser.displayName)
+          ?.toString();
+      await _routeAfterAuth(user, fallbackName: metaName);
+    } on GoogleSignInException catch (e) {
+      // User dismissed the chooser — not an error, stay silent.
+      if (e.code != GoogleSignInExceptionCode.canceled) {
+        _showErrorSnackBar('Google sign-in failed. Please try again.');
+      }
+    } on AuthException catch (e) {
+      _showErrorSnackBar(e.message);
+    } catch (e) {
+      _showErrorSnackBar('Google sign-in failed. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Ensures a `users` row exists (bootstraps it on first social login) and
+  /// then routes: role null → role-select, admin → admin home, else member home.
+  Future<void> _routeAfterAuth(User user, {String? fallbackName}) async {
+    final supabase = Supabase.instance.client;
+    var userData =
+        await supabase.from('users').select().eq('id', user.id).maybeSingle();
+
+    if (userData == null) {
+      final name =
+          (fallbackName ?? user.email?.split('@').first ?? 'User').toString().trim();
+      await supabase.from('users').upsert({
+        'id': user.id,
+        'email': user.email ?? '',
+        'full_name': name.isEmpty ? 'User' : name,
+        'nickname': name.isEmpty ? 'User' : name.split(' ').first,
+        'role': null,
+      });
+      userData =
+          await supabase.from('users').select().eq('id', user.id).maybeSingle();
+    }
+
+    if (!mounted) return;
+    _showSuccessSnackBar('Signed in with Google.');
+    if (userData == null || userData['role'] == null) {
+      Navigator.of(context).pushReplacementNamed('/role-select');
+    } else if (userData['role'] == 'admin') {
+      Navigator.of(context).pushReplacementNamed('/admin/home');
+    } else {
+      Navigator.of(context).pushReplacementNamed('/member/home');
+    }
   }
 
   void _handleForgotPassword() {
