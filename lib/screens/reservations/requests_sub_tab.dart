@@ -364,7 +364,103 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   }
 
   // ── Final Database Seat Assignment and Activation (S034 Flow) ─────────────
-  Future<void> _approveJoinRequestTransaction(BuildContext sheetContext, Map<String, dynamic> request, Map<String, dynamic> seat) async {
+  /// Confirm-assignment dialog with optional discount + an editable start date
+  /// (pre-filled with an existing offline member's chosen joining date). Returns
+  /// {discount, reason, startDate} or null if cancelled.
+  Future<Map<String, dynamic>?> _confirmAssignmentDialog(
+      Map<String, dynamic> request, Map<String, dynamic> seat) async {
+    final discountCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController();
+    final existingJoin =
+        DateTime.tryParse(request['existing_member_join_date']?.toString() ?? '');
+    final bool isExisting = existingJoin != null;
+    DateTime startDate = existingJoin ?? DateTime.now();
+    final memberName = request['member_id']?['full_name'] ?? 'this member';
+
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setD) => AlertDialog(
+          title: Text('Confirm assignment', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Seat ${seat['seat_label']} → $memberName',
+                    style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(isExisting ? 'Joining / plan start date' : 'Plan starts on',
+                          style: GoogleFonts.inter(fontSize: 13)),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.calendar_today, size: 15),
+                      label: Text(DateFormat('dd MMM yyyy').format(startDate)),
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: c,
+                          initialDate: startDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now().add(const Duration(days: 31)),
+                        );
+                        if (picked != null) setD(() => startDate = picked);
+                      },
+                    ),
+                  ],
+                ),
+                if (isExisting)
+                  Text('Existing (offline) member — set their real joining date.',
+                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B))),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: discountCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: '₹ Discount on plan (optional)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: reasonCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Discount reason (optional)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
+              onPressed: () => Navigator.pop(c, {
+                'discount': int.tryParse(discountCtrl.text.trim()),
+                'reason': reasonCtrl.text.trim(),
+                'startDate': startDate,
+              }),
+              child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _approveJoinRequestTransaction(
+    BuildContext sheetContext,
+    Map<String, dynamic> request,
+    Map<String, dynamic> seat, {
+    int? discount,
+    String? discountReason,
+    DateTime? startDate,
+  }) async {
     if (_isApproving) return; // ignore double-taps
     _isApproving = true;
     try {
@@ -379,6 +475,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       final res = await supabase.rpc('approve_join_request', params: {
         'p_request_id': requestId,
         'p_seat_id': seat['id'],
+        if (discount != null && discount > 0) 'p_discount': discount,
+        if (discountReason != null && discountReason.trim().isNotEmpty)
+          'p_discount_reason': discountReason.trim(),
+        if (startDate != null) 'p_start_date': DateFormat('yyyy-MM-dd').format(startDate),
       });
       final data = (res is List && res.isNotEmpty) ? res.first : res;
       final assignedSeat =
@@ -1182,27 +1282,17 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                           final seat = vacantSeats[index];
                           return InkWell(
                             onTap: () async {
-                              // Show confirmation dialog before final save
-                              final confirmAssign = await showDialog<bool>(
-                                context: context,
-                                builder: (c) => AlertDialog(
-                                  title: Text('Confirm Assignment', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-                                  content: Text('Assign seat ${seat['seat_label']} to ${request['member_id']['full_name']}?'),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-                                    ElevatedButton(
-                                      onPressed: () => Navigator.pop(c, true),
-                                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-                                      child: const Text('Confirm', style: TextStyle(color: Colors.white)),
-                                    ),
-                                  ],
-                                ),
-                              ) ?? false;
-
-                              if (confirmAssign) {
-                                if (!ctx.mounted) return;
-                                _approveJoinRequestTransaction(ctx, request, seat);
-                              }
+                              // Confirm + optional discount + start/joining date.
+                              final result =
+                                  await _confirmAssignmentDialog(request, seat);
+                              if (result == null) return;
+                              if (!ctx.mounted) return;
+                              _approveJoinRequestTransaction(
+                                ctx, request, seat,
+                                discount: result['discount'] as int?,
+                                discountReason: result['reason'] as String?,
+                                startDate: result['startDate'] as DateTime?,
+                              );
                             },
                             child: Container(
                               alignment: Alignment.center,
@@ -1303,6 +1393,209 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     );
   }
 
+  /// Small pill on a join-request card: Renewal / Existing(offline) / New.
+  Widget _memberTypePill({required bool isRenewal, required bool isExisting}) {
+    late final String label;
+    late final Color bg, border, fg;
+    if (isRenewal) {
+      label = 'RENEWAL';
+      bg = const Color(0xFFEFF6FF); border = const Color(0xFFBFDBFE); fg = const Color(0xFF2563EB);
+    } else if (isExisting) {
+      label = 'EXISTING';
+      bg = const Color(0xFFFEF3C7); border = const Color(0xFFFDE68A); fg = const Color(0xFFB45309);
+    } else {
+      label = 'NEW';
+      bg = const Color(0xFFDCFCE7); border = const Color(0xFFBBF7D0); fg = const Color(0xFF15803D);
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg, borderRadius: BorderRadius.circular(8), border: Border.all(color: border),
+      ),
+      child: Text(label,
+          style: GoogleFonts.inter(fontSize: 8.5, fontWeight: FontWeight.bold, color: fg)),
+    );
+  }
+
+  Widget _reviewRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF94A3B8)),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 96,
+            child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
+          ),
+          Expanded(
+            child: Text(value.trim().isEmpty ? '—' : value,
+                style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _docThumb(String url, String label) {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: () => showDialog(
+            context: context,
+            builder: (c) => Dialog(
+              child: InteractiveViewer(
+                child: Image.network(url, fit: BoxFit.contain,
+                    errorBuilder: (ctx, err, stack) => const SizedBox(height: 200, child: Center(child: Text('Could not load image')))),
+              ),
+            ),
+          ),
+          child: Container(
+            width: 100, height: 70,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B))),
+      ],
+    );
+  }
+
+  /// Full applicant review sheet (tap a join-request card). Shows personal
+  /// details, ID docs, the application (plan/shift/joining date/payment proof),
+  /// returning-member history, and Approve/Reject actions.
+  Future<void> _showApplicantReview(Map<String, dynamic> request) async {
+    final member = request['member_id'];
+    final memberId = member is Map ? member['id']?.toString() : null;
+    if (memberId == null) return;
+
+    Map<String, dynamic> p = {};
+    int pastCount = 0;
+    try {
+      final prof = await supabase.from('users').select().eq('id', memberId).maybeSingle();
+      if (prof != null) p = Map<String, dynamic>.from(prof);
+      final past = await supabase
+          .from('memberships')
+          .select('id')
+          .eq('member_id', memberId)
+          .eq('library_id', widget.libraryId);
+      pastCount = (past as List).length;
+    } catch (e) {
+      debugPrint('applicant review load failed: $e');
+    }
+    if (!mounted) return;
+
+    final String name = (p['full_name'] ?? member['full_name'] ?? 'Member').toString();
+    final String photo = (p['photo_url'] ?? '').toString();
+    final bool isRenewal = request['is_renewal'] == true;
+    final existingJoin = request['existing_member_join_date']?.toString();
+    final bool isExisting = existingJoin != null;
+    final String front = (p['id_proof_url'] ?? '').toString();
+    final String back = (p['id_proof_2_url'] ?? '').toString();
+    final String proof = (request['payment_proof_url'] ?? '').toString();
+    final String planType = request['plan_type'] == 'monthly'
+        ? '1 Month'
+        : (request['plan_type'] == '3_month' ? '3 Months' : (request['plan_type'] == '6_month' ? '6 Months' : 'Trial'));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) => DraggableScrollableSheet(
+        initialChildSize: 0.8, maxChildSize: 0.95, minChildSize: 0.5, expand: false,
+        builder: (sheetCtx, scrollCtrl) => SingleChildScrollView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+              Row(
+                children: [
+                  CircleAvatar(radius: 26, backgroundColor: const Color(0xFFFFF7F0),
+                      backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                      child: photo.isEmpty ? const Icon(Icons.person, color: Color(0xFFE65C00)) : null),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        _memberTypePill(isRenewal: isRenewal, isExisting: isExisting),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text('Personal details', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+              _reviewRow(Icons.phone, 'Phone', (p['phone'] ?? member['phone'] ?? '').toString()),
+              _reviewRow(Icons.email_outlined, 'Email', (p['email'] ?? '').toString()),
+              _reviewRow(Icons.wc, 'Gender', (p['gender'] ?? '').toString()),
+              _reviewRow(Icons.cake_outlined, 'Date of birth', (p['date_of_birth'] ?? '').toString()),
+              _reviewRow(Icons.home_outlined, 'Address', (p['address'] ?? '').toString()),
+              const SizedBox(height: 14),
+              Text('ID documents', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+              const SizedBox(height: 8),
+              if (front.isEmpty && back.isEmpty)
+                Text('No ID documents uploaded.', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8)))
+              else
+                Row(children: [
+                  if (front.isNotEmpty) _docThumb(front, 'Front'),
+                  if (front.isNotEmpty) const SizedBox(width: 12),
+                  if (back.isNotEmpty) _docThumb(back, 'Back'),
+                ]),
+              const SizedBox(height: 14),
+              Text('Application', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+              _reviewRow(Icons.receipt_long_outlined, 'Plan', planType),
+              _reviewRow(Icons.wb_sunny_outlined, 'Shift', (request['shifts']?['name'] ?? '').toString()),
+              if (isExisting) _reviewRow(Icons.event_available, 'Joining date', existingJoin),
+              _reviewRow(Icons.payment_outlined, 'Payment', (request['payment_method'] ?? 'cash').toString().toUpperCase()),
+              if ((request['upi_sender_name'] ?? '').toString().isNotEmpty)
+                _reviewRow(Icons.person_outline, 'UPI sender', request['upi_sender_name'].toString()),
+              if (proof.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _docThumb(proof, 'Payment proof'),
+              ],
+              const SizedBox(height: 14),
+              _reviewRow(Icons.history, 'History', pastCount > 0
+                  ? '$pastCount previous membership${pastCount == 1 ? '' : 's'} at this library'
+                  : 'First time at this library'),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () { Navigator.pop(sheetCtx); _rejectJoinRequest(request); },
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                      child: const Text('Reject', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () { Navigator.pop(sheetCtx); _onApprovePressed(request); },
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
+                      child: const Text('Approve', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildJoinRequestCard(Map<String, dynamic> request) {
     final String reqId = request['id'];
     final member = request['member_id'];
@@ -1311,6 +1604,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     final String name = member['full_name'] ?? 'No Name';
     final String photo = member['photo_url'] ?? '';
     final bool isRenewal = request['is_renewal'] == true;
+    final bool isExistingMember = request['existing_member_join_date'] != null;
     final String shiftName = request['shifts']?['name'] ?? 'Shift';
     final String planType = request['plan_type'] == 'monthly'
         ? '1 Month Plan'
@@ -1344,8 +1638,11 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header Row
-          Row(
+          // Header Row — tap to open the full applicant review.
+          InkWell(
+            onTap: () => _showApplicantReview(request),
+            borderRadius: BorderRadius.circular(10),
+            child: Row(
             children: [
               CircleAvatar(
                 radius: 20,
@@ -1366,19 +1663,8 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
                         ),
-                        if (isRenewal) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEFF6FF),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFBFDBFE)),
-                            ),
-                            child: Text('RENEWAL',
-                                style: GoogleFonts.inter(fontSize: 8.5, fontWeight: FontWeight.bold, color: const Color(0xFF2563EB))),
-                          ),
-                        ],
+                        const SizedBox(width: 8),
+                        _memberTypePill(isRenewal: isRenewal, isExisting: isExistingMember),
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -1386,7 +1672,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                   ],
                 ),
               ),
+              const Icon(Icons.chevron_right, size: 18, color: Color(0xFF94A3B8)),
             ],
+            ),
           ),
           const Divider(height: 20),
 
