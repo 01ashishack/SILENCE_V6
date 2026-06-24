@@ -1826,7 +1826,10 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context);
+                    // Go to the member home dashboard (clear the join/profile
+                    // stack) rather than popping back to the library profile.
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                        '/member/home', (route) => false);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE65C00),

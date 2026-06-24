@@ -2946,7 +2946,18 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/member/explore').then((_) => _loadInitialData());
+                    // Re-apply to the SAME library's join flow (not explore).
+                    if (libraryId.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => JoinFlowScreen(libraryId: libraryId),
+                        ),
+                      ).then((_) => _loadInitialData());
+                    } else {
+                      Navigator.pushNamed(context, '/member/explore')
+                          .then((_) => _loadInitialData());
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE65C00),

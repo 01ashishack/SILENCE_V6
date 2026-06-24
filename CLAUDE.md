@@ -69,6 +69,25 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-25 — Joining-process overhaul (5c) — IN PROGRESS
+
+User-directed improvements to the whole join/approval flow. **No inflated scope** — "existing member"
+= an OFFLINE member being migrated in (admin sets their real historical joining date).
+- **5c-i DONE — `approve_join_request` v2** (`migrations/2026-06-25_approve_join_request_v2.sql`, folded into
+  schema; DROPs the 2-arg, adds `p_discount`/`p_discount_reason`/`p_start_date`, all defaulting NULL so the
+  existing 2-arg client call still works): honors `existing_member_join_date` (or admin override) as the
+  membership `start_date` (fixes "joining date shows today"); admin discount applied to the plan price;
+  payment records `original_amount`/`discount_amount`/`discount_reason`; member notification states the
+  start date + any discount. **⏳ APPLY this migration to live DB.**
+- **5c-ii DONE — member redirects:** (#1) join-flow confirmation "Go to Home" →
+  `pushNamedAndRemoveUntil('/member/home')` (was a pop back to the library profile); (#2) rejected-request
+  "Apply again" → pushes `JoinFlowScreen(sameLibraryId)` (was → explore).
+- **5c-iii TODO (admin side):** tap a request card → applicant review screen (personal details, ID docs,
+  payment proof, plan/shift, joining date, New/Existing tag, returning-member history); admin discount
+  input + start-date edit (→ RPC v2 params); reject with 3-4 **template reasons** (no typing); changes notify.
+- **5c-iv TODO:** requests "Past" section (rejected + withdrawn, with reason).
+- Files so far: `join_flow_screen.dart`, `member_home.dart`, `supabase_schema.sql`, migration (new).
+
 ### Session 2026-06-24 (j) — Re-audit Batch 5b: atomic approve_join_request RPC (C3 + C5/M7)
 
 `flutter analyze` **0 issues**.
