@@ -85,7 +85,7 @@ Sign-In + App Store regardless.
 - **Deferred (with rationale):** H1 cron health-probe (DR safety net; live DB currently has all jobs),
   M3 leaderboard materialization (premature — fine to hundreds/library), M6 multi-library member-home
   aggregate state (UX edge).
-- **⏳ APPLY to live DB:** `2026-06-24_leaderboard_name_sanitize.sql`, `2026-06-24_notifications_purge.sql`.
+- **✅ APPLIED to live DB (2026-06-24):** `2026-06-24_leaderboard_name_sanitize.sql`, `2026-06-24_notifications_purge.sql`.
 - Files: `main.dart`, `cache_service.dart`, `member_home.dart`, `supabase_schema.sql`, 2 migrations (new).
 
 ### Session 2026-06-24 (g) — Audit Batch 3 (finance hardening: M7 + C5)
