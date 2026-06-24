@@ -69,6 +69,34 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-24 (d) — Overtime/holiday auto-checkout fixes + admin overtime setting
+
+`flutter analyze` **0 issues**. Touches holiday flow, live-session timer, scanner notification, admin profile,
+and the overtime cron. **2 new migrations to apply** (see below).
+- **Holiday force-checkout now notifies members** — `HolidayService.closeOpenSessionsNow()` collects each
+  open session's `member_id`, force-checks-out (session_type='closed'), AND inserts an `auto_checkout`
+  notification ("Checked out — library closed"). The notification also makes the member's home reload
+  (notifications channel) so the **live timer stops** without a manual refresh.
+- **Reason-warning z-index fixed** — both add-holiday sheets (`admin_home.dart`, `scheduled_closures.dart`)
+  showed "Please add a reason" via a SnackBar that rendered BEHIND the bottom sheet. Now an inline
+  `errorText` on the reason field (clears on typing).
+- **Client-side overtime auto-checkout + shift-end warning** (`member_home.dart` `_updateSessionTimerValues`):
+  when the shift ends it warns the member once (`shift_end`, sets `overtime_warned` to dedupe the cron);
+  30 min later it auto-checks-out (capped 30, session_type='auto_checkout'), stops the timer, reloads, and
+  notifies member + owner — instead of waiting up to 5 min for the server cron. Gated by the library setting.
+- **Admin checkout notification is specific** — scanner `_notifyOwnerAttendance(..., overtimeMinutes, afterShift)`
+  → "X checked out after their shift ended — N min of overtime."
+- **NEW admin setting `libraries.auto_checkout_overtime`** (default true). Toggle in Admin Profile
+  ("Auto check-out on overtime", per active library). `process_shift_overtime()` re-created to honor it
+  (always warns at shift end; only auto-closes when ON). Client `member_home` reads it from `libraries(*)`.
+- **✅ APPLIED to live DB (2026-06-24):** `silence_app/migrations/2026-06-24_overtime_auto_checkout_setting.sql`
+  (adds the column + re-creates the cron fn; folded into `supabase_schema.sql`) AND
+  `2026-06-24_realtime_publication_gaps.sql` (publication gaps + REPLICA IDENTITY FULL — timer stops instantly
+  when the SERVER cron closes a session while the app is open). **No outstanding live-DB action.** On-device
+  verification of the overtime/holiday flows still recommended.
+- Files: `holiday_service.dart`, `admin_home.dart`, `scheduled_closures.dart`, `qr_scanner_screen.dart`,
+  `member_home.dart`, `admin_profile_tab.dart`, `supabase_schema.sql`, migration (new).
+
 ### Session 2026-06-24 (c) — Time-based notifications (pg_cron) — ✅ APPLIED to live DB
 
 **No code changes** (types were already wired in (a)). Migration

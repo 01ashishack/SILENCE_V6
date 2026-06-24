@@ -900,7 +900,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       _cooldownScansCount = 0;
 
       // Notify the library owner that a member checked out (non-blocking).
-      _notifyOwnerAttendance(activeSession['library_id']?.toString() ?? '', false);
+      _notifyOwnerAttendance(
+        activeSession['library_id']?.toString() ?? '',
+        false,
+        overtimeMinutes: overtimeMinutes,
+        afterShift: beyondShiftEnd,
+      );
 
       final overtimeStr = overtimeMinutes > 0 ? formatDurationHuman(Duration(minutes: overtimeMinutes)) : '';
 
@@ -944,7 +949,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
   // Notify the library owner when a member checks in/out. RLS allows a member
   // with a membership at the library to notify that library's owner. Best-effort
   // and non-blocking — a failure never affects the scan result.
-  Future<void> _notifyOwnerAttendance(String libraryId, bool isCheckIn) async {
+  Future<void> _notifyOwnerAttendance(
+    String libraryId,
+    bool isCheckIn, {
+    int overtimeMinutes = 0,
+    bool afterShift = false,
+  }) async {
     if (libraryId.isEmpty) return;
     try {
       final supabase = Supabase.instance.client;
@@ -961,11 +971,27 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
         if (fn.isNotEmpty) name = fn;
       } catch (_) {}
 
+      // Honest, specific body: flag late / overtime check-outs for the admin.
+      String body;
+      if (isCheckIn) {
+        body = '$name just checked in.';
+      } else if (overtimeMinutes > 0) {
+        body = '$name checked out after their shift ended — $overtimeMinutes min of overtime.';
+      } else if (afterShift) {
+        body = '$name checked out after their shift ended.';
+      } else {
+        body = '$name just checked out.';
+      }
+
       await supabase.from('notifications').insert({
         'user_id': ownerId,
         'title': isCheckIn ? 'Member checked in' : 'Member checked out',
-        'body': isCheckIn ? '$name just checked in.' : '$name just checked out.',
-        'data': {'type': isCheckIn ? 'check_in' : 'check_out'},
+        'body': body,
+        'data': {
+          'type': isCheckIn ? 'check_in' : 'check_out',
+          'route': '/admin/home',
+          if (!isCheckIn && (overtimeMinutes > 0 || afterShift)) 'overtime_minutes': overtimeMinutes,
+        },
       });
     } catch (e) {
       debugPrint('Owner attendance notification failed: $e');

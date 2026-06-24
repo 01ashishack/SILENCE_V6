@@ -97,6 +97,13 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   // Timer
   Timer? _sessionTimer;
+  // Client-side overtime handling for the live session: warn the member when
+  // their shift ends, and (if the library allows it) auto-check-out 30 min later
+  // so the timer stops immediately instead of waiting for the 5-min server cron.
+  String? _timerSessionId;       // attendance id the flags below belong to
+  bool _shiftEndWarnSent = false;
+  bool _autoCheckoutSent = false;
+  bool _autoCheckoutOvertime = true; // library setting (default on)
   // Realtime: refresh when THIS member's own rows change (approval, check-in,
   // notification) so the home screen updates without a manual pull-to-refresh.
   RealtimeChannel? _realtimeChannel;
@@ -672,7 +679,11 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       final checkInStr = _activeAttendance!['check_in_time'] as String;
       _checkInTime = DateTime.parse(checkInStr);
       _checkOutTime = null;
-      
+
+      // Read the library's overtime auto-checkout setting (default ON).
+      final lib = _activeAttendance!['libraries'] as Map<String, dynamic>?;
+      _autoCheckoutOvertime = lib?['auto_checkout_overtime'] != false;
+
       final membership = _activeAttendance!['memberships'] as Map<String, dynamic>? ?? {};
       final shift = _activeAttendance!['shifts'] as Map<String, dynamic>? ?? membership['shifts'] as Map<String, dynamic>? ?? {};
       final shiftEndTimeStr = shift['end_time'] as String? ?? '14:00:00';
@@ -707,6 +718,15 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   void _updateSessionTimerValues() {
     if (_checkInTime == null) return;
+
+    // New session? reset the one-shot client guards.
+    final sessionId = _activeAttendance?['id']?.toString();
+    if (sessionId != _timerSessionId) {
+      _timerSessionId = sessionId;
+      _shiftEndWarnSent = false;
+      _autoCheckoutSent = false;
+    }
+
     final nowUtc = DateTime.now().toUtc();
     final checkInUtc = _checkInTime!.toUtc();
     
@@ -758,6 +778,110 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     _shiftProgressNotifier.value = progress;
 
     _sessionDuration = sessionDur;
+
+    // Shift ended → warn the member once; 30 min later → auto-checkout (if the
+    // library allows it) so the timer stops without waiting for the server cron.
+    _maybeWarnShiftEnd(remaining);
+    _maybeAutoCheckout(remaining, shiftEndIst);
+  }
+
+  /// One-shot "your shift has ended" notification to the member. Sets
+  /// attendance.overtime_warned so the server cron does not double-warn. Skips
+  /// if the cron already warned (the loaded row says so).
+  void _maybeWarnShiftEnd(Duration remaining) {
+    if (!remaining.isNegative || _shiftEndWarnSent) return;
+    final att = _activeAttendance;
+    if (att == null) return;
+    if (att['overtime_warned'] == true) {
+      _shiftEndWarnSent = true; // server already warned
+      return;
+    }
+    _shiftEndWarnSent = true;
+    final id = att['id'];
+    final memberId = att['member_id']?.toString();
+    if (id == null || memberId == null) return;
+    final supabase = Supabase.instance.client;
+    () async {
+      try {
+        await supabase.from('attendance').update({'overtime_warned': true}).eq('id', id);
+        await supabase.from('notifications').insert({
+          'user_id': memberId,
+          'title': 'Your shift has ended',
+          'body': _autoCheckoutOvertime
+              ? 'Your shift is over. Please scan to check out. If you stay, the extra time '
+                  'counts as overtime and you will be auto-checked-out after 30 minutes.'
+              : 'Your shift is over. Please scan to check out. Any extra time is recorded as overtime.',
+          'data': {'type': 'shift_end', 'route': '/member/home'},
+        });
+      } catch (e) {
+        debugPrint('client shift-end warn failed: $e');
+      }
+    }();
+  }
+
+  /// One-shot client auto-checkout at shift end + 30 min, gated by the library
+  /// setting. Caps overtime at 30 min and tags the session, then stops the timer
+  /// and reloads. Server cron is the backstop when the app is closed.
+  void _maybeAutoCheckout(Duration remaining, DateTime shiftEndIst) {
+    if (!_autoCheckoutOvertime || _autoCheckoutSent) return;
+    if (remaining.inSeconds > -1800) return; // not yet 30 min past shift end
+    final att = _activeAttendance;
+    if (att == null || _checkInTime == null) return;
+    _autoCheckoutSent = true;
+
+    final id = att['id'];
+    final memberId = att['member_id']?.toString();
+    final libraryId = att['library_id']?.toString();
+    final shiftEndUtc = shiftEndIst.subtract(const Duration(hours: 5, minutes: 30));
+    final checkInUtc = _checkInTime!.toUtc();
+    final anchor = checkInUtc.isAfter(shiftEndUtc) ? checkInUtc : shiftEndUtc;
+    final capCheckoutUtc = anchor.add(const Duration(minutes: 30));
+    var dur = capCheckoutUtc.difference(checkInUtc).inMinutes;
+    if (dur < 0) dur = 0;
+
+    final supabase = Supabase.instance.client;
+    () async {
+      try {
+        final res = await supabase
+            .from('attendance')
+            .update({
+              'check_out_time': capCheckoutUtc.toIso8601String(),
+              'duration_minutes': dur,
+              'session_type': 'auto_checkout',
+              'is_overtime': true,
+              'overtime_minutes': 30,
+            })
+            .eq('id', id)
+            .isFilter('check_out_time', null)
+            .select();
+        if ((res as List).isNotEmpty) {
+          if (memberId != null) {
+            await supabase.from('notifications').insert({
+              'user_id': memberId,
+              'title': 'Auto checked out',
+              'body': 'You were automatically checked out 30 minutes after your shift ended. '
+                  'This session is tagged as overtime.',
+              'data': {'type': 'auto_checkout', 'route': '/member/home'},
+            });
+          }
+          if (libraryId != null && libraryId.isNotEmpty) {
+            await NotificationService.notifyLibraryOwner(
+              libraryId: libraryId,
+              title: 'Member auto checked out',
+              body: 'A member was auto-checked-out 30 minutes after their shift ended (overtime).',
+              type: 'check_out',
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('client auto-checkout failed: $e');
+      } finally {
+        if (mounted) {
+          _stopSessionTimer();
+          await _loadInitialData();
+        }
+      }
+    }();
   }
 
   String _getMotivationalMessage(double progress) {

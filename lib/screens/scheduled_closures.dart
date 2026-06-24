@@ -89,6 +89,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
     DateTime endDate = _today.add(const Duration(days: 1));
     bool notify = true;
     bool saving = false;
+    String? reasonError;
 
     showModalBottomSheet(
       context: context,
@@ -196,9 +197,13 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                 TextField(
                   controller: reasonCtrl,
                   style: GoogleFonts.inter(fontSize: 14),
+                  onChanged: reasonError == null
+                      ? null
+                      : (_) => setSheet(() => reasonError = null),
                   decoration: InputDecoration(
                     hintText: 'Reason (e.g. Diwali, Maintenance)',
                     hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textMuted),
+                    errorText: reasonError,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -231,9 +236,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                       ? null
                       : () async {
                           if (reasonCtrl.text.trim().isEmpty) {
-                            ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                              const SnackBar(content: Text('Please add a reason.')),
-                            );
+                            setSheet(() => reasonError = 'Please add a reason.');
                             return;
                           }
                           final end = isRange ? endDate : startDate;

@@ -3782,6 +3782,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     bool notify = true;
     bool saving = false;
     bool isRange = false;
+    String? reasonError;
     final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
     DateTime startDate = today;
     DateTime endDate = today;
@@ -3954,10 +3955,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   TextField(
                     controller: reasonCtrl,
                     style: GoogleFonts.inter(fontSize: 14),
+                    onChanged: reasonError == null
+                        ? null
+                        : (_) => setSheet(() => reasonError = null),
                     decoration: InputDecoration(
                       hintText: 'Reason (e.g. Holi, Maintenance)',
                       hintStyle:
                           GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
+                      errorText: reasonError,
                     ),
                   ),
                   SwitchListTile(
@@ -3975,9 +3980,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                         ? null
                         : () async {
                             if (reasonCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                                const SnackBar(content: Text('Please add a reason.')),
-                              );
+                              setSheet(() => reasonError = 'Please add a reason.');
                               return;
                             }
                             final end = isRange ? endDate : startDate;

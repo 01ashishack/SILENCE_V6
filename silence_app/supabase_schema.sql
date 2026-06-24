@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS libraries (
     qr_version INTEGER DEFAULT 1,
     avg_rating NUMERIC(2,1) DEFAULT 0,
     review_count INTEGER DEFAULT 0,
+    auto_checkout_overtime BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -1516,16 +1517,18 @@ DECLARE
 BEGIN
     FOR r IN
         SELECT a.id, a.member_id, a.check_in_time, a.overtime_warned,
-               s.end_time, s.name AS shift_name
+               s.end_time, s.name AS shift_name,
+               COALESCE(l.auto_checkout_overtime, true) AS auto_checkout
           FROM public.attendance a
-          JOIN public.shifts s ON s.id = a.shift_id
+          JOIN public.shifts s    ON s.id = a.shift_id
+          JOIN public.libraries l ON l.id = a.library_id
          WHERE a.check_out_time IS NULL
     LOOP
         v_shift_end := (((r.check_in_time AT TIME ZONE 'Asia/Kolkata')::date
                           + r.end_time) AT TIME ZONE 'Asia/Kolkata');
         v_cap_checkout := GREATEST(v_shift_end, r.check_in_time) + interval '30 minutes';
 
-        IF now() >= v_cap_checkout THEN
+        IF r.auto_checkout AND now() >= v_cap_checkout THEN
             v_dur := GREATEST(0, CEIL(EXTRACT(EPOCH FROM (v_cap_checkout - r.check_in_time)) / 60.0))::int;
             v_ot  := 30;
             UPDATE public.attendance
@@ -1539,17 +1542,19 @@ BEGIN
             VALUES (r.member_id, 'Auto checked out',
                     'You did not check out, so we automatically checked you out 30 minutes after your '
                     || r.shift_name || ' shift ended. This session is tagged as overtime.',
-                    jsonb_build_object('type', 'auto_checkout'));
+                    jsonb_build_object('type', 'auto_checkout', 'route', '/member/home'));
             v_closed := v_closed + 1;
         ELSIF now() >= v_shift_end AND NOT r.overtime_warned
               AND r.check_in_time < v_shift_end THEN
             UPDATE public.attendance SET overtime_warned = true WHERE id = r.id;
             INSERT INTO public.notifications (user_id, title, body, data)
             VALUES (r.member_id, 'Your shift has ended',
-                    'Your ' || r.shift_name || ' shift is over. Please scan to check out. '
-                    || 'If you stay, the extra time counts as overtime and you will be auto-checked-out '
-                    || 'after 30 minutes.',
-                    jsonb_build_object('type', 'shift_end'));
+                    'Your ' || r.shift_name || ' shift is over. Please scan to check out.'
+                    || CASE WHEN r.auto_checkout
+                            THEN ' If you stay, the extra time counts as overtime and you will be '
+                                 || 'auto-checked-out after 30 minutes.'
+                            ELSE ' Any extra time will be recorded as overtime.' END,
+                    jsonb_build_object('type', 'shift_end', 'route', '/member/home'));
             v_warned := v_warned + 1;
         END IF;
     END LOOP;

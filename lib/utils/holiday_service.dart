@@ -233,10 +233,11 @@ class HolidayService {
     try {
       final res = await _supabase
           .from('attendance')
-          .select('id, check_in_time')
+          .select('id, check_in_time, member_id')
           .eq('library_id', libraryId)
           .isFilter('check_out_time', null);
       final now = DateTime.now().toUtc();
+      final notifiedMembers = <String>{};
       for (final row in List<Map<String, dynamic>>.from(res)) {
         try {
           final ci = DateTime.tryParse(row['check_in_time']?.toString() ?? '');
@@ -251,8 +252,29 @@ class HolidayService {
             'session_type': 'closed',
           }).eq('id', row['id']);
           closed++;
+          final mid = row['member_id']?.toString();
+          if (mid != null && mid.isNotEmpty) notifiedMembers.add(mid);
         } catch (e) {
           debugPrint('closeOpenSessionsNow row failed: $e');
+        }
+      }
+
+      // Tell each affected member they were checked out because the library
+      // closed — this also makes their home screen refresh (the timer stops).
+      if (notifiedMembers.isNotEmpty) {
+        try {
+          final rows = notifiedMembers
+              .map((mid) => {
+                    'user_id': mid,
+                    'title': 'Checked out — library closed',
+                    'body': 'The library was closed, so your active session was '
+                        'checked out automatically. Your study streak is protected.',
+                    'data': {'type': 'auto_checkout', 'route': '/member/home'},
+                  })
+              .toList();
+          await _supabase.from('notifications').insert(rows);
+        } catch (e) {
+          debugPrint('closeOpenSessionsNow notify failed: $e');
         }
       }
     } catch (e) {
