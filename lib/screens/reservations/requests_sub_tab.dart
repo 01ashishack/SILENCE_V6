@@ -264,29 +264,60 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     final requestId = request['id']?.toString() ?? '';
     final memberId = request['member_id']?['id']?.toString();
     final reasonController = TextEditingController();
+    // Quick-pick templates so the admin rarely has to type a reason.
+    const reasonTemplates = <String>[
+      'ID documents are missing or unclear',
+      'Payment not received / proof unclear',
+      'Selected seat or shift is unavailable',
+      'Profile details are incomplete',
+    ];
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Reject Request', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Enter reason for rejecting this join request:', style: GoogleFonts.inter(fontSize: 13)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(hintText: 'e.g. Library occupied or invalid documents'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          title: Text('Reject Request', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Pick a reason (or type your own):', style: GoogleFonts.inter(fontSize: 13)),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: reasonTemplates.map((t) {
+                    final selected = reasonController.text == t;
+                    return ChoiceChip(
+                      label: Text(t, style: GoogleFonts.inter(fontSize: 12)),
+                      selected: selected,
+                      selectedColor: const Color(0xFFE65C00).withValues(alpha: 0.15),
+                      onSelected: (_) => setDialog(() => reasonController.text = t),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reasonController,
+                  maxLines: 2,
+                  onChanged: (_) => setDialog(() {}),
+                  decoration: const InputDecoration(
+                    hintText: 'Reason shown to the member',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Reject', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Reject', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     ) ?? false;
 
