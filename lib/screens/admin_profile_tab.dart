@@ -404,37 +404,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     }
   }
 
-  void _showLogoutConfirmation() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: Text(
-          'Logout Account',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-        ),
-        content: Text(
-          'Are you sure you want to logout from Silence?',
-          style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.bold)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              widget.onLogout();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, elevation: 0),
-            child: Text('Logout', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
   // Role change exists ONLY to fix an accidental wrong-role signup. It is
   // allowed within 7 days of signup, PERMANENTLY deletes the current account's
   // data (including any libraries owned), and starts a brand-new Member account.
@@ -964,7 +933,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               ),
                             ),
                             trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
-                            onTap: _showLogoutConfirmation,
+                            onTap: widget.onLogout,
                           ),
                           ListTile(
                             leading: const Icon(Icons.delete_forever, size: 20, color: Color(0xFFDC2626)),
