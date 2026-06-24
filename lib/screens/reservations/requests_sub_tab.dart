@@ -420,8 +420,8 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       if (isRenewal) {
         // RENEWAL: Extend existing membership
         DateTime currentEndDate = DateTime.parse(existingMembership['end_date']);
-        if (currentEndDate.isBefore(DateTime.now())) {
-          currentEndDate = DateTime.now(); // if expired, start from today
+        if (currentEndDate.isBefore(istNow())) {
+          currentEndDate = istNow(); // if expired, start from today (IST, N1)
         }
         DateTime newEndDate = _addMonths(currentEndDate, durationMonths);
 
@@ -436,7 +436,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         membershipId = existingMembership['id'];
       } else {
         // NEW MEMBERSHIP: Create membership
-        final start = DateTime.now();
+        final start = istNow(); // IST so the expiry boundary is correct (N1)
         final end = _addMonths(start, durationMonths);
 
         final membership = await supabase.from('memberships').insert({
@@ -470,6 +470,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       if (!mounted) return;
 
       // 5b. Persist selected add-ons against this membership.
+      bool addOnsSaved = true;
       if (addOnRows.isNotEmpty) {
         try {
           final rows = addOnRows
@@ -481,6 +482,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
               .toList();
           await supabase.from('member_add_ons').insert(rows);
         } catch (e) {
+          addOnsSaved = false; // M8: surface this to the admin (no silent drop)
           debugPrint('member_add_ons insert failed: $e');
         }
       }
@@ -511,10 +513,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            "Member $memberName approved and seat $seatLabel assigned successfully.",
+            "Member $memberName approved and seat $seatLabel assigned successfully.${addOnsSaved ? '' : ' Note: add-ons could NOT be saved — please add them manually.'}",
             style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500),
           ),
-          backgroundColor: const Color(0xFF22C55E),
+          backgroundColor: addOnsSaved ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),

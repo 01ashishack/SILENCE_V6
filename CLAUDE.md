@@ -69,6 +69,26 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-24 (i) — Re-audit follow-ups Batch 5a (N1/N3/M8/Missed-1)
+
+`flutter analyze` **0 issues**. Closes the safe, contained residuals the re-audit found.
+- **N3 (urgent)** — `sanitize_display_name()` flipped from an `[:alpha:]` WHITELIST (which erased
+  Devanagari/accented names → "User") to a BLACKLIST that only strips digits + `@ : /`. Names in ANY
+  script now survive; phone numbers / URLs still stripped. Migration `2026-06-24_name_unicode_and_amount_bound.sql`
+  + canonical schema updated.
+- **Missed-1** — `payments.amount` now bounded `CHECK (amount BETWEEN -100000 AND 10000000)` (canonical
+  inline; live DB via the same migration as `NOT VALID` so legacy rows aren't scanned). Blocks a tampered
+  client recording a huge negative "payment" on the non-RPC insert paths.
+- **N1** — join-approval renewal/new-membership dates in `requests_sub_tab.dart` now use `istNow()` (was
+  device-local `DateTime.now()` → off-by-one expiry for non-IST admins). Same bug the H7 fix missed.
+- **M8** — add-on insert failure in `requests_sub_tab` is no longer silent: the approval snackbar turns
+  amber and says "add-ons could NOT be saved — please add them manually" (honest UI).
+- **⏳ APPLY to live DB:** `silence_app/migrations/2026-06-24_name_unicode_and_amount_bound.sql`.
+- **STILL OPEN (next, larger + needs device testing):** C5/M7 atomicity on the join-approval +
+  add-member-wizard money paths (route through an `approve_join_request` / shared RPC) and C3 (pending-seat
+  + non-atomic `seats.status` flip — best fixed together with that RPC); C2 full offline-sync re-validation.
+- Files: `requests_sub_tab.dart`, `supabase_schema.sql`, migration (new).
+
 ### Session 2026-06-24 (h) — Audit Batch 4 (scale/polish: L6, M5, H4, M4)
 
 `flutter analyze` **0 issues**.

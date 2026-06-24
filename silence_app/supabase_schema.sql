@@ -229,7 +229,7 @@ CREATE TABLE IF NOT EXISTS payments (
     membership_id UUID NOT NULL REFERENCES memberships(id) ON DELETE CASCADE,
     member_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE RESTRICT,
-    amount INTEGER NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount BETWEEN -100000 AND 10000000),
     original_amount INTEGER,
     discount_amount INTEGER DEFAULT 0,
     discount_reason TEXT,
@@ -1445,11 +1445,8 @@ CREATE OR REPLACE FUNCTION public.sanitize_display_name(p text)
 RETURNS text
 LANGUAGE sql IMMUTABLE
 AS $$
-  SELECT left(
-           btrim(
-             regexp_replace(coalesce(p, ''), '[^[:alpha:][:space:].''\-]', '', 'g')
-           ),
-           20);
+  -- Blacklist digits + URL/handle chars (keeps names in ANY script — N3).
+  SELECT left(btrim(regexp_replace(coalesce(p, ''), '[0-9@:/]+', '', 'g')), 20);
 $$;
 
 CREATE OR REPLACE FUNCTION public.library_leaderboard(
