@@ -69,6 +69,24 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-24 (g) — Audit Batch 3 (finance hardening: M7 + C5)
+
+`flutter analyze` **0 issues**.
+- **M7 + C5** — new `renew_membership(p_membership_id, p_plan_type, p_method)` SECURITY DEFINER RPC
+  (`migrations/2026-06-24_renew_membership_rpc.sql`, folded into `supabase_schema.sql`): owner-checked,
+  **derives the amount from `shifts.price_*`** (no client-trusted amount), extends `end_date` (IST),
+  records a CONFIRMED payment + audit + member notification in ONE transaction. `admin_renew_sheet.dart`
+  now calls the RPC instead of 4 separate client writes; removed the dead `_planLabel`/`_libraryId`/
+  `_memberId`/AuditLogger usage.
+- **M2 — already satisfied** (audit false positive): `expenditures.amount` already has `CHECK (amount > 0)`
+  + category whitelist in the schema. No change.
+- **H2 — accepted as-is**: a UNIQUE index for digest dedupe isn't feasible (the IST-date expression
+  `(sent_at AT TIME ZONE 'Asia/Kolkata')::date` is STABLE, not IMMUTABLE, so it can't be indexed). The
+  existing per-run EXISTS guard + single daily cron makes double-fire very unlikely; revisit only if cron
+  parallelism is introduced.
+- **⏳ APPLY to live DB:** `silence_app/migrations/2026-06-24_renew_membership_rpc.sql`.
+- Files: `admin_renew_sheet.dart`, `supabase_schema.sql`, migration (new).
+
 ### Session 2026-06-24 (f) — Audit Batch 2 (trust + quick wins, client-only)
 
 `flutter analyze` **0 issues**. **No DB changes.**

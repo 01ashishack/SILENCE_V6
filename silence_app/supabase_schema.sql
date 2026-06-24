@@ -1795,6 +1795,97 @@ $$;
 REVOKE ALL ON FUNCTION public.notify_dues_digest() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.notify_dues_digest() TO service_role;
 
+-- ── Atomic admin renewal (2026-06-24, audit M7+C5). Canonical copy of
+--    migrations/2026-06-24_renew_membership_rpc.sql. Owner-checked; derives the
+--    amount from shifts.price_* (never client-trusted); extends end_date (IST),
+--    records a confirmed payment + audit + member notification in one txn. ─────
+CREATE OR REPLACE FUNCTION public.renew_membership(
+    p_membership_id uuid,
+    p_plan_type     text,
+    p_method        text
+)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_uid     uuid := auth.uid();
+    v_m       public.memberships%ROWTYPE;
+    v_shift   public.shifts%ROWTYPE;
+    v_owner   uuid;
+    v_months  int;
+    v_amount  int;
+    v_base    date;
+    v_new_end date;
+    v_today   date := (now() AT TIME ZONE 'Asia/Kolkata')::date;
+BEGIN
+    IF v_uid IS NULL THEN
+        RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
+    END IF;
+    IF p_plan_type NOT IN ('monthly', '3_month', '6_month') THEN
+        RAISE EXCEPTION 'Invalid plan type' USING errcode = '22023';
+    END IF;
+    IF p_method NOT IN ('cash', 'upi') THEN
+        RAISE EXCEPTION 'Invalid payment method' USING errcode = '22023';
+    END IF;
+
+    SELECT * INTO v_m FROM public.memberships WHERE id = p_membership_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Membership not found' USING errcode = 'P0002';
+    END IF;
+
+    SELECT owner_id INTO v_owner FROM public.libraries WHERE id = v_m.library_id;
+    IF v_owner IS DISTINCT FROM v_uid THEN
+        RAISE EXCEPTION 'Not authorized for this library' USING errcode = '42501';
+    END IF;
+
+    SELECT * INTO v_shift FROM public.shifts WHERE id = v_m.shift_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Shift not found for this membership' USING errcode = 'P0002';
+    END IF;
+
+    v_months := CASE p_plan_type WHEN '6_month' THEN 6 WHEN '3_month' THEN 3 ELSE 1 END;
+    v_amount := CASE p_plan_type
+                  WHEN '6_month' THEN COALESCE(v_shift.price_6month, v_shift.price_monthly * 6)
+                  WHEN '3_month' THEN COALESCE(v_shift.price_3month, v_shift.price_monthly * 3)
+                  ELSE v_shift.price_monthly END;
+    IF v_amount IS NULL OR v_amount < 0 THEN
+        RAISE EXCEPTION 'Shift has no price for this plan' USING errcode = '22023';
+    END IF;
+
+    v_base := GREATEST(COALESCE(v_m.end_date, v_today), v_today);
+    v_new_end := (v_base + (v_months || ' months')::interval)::date;
+
+    UPDATE public.memberships
+       SET end_date = v_new_end, status = 'active', plan_type = p_plan_type
+     WHERE id = p_membership_id;
+
+    INSERT INTO public.payments (membership_id, member_id, library_id, amount,
+                                 method, status, payment_date, confirmed_by_admin_id)
+    VALUES (p_membership_id, v_m.member_id, v_m.library_id, v_amount,
+            p_method, 'confirmed', now(), v_uid);
+
+    INSERT INTO public.audit_log (admin_id, library_id, action, details, new_value)
+    VALUES (v_uid, v_m.library_id, 'membership_renewed',
+            jsonb_build_object(
+                'category', 'payments',
+                'title', 'Renewed membership',
+                'details', 'Plan ' || p_plan_type || ' · ₹' || v_amount
+                           || ' · new expiry ' || v_new_end,
+                'performer_name', 'Admin'),
+            v_new_end::text);
+
+    INSERT INTO public.notifications (user_id, title, body, data)
+    VALUES (v_m.member_id, 'Membership renewed',
+            'Your membership was renewed (' || p_plan_type || '). New expiry: '
+            || v_new_end || '. Payment of ₹' || v_amount || ' recorded.',
+            jsonb_build_object('type', 'membership_renewed', 'route', '/member/home'));
+
+    RETURN jsonb_build_object('end_date', v_new_end, 'amount', v_amount, 'months', v_months);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.renew_membership(uuid, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.renew_membership(uuid, text, text) TO authenticated;
+
 
 -- copy of migrations/2026-06-18_lock_library_verified.sql. verified/verified_at
 -- can only be set via claim_verified_badge() (server re-checks eligibility);

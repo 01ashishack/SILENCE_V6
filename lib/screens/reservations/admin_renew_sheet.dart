@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../../utils/error_messages.dart';
-import '../../utils/audit_logger.dart';
 import '../../utils/time_utils.dart';
 
 /// Admin-side **direct** membership renewal.
@@ -47,14 +46,7 @@ class _AdminRenewSheetState extends State<_AdminRenewSheet> {
   Map<String, dynamic>? _shift;
 
   String get _membershipId => widget.membership['id']?.toString() ?? '';
-  String get _libraryId => widget.membership['library_id']?.toString() ?? '';
   String? get _shiftId => widget.membership['shift_id']?.toString();
-
-  String get _memberId {
-    final m = widget.membership['member_id'];
-    if (m is Map) return m['id']?.toString() ?? '';
-    return m?.toString() ?? '';
-  }
 
   String get _memberName {
     final m = widget.membership['member_id'];
@@ -111,64 +103,23 @@ class _AdminRenewSheetState extends State<_AdminRenewSheet> {
     return DateTime(y, m, day > lastDay ? lastDay : day);
   }
 
-  String _planLabel(String plan) => plan == '6_month'
-      ? '6-month plan'
-      : (plan == '3_month' ? '3-month plan' : 'Monthly plan');
-
   Future<void> _confirm() async {
     if (_membershipId.isEmpty) return;
     setState(() => _submitting = true);
-    final months = _durationMonths(_plan);
-    final amount = _priceFor(_plan);
     try {
-      // Extend from the later of (current end, today). Use IST so the date
-      // boundary matches every member-facing calculation (H7).
-      DateTime base = istNow();
-      final endStr = widget.membership['end_date']?.toString();
-      if (endStr != null) {
-        final cur = DateTime.tryParse(endStr);
-        if (cur != null && cur.isAfter(base)) base = cur;
-      }
-      final newEnd = _addMonths(base, months);
-
-      await supabase.from('memberships').update({
-        'end_date': newEnd.toIso8601String().substring(0, 10),
-        'status': 'active',
-        'plan_type': _plan,
-      }).eq('id', _membershipId);
-
-      await supabase.from('payments').insert({
-        'membership_id': _membershipId,
-        'member_id': _memberId,
-        'library_id': _libraryId,
-        'amount': amount,
-        'method': _method,
-        'status': 'confirmed',
-        'payment_date': DateTime.now().toIso8601String(),
-        'confirmed_by_admin_id': supabase.auth.currentUser?.id,
+      // Atomic server-side renewal (audit M7 + C5): the RPC derives the amount
+      // from the shift price, extends end_date in IST, records a CONFIRMED
+      // payment, writes the audit row and notifies the member — all in one
+      // transaction. The client no longer sends the amount or payment status.
+      final res = await supabase.rpc('renew_membership', params: {
+        'p_membership_id': _membershipId,
+        'p_plan_type': _plan,
+        'p_method': _method,
       });
-
-      if (_memberId.isNotEmpty) {
-        try {
-          await supabase.from('notifications').insert({
-            'user_id': _memberId,
-            'title': 'Membership renewed',
-            'body':
-                'Your membership was renewed (${_planLabel(_plan)}). New expiry: ${DateFormat('dd MMM yyyy').format(newEnd)}. Payment of ₹$amount recorded.',
-            'data': {'type': 'membership_renewed'},
-          });
-        } catch (e) {
-          debugPrint('renew notify failed: $e');
-        }
-      }
-
-      await AuditLogger.instance.log(
-        action: 'membership_renew',
-        category: AuditLogger.categoryMembers,
-        title: 'Renewed membership',
-        details: '$_memberName · ${_planLabel(_plan)} · ₹$amount',
-        libraryId: _libraryId.isEmpty ? null : _libraryId,
-      );
+      final data = (res is List && res.isNotEmpty) ? res.first : res;
+      final newEnd = DateTime.tryParse(
+              (data is Map ? data['end_date'] : null)?.toString() ?? '') ??
+          _addMonths(istNow(), _durationMonths(_plan));
 
       if (!mounted) return;
       Navigator.pop(context, true);
