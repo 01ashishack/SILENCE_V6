@@ -69,6 +69,24 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-24 (e) — Audit re-audit: Batch 1 (attendance data integrity: C1/C2/C4)
+
+`flutter analyze` **0 issues**. Fixes the 3 confirmed-critical attendance-integrity bugs from the
+2026-06-24 GLM re-audit (C3 was overstated — `uq_membership_active_seat` already prevents two
+active/trial members on a seat; C5 is admin-records-own-revenue, low impact; H6 already a PK).
+- **C4** — duplicate open sessions: new migration `2026-06-24_attendance_open_session_unique.sql`
+  (cleans existing dup opens → 'incomplete', then partial UNIQUE index `uq_attendance_open_session`
+  on `attendance(member_id, library_id) WHERE check_out_time IS NULL`). Scanner check-in now catches
+  `23505` → "You are already checked in" instead of opening a 2nd session. Folded into `supabase_schema.sql`.
+- **C1** — offline checkout no longer re-closes an already-closed row (that produced multi-day phantom
+  durations). The dangerous "find latest row & re-close" fallback is removed; an orphan checkout is
+  discarded (FIFO guarantees a real check-in syncs first). Normal checkout update now guarded with
+  `.isFilter('check_out_time', null)`.
+- **C2** (interim) — offline check-in sync now discards rows landing on a CLOSURE day; offline rows stay
+  flagged via `offline_synced=true`. Full shift-window/overtime re-validation on sync still TODO.
+- **✅ APPLIED to live DB (2026-06-24):** `silence_app/migrations/2026-06-24_attendance_open_session_unique.sql`.
+- Files: `offline_sync.dart`, `qr_scanner_screen.dart`, `supabase_schema.sql`, migration (new).
+
 ### Session 2026-06-24 (d) — Overtime/holiday auto-checkout fixes + admin overtime setting
 
 `flutter analyze` **0 issues**. Touches holiday flow, live-session timer, scanner notification, admin profile,

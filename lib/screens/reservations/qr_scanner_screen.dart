@@ -473,18 +473,37 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
         // ------------------
         final nowStr = nowUtc.toIso8601String();
         debugPrint('[QR Scan] Performing check-in with membershipId: $membershipId (overtime=$isOvertimeCheckin)');
-        final insertResponse = await supabase.from('attendance').insert({
-          'membership_id': membershipId,
-          'member_id': user.id,
-          'library_id': libraryId,
-          'shift_id': shift['id'] ?? membershipRes['shift_id'],
-          'check_in_time': nowStr,
-          'check_out_time': null,
-          'session_type': 'normal',
-          'is_overtime': isOvertimeCheckin,
-          'qr_version': qrVersion,
-          'device_id': 'mobile',
-        }).select();
+        List<dynamic> insertResponse;
+        try {
+          insertResponse = await supabase.from('attendance').insert({
+            'membership_id': membershipId,
+            'member_id': user.id,
+            'library_id': libraryId,
+            'shift_id': shift['id'] ?? membershipRes['shift_id'],
+            'check_in_time': nowStr,
+            'check_out_time': null,
+            'session_type': 'normal',
+            'is_overtime': isOvertimeCheckin,
+            'qr_version': qrVersion,
+            'device_id': 'mobile',
+          }).select();
+        } on PostgrestException catch (e) {
+          // C4: the partial-unique index (uq_attendance_open_session) rejected a
+          // second concurrent open session — the member is already checked in
+          // (another device / a double-tap won the race). Treat it honestly.
+          if (e.code == '23505') {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('You are already checked in for this library.'),
+                backgroundColor: Color(0xFFF59E0B),
+              ),
+            );
+            setState(() => _isProcessingScan = false);
+            return;
+          }
+          rethrow;
+        }
         debugPrint('[QR Scan] Check-in insert response: $insertResponse');
 
         // An approved out-of-shift check-in: burn the approval so it can't be

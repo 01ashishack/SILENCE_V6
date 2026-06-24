@@ -97,7 +97,32 @@ class OfflineSyncManager {
             final membershipId = activeMembership['id'];
             final realShiftId = activeMembership['shift_id'];
 
-            // Insert check-in record
+            // C2 (interim): never sync attendance onto a day the library was
+            // CLOSED. (Full shift-window/overtime re-validation is still TODO;
+            // offline rows stay flagged via offline_synced=true so they can be
+            // audited.) Discard a check-in that lands on a closure day.
+            try {
+              final ciDate = DateTime.tryParse(timestamp);
+              if (ciDate != null) {
+                final dStr = ciDate.toIso8601String().substring(0, 10);
+                final closure = await supabase
+                    .from('scheduled_closures')
+                    .select('id')
+                    .eq('library_id', resolvedLibraryId)
+                    .lte('start_date', dStr)
+                    .gte('end_date', dStr)
+                    .limit(1)
+                    .maybeSingle();
+                if (closure != null) {
+                  await db.delete('offline_scan_queue', where: 'id = ?', whereArgs: [scanId]);
+                  continue;
+                }
+              }
+            } catch (_) {
+              // If the closure check fails, fall through and insert (best-effort).
+            }
+
+            // Insert check-in record (flagged offline_synced for audit).
             await supabase.from('attendance').insert({
               'membership_id': membershipId,
               'member_id': memberId,
@@ -138,42 +163,20 @@ class OfflineSyncManager {
                 'check_out_time': timestamp,
                 'duration_minutes': durationMinutes,
                 'offline_synced': true,
-              }).eq('id', sessionId);
+              }).eq('id', sessionId).isFilter('check_out_time', null);
 
               await db.delete('offline_scan_queue', where: 'id = ?', whereArgs: [scanId]);
               successCount++;
             } else {
-              // No active check-in found in Supabase!
-              // In this case, let's find the latest attendance record and checkout there,
-              // or create a complete attendance session with an assumed checkin
-              final lastSession = await supabase
-                  .from('attendance')
-                  .select('id, check_in_time')
-                  .eq('member_id', memberId)
-                  .eq('library_id', resolvedLibraryId)
-                  .order('check_in_time', ascending: false)
-                  .limit(1)
-                  .maybeSingle();
-
-              if (lastSession != null) {
-                final String sessionId = lastSession['id'];
-                final String checkInStr = lastSession['check_in_time'];
-                final checkInTime = DateTime.parse(checkInStr);
-                final checkOutTime = DateTime.parse(timestamp);
-                final durationMinutes = checkOutTime.difference(checkInTime).inMinutes;
-
-                await supabase.from('attendance').update({
-                  'check_out_time': timestamp,
-                  'duration_minutes': durationMinutes,
-                  'offline_synced': true,
-                }).eq('id', sessionId);
-
-                await db.delete('offline_scan_queue', where: 'id = ?', whereArgs: [scanId]);
-                successCount++;
-              } else {
-                // Completely orphaned checkout. Discard or insert as incomplete.
-                await db.delete('offline_scan_queue', where: 'id = ?', whereArgs: [scanId]);
-              }
+              // C1: NO open session found. Do NOT fall back to the latest row —
+              // re-closing an already-closed session corrupts its duration (the
+              // old code stamped a new check-out onto a closed row, producing
+              // multi-day phantom durations). FIFO sync guarantees a matching
+              // offline check-in is processed BEFORE its check-out, so a genuine
+              // pair always finds its open session above. A checkout with no open
+              // session is therefore orphaned (e.g. the check-in was discarded as
+              // invalid) → discard it instead of corrupting another session.
+              await db.delete('offline_scan_queue', where: 'id = ?', whereArgs: [scanId]);
             }
           }
         } catch (e) {

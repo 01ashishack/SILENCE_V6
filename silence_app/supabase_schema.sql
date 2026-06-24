@@ -634,6 +634,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_membership_active_per_member_library
 CREATE UNIQUE INDEX IF NOT EXISTS uq_membership_active_seat
     ON memberships (seat_id)
     WHERE seat_id IS NOT NULL AND status IN ('active', 'trial');
+-- C4: at most one OPEN attendance session per (member, library) — blocks the
+-- read-then-insert check-in race (2nd concurrent open fails with 23505).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_attendance_open_session
+    ON attendance (member_id, library_id)
+    WHERE check_out_time IS NULL;
 
 -- Attendance Indexes
 CREATE INDEX IF NOT EXISTS idx_attendance_member ON attendance(member_id, check_in_time);
