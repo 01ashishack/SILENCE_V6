@@ -69,6 +69,21 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-24 (c) — Time-based notifications (pg_cron) — ✅ APPLIED to live DB
+
+**No code changes** (types were already wired in (a)). Migration
+`silence_app/migrations/2026-06-24_time_based_notifications.sql` — 5 SECURITY DEFINER functions +
+pg_cron jobs, all idempotent & self-deduping (never twice in the same IST day), reusing the
+already-routed/styled types:
+- `notify_membership_expiry()` — MEMBER `expiry` at 3d / 1d / today (daily 09:00 IST).
+- `notify_admin_expiring_digest()` — OWNER `expiring_digest`, members ≤3 days out (daily 09:30 IST).
+- `notify_streak_reminders()` — MEMBER `streak_reminder`, attended yesterday not today (daily 19:00 IST).
+- `notify_daily_collection_summary()` — OWNER `daily_summary`, today's confirmed ₹+count (daily 21:30 IST, skips ₹0 days).
+- `notify_dues_digest()` — OWNER `dues_digest`, lapsed memberships (end_date < today) (weekly Mon 09:00 IST).
+- **✅ APPLIED to live DB (2026-06-24)** + folded into `supabase_schema.sql`. All 5 cron jobs confirmed
+  active in `cron.job` (jobids 1-5: silence-expiry-reminders / -expiring-digest / -streak-reminders /
+  -daily-collection / -dues-digest). pg_cron fires in UTC = the IST times above. **No outstanding live-DB action.**
+
 ### Session 2026-06-24 (b) — Google Sign-In (native) wired + device-verified
 
 `flutter analyze` **0 issues**. **No DB/migration changes.**

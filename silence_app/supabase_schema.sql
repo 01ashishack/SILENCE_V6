@@ -1559,7 +1559,233 @@ $$;
 REVOKE ALL ON FUNCTION public.process_shift_overtime() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.process_shift_overtime() TO service_role;
 
--- Library "Verified" badge lock (P6-family — was self-assertable). Canonical
+-- ── Time-based notifications (2026-06-24). Canonical copy of
+--    migrations/2026-06-24_time_based_notifications.sql. Five SECURITY DEFINER
+--    functions run by pg_cron (UTC schedules = IST times), all idempotent and
+--    self-deduping per IST day, reusing already-routed notification types.
+--    Crons: silence-expiry-reminders (09:00 IST), silence-expiring-digest
+--    (09:30), silence-streak-reminders (19:00), silence-daily-collection
+--    (21:30), silence-dues-digest (Mon 09:00). ───────────────────────────────
+CREATE OR REPLACE FUNCTION public.notify_membership_expiry()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_today date := (now() AT TIME ZONE 'Asia/Kolkata')::date;
+    r       RECORD;
+    v_days  int;
+    v_sent  int := 0;
+BEGIN
+    FOR r IN
+        SELECT m.id, m.member_id, m.end_date, l.name AS lib_name
+          FROM public.memberships m
+          JOIN public.libraries l ON l.id = m.library_id
+         WHERE m.status IN ('active', 'trial')
+           AND m.end_date IN (v_today, v_today + 1, v_today + 3)
+    LOOP
+        v_days := r.end_date - v_today;
+        IF EXISTS (
+            SELECT 1 FROM public.notifications n
+             WHERE n.user_id = r.member_id
+               AND n.data->>'type' = 'expiry'
+               AND n.data->>'membership_id' = r.id::text
+               AND n.data->>'days_left' = v_days::text
+               AND (n.sent_at AT TIME ZONE 'Asia/Kolkata')::date = v_today
+        ) THEN CONTINUE; END IF;
+        INSERT INTO public.notifications (user_id, title, body, data)
+        VALUES (
+            r.member_id,
+            CASE WHEN v_days = 0 THEN 'Membership expires today'
+                 WHEN v_days = 1 THEN 'Membership expires tomorrow'
+                 ELSE 'Membership expiring soon' END,
+            CASE WHEN v_days = 0
+                     THEN 'Your membership at ' || r.lib_name || ' expires today. Renew to keep your seat.'
+                 WHEN v_days = 1
+                     THEN 'Your membership at ' || r.lib_name || ' expires tomorrow. Renew now to avoid losing your seat.'
+                 ELSE 'Your membership at ' || r.lib_name || ' expires in ' || v_days
+                      || ' days. Renew soon to keep your seat.' END,
+            jsonb_build_object('type', 'expiry', 'route', '/member/home',
+                               'membership_id', r.id, 'days_left', v_days)
+        );
+        v_sent := v_sent + 1;
+    END LOOP;
+    RETURN jsonb_build_object('sent', v_sent, 'ran_at', now());
+END;
+$$;
+REVOKE ALL ON FUNCTION public.notify_membership_expiry() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.notify_membership_expiry() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.notify_admin_expiring_digest()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_today date := (now() AT TIME ZONE 'Asia/Kolkata')::date;
+    r       RECORD;
+    v_sent  int := 0;
+BEGIN
+    FOR r IN
+        SELECT l.owner_id, l.id AS lib_id, l.name AS lib_name, count(*) AS cnt
+          FROM public.memberships m
+          JOIN public.libraries l ON l.id = m.library_id
+         WHERE m.status IN ('active', 'trial')
+           AND m.end_date BETWEEN v_today AND v_today + 3
+         GROUP BY l.owner_id, l.id, l.name
+    LOOP
+        IF EXISTS (
+            SELECT 1 FROM public.notifications n
+             WHERE n.user_id = r.owner_id
+               AND n.data->>'type' = 'expiring_digest'
+               AND n.data->>'library_id' = r.lib_id::text
+               AND (n.sent_at AT TIME ZONE 'Asia/Kolkata')::date = v_today
+        ) THEN CONTINUE; END IF;
+        INSERT INTO public.notifications (user_id, title, body, data)
+        VALUES (
+            r.owner_id,
+            'Memberships expiring soon',
+            r.cnt || ' member' || CASE WHEN r.cnt = 1 THEN '' ELSE 's' END
+            || ' at ' || r.lib_name || ' ' || CASE WHEN r.cnt = 1 THEN 'is' ELSE 'are' END
+            || ' expiring within 3 days. Review and follow up for renewals.',
+            jsonb_build_object('type', 'expiring_digest', 'route', '/admin/home',
+                               'library_id', r.lib_id, 'count', r.cnt)
+        );
+        v_sent := v_sent + 1;
+    END LOOP;
+    RETURN jsonb_build_object('sent', v_sent, 'ran_at', now());
+END;
+$$;
+REVOKE ALL ON FUNCTION public.notify_admin_expiring_digest() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.notify_admin_expiring_digest() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.notify_streak_reminders()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_today date := (now() AT TIME ZONE 'Asia/Kolkata')::date;
+    r       RECORD;
+    v_sent  int := 0;
+BEGIN
+    FOR r IN
+        SELECT DISTINCT a.member_id
+          FROM public.attendance a
+         WHERE (a.check_in_time AT TIME ZONE 'Asia/Kolkata')::date = v_today - 1
+           AND EXISTS (
+               SELECT 1 FROM public.memberships m
+                WHERE m.member_id = a.member_id AND m.status IN ('active', 'trial'))
+           AND NOT EXISTS (
+               SELECT 1 FROM public.attendance a2
+                WHERE a2.member_id = a.member_id
+                  AND (a2.check_in_time AT TIME ZONE 'Asia/Kolkata')::date = v_today)
+    LOOP
+        IF EXISTS (
+            SELECT 1 FROM public.notifications n
+             WHERE n.user_id = r.member_id
+               AND n.data->>'type' = 'streak_reminder'
+               AND (n.sent_at AT TIME ZONE 'Asia/Kolkata')::date = v_today
+        ) THEN CONTINUE; END IF;
+        INSERT INTO public.notifications (user_id, title, body, data)
+        VALUES (
+            r.member_id,
+            'Keep your streak alive 🔥',
+            'You studied yesterday but haven''t checked in today. Drop by and keep your streak going!',
+            jsonb_build_object('type', 'streak_reminder', 'route', '/member/home')
+        );
+        v_sent := v_sent + 1;
+    END LOOP;
+    RETURN jsonb_build_object('sent', v_sent, 'ran_at', now());
+END;
+$$;
+REVOKE ALL ON FUNCTION public.notify_streak_reminders() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.notify_streak_reminders() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.notify_daily_collection_summary()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_today date := (now() AT TIME ZONE 'Asia/Kolkata')::date;
+    r       RECORD;
+    v_sent  int := 0;
+BEGIN
+    FOR r IN
+        SELECT l.owner_id, l.id AS lib_id, l.name AS lib_name,
+               count(*) AS cnt, COALESCE(sum(p.amount), 0) AS total
+          FROM public.payments p
+          JOIN public.libraries l ON l.id = p.library_id
+         WHERE p.status = 'confirmed'
+           AND (p.payment_date AT TIME ZONE 'Asia/Kolkata')::date = v_today
+         GROUP BY l.owner_id, l.id, l.name
+    LOOP
+        IF r.cnt = 0 THEN CONTINUE; END IF;
+        IF EXISTS (
+            SELECT 1 FROM public.notifications n
+             WHERE n.user_id = r.owner_id
+               AND n.data->>'type' = 'daily_summary'
+               AND n.data->>'library_id' = r.lib_id::text
+               AND (n.sent_at AT TIME ZONE 'Asia/Kolkata')::date = v_today
+        ) THEN CONTINUE; END IF;
+        INSERT INTO public.notifications (user_id, title, body, data)
+        VALUES (
+            r.owner_id,
+            'Today''s collection',
+            'You collected ₹' || r.total || ' from ' || r.cnt || ' payment'
+            || CASE WHEN r.cnt = 1 THEN '' ELSE 's' END || ' at ' || r.lib_name || ' today.',
+            jsonb_build_object('type', 'daily_summary', 'route', '/admin/home',
+                               'library_id', r.lib_id, 'count', r.cnt, 'total', r.total)
+        );
+        v_sent := v_sent + 1;
+    END LOOP;
+    RETURN jsonb_build_object('sent', v_sent, 'ran_at', now());
+END;
+$$;
+REVOKE ALL ON FUNCTION public.notify_daily_collection_summary() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.notify_daily_collection_summary() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.notify_dues_digest()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_today date := (now() AT TIME ZONE 'Asia/Kolkata')::date;
+    r       RECORD;
+    v_sent  int := 0;
+BEGIN
+    FOR r IN
+        SELECT l.owner_id, l.id AS lib_id, l.name AS lib_name, count(*) AS cnt
+          FROM public.memberships m
+          JOIN public.libraries l ON l.id = m.library_id
+         WHERE m.status IN ('active', 'expired')
+           AND m.end_date < v_today
+         GROUP BY l.owner_id, l.id, l.name
+    LOOP
+        IF r.cnt = 0 THEN CONTINUE; END IF;
+        IF EXISTS (
+            SELECT 1 FROM public.notifications n
+             WHERE n.user_id = r.owner_id
+               AND n.data->>'type' = 'dues_digest'
+               AND n.data->>'library_id' = r.lib_id::text
+               AND (n.sent_at AT TIME ZONE 'Asia/Kolkata')::date = v_today
+        ) THEN CONTINUE; END IF;
+        INSERT INTO public.notifications (user_id, title, body, data)
+        VALUES (
+            r.owner_id,
+            'Members with dues',
+            r.cnt || ' member' || CASE WHEN r.cnt = 1 THEN '' ELSE 's' END
+            || ' at ' || r.lib_name || ' ' || CASE WHEN r.cnt = 1 THEN 'has' ELSE 'have' END
+            || ' an expired membership pending renewal. Follow up to recover dues.',
+            jsonb_build_object('type', 'dues_digest', 'route', '/admin/home',
+                               'library_id', r.lib_id, 'count', r.cnt)
+        );
+        v_sent := v_sent + 1;
+    END LOOP;
+    RETURN jsonb_build_object('sent', v_sent, 'ran_at', now());
+END;
+$$;
+REVOKE ALL ON FUNCTION public.notify_dues_digest() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.notify_dues_digest() TO service_role;
+
+
 -- copy of migrations/2026-06-18_lock_library_verified.sql. verified/verified_at
 -- can only be set via claim_verified_badge() (server re-checks eligibility);
 -- the trigger blocks any other direct change.
