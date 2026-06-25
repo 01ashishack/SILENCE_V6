@@ -104,6 +104,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   bool _shiftEndWarnSent = false;
   bool _autoCheckoutSent = false;
   bool _autoCheckoutOvertime = true; // library setting (default on)
+  int _graceMinutes = 30; // library setting: minutes after shift end (default 30)
   // Realtime: refresh when THIS member's own rows change (approval, check-in,
   // notification) so the home screen updates without a manual pull-to-refresh.
   RealtimeChannel? _realtimeChannel;
@@ -684,6 +685,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       // Read the library's overtime auto-checkout setting (default ON).
       final lib = _activeAttendance!['libraries'] as Map<String, dynamic>?;
       _autoCheckoutOvertime = lib?['auto_checkout_overtime'] != false;
+      final gm = lib?['auto_checkout_grace_minutes'];
+      _graceMinutes = (gm is int && gm >= 1) ? gm : 30;
 
       final membership = _activeAttendance!['memberships'] as Map<String, dynamic>? ?? {};
       final shift = _activeAttendance!['shifts'] as Map<String, dynamic>? ?? membership['shifts'] as Map<String, dynamic>? ?? {};
@@ -810,7 +813,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           'title': 'Your shift has ended',
           'body': _autoCheckoutOvertime
               ? 'Your shift is over. Please scan to check out. If you stay, the extra time '
-                  'counts as overtime and you will be auto-checked-out after 30 minutes.'
+                  'counts as overtime and you will be auto-checked-out after $_graceMinutes minutes.'
               : 'Your shift is over. Please scan to check out. Any extra time is recorded as overtime.',
           'data': {'type': 'shift_end', 'route': '/member/home'},
         });
@@ -825,7 +828,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   /// and reloads. Server cron is the backstop when the app is closed.
   void _maybeAutoCheckout(Duration remaining, DateTime shiftEndIst) {
     if (!_autoCheckoutOvertime || _autoCheckoutSent) return;
-    if (remaining.inSeconds > -1800) return; // not yet 30 min past shift end
+    if (remaining.inSeconds > -(_graceMinutes * 60)) return; // not yet grace min past shift end
     final att = _activeAttendance;
     if (att == null || _checkInTime == null) return;
     _autoCheckoutSent = true;
@@ -836,7 +839,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final shiftEndUtc = shiftEndIst.subtract(const Duration(hours: 5, minutes: 30));
     final checkInUtc = _checkInTime!.toUtc();
     final anchor = checkInUtc.isAfter(shiftEndUtc) ? checkInUtc : shiftEndUtc;
-    final capCheckoutUtc = anchor.add(const Duration(minutes: 30));
+    final capCheckoutUtc = anchor.add(Duration(minutes: _graceMinutes));
     var dur = capCheckoutUtc.difference(checkInUtc).inMinutes;
     if (dur < 0) dur = 0;
 
@@ -850,7 +853,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               'duration_minutes': dur,
               'session_type': 'auto_checkout',
               'is_overtime': true,
-              'overtime_minutes': 30,
+              'overtime_minutes': _graceMinutes,
             })
             .eq('id', id)
             .isFilter('check_out_time', null)
@@ -860,7 +863,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             await supabase.from('notifications').insert({
               'user_id': memberId,
               'title': 'Auto checked out',
-              'body': 'You were automatically checked out 30 minutes after your shift ended. '
+              'body': 'You were automatically checked out $_graceMinutes minutes after your shift ended. '
                   'This session is tagged as overtime.',
               'data': {'type': 'auto_checkout', 'route': '/member/home'},
             });
@@ -869,7 +872,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             await NotificationService.notifyLibraryOwner(
               libraryId: libraryId,
               title: 'Member auto checked out',
-              body: 'A member was auto-checked-out 30 minutes after their shift ended (overtime).',
+              body: 'A member was auto-checked-out $_graceMinutes minutes after their shift ended (overtime).',
               type: 'check_out',
             );
           }
@@ -4374,7 +4377,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   valueListenable: _shiftRemainingNotifier,
                   builder: (context, rem, child) {
                     final isOvertime = rem.isNegative;
-                    const overtimeCap = Duration(minutes: 30);
+                    final overtimeCap = Duration(minutes: _graceMinutes);
                     final rawOver = rem.abs();
                     final cappedOver = isOvertime && rawOver > overtimeCap ? overtimeCap : rawOver;
                     final capReached = isOvertime && rawOver >= overtimeCap;
@@ -4400,7 +4403,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  isOvertime ? 'Overtime (max 30 min)' : 'Time remaining in shift',
+                                  isOvertime ? 'Overtime (max $_graceMinutes min)' : 'Time remaining in shift',
                                   style: GoogleFonts.inter(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
@@ -4423,7 +4426,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             Text(
                               capReached
                                   ? 'Overtime maxed — you will be auto-checked-out shortly.'
-                                  : 'Please check out. Auto check-out at $autoCheckoutLabel (shift end + 30 min).',
+                                  : 'Please check out. Auto check-out at $autoCheckoutLabel (shift end + $_graceMinutes min).',
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,

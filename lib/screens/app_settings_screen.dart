@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme_controller.dart';
+import '../core/active_library_store.dart';
 import '../widgets/app_gradient_scaffold.dart';
 
 class AppSettingsScreen extends StatefulWidget {
@@ -16,10 +17,72 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   bool _isLoading = false;
   bool _isDarkMode = false;
 
+  // Overtime auto-checkout (per active library), moved here from the profile tab.
+  String? _otLibId;
+  bool? _overtimeOn; // null = loading
+  int _graceMinutes = 30;
+  bool _savingOvertime = false;
+
   @override
   void initState() {
     super.initState();
     _isDarkMode = ThemeController.instance.isDark;
+    _loadOvertime();
+  }
+
+  Future<void> _loadOvertime() async {
+    try {
+      final libId = await ActiveLibraryStore.resolve(null);
+      if (libId == null) {
+        if (mounted) setState(() => _overtimeOn = true);
+        return;
+      }
+      final row = await Supabase.instance.client
+          .from('libraries')
+          .select('auto_checkout_overtime, auto_checkout_grace_minutes')
+          .eq('id', libId)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _otLibId = libId;
+        _overtimeOn = row?['auto_checkout_overtime'] != false;
+        final m = row?['auto_checkout_grace_minutes'];
+        _graceMinutes = (m is int && m >= 5) ? m : 30;
+      });
+    } catch (e) {
+      debugPrint('load overtime failed: $e');
+      if (mounted) setState(() => _overtimeOn = true);
+    }
+  }
+
+  Future<void> _setOvertimeEnabled(bool v) async {
+    if (_otLibId == null || _savingOvertime) return;
+    setState(() {
+      _savingOvertime = true;
+      _overtimeOn = v;
+    });
+    try {
+      await Supabase.instance.client
+          .from('libraries')
+          .update({'auto_checkout_overtime': v}).eq('id', _otLibId!);
+    } catch (e) {
+      if (mounted) setState(() => _overtimeOn = !v);
+    } finally {
+      if (mounted) setState(() => _savingOvertime = false);
+    }
+  }
+
+  Future<void> _setGraceMinutes(int m) async {
+    if (_otLibId == null) return;
+    final clamped = m.clamp(5, 360);
+    setState(() => _graceMinutes = clamped);
+    try {
+      await Supabase.instance.client
+          .from('libraries')
+          .update({'auto_checkout_grace_minutes': clamped}).eq('id', _otLibId!);
+    } catch (e) {
+      debugPrint('save grace minutes failed: $e');
+    }
   }
 
   Future<void> _toggleTheme(bool value) async {
@@ -159,6 +222,64 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                       ),
                       const SizedBox(height: 24),
 
+                      // Section: Attendance (overtime auto-checkout)
+                      _buildSectionHeader('Attendance'),
+                      Container(
+                        decoration: _buildCardDecoration(),
+                        child: Column(
+                          children: [
+                            _buildToggleTile(
+                              icon: Icons.logout_rounded,
+                              title: 'Auto check-out on overtime',
+                              subtitle: _overtimeOn == false
+                                  ? 'Off — members stay checked in until they check out.'
+                                  : 'On — members are auto-checked-out after the grace time below.',
+                              value: _overtimeOn ?? true,
+                              onChanged: (_overtimeOn == null || _savingOvertime)
+                                  ? (_) {}
+                                  : _setOvertimeEnabled,
+                            ),
+                            if (_overtimeOn != false) ...[
+                              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text('Grace time after shift ends',
+                                              style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: const Color(0xFF1E293B))),
+                                          Text('Auto-checkout this many minutes after shift end',
+                                              style: GoogleFonts.inter(
+                                                  fontSize: 11, color: const Color(0xFF64748B))),
+                                        ],
+                                      ),
+                                    ),
+                                    _stepperBtn(Icons.remove, () => _setGraceMinutes(_graceMinutes - 5)),
+                                    SizedBox(
+                                      width: 56,
+                                      child: Text('$_graceMinutes m',
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.outfit(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: const Color(0xFFE65C00))),
+                                    ),
+                                    _stepperBtn(Icons.add, () => _setGraceMinutes(_graceMinutes + 5)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
                       // Section 2: Data Management
                       _buildSectionHeader('Data Management'),
                       Container(
@@ -211,6 +332,21 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                     ],
                   ),
                 ),
+    );
+  }
+
+  Widget _stepperBtn(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3ED),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 18, color: const Color(0xFFE65C00)),
+      ),
     );
   }
 

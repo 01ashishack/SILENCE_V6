@@ -151,6 +151,28 @@ Community Guidelines; one canonical source; DPDP grievance officer), H2 version 
 (package_info — 1.0.0 vs 1.0.6 mismatch), H3 change-password current-password check (+ admin password
 screen), M1 de-dup the two member Delete-Account flows, dark-mode per-screen polish, Hindi i18n.
 
+### Session 2026-06-26 — Library mgmt: delete, configurable overtime, new-lib flow, UI fixes
+
+Addresses on-device pain points + audit polish (multiple commits).
+- **New-library setup 406 crash fixed:** stage2/stage3/add_member_step2 resolved the library via
+  `owner_id … maybeSingle()`/`single()` → 406 with 2+ libraries. Now use `ActiveLibraryStore.resolve()`.
+  Add-Library flow: stage1 (basic details) for a NEW library copies the first library's settings
+  (`core/library_settings_copier.dart`), makes it active, shows a "created — settings defaulted, change in
+  Library Management" dialog, then routes to Layout. So a 2nd+ library only needs Basic Details + Layout.
+- **Delete library:** "Delete this library" button in Library Management (type-name confirm; warns it
+  cascades members/seats/etc; clears active lib + reloads). `admin_profile_tab`.
+- **Overtime auto-checkout MOVED to App Settings + configurable minutes:** removed the profile card;
+  app_settings has an "Attendance" section (enable/disable + a 5-min-step grace-minutes stepper, per active
+  library). New `libraries.auto_checkout_grace_minutes` column + `process_shift_overtime()` honours it
+  (**migration `2026-06-26_overtime_grace_minutes.sql` — USER must apply**). member_home client-side
+  auto-checkout + warnings now read the configurable minutes (default 30).
+- **Amenities add-on crash (`_dependents.isEmpty`):** replaced the Price Type DropdownButton (overlay route
+  inside a nested bottom sheet — the likely trigger) with an inline Monthly/One-time segmented toggle.
+- **UI:** state picker + Library Management library selector dropdowns → white bg, rounded (14), bounded
+  height. "Add Library" double-'+' fixed earlier; library selector already gated to multi-library.
+- Verified: `flutter analyze` 0 issues; `flutter build apk --debug` succeeds. **⚠️ device-verify** the
+  new-library flow, delete, and overtime minutes; **apply the overtime migration.**
+
 ### Session 2026-06-25 (h) — Profile-audit fixes H2/H3/M1/H1 (one-by-one)
 
 All four done; each `flutter analyze` 0 issues + debug build OK; separate commits.

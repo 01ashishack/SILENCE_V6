@@ -18,6 +18,7 @@ import '../widgets/upgrade_sheet.dart';
 import 'library_public_profile_screen.dart';
 import 'payment_methods_screen.dart';
 import 'admin/copy_library_settings_screen.dart';
+import '../core/active_library_store.dart';
 import '../widgets/change_password_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -66,106 +67,108 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   String? _selectedLibraryIdToManage;
   bool _isAppOwner = false; // gates the Recovery Console entry
 
-  // Overtime auto-checkout setting for the ACTIVE library (libraries.auto_checkout_overtime).
-  bool? _overtimeAutoCheckout; // null = loading
-  bool _savingOvertime = false;
-
-  String? get _activeLibIdForSettings =>
-      widget.libraryId ?? (_myLibrariesList.isNotEmpty ? _myLibrariesList.first['id'] as String? : null);
-
-  Future<void> _loadOvertimeSetting() async {
-    final libId = _activeLibIdForSettings;
-    if (libId == null) return;
-    try {
-      final row = await _supabase
-          .from('libraries')
-          .select('auto_checkout_overtime')
-          .eq('id', libId)
-          .maybeSingle();
-      if (mounted) {
-        setState(() => _overtimeAutoCheckout = row?['auto_checkout_overtime'] != false);
-      }
-    } catch (e) {
-      debugPrint('load overtime setting failed: $e');
-    }
-  }
-
-  Future<void> _setOvertimeAutoCheckout(bool v) async {
-    final libId = _activeLibIdForSettings;
-    if (libId == null || _savingOvertime) return;
-    setState(() {
-      _savingOvertime = true;
-      _overtimeAutoCheckout = v;
-    });
-    try {
-      await _supabase.from('libraries').update({'auto_checkout_overtime': v}).eq('id', libId);
-    } catch (e) {
-      if (mounted) {
-        setState(() => _overtimeAutoCheckout = !v);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not update the setting. Please try again.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _savingOvertime = false);
-    }
-  }
-
-  Widget _buildOvertimeSettingCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEDEDED)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
-        ],
+  Widget _buildDeleteLibraryButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _confirmDeleteLibrary,
+        icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFDC2626)),
+        label: Text('Delete this library',
+            style: GoogleFonts.inter(
+                fontSize: 13.5, fontWeight: FontWeight.bold, color: const Color(0xFFDC2626))),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Color(0xFFFECACA)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE65C00).withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.logout_rounded, size: 20, color: Color(0xFFE65C00)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Future<void> _confirmDeleteLibrary() async {
+    final libId = _selectedLibraryIdToManage ?? widget.libraryId;
+    if (libId == null) return;
+    final lib = _myLibrariesList.firstWhere(
+      (l) => l['id'] == libId,
+      orElse: () => <String, dynamic>{},
+    );
+    final name = (lib['name'] ?? 'this library').toString();
+    final confirmCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) {
+          final canDelete = confirmCtrl.text.trim() == name.trim();
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text('Delete library?',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFDC2626))),
+            content: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Auto check-out on overtime',
-                  style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  'This permanently deletes "$name" and ALL its data — members, '
+                  'seats, shifts, attendance, payments and settings. This cannot '
+                  'be undone.',
+                  style: GoogleFonts.inter(fontSize: 13, height: 1.45, color: const Color(0xFF475569)),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _overtimeAutoCheckout == false
-                      ? 'Off — members stay checked in past their shift until they check out.'
-                      : 'On — members are auto-checked-out 30 min after their shift ends.',
-                  style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B), height: 1.3),
+                const SizedBox(height: 14),
+                Text('Type the library name to confirm:',
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: confirmCtrl,
+                  onChanged: (_) => setD(() {}),
+                  decoration: InputDecoration(
+                    hintText: name,
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                 ),
               ],
             ),
-          ),
-          _overtimeAutoCheckout == null
-              ? const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                )
-              : Switch(
-                  value: _overtimeAutoCheckout!,
-                  activeThumbColor: const Color(0xFFE65C00),
-                  onChanged: _savingOvertime ? null : _setOvertimeAutoCheckout,
-                ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.grey[600])),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+                onPressed: canDelete ? () => Navigator.pop(ctx, true) : null,
+                child: Text('Delete', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            ],
+          );
+        },
       ),
     );
+    confirmCtrl.dispose();
+    if (confirmed != true) return;
+
+    try {
+      await _supabase.from('libraries').delete().eq('id', libId);
+      // If the deleted library was the persisted active one, clear it so the
+      // app re-picks another owned library on reload.
+      final persisted = await ActiveLibraryStore.load();
+      if (persisted == libId) await ActiveLibraryStore.save(null);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"$name" deleted.'), backgroundColor: const Color(0xFF334155)),
+      );
+      widget.onLibraryUpdated?.call();
+      _loadProfileData();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not delete the library: ${friendlyError(e)}'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   @override
@@ -189,7 +192,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
       final currentLibId = widget.libraryId ?? (_myLibrariesList.isNotEmpty ? _myLibrariesList.first['id'] : null);
       _selectedLibraryIdToManage = currentLibId;
       _loadProfileData();
-      _loadOvertimeSetting();
     }
   }
 
@@ -214,7 +216,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     final currentLibId = widget.libraryId ?? (_myLibrariesList.isNotEmpty ? _myLibrariesList.first['id'] : null);
     _selectedLibraryIdToManage = currentLibId;
     _loadProfileData();
-    _loadOvertimeSetting();
   }
 
   Future<void> _loadProfileData() async {
@@ -1008,11 +1009,8 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 if (_myLibrariesList.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   _buildLibraryManagementGridCard(),
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: _buildOvertimeSettingCard(),
-                  ),
+                  const SizedBox(height: 12),
+                  _buildDeleteLibraryButton(),
                 ],
 
                 const SizedBox(height: 24),
