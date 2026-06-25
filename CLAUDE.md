@@ -151,6 +151,26 @@ Community Guidelines; one canonical source; DPDP grievance officer), H2 version 
 (package_info — 1.0.0 vs 1.0.6 mismatch), H3 change-password current-password check (+ admin password
 screen), M1 de-dup the two member Delete-Account flows, dark-mode per-screen polish, Hindi i18n.
 
+### Session 2026-06-25 (h) — Profile-audit fixes H2/H3/M1/H1 (one-by-one)
+
+All four done; each `flutter analyze` 0 issues + debug build OK; separate commits.
+- **H2 — version unify:** `package_info_plus` + new `core/app_info.dart` (loaded in main). Replaced the
+  mismatched hardcoded versions (1.0.0 / 1.0.6 / Build 1 / Build 42) in member_about, about_us, member_profile_tab.
+- **H3 — password security:** Change Password now re-authenticates with the CURRENT password before
+  updating (signInWithPassword). New shared `widgets/change_password_sheet.dart`. **Admin now has a
+  Change Password item** (had none). Member keeps its inline (also fixed) sheet.
+- **M1 — dedup delete:** new `core/account_deletion_service.dart` (schedule + cancel); member profile tab
+  + privacy screen both call it (was duplicated).
+- **H1 — legal suite:** new `screens/policy_screens.dart` with **Refund Policy, Cancellation Policy,
+  Community Guidelines** (shared, role-agnostic, dated, lawyer-review note) + routes `/policy/refund|cancellation|community`;
+  linked in BOTH member Help&Legal and admin App&Support. Rewrote the admin `terms_screen` stub into a
+  full 8-section T&C (removed the "Supabase" tech-leak, added DPDP + governing-law). Added a **DPDP
+  Grievance Officer** section + concrete retention language to the member Privacy Policy.
+  **⚠️ Legal content is a production DRAFT — lawyer review before public launch.**
+
+**Profile-audit STILL remaining:** dark-mode per-screen colour polish (mechanism done in (g)); Hindi i18n;
+"Rate the App" deep-link to the real Play listing; optional 2FA/sessions; finish server-side account purge.
+
 ### ✅ Multi-library audit remediation A–E COMPLETE (app-layer). Remaining (not app-code):
 - Device-verify all batches (Batch D aggregate numbers, C tap-switch, E copy results).
 - Optional: stamp `library_id` on the remaining direct owner-notification inserts (C coverage).

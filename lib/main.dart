@@ -50,6 +50,7 @@ import 'screens/member_terms_screen.dart';
 import 'screens/member_privacy_policy_screen.dart';
 import 'screens/member_licences_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/policy_screens.dart';
 
 import 'screens/account_frozen_screen.dart';
 import 'screens/owner_recovery_console_screen.dart';
@@ -239,6 +240,9 @@ class SilenceApp extends StatelessWidget {
         '/member/terms': (context) => const MemberTermsScreen(),
         '/member/privacy-policy': (context) => const MemberPrivacyPolicyScreen(),
         '/member/licences': (context) => const MemberLicencesScreen(),
+        '/policy/refund': (context) => const RefundPolicyScreen(),
+        '/policy/cancellation': (context) => const CancellationPolicyScreen(),
+        '/policy/community': (context) => const CommunityGuidelinesScreen(),
         '/member/notifications': (context) => const NotificationsScreen(),
         '/account-frozen': (context) => const AccountFrozenScreen(),
         '/owner/recovery-console': (context) => const OwnerRecoveryConsoleScreen(),

@@ -229,14 +229,16 @@ class _MemberPrivacyPolicyScreenState extends State<MemberPrivacyPolicyScreen> {
         '• To send push alerts regarding slot expiry, seat changes, or library announcements.\n'
         '• To display nicknames and study streaks on the leaderboard (this can be disabled in Privacy Settings).\n\n'
         '3. DATA SECURITY & RETENTION\n'
-        'Your profile details and uploaded documents are stored securely using Supabase and silence_assets storage buckets. Telemetry details (app version, OS, model) are optionally appended to issue reports to debug errors. Telemetry is never sold or shared with third parties.\n\n'
+        'Your profile details and uploaded documents are stored securely in our managed cloud storage with access controls. We retain your data while your account is active and for a limited period afterwards as required for legal, accounting and dispute-resolution purposes; on account deletion, data is removed after the 7-day recovery window except where law requires longer retention. Telemetry details (app version, OS, model) are optionally appended to issue reports to debug errors. Telemetry is never sold or shared with third parties.\n\n'
         '4. YOUR RIGHTS & CONTROL\n'
         'You have full control over your privacy options:\n'
         '• You can hide your nickname or study statistics from the leaderboard.\n'
         '• You can export your profile, membership, and attendance data into JSON via the Download My Data feature.\n'
         '• You can request account deletion. Once requested, your account is frozen and scheduled for permanent deletion after a 7-day recovery window, during which you can request recovery (reviewed by the SILENCE team).\n\n'
         '5. CHANGES TO THIS POLICY\n'
-        'We may update our Privacy Policy to align with new features or security requirements. We will prompt you to accept the updated policy whenever key revisions occur.',
+        'We may update our Privacy Policy to align with new features or security requirements. We will prompt you to accept the updated policy whenever key revisions occur.\n\n'
+        '6. GRIEVANCE OFFICER (DPDP Act, 2023)\n'
+        'In line with India\'s Digital Personal Data Protection Act, 2023, you can raise privacy concerns or exercise your data rights (access, correction, deletion) by contacting our Grievance Officer at support@silenceapp.in. We aim to acknowledge requests within a reasonable time and respond as required by law.',
         style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF334155), height: 1.6),
       ),
     );
