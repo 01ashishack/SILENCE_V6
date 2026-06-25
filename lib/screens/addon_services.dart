@@ -34,22 +34,23 @@ class AddonServicesScreen extends StatefulWidget {
 class _AddonServicesScreenState extends State<AddonServicesScreen> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  bool _didInit = false;
   String? _libId;
   List<AddonItem> _addons = [];
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_libId == null) {
-      final Object? args = ModalRoute.of(context)?.settings.arguments;
-      if (args is String && args.isNotEmpty) {
-        _libId = args;
-        debugPrint('AddonServicesScreen: Resolved active library ID from route arguments: $_libId');
-        _loadAddons();
-      } else {
-        debugPrint('AddonServicesScreen: Route arguments empty. Loading fallback library ID.');
-        _loadFallbackLibrary();
-      }
+    if (_didInit) return; // run the initial load exactly once
+    _didInit = true;
+    final Object? args = ModalRoute.of(context)?.settings.arguments;
+    if (args is String && args.isNotEmpty) {
+      _libId = args;
+      debugPrint('AddonServicesScreen: Resolved active library ID from route arguments: $_libId');
+      _loadAddons();
+    } else {
+      debugPrint('AddonServicesScreen: Route arguments empty. Loading fallback library ID.');
+      _loadFallbackLibrary();
     }
   }
 
@@ -90,7 +91,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
         final name = row['name']?.toString() ?? '';
         final price = (row['price'] as num?)?.toDouble() ?? 0.0;
         final deposit = (row['refundable_deposit'] as num?)?.toDouble() ?? 0.0;
-        final totalInventory = (row['total_inventory'] as num?)?.toInt() ?? 0;
+        final totalInventory = (row['max_available'] as num?)?.toInt() ?? 0;
 
         // Derive simulated allocated count based on keywords
         int allocated = 0;
@@ -158,8 +159,9 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
         'library_id': _libId!,
         'name': item.name,
         'price': item.monthlyRate.toInt(),
+        'price_type': 'monthly', // required NOT NULL; this screen manages monthly add-ons
         'refundable_deposit': item.securityDeposit.toInt(),
-        'total_inventory': item.totalInventory,
+        'max_available': item.totalInventory, // correct column name (was total_inventory)
         'active': true,
       };
 
@@ -181,8 +183,8 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+        _loadAddons();
       }
-      _loadAddons();
     }
   }
 
@@ -236,7 +238,9 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
                   item.securityDeposit = deposit;
                 });
                 Navigator.pop(context);
-                _saveAddonSettings(item);
+                // Defer the parent setState until the sheet has finished
+                // unmounting (avoids the _dependents.isEmpty unmount race).
+                WidgetsBinding.instance.addPostFrameCallback((_) => _saveAddonSettings(item));
               },
               child: Text('Save Configurations', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
@@ -244,7 +248,10 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
           ],
         ),
       ),
-    );
+    ).whenComplete(() {
+      rateCtrl.dispose();
+      depCtrl.dispose();
+    });
   }
 
   void _showAddAddonSheet() {
@@ -323,7 +330,8 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
                   );
                   
                   Navigator.pop(context);
-                  _saveAddonSettings(newItem);
+                  // Defer parent setState until the sheet finished unmounting.
+                  WidgetsBinding.instance.addPostFrameCallback((_) => _saveAddonSettings(newItem));
                 }
               },
               child: Text('Create Add-on', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -332,7 +340,11 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
           ],
         ),
       ),
-    );
+    ).whenComplete(() {
+      nameCtrl.dispose();
+      rateCtrl.dispose();
+      depCtrl.dispose();
+    });
   }
 
   @override

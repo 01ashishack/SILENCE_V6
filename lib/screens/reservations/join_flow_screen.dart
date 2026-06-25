@@ -811,6 +811,9 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                 if (_currentStep > 1) {
                   setState(() {
                     _currentStep--;
+                    // Mirror the forward skip: if there are no add-ons, step 3
+                    // is skipped in BOTH directions (was only skipped forward).
+                    if (_currentStep == 3 && _addOns.isEmpty) _currentStep = 2;
                   });
                   _saveDraft();
                 } else {
