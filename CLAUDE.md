@@ -69,6 +69,22 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-25 (b) — Add-on save 400 (schema drift) RESOLVED + admin add-on UX hardening
+
+**Root cause (found via Chrome `POST /add_ons → 400`):** the live `add_ons` table had drifted from the
+canonical schema (missing `price_type` and/or `max_available`; possibly a legacy `total_inventory`), so
+every add-on insert was rejected. On mobile the failed insert cascaded into the `_dependents.isEmpty`
+red-screen. **Fix:** `migrations/2026-06-25_addons_schema_reconcile.sql` (idempotent — adds/renames the
+missing columns, relaxes legacy `total_inventory`, reloads PostgREST cache) — **APPLIED to live DB;
+verified columns now match (price_type NOT NULL default 'monthly', max_available present), add-on add
+works.** Note: live `price_type` lacks the canonical CHECK; app only ever sends 'monthly'/'one_time' so harmless.
+- Hardening done alongside (admin_profile_tab `_AddonsAmenitiesSheetState`): removed the loader-dialog +
+  double-`Navigator.pop(sheetContext)` (replaced with inline button spinner + single pop), unfocus before
+  pop, `_dataFuture` set directly in initState. `addon_services.dart` (separate `/admin/settings/addons`
+  screen) also fixed: payload `price_type`+`max_available`, one-time init guard, deferred save, disposed controllers.
+- Profile-tab grid item relabeled **"Amenities" → "Amenities & Add-ons"**.
+- Join wizard: back now skips the (empty) add-ons step consistently with forward.
+
 ### Session 2026-06-25 — Joining-process overhaul (5c) — ✅ COMPLETE (device-test pending)
 
 User-directed improvements to the whole join/approval flow. **No inflated scope** — "existing member"
