@@ -240,7 +240,30 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
 
                       try {
                         final supabase = Supabase.instance.client;
-                        // Supabase updates the password of the currently authenticated user
+                        final email = _userEmail ?? supabase.auth.currentUser?.email;
+                        if (email == null || email.isEmpty) {
+                          setModalState(() {
+                            localError = 'No email on this account — password change unavailable.';
+                            isUpdating = false;
+                          });
+                          return;
+                        }
+                        // Verify the CURRENT password by re-authenticating before
+                        // allowing a change (otherwise a borrowed unlocked session
+                        // could silently reset the password).
+                        try {
+                          await supabase.auth.signInWithPassword(
+                            email: email,
+                            password: currentPasswordController.text.trim(),
+                          );
+                        } catch (_) {
+                          setModalState(() {
+                            localError = 'Current password is incorrect.';
+                            isUpdating = false;
+                          });
+                          return;
+                        }
+                        // Now update to the new password for the authenticated user.
                         await supabase.auth.updateUser(
                           UserAttributes(password: newPasswordController.text.trim()),
                         );

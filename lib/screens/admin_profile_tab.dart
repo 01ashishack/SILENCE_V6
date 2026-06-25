@@ -18,6 +18,7 @@ import '../widgets/upgrade_sheet.dart';
 import 'library_public_profile_screen.dart';
 import 'payment_methods_screen.dart';
 import 'admin/copy_library_settings_screen.dart';
+import '../widgets/change_password_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 
@@ -1064,6 +1065,19 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       _buildSettingsGroup(
                         title: 'Privacy & Account',
                         items: [
+                          ListTile(
+                            leading: const Icon(Icons.vpn_key_outlined, size: 20, color: Color(0xFFE65C00)),
+                            title: Text(
+                              'Change Password',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF1E293B),
+                              ),
+                            ),
+                            trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
+                            onTap: () => showChangePasswordSheet(context),
+                          ),
                           ListTile(
                             leading: const Icon(Icons.swap_horiz, size: 20, color: Color(0xFFEF4444)),
                             title: Text(
