@@ -1802,7 +1802,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                   }),
                   _buildGridItem(Icons.info_outline, 'Basic Details', _showBasicDetailsBottomSheet),
                   _buildGridItem(Icons.menu_book_outlined, 'About & Info', _showLibraryDetailsBottomSheet),
-                  _buildGridItem(Icons.widgets_outlined, 'Amenities', _showAmenitiesBottomSheet),
+                  _buildGridItem(Icons.widgets_outlined, 'Amenities & Add-ons', _showAmenitiesBottomSheet),
                   _buildGridItem(Icons.access_time, 'Shift & Plan', _navigateToShiftManagement),
                   _buildGridItem(Icons.payments_outlined, 'Payment Methods', _openPaymentMethods),
                   _buildGridItem(Icons.link, 'Social Links', _showSocialLinksBottomSheet),
@@ -2856,6 +2856,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
     final maxAvailableCtrl = TextEditingController(text: isEdit ? addon['max_available']?.toString() ?? '' : '');
     String priceType = isEdit ? addon['price_type'] ?? 'monthly' : 'monthly';
     bool isActive = isEdit ? addon['active'] == true : true;
+    bool saving = false;
 
     await showModalBottomSheet(
       context: context,
@@ -2953,7 +2954,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: () async {
+                      onPressed: saving ? null : () async {
                         final name = nameCtrl.text.trim();
                         final price = int.tryParse(priceCtrl.text) ?? 0;
                         final deposit = int.tryParse(depositCtrl.text) ?? 0;
@@ -2966,15 +2967,9 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                           return;
                         }
 
-                        // Show loader dialog
-                        showDialog(
-                          context: sheetContext,
-                          barrierDismissible: false,
-                          builder: (c) => const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00))),
-                        );
-
+                        setSheetState(() => saving = true);
                         try {
-                          final payload = {
+                          final Map<String, dynamic> payload = {
                             'library_id': widget.libraryId,
                             'name': name,
                             'price': price,
@@ -2985,23 +2980,16 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                           };
 
                           if (isEdit) {
-                            await _supabase
-                                .from('add_ons')
-                                .update(payload)
-                                .eq('id', addon['id']);
+                            await _supabase.from('add_ons').update(payload).eq('id', addon['id']);
                           } else {
-                            final newId = const Uuid().v4();
-                            payload['id'] = newId;
+                            payload['id'] = const Uuid().v4();
                             await _supabase.from('add_ons').insert(payload);
                           }
 
-                          if (sheetContext.mounted) {
-                            Navigator.pop(sheetContext); // Close loader
-                            Navigator.pop(sheetContext); // Close sheet
-                          }
-
+                          // Single pop (no nested loader dialog) — avoids the
+                          // _dependents.isEmpty unmount race the loader caused.
+                          if (sheetContext.mounted) Navigator.pop(sheetContext);
                           _refreshData();
-
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -3011,8 +2999,8 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                             );
                           }
                         } catch (e) {
+                          setSheetState(() => saving = false);
                           if (sheetContext.mounted) {
-                            Navigator.pop(sheetContext); // Close loader
                             ScaffoldMessenger.of(sheetContext).showSnackBar(
                               SnackBar(content: Text('Failed to save add-on: $e'), backgroundColor: Colors.redAccent),
                             );
@@ -3025,7 +3013,9 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: Text(isEdit ? 'Save Changes' : 'Add Add-on'),
+                      child: saving
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text(isEdit ? 'Save Changes' : 'Add Add-on'),
                     ),
                   ],
                 ),
