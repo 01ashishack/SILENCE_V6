@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,6 +12,18 @@ class ActiveLibraryStore {
   ActiveLibraryStore._();
 
   static const String _key = 'admin_active_library_id';
+
+  /// Lets any screen (e.g. the notification center) ask the admin shell to
+  /// switch its active library. `admin_home` listens to this and performs the
+  /// actual switch + jumps to the dashboard. Value is the requested library id;
+  /// the listener resets it to null after consuming.
+  static final ValueNotifier<String?> switchRequest = ValueNotifier<String?>(null);
+
+  /// Persist + broadcast a request to make [libraryId] the active library.
+  static void requestSwitch(String libraryId) {
+    save(libraryId);
+    switchRequest.value = libraryId;
+  }
 
   /// Returns the persisted active-library id, or null if none saved yet.
   static Future<String?> load() async {

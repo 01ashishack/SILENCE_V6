@@ -76,6 +76,7 @@ class NotificationService {
     required String body,
     required String type,
     String? route,
+    String? libraryId,
     Map<String, dynamic>? extra,
   }) async {
     final r = route ?? routeForType(type);
@@ -87,6 +88,9 @@ class NotificationService {
         'data': {
           'type': type,
           'route': ?r,
+          // Stamp the originating library so the notification center can show a
+          // library chip and switch the admin's active library on tap.
+          if (libraryId != null && libraryId.isNotEmpty) 'library_id': libraryId,
           if (extra != null) ...extra,
         },
       });
@@ -102,6 +106,7 @@ class NotificationService {
     required String body,
     required String type,
     String? route,
+    String? libraryId,
     Map<String, dynamic>? extra,
   }) async {
     if (userIds.isEmpty) return;
@@ -116,6 +121,7 @@ class NotificationService {
                 'data': {
                   'type': type,
                   'route': ?r,
+                  if (libraryId != null && libraryId.isNotEmpty) 'library_id': libraryId,
                   if (extra != null) ...extra,
                 },
               })
@@ -138,7 +144,15 @@ class NotificationService {
       final lib = await _sb.from('libraries').select('owner_id').eq('id', libraryId).maybeSingle();
       final ownerId = lib?['owner_id']?.toString();
       if (ownerId == null || ownerId.isEmpty) return;
-      await send(userId: ownerId, title: title, body: body, type: type, extra: extra);
+      // Always stamp the library so owner notifications are library-aware.
+      await send(
+        userId: ownerId,
+        title: title,
+        body: body,
+        type: type,
+        libraryId: libraryId,
+        extra: extra,
+      );
     } catch (e) {
       debugPrint('NotificationService.notifyLibraryOwner failed ($type): $e');
     }

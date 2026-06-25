@@ -716,7 +716,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
             'user_id': ownerId,
             'title': 'New join request',
             'body': 'A new member has applied to join your library. Review it in Reservations → Requests.',
-            'data': {'type': 'join_request'},
+            'data': {'type': 'join_request', 'library_id': widget.libraryId},
           });
         }
       } catch (e) {

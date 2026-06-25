@@ -138,6 +138,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     );
     _checkRoleGuard();
     _inSetupMode = widget.startInSetupMode;
+    // React to "switch to this library" requests from other screens (e.g. the
+    // notification center tapping a notification that belongs to another lib).
+    ActiveLibraryStore.switchRequest.addListener(_onExternalSwitchRequest);
     // Restore the last-active library FIRST so the cached + fresh loads below
     // can prefer it over "the first library".
     ActiveLibraryStore.load().then((id) {
@@ -169,6 +172,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     _loadLibrarySpecificData(libId);
   }
 
+  /// Handles a switch requested from another screen (notification center, etc.).
+  /// Switches the active library if it's one we own and jumps to the dashboard.
+  void _onExternalSwitchRequest() {
+    final libId = ActiveLibraryStore.switchRequest.value;
+    if (libId == null) return;
+    if (_myLibraries.any((l) => l['id'] == libId)) {
+      if (libId != _libraryId) {
+        _switchActiveLibrary(libId);
+      }
+      if (mounted) setState(() => _currentTab = 0);
+    }
+    // Consume the request (won't re-trigger: the null guard above returns early).
+    ActiveLibraryStore.switchRequest.value = null;
+  }
+
   Future<void> _checkRoleGuard() async {
     try {
       final supabase = Supabase.instance.client;
@@ -188,6 +206,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
 
   @override
   void dispose() {
+    ActiveLibraryStore.switchRequest.removeListener(_onExternalSwitchRequest);
     _nameController.dispose();
     _phoneController.dispose();
     _libNameController.dispose();

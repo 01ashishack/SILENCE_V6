@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/states/states.dart';
+import '../core/active_library_store.dart';
 import 'contact_admin_screen.dart';
 
 /// Member-facing notification center. Reads the real `notifications` table for
@@ -24,6 +25,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Object? _error;
   List<Map<String, dynamic>> _items = [];
   bool _markingAll = false;
+  // id -> name for libraries this user OWNS (admins). Drives the per-tile
+  // library chip and gates the "switch active library on tap" behaviour.
+  Map<String, String> _libNames = {};
 
   @override
   void initState() {
@@ -51,9 +55,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .eq('user_id', user.id)
           .order('sent_at', ascending: false)
           .limit(100);
+      // Best-effort: load the libraries this user owns so multi-library admins
+      // get a "which library" chip + tap can switch to the right library.
+      Map<String, String> libNames = {};
+      try {
+        final libs = await _supabase
+            .from('libraries')
+            .select('id, name')
+            .eq('owner_id', user.id);
+        for (final l in List<Map<String, dynamic>>.from(libs)) {
+          final id = l['id']?.toString();
+          if (id != null) libNames[id] = (l['name'] ?? 'Library').toString();
+        }
+      } catch (_) {/* chip is a nicety; ignore failures */}
       if (!mounted) return;
       setState(() {
         _items = List<Map<String, dynamic>>.from(rows);
+        _libNames = libNames;
         _loading = false;
       });
     } catch (e) {
@@ -78,6 +96,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         (data is Map && data['type'] is String) ? data['type'] as String : '';
     final route =
         (data is Map && data['route'] is String) ? data['route'] as String : null;
+    final libId = (data is Map && data['library_id'] is String)
+        ? data['library_id'] as String
+        : null;
     try {
       if (route != null && route.isNotEmpty) {
         Navigator.of(context).pushNamed(route);
@@ -146,6 +167,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         case 'expiring_digest':
         case 'daily_summary':
         case 'dues_digest':
+          // Multi-library: jump the admin shell to the library this
+          // notification belongs to before opening the dashboard.
+          if (libId != null && _libNames.containsKey(libId)) {
+            ActiveLibraryStore.requestSwitch(libId);
+          }
           Navigator.of(context).pushNamed('/admin/home');
           break;
         case 'announcement':
@@ -279,10 +305,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 6),
         itemCount: _items.length,
-        itemBuilder: (context, index) => _NotificationTile(
-          item: _items[index],
-          onTap: () => _onTapNotification(_items[index]),
-        ),
+        itemBuilder: (context, index) {
+          final data = _items[index]['data'];
+          final libId = (data is Map && data['library_id'] is String)
+              ? data['library_id'] as String
+              : null;
+          // Only show the chip for multi-library owners (a single-library admin
+          // or a member doesn't need to disambiguate).
+          final libraryName =
+              (libId != null && _libNames.length > 1) ? _libNames[libId] : null;
+          return _NotificationTile(
+            item: _items[index],
+            libraryName: libraryName,
+            onTap: () => _onTapNotification(_items[index]),
+          );
+        },
       ),
     );
   }
@@ -290,9 +327,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
 class _NotificationTile extends StatelessWidget {
   final Map<String, dynamic> item;
+  final String? libraryName;
   final VoidCallback onTap;
 
-  const _NotificationTile({required this.item, required this.onTap});
+  const _NotificationTile({required this.item, this.libraryName, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -366,11 +404,38 @@ class _NotificationTile extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (time != null) ...[
+                    if (time != null || libraryName != null) ...[
                       const SizedBox(height: 6),
-                      Text(
-                        time,
-                        style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textMuted),
+                      Row(
+                        children: [
+                          if (libraryName != null) ...[
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  libraryName!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          if (time != null)
+                            Text(
+                              time,
+                              style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textMuted),
+                            ),
+                        ],
                       ),
                     ],
                   ],

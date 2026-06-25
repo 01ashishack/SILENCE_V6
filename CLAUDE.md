@@ -83,6 +83,24 @@ Sign-In + App Store regardless.
   (HIGH-2); E = "copy from / apply to other libraries". (Per-library vs global settings audit — MED-1 — is
   largely handled now that `settings` resolves to the active library; a fuller per-scope pass can come with D.)
 
+**Batch C — DONE (fixes HIGH-1: library-aware notifications):** `flutter analyze` 0 issues; debug build OK.
+**No DB migration** — `library_id` rides inside the existing `notifications.data` JSONB.
+- `notification_service.dart`: `send`/`sendMany` take optional `libraryId` → stamped into `data.library_id`;
+  `notifyLibraryOwner` (which already has the libraryId) now always stamps it. So every owner notification
+  routed through the helper is library-aware automatically.
+- `join_flow_screen.dart`: the direct "New join request" owner insert (most common owner notif, not via the
+  helper) now includes `data.library_id`.
+- `active_library_store.dart`: added `switchRequest` ValueNotifier + `requestSwitch(libId)` (persist +
+  broadcast). `admin_home` listens (`_onExternalSwitchRequest`) and switches the active library + jumps to
+  the dashboard tab when another screen requests it.
+- `notifications_screen.dart`: loads the owner's `id→name` map; shows a **library chip** on each tile (only
+  for multi-library owners); tapping an admin-destination notification calls `requestSwitch` so the shell
+  opens on the **right** library (was always the active one). Members/single-library owners see no chip — graceful.
+- **Coverage note:** chip+switch appear only for notifications that carry `data.library_id` (everything via
+  `notifyLibraryOwner` + the join-request insert). Other direct inserts degrade gracefully (no chip). A later
+  pass can stamp the remaining direct owner inserts.
+- **Remaining:** D = combined dashboard + cross-library analytics (HIGH-2); E = "copy from / apply to other libraries".
+
 ### Session 2026-06-25 (f) — Multi-library audit + Batch A (active-library single source of truth)
 
 **Audit (this session):** SILENCE is multi-library-*capable* (data scoped by `library_id`; admin switcher
