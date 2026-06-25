@@ -1819,6 +1819,8 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               DropdownButtonFormField<String>(
                 initialValue: _myLibrariesList.any((lib) => lib['id'] == _selectedLibraryIdToManage) ? _selectedLibraryIdToManage : (_myLibrariesList.isNotEmpty ? _myLibrariesList.first['id'] : null),
                 dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                menuMaxHeight: 320,
                 style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 13, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2862,6 +2864,28 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
     });
   }
 
+  Widget _priceTypeChip(String label, String value, String selected, VoidCallback onTap) {
+    final bool active = selected == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFFE65C00) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(label,
+              style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: active ? Colors.white : const Color(0xFF475569))),
+        ),
+      ),
+    );
+  }
+
   Future<Map<String, dynamic>> _fetchData() async {
     final addonsRes = await _supabase
         .from('add_ons')
@@ -3005,21 +3029,27 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: ['monthly', 'one_time'].contains(priceType) ? priceType : 'monthly',
-                            dropdownColor: Colors.white,
-                            decoration: const InputDecoration(labelText: 'Price Type'),
-                            items: const [
-                              DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
-                              DropdownMenuItem(value: 'one_time', child: Text('One-time')),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('Price Type',
+                                  style: GoogleFonts.inter(
+                                      fontSize: 11, color: const Color(0xFF6B7280))),
+                              const SizedBox(height: 4),
+                              // Inline segmented toggle instead of a DropdownButton:
+                              // a dropdown overlay inside a nested bottom sheet was
+                              // the trigger for the _dependents.isEmpty red-screen.
+                              Row(
+                                children: [
+                                  _priceTypeChip('Monthly', 'monthly', priceType,
+                                      () => setSheetState(() => priceType = 'monthly')),
+                                  const SizedBox(width: 6),
+                                  _priceTypeChip('One-time', 'one_time', priceType,
+                                      () => setSheetState(() => priceType = 'one_time')),
+                                ],
+                              ),
                             ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                setSheetState(() {
-                                  priceType = val;
-                                });
-                              }
-                            },
                           ),
                         ),
                       ],

@@ -981,6 +981,9 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                     const SizedBox(height: 6),
                                     DropdownButtonFormField<String>(
                                       isExpanded: true,
+                                      dropdownColor: Colors.white,
+                                      borderRadius: BorderRadius.circular(14),
+                                      menuMaxHeight: 320,
                                       initialValue: _stateController.text.isNotEmpty && _indianStates.contains(_stateController.text)
                                           ? _stateController.text
                                           : null,
