@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/active_library_store.dart';
 
 class LibrarySetupStage3Screen extends StatefulWidget {
   const LibrarySetupStage3Screen({super.key});
@@ -100,10 +101,10 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
           passedId = args;
         }
 
-        final query = sb.from('libraries').select().eq('owner_id', user.id);
-        final libData = passedId != null
-            ? await query.eq('id', passedId).maybeSingle()
-            : await query.maybeSingle();
+        final libId = await ActiveLibraryStore.resolve(passedId);
+        final libData = libId != null
+            ? await sb.from('libraries').select().eq('id', libId).maybeSingle()
+            : null;
 
         if (libData != null) {
           _libraryId = libData['id'];

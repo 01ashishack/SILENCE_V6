@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/calendar_picker.dart';
+import '../../core/active_library_store.dart';
 import '../../models/member_data.dart';
 import '../../core/cache_service.dart';
 
@@ -101,25 +102,16 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
       debugPrint('Error reading cached libraries: $e');
     }
 
-    // Query Supabase
+    // Query Supabase (resolve to the active/first library; never .maybeSingle()
+    // on an owner with 2+ libraries → that 406s).
     try {
-      final user = _supabase.auth.currentUser;
-      if (user != null) {
-        final res = await _supabase
-            .from('libraries')
-            .select('id')
-            .eq('owner_id', user.id)
-            .maybeSingle();
-        if (res != null) {
-          final libId = res['id'] as String?;
-          if (libId != null && libId.isNotEmpty) {
-            debugPrint('=== AddMemberStep2 resolved libraryId from DB: $libId ===');
-            return libId;
-          }
-        }
+      final libId = await ActiveLibraryStore.resolve(null);
+      if (libId != null && libId.isNotEmpty) {
+        debugPrint('=== AddMemberStep2 resolved libraryId: $libId ===');
+        return libId;
       }
     } catch (e) {
-      debugPrint('Error fetching libraries from Supabase: $e');
+      debugPrint('Error resolving library: $e');
     }
 
     return '';

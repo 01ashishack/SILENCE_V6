@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image_cropper/image_cropper.dart';
 import '../core/image_optimizer.dart';
+import '../core/active_library_store.dart';
+import '../core/library_settings_copier.dart';
 
 
 class LibrarySetupStage1Screen extends StatefulWidget {
@@ -30,6 +32,8 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
   String _libraryCode = '';
   String? _libraryId;
+  // True when this screen was opened to ADD a brand-new library (arg 'new').
+  bool _isNewLibrary = false;
   bool _isLoading = false;
   bool _isUploadingCover = false;
   bool _isUploadingGallery = false;
@@ -114,6 +118,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
         // (Previously a null arg loaded the owner's existing library, so "Add
         // Library" wrongly opened an already-created library's details.)
         if (passedId == 'new') {
+          _isNewLibrary = true;
           // Give the fresh library a temp code up-front (same scheme as
           // _ensureLibraryId) so _handleSave's INSERT never collides on an
           // empty library_code.
@@ -681,6 +686,8 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
       if (_coverPhotoUrl != null) photosList.add(_coverPhotoUrl!);
       photosList.addAll(_uploadedPhotos);
 
+      final bool creatingNew = _libraryId == null;
+
       if (_libraryId == null) {
         // Ensure public.users row exists before inserting library (FK guard)
         try {
@@ -725,15 +732,95 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
         if (!mounted) return;
       }
 
+      if (!mounted) return;
+
+      // ADD-LIBRARY flow: a brand-new (2nd+) library inherits the first
+      // library's settings; the owner only does Basic Details + Layout.
+      if (creatingNew && _isNewLibrary && _libraryId != null) {
+        await _finishNewLibrarySetup(supabase, _libraryId!);
+        return;
+      }
+
       _showSuccessSnackBar('Library details saved successfully! ✓');
       if (!mounted) return;
-      
       Navigator.pop(context, true); // Pop back to Admin Home and trigger refresh
     } catch (e) {
       _showErrorSnackBar('Error saving library details: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// After a new library's basic details are saved: copy the first library's
+  /// settings into it, make it the active library, tell the owner, then send
+  /// them straight to Layout setup (the one thing that can't be inherited).
+  Future<void> _finishNewLibrarySetup(SupabaseClient supabase, String newId) async {
+    // Find the owner's FIRST (oldest) other library to copy settings from.
+    String? sourceId;
+    try {
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        final libs = await supabase
+            .from('libraries')
+            .select('id')
+            .eq('owner_id', user.id)
+            .order('created_at');
+        for (final l in List<Map<String, dynamic>>.from(libs)) {
+          if (l['id'].toString() != newId) {
+            sourceId = l['id'].toString();
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('find source library failed: $e');
+    }
+
+    if (sourceId != null) {
+      await LibrarySettingsCopier.copyAll(sourceId: sourceId, targetId: newId);
+    }
+    // Make the new library the active one so Layout + everything else targets it.
+    await ActiveLibraryStore.save(newId);
+    ActiveLibraryStore.requestSwitch(newId);
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Color(0xFF16A34A)),
+            const SizedBox(width: 8),
+            Text('Library created',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          sourceId != null
+              ? 'Your new library is ready. All other settings (plans, shifts, '
+                  'amenities, add-ons, rules) have been set to your first '
+                  'library\'s defaults — change them anytime in Library Management. '
+                  'Next, set up this library\'s layout.'
+              : 'Your new library is ready. Next, set up this library\'s layout.',
+          style: GoogleFonts.inter(fontSize: 13.5, height: 1.5),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Set up layout',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    // Go to Layout setup for the NEW library; popping it returns to Admin Home.
+    Navigator.pushReplacementNamed(context, '/admin/library/setup/2', arguments: newId);
   }
 
   @override

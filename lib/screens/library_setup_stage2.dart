@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/active_library_store.dart';
 import '../widgets/seat_generation_inline_widget.dart';
 
 
@@ -103,13 +104,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
         passedId = args;
       }
 
-      String? libId = passedId;
-      if (libId == null) {
-        final libRow = await sb.from('libraries').select('id').eq('owner_id', user.id).maybeSingle();
-        if (libRow != null) {
-          libId = libRow['id'] as String;
-        }
-      }
+      String? libId = await ActiveLibraryStore.resolve(passedId);
 
       if (!mounted) return;
       if (libId == null) { setState(() => _isLoading = false); return; }
