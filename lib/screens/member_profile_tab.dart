@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/app_info.dart';
+import '../core/account_deletion_service.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -2017,16 +2018,8 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
   }
 
   Future<void> _scheduleDeletion() async {
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) return;
-    final deletionTime = DateTime.now().add(const Duration(days: 7));
     try {
-      await supabase.from('users').update({
-        'scheduled_for_deletion': true,
-        'deletion_scheduled_at': deletionTime.toIso8601String(),
-        'deletion_recovery_status': 'none',
-      }).eq('id', user.id);
+      await AccountDeletionService.schedule();
       if (!mounted) return;
       // Freeze immediately — block dashboard, only recovery/logout remain.
       Navigator.of(context).pushNamedAndRemoveUntil('/account-frozen', (r) => false);

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/error_messages.dart';
+import '../core/account_deletion_service.dart';
 
 class MemberPrivacySecurityScreen extends StatefulWidget {
   const MemberPrivacySecurityScreen({super.key});
@@ -449,7 +450,6 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
   Future<void> _scheduleDeletion() async {
               setState(() => _isLoading = true);
               try {
-                final supabase = Supabase.instance.client;
                 final prefs = await SharedPreferences.getInstance();
                 final suffix = _userId!;
                 final deletionTime = DateTime.now().add(const Duration(days: 7));
@@ -458,11 +458,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                 await prefs.setString('privacy_deletion_time_$suffix', deletionTime.toIso8601String());
 
                 try {
-                  await supabase.from('users').update({
-                    'scheduled_for_deletion': true,
-                    'deletion_scheduled_at': deletionTime.toIso8601String(),
-                    'deletion_recovery_status': 'none',
-                  }).eq('id', _userId!);
+                  await AccountDeletionService.schedule();
                   if (!mounted) return;
                   // Freeze immediately — block dashboard, only recovery/logout remain.
                   Navigator.of(context).pushNamedAndRemoveUntil('/account-frozen', (r) => false);
@@ -486,7 +482,6 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
   Future<void> _cancelDeletion() async {
     setState(() => _isLoading = true);
     try {
-      final supabase = Supabase.instance.client;
       final prefs = await SharedPreferences.getInstance();
       final suffix = _userId!;
 
@@ -494,10 +489,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
       await prefs.remove('privacy_deletion_time_$suffix');
 
       try {
-        await supabase.from('users').update({
-          'scheduled_for_deletion': false,
-          'deletion_scheduled_at': null,
-        }).eq('id', _userId!);
+        await AccountDeletionService.cancel();
         if (!mounted) return;
       } catch (e) {
         debugPrint('Failed to reset scheduled_for_deletion in DB, using local: $e');
