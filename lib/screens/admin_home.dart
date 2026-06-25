@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/cache_service.dart';
+import '../core/active_library_store.dart';
 import '../core/plan_service.dart';
 import '../widgets/upgrade_sheet.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -57,6 +58,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
 
   // Loaded database references
   String? _libraryId;
+  // Last-active library id restored from SharedPreferences (so a multi-library
+  // owner reopens on the same library). Null until loaded / if never saved.
+  String? _persistedLibId;
   String _libraryCode = 'SIL-XXXXXX';
   String _libraryName = 'Your Library';
   Holiday? _todayHoliday;
@@ -134,9 +138,35 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     );
     _checkRoleGuard();
     _inSetupMode = widget.startInSetupMode;
-    _loadCachedInitialData().then((_) {
-      _loadInitialData();
+    // Restore the last-active library FIRST so the cached + fresh loads below
+    // can prefer it over "the first library".
+    ActiveLibraryStore.load().then((id) {
+      _persistedLibId = id;
+      _loadCachedInitialData().then((_) {
+        _loadInitialData();
+      });
     });
+  }
+
+  /// Pick which library should be active: the persisted one if it's still owned,
+  /// otherwise the first. Centralizes the old `_myLibraries.first` default.
+  String _pickActiveLibraryId() {
+    if (_persistedLibId != null &&
+        _myLibraries.any((l) => l['id'] == _persistedLibId)) {
+      return _persistedLibId!;
+    }
+    return _myLibraries.first['id'] as String;
+  }
+
+  /// Single entry point for switching the active library: updates state,
+  /// persists the choice, and reloads that library's data.
+  void _switchActiveLibrary(String libId) {
+    setState(() {
+      _libraryId = libId;
+    });
+    _persistedLibId = libId;
+    ActiveLibraryStore.save(libId);
+    _loadLibrarySpecificData(libId);
   }
 
   Future<void> _checkRoleGuard() async {
@@ -207,7 +237,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   _libraryId != null &&
                   _myLibraries.any((l) => l['id'] == _libraryId);
               if (!hasMatch) {
-                _libraryId = _myLibraries.first['id'];
+                _libraryId = _pickActiveLibraryId();
               }
             }
           });
@@ -336,7 +366,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               _libraryId != null &&
               _myLibraries.any((l) => l['id'] == _libraryId);
           if (!hasMatch) {
-            _libraryId = _myLibraries.first['id'];
+            _libraryId = _pickActiveLibraryId();
           }
           await _loadLibrarySpecificData(_libraryId!);
         } else {
@@ -1309,15 +1339,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                     }
 
                     return InkWell(
-                      onTap: () async {
+                      onTap: () {
                         Navigator.pop(context);
-                        setState(() {
-                          _libraryId = lib['id'];
-                        });
-                        await _loadLibrarySpecificData(lib['id']);
-                        if (mounted) {
-                          setState(() {});
-                        }
+                        _switchActiveLibrary(lib['id'] as String);
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -4847,10 +4871,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         myLibraries: _myLibraries,
         initialSubTab: _reservationsInitialSubTab,
         onLibraryChanged: (libId) {
-          setState(() {
-            _libraryId = libId;
-          });
-          _loadLibrarySpecificData(libId);
+          _switchActiveLibrary(libId);
         },
       ),
       AdminAnalyticsTab(
@@ -4858,10 +4879,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         libraryName: _libraryName,
         myLibraries: _myLibraries,
         onLibraryChanged: (libId) {
-          setState(() {
-            _libraryId = libId;
-          });
-          _loadLibrarySpecificData(libId);
+          _switchActiveLibrary(libId);
         },
       ),
       AdminProfileTab(
@@ -4870,10 +4888,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         coverPhotoUrl: _coverPhotoUrl,
         myLibraries: _myLibraries,
         onLibraryChanged: (libId) {
-          setState(() {
-            _libraryId = libId;
-          });
-          _loadLibrarySpecificData(libId);
+          _switchActiveLibrary(libId);
         },
         onLibraryUpdated: () {
           _loadInitialData();

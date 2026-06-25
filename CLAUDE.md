@@ -69,6 +69,31 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-25 (f) — Multi-library audit + Batch A (active-library single source of truth)
+
+**Audit (this session):** SILENCE is multi-library-*capable* (data scoped by `library_id`; admin switcher
+in reservations/analytics tabs; member analytics has 'all'+per-library) but not multi-library-*professional*.
+Found: (CRITICAL-1) several settings screens self-resolve the library via `owner_id … maybeSingle()/limit(1)`
+→ break or pick arbitrary with 2+ libraries; (CRITICAL-2) profile-tab had TWO sources of truth — a local
+`_selectedLibraryIdToManage` dropdown that didn't switch the global active library, so settings opened a
+different library than selected; (HIGH-1) notifications are per-user with no library label/scope, tap routes
+to active lib not the originating one; (HIGH-2) no combined/cross-library dashboard; (MED) no persisted
+active library, no current-library indicator on sub-screens. Scores: Mgmt 5, UX 4, Data-integrity 6.5,
+Scalability 3.5. No cross-OWNER leakage found (DB scoping is sound); this is an app-architecture/UX problem.
+
+**Batch A — DONE (fixes CRITICAL-2 + MEDIUM-3 persistence):** `flutter analyze` 0 issues; debug build OK.
+- New `lib/core/active_library_store.dart` — persists the admin's last-active library id in SharedPreferences.
+- `admin_home.dart`: added `_pickActiveLibraryId()` (prefers the persisted library if still owned, else first)
+  used at both initial-load spots; added `_switchActiveLibrary(libId)` as the SINGLE switch entry point
+  (setState + persist + reload); routed all 4 switch sites through it (in-home switcher sheet + the 3 tab
+  `onLibraryChanged` callbacks). On launch the persisted library is restored before cached/fresh loads.
+- `admin_profile_tab.dart`: the "manage which library" dropdown now calls `widget.onLibraryChanged(val)` so
+  selecting a library **switches the global active library** (no more local-only divergence). `_buildSettingsItem`
+  now passes `_selectedLibraryIdToManage ?? widget.libraryId` so every settings screen opens the selected lib.
+- **Remaining (next batches):** B = remove `owner_id … maybeSingle()` self-resolution in settings screens
+  (CRITICAL-1) + per-library vs global settings audit; C = library-aware notifications (HIGH-1);
+  D = combined dashboard + cross-library analytics (HIGH-2); E = "copy from / apply to other libraries" time-saver.
+
 ### Session 2026-06-25 (e) — Perf batch 2: font subsetting + list-laziness audit
 
 - **List laziness audit (no code change needed):** verified the heavy unbounded data lists already use

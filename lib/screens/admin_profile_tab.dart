@@ -1481,7 +1481,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
         Navigator.pushNamed(
           context,
           routeName,
-          arguments: widget.libraryId,
+          arguments: _selectedLibraryIdToManage ?? widget.libraryId,
         ).then((_) {
           _loadProfileData();
         });
@@ -1783,6 +1783,12 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     setState(() {
                       _selectedLibraryIdToManage = val;
                     });
+                    // Make this the GLOBAL active library so every settings
+                    // screen, the dashboard, analytics and reservations all
+                    // act on the same library (single source of truth). Was
+                    // previously local-only, which let settings open a
+                    // different library than the one selected here.
+                    widget.onLibraryChanged(val);
                   }
                 },
               ),
