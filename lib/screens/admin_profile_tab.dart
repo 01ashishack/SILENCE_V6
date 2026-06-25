@@ -2749,7 +2749,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
   @override
   void initState() {
     super.initState();
-    _refreshData();
+    _dataFuture = _fetchData(); // no setState in initState
   }
 
   void _refreshData() {
@@ -2986,8 +2986,11 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                             await _supabase.from('add_ons').insert(payload);
                           }
 
-                          // Single pop (no nested loader dialog) — avoids the
-                          // _dependents.isEmpty unmount race the loader caused.
+                          // Dismiss the keyboard/focus BEFORE popping so the
+                          // focus + MediaQuery dependencies are torn down
+                          // cleanly (the real _dependents.isEmpty trigger for a
+                          // focused TextField inside a popping bottom sheet).
+                          FocusManager.instance.primaryFocus?.unfocus();
                           if (sheetContext.mounted) Navigator.pop(sheetContext);
                           _refreshData();
                           if (mounted) {
