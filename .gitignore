@@ -56,3 +56,8 @@ scratch/
 
 # Supabase CLI local cache
 supabase/.temp/
+
+# Downloaded variable-font sources used to instance the bundled static weights
+# (see tools/build_static_fonts.py). The generated statics live in
+# assets/google_fonts/ and ARE committed; these large VF sources are not.
+tools/_var_cache/

@@ -183,7 +183,7 @@ class _ArchiveSubTabState extends State<ArchiveSubTab> {
                                 leading: CircleAvatar(
                                   radius: 24,
                                   backgroundColor: const Color(0xFFFFF7F0),
-                                  backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                                  backgroundImage: photo.isNotEmpty ? ResizeImage(NetworkImage(photo), width: 150) : null,
                                   child: photo.isEmpty ? const Icon(Icons.person, color: Color(0xFFE65C00)) : null,
                                 ),
                                 title: Text(

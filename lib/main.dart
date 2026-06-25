@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter/foundation.dart' show kReleaseMode, LicenseRegistry, LicenseEntryWithLineBreaks;
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -82,6 +82,25 @@ void main() {
     if (kReleaseMode) {
       debugPrint = (String? message, {int? wrapWidth}) {};
     }
+
+    // Perf (low-RAM phones): cap the in-memory image cache so a few large
+    // photos can't blow up RAM. Default is ~100MB / 1000 entries.
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20; // 50 MB
+    PaintingBinding.instance.imageCache.maximumSize = 200;           // 200 images
+
+    // Perf (first-paint jank): the common Inter/Outfit weights are bundled in
+    // assets/google_fonts/, so GoogleFonts uses them directly (no network fetch
+    // → no text flash on first run). Runtime fetching stays ON as a safety net
+    // for any rare unbundled variant (e.g. italics). Register the bundled fonts'
+    // OFL-1.1 license so it shows in the app's licence list.
+    LicenseRegistry.addLicense(() async* {
+      try {
+        final license = await rootBundle.loadString('assets/google_fonts/OFL.txt');
+        yield LicenseEntryWithLineBreaks(['google_fonts'], license);
+      } catch (_) {
+        // License file missing from the bundle — skip silently.
+      }
+    });
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);

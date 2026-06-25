@@ -777,7 +777,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                       radius: 48,
                                       backgroundColor: const Color(0xFFFFF7F0),
                                       backgroundImage: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
-                                          ? NetworkImage(_coverPhotoUrl!)
+                                          ? ResizeImage(NetworkImage(_coverPhotoUrl!), width: 200)
                                           : null,
                                       child: _coverPhotoUrl == null || _coverPhotoUrl!.isEmpty
                                           ? const Icon(Icons.camera_alt, size: 36, color: Color(0xFFE65C00))
@@ -983,6 +983,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                         child: Image.network(
                                           url,
                                           fit: BoxFit.cover,
+                                          cacheWidth: 360,
                                         ),
                                       ),
                                     ),

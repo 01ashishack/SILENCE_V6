@@ -893,7 +893,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                     leading: CircleAvatar(
                       radius: 18,
                       backgroundColor: const Color(0xFFFFF7F0),
-                      backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                      backgroundImage: photo.isNotEmpty ? ResizeImage(NetworkImage(photo), width: 150) : null,
                       child: photo.isEmpty
                           ? const Icon(Icons.person, color: Color(0xFFE65C00), size: 18)
                           : null,
@@ -1668,6 +1668,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   child: Image.network(
                     memberPhoto,
                     fit: BoxFit.cover,
+                    cacheWidth: 120, // tiny seat-grid avatar — downscale decode
                     errorBuilder: (ctx, err, stack) => const Icon(Icons.person, size: 22, color: Colors.white),
                   ),
                 );

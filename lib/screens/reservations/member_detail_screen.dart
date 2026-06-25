@@ -1402,6 +1402,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         width: 72,
         height: 72,
         fit: BoxFit.cover,
+        cacheWidth: 200, // downscale decode (low-RAM)
         errorBuilder: (context, error, stackTrace) => fallback(),
       ),
     );
@@ -1513,6 +1514,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     resolvedUrl,
                     height: 150,
                     fit: BoxFit.cover,
+                    cacheWidth: 720, // downscale decode of large ID-doc uploads
                     errorBuilder: (context, error, stackTrace) => _documentFallback(),
                   ),
                 ),

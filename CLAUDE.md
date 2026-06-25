@@ -69,6 +69,49 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-25 (d) — Font bundling (eliminate first-paint font fetch jank) — ✅ DONE + build-verified
+
+The app uses `GoogleFonts.inter()` / `GoogleFonts.outfit()` everywhere; previously these were fetched
+over HTTP on first run (text flash / jank, and broke offline-first paint). Now the common static weights
+are **bundled in `assets/google_fonts/`** so GoogleFonts uses them directly (no network fetch, instant
+first paint). **Runtime fetching left ON** (default) as a safety net for any rare unbundled variant
+(e.g. italics) — bundled assets take priority, so zero regression risk.
+- Bundled weights (named exactly as the GoogleFonts API expects so the package auto-matches them):
+  - Inter: Regular(400), Medium(500), SemiBold(600), Bold(700)
+  - Outfit: Regular(400), Medium(500), SemiBold(600), Bold(700), ExtraBold(800)  *(w800 = section headers)*
+  - `OFL.txt` shipped alongside; registered in `main.dart` via `LicenseRegistry` so it shows in the
+    app's licence list.
+- google/fonts only ships **variable** fonts for Inter/Outfit, so `tools/build_static_fonts.py`
+  (one-off helper) downloads the VFs and instances the static weights with `fontTools` (pip:
+  `fonttools brotli`). VF sources cached in `tools/_var_cache/` (gitignored); the generated statics
+  (~1.6 MB total) are committed under `assets/google_fonts/`.
+- `pubspec.yaml`: added `- assets/google_fonts/` to `flutter > assets`.
+- `lib/main.dart`: foundation import now also shows `LicenseRegistry, LicenseEntryWithLineBreaks`;
+  OFL license registered.
+- **Verified:** `flutter analyze lib/main.dart` 0 issues; `flutter build apk --debug` **succeeded** and
+  all 10 font files confirmed present inside the APK (`assets/flutter_assets/assets/google_fonts/...`).
+- **NOT yet committed** (this + the (c) image-RAM batch are uncommitted).
+
+### Session 2026-06-25 (c) — Performance wins for low-RAM phones (image RAM) — ✅ batch 1
+
+Zero-dependency RAM wins to keep the app smooth on low-RAM devices (no new packages; these screens
+don't use `cached_network_image`, so this only trims **decode/in-memory** cost — no disk cache added).
+- `lib/main.dart` — global image-cache cap in `runZonedGuarded` after the kReleaseMode block:
+  `imageCache.maximumSizeBytes = 50 << 20` (50 MB) + `maximumSize = 200` entries. Bounds the worst-case
+  bitmap RAM that was previously unbounded.
+- Downsized network-image decodes (decode at display size, not full-res) via `cacheWidth` (Image.network)
+  / `ResizeImage(NetworkImage(...))` (avatars):
+  - `requests_sub_tab.dart` — doc zoom `cacheWidth:1080` + thumb `ResizeImage w:300`; UPI proof zoom
+    `ResizeImage w:1080` + thumb `w:150`.
+  - `member_detail_screen.dart` — avatar `cacheWidth:200`; doc image `cacheWidth:720`.
+  - `layout_sub_tab.dart` — seat-grid member photo `cacheWidth:120`; candidate-list avatar `ResizeImage w:150`.
+  - `archive_sub_tab.dart` — list avatar `ResizeImage w:150`.
+  - `library_setup_stage1.dart` — cover avatar `ResizeImage w:200`; gallery thumb `cacheWidth:360`.
+- `flutter analyze` (6 touched files): **0 issues.** **NOT yet committed.**
+- **Deferred (#3 fonts bundling):** GoogleFonts currently fetches at runtime; bundling the woff/ttf would
+  cut first-paint jank but needs the font files / user OK. Recommend `flutter build apk --release
+  --split-per-abi` for real perf testing (debug builds are not representative).
+
 ### Session 2026-06-25 (b) — Add-on save 400 (schema drift) RESOLVED + admin add-on UX hardening
 
 **Root cause (found via Chrome `POST /add_ons → 400`):** the live `add_ons` table had drifted from the

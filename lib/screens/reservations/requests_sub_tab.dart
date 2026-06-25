@@ -1539,7 +1539,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             context: context,
             builder: (c) => Dialog(
               child: InteractiveViewer(
-                child: Image.network(url, fit: BoxFit.contain,
+                child: Image.network(url, fit: BoxFit.contain, cacheWidth: 1080,
                     errorBuilder: (ctx, err, stack) => const SizedBox(height: 200, child: Center(child: Text('Could not load image')))),
               ),
             ),
@@ -1549,7 +1549,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFE2E8F0)),
-              image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
+              image: DecorationImage(image: ResizeImage(NetworkImage(url), width: 300), fit: BoxFit.cover),
             ),
           ),
         ),
@@ -1830,7 +1830,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                           child: Container(
                             height: 400,
                             decoration: BoxDecoration(
-                              image: DecorationImage(image: NetworkImage(upiProof), fit: BoxFit.contain),
+                              image: DecorationImage(image: ResizeImage(NetworkImage(upiProof), width: 1080), fit: BoxFit.contain),
                             ),
                           ),
                         ),
@@ -1842,7 +1842,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.grey[300]!),
-                        image: DecorationImage(image: NetworkImage(upiProof), fit: BoxFit.cover),
+                        image: DecorationImage(image: ResizeImage(NetworkImage(upiProof), width: 150), fit: BoxFit.cover),
                       ),
                       child: Container(
                         color: Colors.black.withValues(alpha: 0.2),
