@@ -1308,7 +1308,8 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   InkWell(
                     onTap: () {
                       Navigator.pop(context);
-                      Navigator.pushNamed(context, '/admin/library/setup/1');
+                      Navigator.pushNamed(context, '/admin/library/setup/1',
+                          arguments: 'new');
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1323,7 +1324,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '+ Add Library',
+                            'Add Library',
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,

@@ -1492,7 +1492,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                         return;
                       }
                       nav.pop(); // close the switcher
-                      nav.pushNamed('/admin/library/setup/1').then((_) {
+                      // 'new' tells the setup screen to start a BLANK new library
+                      // instead of loading the owner's existing one.
+                      nav.pushNamed('/admin/library/setup/1', arguments: 'new')
+                          .then((_) {
                         _loadInitialData();
                       });
                     },
@@ -1509,7 +1512,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '+ Add Library',
+                            'Add Library',
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,

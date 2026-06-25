@@ -109,10 +109,23 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
         }
         debugPrint('Passed route arguments (libraryId): $passedId');
 
+        // 'new' = explicitly add a NEW library: skip loading any existing one so
+        // the form starts blank and _handleSave INSERTs a fresh library row.
+        // (Previously a null arg loaded the owner's existing library, so "Add
+        // Library" wrongly opened an already-created library's details.)
+        if (passedId == 'new') {
+          // Give the fresh library a temp code up-front (same scheme as
+          // _ensureLibraryId) so _handleSave's INSERT never collides on an
+          // empty library_code.
+          _libraryCode = _generateTempLibraryCode();
+          if (mounted) setState(() => _isLoading = false);
+          return;
+        }
+
         final query = supabase.from('libraries').select().eq('owner_id', user.id);
         final libData = passedId != null
             ? await query.eq('id', passedId).maybeSingle()
-            : await query.maybeSingle();
+            : await query.limit(1).maybeSingle();
 
         debugPrint('Supabase query result libData: $libData');
 

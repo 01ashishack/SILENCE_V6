@@ -960,6 +960,51 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           ),
 
                 if (_myLibrariesList.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          if (!_isProfileComplete) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Complete your profile first to add a library',
+                                    style: GoogleFonts.inter()),
+                                backgroundColor: const Color(0xFFE65C00),
+                              ),
+                            );
+                            return;
+                          }
+                          // 'new' → start a blank NEW library (not edit an existing one).
+                          Navigator.pushNamed(context, '/admin/library/setup/1',
+                                  arguments: 'new')
+                              .then((_) {
+                            _loadProfileData();
+                            widget.onLibraryUpdated?.call();
+                          });
+                        },
+                        icon: const Icon(Icons.add_business_outlined,
+                            size: 18, color: Color(0xFFE65C00)),
+                        label: Text('Add Library',
+                            style: GoogleFonts.inter(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFE65C00))),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFFFD8BF)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                if (_myLibrariesList.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   _buildLibraryManagementGridCard(),
                   const SizedBox(height: 24),

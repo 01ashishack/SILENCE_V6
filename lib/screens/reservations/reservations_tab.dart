@@ -280,6 +280,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                       Navigator.pushNamed(
                         context,
                         '/admin/library/setup/1',
+                        arguments: 'new',
                       );
                     },
                     child: Container(
@@ -295,7 +296,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '+ Add Library',
+                            'Add Library',
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
