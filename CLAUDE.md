@@ -113,6 +113,24 @@ Sign-In + App Store regardless.
 - **⚠️ DEVICE-VERIFY** the aggregate numbers against the per-library dashboards (queries couldn't be runtime-tested here).
 - **Remaining:** E = "copy from / apply to other libraries" time-saver (per-library settings reuse).
 
+**Batch E — DONE (time-saver: copy settings between libraries):** `flutter analyze` 0 issues; debug build OK.
+- New `lib/screens/admin/copy_library_settings_screen.dart` — copy config INTO the current library from a
+  chosen source library. Toggles: Shifts & plans / Add-ons / Amenities / Business rules. **COPY (one-time),
+  not LINK** — copied rows are independent (no accidental cross-library coupling), additive (never deletes
+  target data), warns about duplicate shifts/add-ons on re-run. Honest result snackbar (copied / failed counts).
+  Queries mirror the canonical columns (shifts: name/times/price_*/trial_days/shift_type/hours_per_day,
+  non-archived; add_ons: name/price/price_type/refundable_deposit/max_available/active; libraries.amenities;
+  settings scope 'business_rules' + libraries.rules_metadata). **No DB changes.**
+- Entry point: profile-tab library section → "Copy settings from another library" button (multi-library only),
+  targets the active library; refreshes on success.
+- **⚠️ DEVICE-VERIFY** (writes config to a live library): after a copy, confirm shifts/plans/add-ons/amenities/
+  rules appear correctly in the target and the source is unchanged.
+
+### ✅ Multi-library audit remediation A–E COMPLETE (app-layer). Remaining (not app-code):
+- Device-verify all batches (Batch D aggregate numbers, C tap-switch, E copy results).
+- Optional: stamp `library_id` on the remaining direct owner-notification inserts (C coverage).
+- Optional: a fuller per-scope per-library-vs-global settings classification.
+
 ### Session 2026-06-25 (f) — Multi-library audit + Batch A (active-library single source of truth)
 
 **Audit (this session):** SILENCE is multi-library-*capable* (data scoped by `library_id`; admin switcher

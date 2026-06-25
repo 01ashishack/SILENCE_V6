@@ -17,6 +17,7 @@ import '../core/plan_service.dart';
 import '../widgets/upgrade_sheet.dart';
 import 'library_public_profile_screen.dart';
 import 'payment_methods_screen.dart';
+import 'admin/copy_library_settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 
@@ -1791,6 +1792,41 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     widget.onLibraryChanged(val);
                   }
                 },
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () {
+                  final targetId = _selectedLibraryIdToManage ?? widget.libraryId;
+                  if (targetId == null) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CopyLibrarySettingsScreen(
+                        targetLibraryId: targetId,
+                        targetLibraryName:
+                            (_selectedLibrary?['name'] ?? 'this library').toString(),
+                      ),
+                    ),
+                  ).then((copied) {
+                    if (copied == true) {
+                      _loadProfileData();
+                      widget.onLibraryUpdated?.call();
+                    }
+                  });
+                },
+                icon: const Icon(Icons.copy_all_rounded,
+                    size: 18, color: Color(0xFFE65C00)),
+                label: Text('Copy settings from another library',
+                    style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFE65C00))),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFFFD8BF)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
               ),
             ],
             if (_myLibrariesList.isNotEmpty) ...[
