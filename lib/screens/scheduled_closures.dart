@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../core/calendar_picker.dart';
+import '../core/active_library_store.dart';
 import '../theme/app_colors.dart';
 import '../utils/holiday_service.dart';
 import '../utils/error_messages.dart';
@@ -18,7 +18,6 @@ class ScheduledClosuresScreen extends StatefulWidget {
 
 class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
     with SingleTickerProviderStateMixin {
-  final _supabase = Supabase.instance.client;
   late TabController _tabController;
 
   bool _isLoading = true;
@@ -45,18 +44,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
       _loadError = null;
     });
     try {
-      _libId = widget.libraryId;
-      if (_libId == null) {
-        final user = _supabase.auth.currentUser;
-        if (user != null) {
-          final res = await _supabase
-              .from('libraries')
-              .select('id')
-              .eq('owner_id', user.id)
-              .maybeSingle();
-          _libId = res?['id']?.toString();
-        }
-      }
+      _libId = await ActiveLibraryStore.resolve(widget.libraryId);
       if (_libId == null) {
         throw 'No library found for this account.';
       }

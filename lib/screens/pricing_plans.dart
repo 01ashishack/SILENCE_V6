@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/active_library_store.dart';
 
 class PlanItem {
   final String id;
@@ -79,12 +80,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
     if (user != null) {
       try {
         _libId ??= widget.libraryId;
-        if (_libId == null) {
-          final libRes = await _supabase.from('libraries').select('id').eq('owner_id', user.id).maybeSingle();
-          if (libRes != null) {
-            _libId = libRes['id'];
-          }
-        }
+        _libId = await ActiveLibraryStore.resolve(_libId);
 
         // Setup canonical plans if cache is empty
         _plans = [

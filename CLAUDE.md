@@ -69,6 +69,20 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+**Batch B — DONE (fixes CRITICAL-1: settings screens self-resolving the library):** `flutter analyze`
+0 issues; debug build OK. The old `eq('owner_id', uid).maybeSingle()` fallback **threw** for owners with
+2+ libraries (PostgREST multi-row) and otherwise picked an arbitrary library.
+- `active_library_store.dart`: added `resolve(passedId)` → passedId ?? persisted-active ?? first-owned
+  (`order('created_at').limit(1)`, never `.maybeSingle()` on multi-row). Single safe resolver.
+- Rewired the self-resolving screens to `ActiveLibraryStore.resolve(...)`: `scheduled_closures.dart`
+  (was ignoring its passed `widget.libraryId`!), `shift_management.dart`, `qr_assets.dart`,
+  `pricing_plans.dart`, `business_rules.dart`. Removed now-dead `_supabase` + supabase import in
+  scheduled_closures. `admin_settings_service.firstOwnedLibraryId()` and `export_center._firstOwnedLibraryId()`
+  now also go through `resolve(null)` so settings key off the active library, not an arbitrary first.
+- **Remaining:** C = library-aware notifications (HIGH-1); D = combined dashboard + cross-library analytics
+  (HIGH-2); E = "copy from / apply to other libraries". (Per-library vs global settings audit — MED-1 — is
+  largely handled now that `settings` resolves to the active library; a fuller per-scope pass can come with D.)
+
 ### Session 2026-06-25 (f) — Multi-library audit + Batch A (active-library single source of truth)
 
 **Audit (this session):** SILENCE is multi-library-*capable* (data scoped by `library_id`; admin switcher

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/active_library_store.dart';
 import '../widgets/app_gradient_scaffold.dart';
 
 class ShiftManagementScreen extends StatefulWidget {
@@ -106,12 +107,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     if (user != null) {
       try {
         _libraryId ??= widget.libraryId;
-        if (_libraryId == null) {
-          final libData = await _supabase.from('libraries').select().eq('owner_id', user.id).maybeSingle();
-          if (libData != null) {
-            _libraryId = libData['id'];
-          }
-        }
+        _libraryId = await ActiveLibraryStore.resolve(_libraryId);
 
         if (_libraryId != null) {
           // Load shifts

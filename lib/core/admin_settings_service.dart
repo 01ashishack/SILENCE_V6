@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'active_library_store.dart';
 
 class AdminSettingsService {
   AdminSettingsService._();
@@ -6,16 +7,9 @@ class AdminSettingsService {
   static final SupabaseClient _supabase = Supabase.instance.client;
 
   static Future<String?> firstOwnedLibraryId() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return null;
-
-    final res = await _supabase
-        .from('libraries')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1)
-        .maybeSingle();
-    return res?['id']?.toString();
+    // Prefer the admin's currently-active library (persisted) over an arbitrary
+    // "first owned" so settings keyed by this id target the right library.
+    return ActiveLibraryStore.resolve(null);
   }
 
   static Future<Map<String, dynamic>> load({

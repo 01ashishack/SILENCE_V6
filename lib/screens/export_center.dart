@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/calendar_picker.dart';
+import '../core/active_library_store.dart';
 import '../utils/pdf_exporter.dart';
 import '../utils/csv_exporter.dart';
 import '../widgets/app_gradient_scaffold.dart';
@@ -124,15 +125,8 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
   DateTime get _rangeEndExclusive => DateTime(_endDate.year, _endDate.month, _endDate.day + 1);
 
   Future<String?> _firstOwnedLibraryId() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return null;
-    final res = await _supabase
-        .from('libraries')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1)
-        .maybeSingle();
-    return res?['id']?.toString();
+    // Prefer the admin's active (persisted) library over an arbitrary first.
+    return ActiveLibraryStore.resolve(null);
   }
 
   Future<(String, String)> _libraryMeta(String libraryId) async {

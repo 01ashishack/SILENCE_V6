@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../core/active_library_store.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 
@@ -39,15 +40,8 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
     final user = _supabase.auth.currentUser;
     if (user != null) {
       try {
-        _libId = widget.libraryId;
-        if (_libId == null) {
-          final res = await _supabase.from('libraries').select().eq('owner_id', user.id).maybeSingle();
-          if (res != null) {
-            _libId = res['id'];
-            _libCode = res['library_code'] ?? _libCode;
-            _qrVersion = res['qr_version'] ?? _qrVersion;
-          }
-        } else {
+        _libId = await ActiveLibraryStore.resolve(widget.libraryId);
+        if (_libId != null) {
           final res = await _supabase.from('libraries').select().eq('id', _libId!).maybeSingle();
           if (!mounted) return;
           if (res != null) {

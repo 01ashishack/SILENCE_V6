@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Persists the admin's last-active library across app restarts so a
 /// multi-library owner doesn't have to re-pick a library every session.
@@ -34,6 +35,37 @@ class ActiveLibraryStore {
       }
     } catch (_) {
       // Persisting the active library is a convenience, not critical.
+    }
+  }
+
+  /// Resolve the library a screen should act on, in priority order:
+  /// 1. the explicitly-passed id (route argument / widget param),
+  /// 2. the persisted active library,
+  /// 3. the owner's first library (last resort).
+  ///
+  /// Replaces the old per-screen `eq('owner_id', uid).maybeSingle()` fallback,
+  /// which **threw** for owners with 2+ libraries and otherwise picked an
+  /// arbitrary library. This keeps the fallback aligned with whatever library
+  /// the admin is actively managing.
+  static Future<String?> resolve(String? passedId) async {
+    if (passedId != null && passedId.isNotEmpty && passedId != 'null' && passedId != 'all') {
+      return passedId;
+    }
+    final persisted = await load();
+    if (persisted != null) return persisted;
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return null;
+      final res = await Supabase.instance.client
+          .from('libraries')
+          .select('id')
+          .eq('owner_id', user.id)
+          .order('created_at')
+          .limit(1)
+          .maybeSingle();
+      return res?['id']?.toString();
+    } catch (_) {
+      return null;
     }
   }
 }

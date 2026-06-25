@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/admin_settings_service.dart';
+import '../core/active_library_store.dart';
 
 class BusinessRulesScreen extends StatefulWidget {
   final String? libraryId;
@@ -35,13 +36,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
     final user = _supabase.auth.currentUser;
     if (user != null) {
       try {
-        _libId = widget.libraryId;
-        if (_libId == null) {
-          final libRes = await _supabase.from('libraries').select('id').eq('owner_id', user.id).maybeSingle();
-          if (libRes != null) {
-            _libId = libRes['id'];
-          }
-        }
+        _libId = await ActiveLibraryStore.resolve(widget.libraryId);
 
         final storedRules = await AdminSettingsService.load(
           scope: 'business_rules',
