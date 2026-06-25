@@ -101,6 +101,18 @@ Sign-In + App Store regardless.
   pass can stamp the remaining direct owner inserts.
 - **Remaining:** D = combined dashboard + cross-library analytics (HIGH-2); E = "copy from / apply to other libraries".
 
+**Batch D — DONE (fixes HIGH-2: combined / cross-library overview):** `flutter analyze` 0 issues; debug build OK.
+- New `lib/screens/admin/all_libraries_overview_screen.dart` — read-only, additive cross-library dashboard:
+  totals across all owned libraries (revenue this month, active members, pending requests, expiring ≤7d) +
+  a per-library card (revenue / members / occupancy% / expiring + pending pill). Tapping a library calls
+  `ActiveLibraryStore.requestSwitch(id)` and pops → admin shell switches to it. Pull-to-refresh.
+- Aggregate queries grouped in Dart (no N+1), mirroring admin_home's exact columns (payments
+  `status='confirmed'`+`payment_date>=firstOfMonth`; memberships `status` active/trial + `end_date`;
+  seats `status` occupied/hold; join_requests `status='pending'`). **No DB changes.**
+- Entry point: the in-home library switcher sheet shows an "All libraries overview" tile (multi-library only).
+- **⚠️ DEVICE-VERIFY** the aggregate numbers against the per-library dashboards (queries couldn't be runtime-tested here).
+- **Remaining:** E = "copy from / apply to other libraries" time-saver (per-library settings reuse).
+
 ### Session 2026-06-25 (f) — Multi-library audit + Batch A (active-library single source of truth)
 
 **Audit (this session):** SILENCE is multi-library-*capable* (data scoped by `library_id`; admin switcher

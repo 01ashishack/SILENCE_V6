@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'reservations/reservations_tab.dart';
 import '../widgets/qr_modal.dart';
 import 'admin_analytics_tab.dart';
+import 'admin/all_libraries_overview_screen.dart';
 import 'admin_profile_tab.dart';
 import 'scheduled_closures.dart';
 import '../utils/holiday_service.dart';
@@ -1343,6 +1344,52 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 8),
+                  if (_myLibraries.length > 1) ...[
+                    InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AllLibrariesOverviewScreen(),
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE65C00)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.dashboard_rounded,
+                                  size: 20, color: Color(0xFFE65C00)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'All libraries overview',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF1A1A2E),
+                                ),
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right,
+                                size: 18, color: Color(0xFF94A3B8)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                  ],
                   ..._myLibraries.map((lib) {
                     final bool isSelected =
                         lib['id'].toString().toLowerCase() ==
