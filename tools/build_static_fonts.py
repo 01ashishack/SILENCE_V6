@@ -14,7 +14,26 @@ import os
 import sys
 import urllib.request
 from fontTools import ttLib
+from fontTools import subset
 from fontTools.varLib import instancer
+
+# Unicode ranges to KEEP after subsetting. Inter/Outfit are Latin-script fonts
+# (no Devanagari), so Hindi names already fall back to the system font either
+# way. We keep full Latin + the punctuation/symbols the app actually renders as
+# text (notably the Rupee sign U+20B9, bullets, dashes, curly quotes, ✓/★).
+KEEP_UNICODES = (
+    "U+0000-00FF,"   # Basic Latin + Latin-1 Supplement
+    "U+0100-017F,"   # Latin Extended-A
+    "U+0180-024F,"   # Latin Extended-B (some transliterated names)
+    "U+0300-036F,"   # Combining diacritical marks
+    "U+2000-206F,"   # General punctuation (• — – … curly quotes)
+    "U+20A0-20BF,"   # Currency symbols (₹ = U+20B9)
+    "U+2100-214F,"   # Letterlike symbols (™ ℹ etc.)
+    "U+2190-21FF,"   # Arrows
+    "U+2200-22FF,"   # Mathematical operators (×, ÷, ≤, ≥)
+    "U+2300-23FF,"   # Misc technical
+    "U+2600-27BF"    # Misc symbols + dingbats (★ ☆ ✓ ✗)
+)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "assets", "google_fonts")
@@ -58,6 +77,18 @@ def main():
             axes = dict(cfg["pin"])
             axes["wght"] = float(wght)
             instancer.instantiateVariableFont(font, axes, inplace=True)
+
+            # Subset to the kept unicode ranges (keeps kerning/ligatures + names).
+            opts = subset.Options()
+            opts.layout_features = ["*"]
+            opts.name_IDs = ["*"]
+            opts.glyph_names = False
+            opts.recalc_timestamp = False
+            opts.notdef_outline = True
+            ss = subset.Subsetter(options=opts)
+            ss.populate(unicodes=subset.parse_unicodes(KEEP_UNICODES))
+            ss.subset(font)
+
             out_path = os.path.join(OUT, f"{family}-{variant}.ttf")
             font.save(out_path)
             print(f"  wrote {out_path}  ({os.path.getsize(out_path)//1024} KB)")

@@ -69,6 +69,20 @@ Sign-In + App Store regardless.
 - GitHub / Supabase being on **different emails is fine** — no dependency between them.
 
 
+### Session 2026-06-25 (e) — Perf batch 2: font subsetting + list-laziness audit
+
+- **List laziness audit (no code change needed):** verified the heavy unbounded data lists already use
+  lazy `ListView.builder`/`.separated` — members list, notifications, requests (join/seat-change/hold/
+  checkin), archive, member-detail histories. The remaining eager `ListView(children:[...])` are all
+  bounded (report sections, bottom-sheets). So no churn — the pagination/laziness win was already in place.
+- **Font subsetting:** `tools/build_static_fonts.py` now also subsets each instanced static (fontTools
+  `subset.Subsetter`) to Latin + the symbol ranges the app renders as text — verified to keep ₹ (U+20B9),
+  • — – … "" ✓ ★ × é etc. Inter dropped **333 KB → 173 KB** per weight; bundled fonts total
+  **~1.6 MB → 946 KB in the APK** (~650 KB saved + less per-font decode RAM on low-RAM phones). Inter/Outfit
+  carry no Devanagari anyway, so Hindi names still fall back to the system font exactly as before — no change.
+- **Verified:** ₹/✓/•/é/—/×/' glyphs present in the subset (fontTools cmap check); `flutter build apk
+  --debug` succeeded; all 9 subset fonts confirmed inside the APK.
+
 ### Session 2026-06-25 (d) — Font bundling (eliminate first-paint font fetch jank) — ✅ DONE + build-verified
 
 The app uses `GoogleFonts.inter()` / `GoogleFonts.outfit()` everywhere; previously these were fetched
