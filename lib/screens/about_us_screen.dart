@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../core/app_info.dart';
 import '../widgets/app_gradient_scaffold.dart';
 
 class AboutUsScreen extends StatelessWidget {
@@ -99,7 +100,7 @@ class AboutUsScreen extends StatelessWidget {
                     children: [
                       ListTile(
                         title: Text('Version', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF1E293B))),
-                        trailing: Text('1.0.0 (Build 1)', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
+                        trailing: Text('${AppInfo.version} (Build ${AppInfo.build})', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
                       ),
                       const Divider(height: 1, color: Color(0xFFF1F5F9)),
                       ListTile(

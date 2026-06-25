@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'core/supabase_config.dart';
 import 'core/offline_db.dart';
 import 'core/theme_controller.dart';
+import 'core/app_info.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/role_selection_screen.dart';
@@ -91,6 +92,8 @@ void main() {
 
     // Restore the saved theme (light/dark) before the app builds.
     await ThemeController.instance.load();
+    // Load the real app version/build (single source for About/Profile screens).
+    await AppInfo.load();
 
     // Perf (first-paint jank): the common Inter/Outfit weights are bundled in
     // assets/google_fonts/, so GoogleFonts uses them directly (no network fetch

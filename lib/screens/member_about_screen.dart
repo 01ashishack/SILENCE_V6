@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../core/app_info.dart';
 
 class MemberAboutScreen extends StatelessWidget {
   const MemberAboutScreen({super.key});
@@ -161,7 +162,7 @@ class MemberAboutScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Version 1.0.6 (Build 42)',
+                        AppInfo.full,
                         style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w600),
                       ),
                     ],

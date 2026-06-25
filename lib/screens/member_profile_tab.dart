@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/app_info.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -1855,7 +1856,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                 iconBg: const Color(0xFFF3F4F6),
                 iconColor: const Color(0xFF4B5563),
                 title: 'About SILENCE',
-                subtitle: 'Version 1.0.0 · Meet the team',
+                subtitle: 'Version ${AppInfo.version} · Meet the team',
                 onTap: () {
                   Navigator.pushNamed(context, '/member/about');
                 },
