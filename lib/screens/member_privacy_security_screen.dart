@@ -274,46 +274,6 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
     );
   }
 
-  Future<void> _handleDisconnectGoogle() async {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Disconnect Google?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Text(
-          'Are you sure you want to unlink your Google Account? You will need to set up a password to log in next time.',
-          style: GoogleFonts.inter(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            child: Text('Cancel', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.grey[600])),
-            onPressed: () => Navigator.pop(ctx),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
-            child: Text('Disconnect', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              setState(() => _isLoading = true);
-              try {
-                // Simulated unlink or provider unlinking in Supabase
-                // Usually done by deleting identity. For safety, we mock the local toggle and show toast.
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setBool('mock_google_unlinked_${_userId!}', true);
-                if (!mounted) return;
-                setState(() => _hasGoogleIdentity = false);
-                _showSuccessSnackBar('Google Account disconnected successfully! ✓');
-              } catch (e) {
-                _showErrorSnackBar(friendlyError(e));
-              } finally {
-                setState(() => _isLoading = false);
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _handleDownloadData() async {
     setState(() => _isLoading = true);
     try {
@@ -589,9 +549,16 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                             title: Text('Connected Google Account', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
                             subtitle: Text(_userEmail!, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                             trailing: _hasGoogleIdentity
-                                ? TextButton(
-                                    onPressed: _handleDisconnectGoogle,
-                                    child: Text('Disconnect', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
+                                ? Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                        color: const Color(0xFFDCFCE7),
+                                        borderRadius: BorderRadius.circular(4)),
+                                    child: Text('Connected',
+                                        style: GoogleFonts.inter(
+                                            fontSize: 10,
+                                            color: const Color(0xFF16A34A),
+                                            fontWeight: FontWeight.bold)),
                                   )
                                 : Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

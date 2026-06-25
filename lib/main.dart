@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/supabase_config.dart';
 import 'core/offline_db.dart';
+import 'core/theme_controller.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/role_selection_screen.dart';
@@ -88,6 +89,9 @@ void main() {
     PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20; // 50 MB
     PaintingBinding.instance.imageCache.maximumSize = 200;           // 200 images
 
+    // Restore the saved theme (light/dark) before the app builds.
+    await ThemeController.instance.load();
+
     // Perf (first-paint jank): the common Inter/Outfit weights are bundled in
     // assets/google_fonts/, so GoogleFonts uses them directly (no network fetch
     // → no text flash on first run). Runtime fetching stays ON as a safety net
@@ -149,11 +153,16 @@ class SilenceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.instance.mode,
+      builder: (context, themeMode, _) {
+        return MaterialApp(
       title: 'SILENCE',
       debugShowCheckedModeBanner: false,
       navigatorKey: PushNotificationService.navigatorKey,
-      
+      themeMode: themeMode,
+      darkTheme: _buildDarkTheme(),
+
       // Global Brand Design System (Premium Orange Aesthetics)
       theme: ThemeData(
         useMaterial3: true,
@@ -292,6 +301,36 @@ class SilenceApp extends StatelessWidget {
           );
         },
       },
+        );
+      },
+    );
+  }
+
+  /// Dark theme — real, persisted via ThemeController. AppBars stay brand-orange.
+  /// (Per-screen polish for screens that hardcode light colours is a follow-up.)
+  ThemeData _buildDarkTheme() {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFFE65C00),
+        brightness: Brightness.dark,
+        primary: const Color(0xFFE65C00),
+      ),
+      scaffoldBackgroundColor: const Color(0xFF121212),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFFE65C00),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Color(0xFFE65C00),
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
+      ),
+      textTheme: GoogleFonts.interTextTheme(
+        Typography.material2021().white,
+      ),
     );
   }
 }

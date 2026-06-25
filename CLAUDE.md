@@ -126,6 +126,31 @@ Sign-In + App Store regardless.
 - **⚠️ DEVICE-VERIFY** (writes config to a live library): after a copy, confirm shifts/plans/add-ons/amenities/
   rules appear correctly in the target and the source is unchanged.
 
+### Session 2026-06-25 (g) — Profile-tab audit + C1/C2 honesty fixes + real dark mode
+
+Audited both Profile tabs (admin+member). Main theme: several **dishonest-UI stubs** (violate golden rule)
++ legal/version gaps. This batch fixes the honesty issues + makes dark mode real. `flutter analyze` 0
+issues; debug build OK.
+- **Real dark mode** (was "simulated"): new `lib/core/theme_controller.dart` (ValueNotifier<ThemeMode> +
+  SharedPreferences persist). `main.dart` wraps MaterialApp in a `ValueListenableBuilder` → real
+  `themeMode` + a `_buildDarkTheme()` (brand-orange appbars, dark scaffold). Toggle in `app_settings_screen`
+  now drives it (honest snackbar). **⚠️ Follow-up:** many screens hardcode light colours, so per-screen dark
+  polish is still pending (added to remaining tasks) — the mechanism is real but visual coverage is partial.
+- **Removed fake "Create Backup"** tile + `_runBackup` (was `Future.delayed` fake success).
+- **Clear Cache** is now real: `imageCache.clear()/clearLiveImages()` + prunes non-critical prefs (keeps
+  session/theme/active-library/accepted-policy). No fake delay.
+- **App Language** (admin) → honest "Soon" tile (was a no-op that claimed success). Hindi i18n is a
+  remaining task.
+- **Google "Disconnect"** (member privacy screen) was a MOCK claiming success → removed; shows a real
+  "Connected" chip (true unlink not implemented; avoids dishonest success + lockout risk).
+- **Support WhatsApp** number `919999999999` → **`917297879930`** in member_help_support + help_support.
+- **Staff:** grep confirms NO staff/sub-admin code exists anywhere — nothing to remove.
+
+**Profile-audit remaining (not done this batch):** H1 legal suite (admin terms stub; add Refund/Cancellation/
+Community Guidelines; one canonical source; DPDP grievance officer), H2 version unification
+(package_info — 1.0.0 vs 1.0.6 mismatch), H3 change-password current-password check (+ admin password
+screen), M1 de-dup the two member Delete-Account flows, dark-mode per-screen polish, Hindi i18n.
+
 ### ✅ Multi-library audit remediation A–E COMPLETE (app-layer). Remaining (not app-code):
 - Device-verify all batches (Batch D aggregate numbers, C tap-switch, E copy results).
 - Optional: stamp `library_id` on the remaining direct owner-notification inserts (C coverage).

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/theme_controller.dart';
 import '../widgets/app_gradient_scaffold.dart';
 
 class AppSettingsScreen extends StatefulWidget {
@@ -14,115 +15,56 @@ class AppSettingsScreen extends StatefulWidget {
 class _AppSettingsScreenState extends State<AppSettingsScreen> {
   bool _isLoading = false;
   bool _isDarkMode = false;
-  String _selectedLanguage = 'English';
 
   @override
   void initState() {
     super.initState();
-    _loadThemeSetting();
-  }
-
-  Future<void> _loadThemeSetting() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      _isDarkMode = prefs.getBool('app_dark_mode') ?? false;
-      _selectedLanguage = prefs.getString('app_language') ?? 'English';
-    });
+    _isDarkMode = ThemeController.instance.isDark;
   }
 
   Future<void> _toggleTheme(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('app_dark_mode', value);
+    await ThemeController.instance.setDark(value);
     if (!mounted) return;
-    setState(() {
-      _isDarkMode = value;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${value ? "Dark" : "Light"} mode preference saved! (Theme switching is simulated)'),
-          backgroundColor: const Color(0xFFE65C00),
-        ),
-      );
-    }
-  }
-
-  Future<void> _changeLanguage() async {
-    final String? picked = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Select Language', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('English'),
-              trailing: _selectedLanguage == 'English' ? const Icon(Icons.check, color: Color(0xFFE65C00)) : null,
-              onTap: () => Navigator.pop(context, 'English'),
-            ),
-            ListTile(
-              title: const Text('Hindi (हिन्दी)'),
-              trailing: _selectedLanguage == 'Hindi' ? const Icon(Icons.check, color: Color(0xFFE65C00)) : null,
-              onTap: () => Navigator.pop(context, 'Hindi'),
-            ),
-          ],
-        ),
+    setState(() => _isDarkMode = value);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${value ? "Dark" : "Light"} mode enabled'),
+        backgroundColor: const Color(0xFFE65C00),
       ),
     );
+  }
 
-    if (picked != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('app_language', picked);
-      if (!mounted) return;
-      setState(() {
-        _selectedLanguage = picked;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Language changed to $picked! ✓'),
-            backgroundColor: const Color(0xFFE65C00),
-          ),
-        );
-      }
-    }
+  void _languageComingSoon() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('More languages (including हिन्दी) are coming soon.'),
+        backgroundColor: Color(0xFF334155),
+      ),
+    );
   }
 
   Future<void> _clearAppCache() async {
     setState(() => _isLoading = true);
     try {
+      // Real cache clear: drop in-memory image cache + non-critical cached prefs
+      // (keep auth/session, theme, active-library and accepted-policy keys).
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
       final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys();
-      for (final key in keys) {
-        if (!key.contains('session') && !key.contains('token')) {
+      const keep = ['session', 'token', 'app_theme_mode', 'admin_active_library_id',
+          'accepted_terms', 'accepted_privacy'];
+      for (final key in prefs.getKeys().toList()) {
+        if (!keep.any((k) => key.contains(k))) {
           await prefs.remove(key);
         }
       }
-      await Future.delayed(const Duration(milliseconds: 500)); // Simulate work
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('App cache cleared successfully! ✓'), backgroundColor: Color(0xFF10B981)),
+          const SnackBar(content: Text('App cache cleared ✓'), backgroundColor: Color(0xFF10B981)),
         );
       }
     } catch (e) {
       debugPrint('Error clearing cache: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _runBackup() async {
-    setState(() => _isLoading = true);
-    try {
-      await Future.delayed(const Duration(seconds: 1)); // Simulate backup
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Local backup created successfully! ✓'), backgroundColor: Color(0xFF10B981)),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error running backup: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -208,9 +150,9 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                             _buildNavigationTile(
                               icon: Icons.language_outlined,
                               title: 'App Language',
-                              subtitle: 'Select default locale',
-                              trailingText: _selectedLanguage,
-                              onTap: _changeLanguage,
+                              subtitle: 'English (more languages coming soon)',
+                              trailingText: 'Soon',
+                              onTap: _languageComingSoon,
                             ),
                           ],
                         ),
@@ -235,13 +177,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                               title: 'Export Data & Reports',
                               subtitle: 'Download members, revenue, logs',
                               onTap: () => Navigator.pushNamed(context, '/admin/exports'),
-                            ),
-                            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                            _buildActionTile(
-                              icon: Icons.backup_outlined,
-                              title: 'Create Backup',
-                              subtitle: 'Save database backup locally',
-                              onTap: _runBackup,
                             ),
                           ],
                         ),
