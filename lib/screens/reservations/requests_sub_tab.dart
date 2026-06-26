@@ -1345,9 +1345,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFFE65C00) : Colors.white,
+            color: isActive ? const Color(0xFFE65C00) : context.palette.surfaceMuted,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isActive ? Colors.transparent : const Color(0xFFE2E8F0)),
+            border: Border.all(color: isActive ? Colors.transparent : context.palette.border),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2044,7 +2044,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       children: [
         // 1. Selector Tab Toggle (S034 layout Join, Seat Changes, Hold toggle)
         Container(
-          color: Colors.white,
+          color: context.palette.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [

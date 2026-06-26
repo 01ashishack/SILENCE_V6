@@ -2466,7 +2466,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       children: [
         // ── 1. Selector Dropdowns & Buttons Row (Matching layout screen.png Style) ────
         Container(
-          color: Colors.white,
+          color: context.palette.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2557,7 +2557,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         // ── 1b. Dynamically Toggleable Search Bar ──
         if (_showSearchBar)
           Container(
-            color: Colors.white,
+            color: context.palette.surface,
             padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
             child: TextField(
               controller: _searchController,
@@ -2583,7 +2583,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
         // ── 1c. Premium Horizontal Filter Chips Row (Horizontally Scrollable) ──
         Container(
-          color: Colors.white,
+          color: context.palette.surface,
           padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,

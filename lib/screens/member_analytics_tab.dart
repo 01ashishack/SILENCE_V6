@@ -83,6 +83,12 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   final GlobalKey _calendarKey = GlobalKey();
   final GlobalKey _chartKey = GlobalKey();
 
+  // Dark-mode helpers for the heatmap cells (absent/closed days must stay
+  // visible instead of glowing white on the dark card).
+  bool get _dark => Theme.of(context).brightness == Brightness.dark;
+  Color get _absentCellColor => _dark ? const Color(0xFF2A2A2A) : Colors.white;
+  Color get _closedCellColor => _dark ? const Color(0xFF3A3A3A) : const Color(0xFFE2E8F0);
+
   // Badge Data
   List<Map<String, dynamic>> _earnedBadges = [];
   bool _isExporting = false;
@@ -2036,6 +2042,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                             chartData: displayData,
                             uniqueLibraries: _getUniqueLibraries(),
                             dateFilter: _dateFilter,
+                            isDark: Theme.of(context).brightness == Brightness.dark,
                           ),
                         ),
                       ),
@@ -2152,7 +2159,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
 
                         Color color;
                         if (isClosed) {
-                          color = const Color(0xFFE2E8F0);
+                          color = _closedCellColor;
                         } else if (hours >= 4.0) {
                           color = const Color(0xFFE65C00);
                         } else if (hours >= 2.0) {
@@ -2160,7 +2167,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                         } else if (hours > 0.0 || _heatmapData[dateStr] != null) {
                           color = const Color(0xFFFFCBA0);
                         } else {
-                          color = Colors.white;
+                          color = _absentCellColor;
                         }
 
                         final todayStrLocal = DateFormat('yyyy-MM-dd').format(today);
@@ -2237,7 +2244,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
       Widget? centerIcon;
 
       if (isClosed) {
-        color = const Color(0xFFE2E8F0);
+        color = _closedCellColor;
         centerIcon = const Text('❄', style: TextStyle(fontSize: 8));
       } else if (hours >= 4.0) {
         color = const Color(0xFFE65C00);
@@ -2248,7 +2255,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         // the session was short or its duration wasn't computed yet.
         color = const Color(0xFFFFCBA0);
       } else {
-        color = Colors.white;
+        color = _absentCellColor;
       }
 
       final isToday = dateStr == todayStr;
@@ -2482,7 +2489,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _legendItem(Colors.white, 'Absent'),
+        _legendItem(_absentCellColor, 'Absent'),
         const SizedBox(width: 8),
         _legendItem(const Color(0xFFFFCBA0), '<2h'),
         const SizedBox(width: 8),
@@ -2491,7 +2498,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         _legendItem(const Color(0xFFE65C00), '4h+'),
         if (showClosed) ...[
           const SizedBox(width: 8),
-          _legendItem(const Color(0xFFE2E8F0), 'Closed ❄'),
+          _legendItem(_closedCellColor, 'Closed ❄'),
         ],
       ],
     );
@@ -2942,7 +2949,10 @@ class _StackedBarChartPainter extends CustomPainter {
     required this.chartData,
     required this.uniqueLibraries,
     required this.dateFilter,
+    this.isDark = false,
   });
+
+  final bool isDark;
 
   Color _getLibraryColor(String libId) {
     final idx = uniqueLibraries.indexWhere((e) => e['id'] == libId);
@@ -2984,7 +2994,7 @@ class _StackedBarChartPainter extends CustomPainter {
 
     // 1. Draw Grid Lines and Y-Axis Scale Labels
     final gridPaint = Paint()
-      ..color = const Color(0xFFF1F5F9)
+      ..color = isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)
       ..strokeWidth = 1.0;
 
     final double stepVal = maxHours / 4;
@@ -3046,7 +3056,7 @@ class _StackedBarChartPainter extends CustomPainter {
       );
 
       if (totalDayHours == 0.0) {
-        final zeroPaint = Paint()..color = const Color(0xFFE2E8F0);
+        final zeroPaint = Paint()..color = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
         canvas.drawRRect(
           RRect.fromLTRBR(
             x,

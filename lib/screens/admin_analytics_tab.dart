@@ -147,6 +147,9 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   @override
   bool get wantKeepAlive => true;
 
+  // Dark-mode flag for chart painters (bars/labels stay visible on dark).
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+
   Future<void> _checkOnboardingStatus() async {
     final user = _supabase.auth.currentUser;
     if (user != null) {
@@ -2543,6 +2546,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   child: CustomPaint(
                     size: const Size(double.infinity, 180),
                     painter: LineChartPainter(
+                      isDark: _isDark,
                       values: _trendValues,
                       labels: _trendLabels,
                       selectedIndex: _hoverTrendIndex,
@@ -2761,6 +2765,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 height: 200,
                 child: CustomPaint(
                   painter: BarChartPainter(
+                    isDark: _isDark,
                     shiftValues: _shiftCompareRevenue,
                     shiftLabels: _shiftCompareLabels,
                     planValues: _planCompareRevenue,
@@ -3480,6 +3485,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   height: 200,
                   child: CustomPaint(
                     painter: AttendanceLeaderboardPainter(
+                      isDark: _isDark,
                       values: _leaderboardValues,
                       labels: _leaderboardLabels,
                     ),
@@ -3619,6 +3625,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                           ? Center(child: Text('No Data', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey)))
                           : CustomPaint(
                               painter: AttendanceTrendPainter(
+                                isDark: _isDark,
                                 values: _attendanceTrendValues,
                                 labels: _attendanceTrendLabels,
                               ),
@@ -3657,6 +3664,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                           ? Center(child: Text('No Data', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey)))
                           : CustomPaint(
                               painter: PeakHoursPainter(
+                                isDark: _isDark,
                                 values: _peakHoursValues,
                                 labels: _peakHoursLabels,
                               ),
@@ -3791,6 +3799,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   height: 150,
                   child: CustomPaint(
                     painter: ShiftOccupancyPainter(
+                      isDark: _isDark,
                       values: _shiftOccupancyValues,
                       labels: _shiftOccupancyLabels,
                     ),
@@ -3840,6 +3849,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       height: 140,
                       child: CustomPaint(
                         painter: PlansDistributionPainter(
+                          isDark: _isDark,
                           values: _planDistValues,
                           labels: _planDistLabels,
                           colors: const [
@@ -3925,6 +3935,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   height: 200,
                   child: CustomPaint(
                     painter: RevenuePerShiftPainter(
+                      isDark: _isDark,
                       values: _revPerShiftValues,
                       labels: _revPerShiftLabels,
                     ),
@@ -3973,6 +3984,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       height: 180,
                       child: CustomPaint(
                         painter: PopularityOfPlansPainter(
+                          isDark: _isDark,
                           valuesList: _popularityTrendValues,
                           labels: _popularityTrendMonths,
                           colors: const [

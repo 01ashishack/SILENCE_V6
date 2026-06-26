@@ -1817,7 +1817,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
         children: [
           // 1. Search Bar & Headers Menu Options
           Container(
-            color: Colors.white,
+            color: context.palette.surface,
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2023,7 +2023,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
           if (_isSelectMode)
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              color: Colors.white,
+              color: context.palette.surface,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [

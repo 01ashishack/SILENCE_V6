@@ -6,6 +6,21 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// Theme-aware colours for the chart painters so bars/labels/grid stay visible
+/// in dark mode. Pass `isDark` from the screen
+/// (`Theme.of(context).brightness == Brightness.dark`).
+class ChartTheme {
+  final bool isDark;
+  const ChartTheme(this.isDark);
+  Color get grid => isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+  Color get axis => const Color(0xFF94A3B8); // readable on both
+  Color get label => isDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B);
+  Color get strong => isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  Color get tint => isDark ? const Color(0xFF26303B) : const Color(0xFFFFF7ED);
+  // Navy plan bars are invisible on dark; use a bright blue there.
+  Color get altBar => isDark ? const Color(0xFF60A5FA) : const Color(0xFF0F172A);
+}
+
 // Builds a smooth Catmull-Rom (cubic bezier) path through the given points,
 // for premium-looking line charts instead of jagged straight segments.
 Path smoothLinePath(List<Offset> pts) {
@@ -35,16 +50,19 @@ class LineChartPainter extends CustomPainter {
   final List<double> values;
   final List<String> labels;
   final int? selectedIndex;
+  final bool isDark;
 
   LineChartPainter({
     required this.values,
     required this.labels,
     this.selectedIndex,
+    this.isDark = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
+    final t = ChartTheme(isDark);
 
     final double maxVal = values.reduce((a, b) => a > b ? a : b);
     final double minVal = 0.0;
@@ -60,7 +78,7 @@ class LineChartPainter extends CustomPainter {
 
     // Draw grid lines
     final Paint gridPaint = Paint()
-      ..color = const Color(0xFFE2E8F0)
+      ..color = t.grid
       ..strokeWidth = 1.0;
 
     final int gridLinesCount = 4;
@@ -70,7 +88,7 @@ class LineChartPainter extends CustomPainter {
       
       final double gridVal = minVal + valRange * (i / gridLinesCount);
       final TextSpan span = TextSpan(
-        style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF94A3B8)),
+        style: GoogleFonts.inter(fontSize: 9, color: t.axis),
         text: '₹${gridVal.toStringAsFixed(0)}',
       );
       final TextPainter tp = TextPainter(
@@ -100,11 +118,17 @@ class LineChartPainter extends CustomPainter {
         ..shader = ui.Gradient.linear(
           Offset(paddingX, paddingY),
           Offset(paddingX, paddingY + height),
-          const [
-            Color(0xFFFFEADF),
-            Color(0xFFFFF7F4),
-            Colors.white,
-          ],
+          isDark
+              ? [
+                  const Color(0x33E65C00),
+                  const Color(0x14E65C00),
+                  Colors.transparent,
+                ]
+              : const [
+                  Color(0xFFFFEADF),
+                  Color(0xFFFFF7F4),
+                  Colors.white,
+                ],
         );
       canvas.drawPath(areaPath, areaPaint);
 
@@ -174,7 +198,7 @@ class LineChartPainter extends CustomPainter {
       if (pointsCount > 7 && i % 3 != 0 && i != pointsCount - 1) continue;
       final p = points[i];
       final TextSpan span = TextSpan(
-        style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF64748B)),
+        style: GoogleFonts.inter(fontSize: 9, color: t.label),
         text: labels[i],
       );
       final TextPainter tp = TextPainter(
@@ -253,17 +277,21 @@ class BarChartPainter extends CustomPainter {
     required this.shiftLabels,
     required this.planValues,
     required this.planLabels,
+    this.isDark = false,
   });
+
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final t = ChartTheme(isDark);
     final double paddingX = 40.0;
     final double paddingY = 20.0;
     final double width = size.width - paddingX * 2;
     final double height = size.height - paddingY * 2;
 
     final Paint gridPaint = Paint()
-      ..color = const Color(0xFFE2E8F0)
+      ..color = t.grid
       ..strokeWidth = 1.0;
 
     final double maxVal = [
@@ -278,7 +306,7 @@ class BarChartPainter extends CustomPainter {
 
       final double gridVal = maxVal * (i / 4);
       final TextSpan span = TextSpan(
-        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8)),
+        style: GoogleFonts.inter(fontSize: 8, color: t.axis),
         text: '₹${gridVal.toStringAsFixed(0)}',
       );
       final TextPainter tp = TextPainter(
@@ -311,7 +339,7 @@ class BarChartPainter extends CustomPainter {
         );
 
         final TextSpan labelSpan = TextSpan(
-          style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF64748B)),
+          style: GoogleFonts.inter(fontSize: 8, color: t.label),
           text: shiftLabels[i],
         );
         final TextPainter labelTp = TextPainter(
@@ -326,7 +354,7 @@ class BarChartPainter extends CustomPainter {
     if (planValues.isNotEmpty) {
       final double barSpaceWidth = halfWidth / (planValues.length + 1);
       final double barWidth = barSpaceWidth * 0.6;
-      final Paint planPaint = Paint()..color = const Color(0xFF0F172A);
+      final Paint planPaint = Paint()..color = t.altBar;
 
       for (int i = 0; i < planValues.length; i++) {
         final double val = planValues[i];
@@ -343,7 +371,7 @@ class BarChartPainter extends CustomPainter {
         );
 
         final TextSpan labelSpan = TextSpan(
-          style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF64748B)),
+          style: GoogleFonts.inter(fontSize: 8, color: t.label),
           text: planLabels[i],
         );
         final TextPainter labelTp = TextPainter(
@@ -363,11 +391,13 @@ class AttendanceLeaderboardPainter extends CustomPainter {
   final List<double> values;
   final List<String> labels;
 
-  AttendanceLeaderboardPainter({required this.values, required this.labels});
+  AttendanceLeaderboardPainter({required this.values, required this.labels, this.isDark = false});
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
+    final t = ChartTheme(isDark);
 
     final double maxVal = values.reduce((a, b) => a > b ? a : b);
     final double maxBarWidth = size.width - 120;
@@ -378,7 +408,7 @@ class AttendanceLeaderboardPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final Paint bgPaint = Paint()
-      ..color = const Color(0xFFFFF7ED)
+      ..color = t.tint
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < values.length; i++) {
@@ -390,7 +420,7 @@ class AttendanceLeaderboardPainter extends CustomPainter {
       final double h = rowHeight * 0.6;
 
       final TextSpan labelSpan = TextSpan(
-        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: t.strong),
         text: label,
       );
       final TextPainter labelTp = TextPainter(
@@ -433,11 +463,13 @@ class AttendanceTrendPainter extends CustomPainter {
   final List<double> values;
   final List<String> labels;
 
-  AttendanceTrendPainter({required this.values, required this.labels});
+  AttendanceTrendPainter({required this.values, required this.labels, this.isDark = false});
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
+    final t = ChartTheme(isDark);
 
     final double maxVal = [...values, 5.0].reduce((a, b) => a > b ? a : b);
     final double paddingX = 30.0;
@@ -446,7 +478,7 @@ class AttendanceTrendPainter extends CustomPainter {
     final double height = size.height - paddingY * 2;
 
     final Paint gridPaint = Paint()
-      ..color = const Color(0xFFE2E8F0)
+      ..color = t.grid
       ..strokeWidth = 1.0;
 
     for (int i = 0; i <= 4; i++) {
@@ -455,7 +487,7 @@ class AttendanceTrendPainter extends CustomPainter {
 
       final double gridVal = maxVal * (i / 4);
       final TextSpan span = TextSpan(
-        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8)),
+        style: GoogleFonts.inter(fontSize: 8, color: t.axis),
         text: gridVal.toStringAsFixed(0),
       );
       final TextPainter tp = TextPainter(
@@ -486,7 +518,7 @@ class AttendanceTrendPainter extends CustomPainter {
       }
 
       final TextSpan labelSpan = TextSpan(
-        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF64748B)),
+        style: GoogleFonts.inter(fontSize: 8, color: t.label),
         text: labels[i],
       );
       final TextPainter labelTp = TextPainter(
@@ -505,11 +537,13 @@ class PeakHoursPainter extends CustomPainter {
   final List<double> values;
   final List<String> labels;
 
-  PeakHoursPainter({required this.values, required this.labels});
+  PeakHoursPainter({required this.values, required this.labels, this.isDark = false});
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
+    final t = ChartTheme(isDark);
 
     final double maxVal = [...values, 1.0].reduce((a, b) => a > b ? a : b);
     final double maxBarWidth = size.width - 70;
@@ -520,7 +554,7 @@ class PeakHoursPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final Paint bgPaint = Paint()
-      ..color = const Color(0xFFFFF7ED)
+      ..color = t.tint
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < values.length; i++) {
@@ -532,7 +566,7 @@ class PeakHoursPainter extends CustomPainter {
       final double h = rowHeight * 0.7;
 
       final TextSpan labelSpan = TextSpan(
-        style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+        style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: t.label),
         text: label,
       );
       final TextPainter labelTp = TextPainter(
@@ -579,11 +613,13 @@ class ShiftOccupancyPainter extends CustomPainter {
   final List<double> values;
   final List<String> labels;
 
-  ShiftOccupancyPainter({required this.values, required this.labels});
+  ShiftOccupancyPainter({required this.values, required this.labels, this.isDark = false});
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
+    final t = ChartTheme(isDark);
 
     final double maxBarWidth = size.width - 120;
     final double rowHeight = size.height / values.length;
@@ -593,7 +629,7 @@ class ShiftOccupancyPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final Paint bgPaint = Paint()
-      ..color = const Color(0xFFFFF7ED)
+      ..color = t.tint
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < values.length; i++) {
@@ -605,7 +641,7 @@ class ShiftOccupancyPainter extends CustomPainter {
       final double h = rowHeight * 0.6;
 
       final TextSpan labelSpan = TextSpan(
-        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: t.strong),
         text: label,
       );
       final TextPainter labelTp = TextPainter(
@@ -655,10 +691,14 @@ class PlansDistributionPainter extends CustomPainter {
     required this.labels,
     required this.colors,
     required this.totalCount,
+    this.isDark = false,
   });
+
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final t = ChartTheme(isDark);
     final double total = values.fold(0.0, (sum, val) => sum + val);
     final center = Offset(size.width / 2, size.height / 2);
     final double radius = size.width < size.height ? size.width / 2 - 10 : size.height / 2 - 10;
@@ -666,7 +706,7 @@ class PlansDistributionPainter extends CustomPainter {
 
     if (total == 0.0) {
       final Paint emptyPaint = Paint()
-        ..color = const Color(0xFFE2E8F0)
+        ..color = t.grid
         ..style = PaintingStyle.stroke
         ..strokeWidth = radius - innerRadius;
       canvas.drawCircle(center, (radius + innerRadius) / 2, emptyPaint);
@@ -696,11 +736,11 @@ class PlansDistributionPainter extends CustomPainter {
       children: [
         TextSpan(
           text: '$totalCount\n',
-          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: t.strong),
         ),
         TextSpan(
           text: 'Active',
-          style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
+          style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: t.label),
         ),
       ],
     );
@@ -720,11 +760,13 @@ class RevenuePerShiftPainter extends CustomPainter {
   final List<double> values;
   final List<String> labels;
 
-  RevenuePerShiftPainter({required this.values, required this.labels});
+  RevenuePerShiftPainter({required this.values, required this.labels, this.isDark = false});
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
+    final t = ChartTheme(isDark);
 
     final double maxVal = [...values, 1000.0].reduce((a, b) => a > b ? a : b);
     final double paddingX = 40.0;
@@ -733,7 +775,7 @@ class RevenuePerShiftPainter extends CustomPainter {
     final double height = size.height - paddingY * 2;
 
     final Paint gridPaint = Paint()
-      ..color = const Color(0xFFE2E8F0)
+      ..color = t.grid
       ..strokeWidth = 1.0;
 
     for (int i = 0; i <= 4; i++) {
@@ -742,7 +784,7 @@ class RevenuePerShiftPainter extends CustomPainter {
 
       final double gridVal = maxVal * (i / 4);
       final TextSpan span = TextSpan(
-        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8)),
+        style: GoogleFonts.inter(fontSize: 8, color: t.axis),
         text: '₹${gridVal.toStringAsFixed(0)}',
       );
       final TextPainter tp = TextPainter(
@@ -773,7 +815,7 @@ class RevenuePerShiftPainter extends CustomPainter {
       }
 
       final TextSpan labelSpan = TextSpan(
-        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: t.label),
         text: labels[i],
       );
       final TextPainter labelTp = TextPainter(
@@ -797,11 +839,15 @@ class PopularityOfPlansPainter extends CustomPainter {
     required this.valuesList,
     required this.labels,
     required this.colors,
+    this.isDark = false,
   });
+
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (valuesList.isEmpty || valuesList.first.isEmpty) return;
+    final t = ChartTheme(isDark);
 
     double maxVal = 5.0;
     for (var list in valuesList) {
@@ -816,7 +862,7 @@ class PopularityOfPlansPainter extends CustomPainter {
     final double height = size.height - paddingY * 2;
 
     final Paint gridPaint = Paint()
-      ..color = const Color(0xFFE2E8F0)
+      ..color = t.grid
       ..strokeWidth = 1.0;
 
     for (int i = 0; i <= 4; i++) {
@@ -825,7 +871,7 @@ class PopularityOfPlansPainter extends CustomPainter {
 
       final double gridVal = maxVal * (i / 4);
       final TextSpan span = TextSpan(
-        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF94A3B8)),
+        style: GoogleFonts.inter(fontSize: 8, color: t.axis),
         text: gridVal.toStringAsFixed(0),
       );
       final TextPainter tp = TextPainter(
@@ -877,7 +923,7 @@ class PopularityOfPlansPainter extends CustomPainter {
     for (int i = 0; i < pointsCount; i++) {
       final double x = paddingX + i * stepX;
       final TextSpan span = TextSpan(
-        style: GoogleFonts.inter(fontSize: 8, color: const Color(0xFF64748B)),
+        style: GoogleFonts.inter(fontSize: 8, color: t.label),
         text: labels[i],
       );
       final TextPainter tp = TextPainter(

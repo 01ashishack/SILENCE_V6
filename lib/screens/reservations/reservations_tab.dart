@@ -681,9 +681,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
             // 3. Active Sub-tab View Container
             Expanded(
               child: Container(
-                color: const Color(
-                  0xFFFBF5EE,
-                ), // Warm cream background for sub-tab contents
+                color: context.palette.scaffold,
                 child: IndexedStack(
                   index: _activeSubTab,
                   children: [
