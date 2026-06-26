@@ -98,15 +98,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     );
   }
 
-  void _languageComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('More languages (including हिन्दी) are coming soon.'),
-        backgroundColor: Color(0xFF334155),
-      ),
-    );
-  }
-
   Future<void> _clearAppCache() async {
     setState(() => _isLoading = true);
     try {
@@ -131,50 +122,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       debugPrint('Error clearing cache: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _logout() async {
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Sign Out', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to sign out of your account?', style: GoogleFonts.inter()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Sign Out', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-    if (!mounted) return;
-
-    if (confirm == true) {
-      setState(() => _isLoading = true);
-      try {
-        await Supabase.instance.client.auth.signOut();
-        if (mounted) {
-          Navigator.pushNamedAndRemoveUntil(context, '/auth', (route) => false);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Sign out failed: $e'), backgroundColor: Colors.redAccent),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
     }
   }
 
@@ -209,14 +156,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                               subtitle: 'Switch application theme mode',
                               value: _isDarkMode,
                               onChanged: _toggleTheme,
-                            ),
-                            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                            _buildNavigationTile(
-                              icon: Icons.language_outlined,
-                              title: 'App Language',
-                              subtitle: 'English (more languages coming soon)',
-                              trailingText: 'Soon',
-                              onTap: _languageComingSoon,
                             ),
                           ],
                         ),
@@ -306,30 +245,9 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                       const SizedBox(height: 24),
 
                       // Section 3: Account Settings
-                      _buildSectionHeader('Account Settings'),
-                      Container(
-                        decoration: _buildCardDecoration(),
-                        child: Column(
-                          children: [
-                            _buildNavigationTile(
-                              icon: Icons.credit_card_outlined,
-                              title: 'Manage Subscription',
-                              subtitle: 'View subscription status and payment methods',
-                              onTap: () => Navigator.pushNamed(context, '/admin/subscription'),
-                            ),
-                            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                            _buildActionTile(
-                              icon: Icons.logout_outlined,
-                              title: 'Logout',
-                              subtitle: 'Sign out of current active session',
-                              textColor: Colors.redAccent,
-                              iconColor: Colors.redAccent,
-                              onTap: _logout,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
+                      // (Manage Subscription + Logout removed — both live on the
+                      //  Profile tab; kept here previously as duplicates.)
+                      const SizedBox(height: 8),
                     ],
                   ),
                 ),
