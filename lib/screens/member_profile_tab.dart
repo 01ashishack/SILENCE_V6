@@ -601,7 +601,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                   Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
+                      border: Border.all(color: context.palette.surface, width: 3),
                     ),
                     child: CircleAvatar(
                       radius: 36,
@@ -758,7 +758,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
               children: [
                 Text(
                   'Complete your profile',
-                  style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -804,7 +804,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
           // Empty state
           Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(16)),
             alignment: Alignment.center,
             child: Column(
               children: [
@@ -896,7 +896,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border(left: BorderSide(color: borderColor, width: 4)),
         boxShadow: [
@@ -934,7 +934,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                           Flexible(
                             child: Text(
                               library['name'] ?? 'SILENCE Library',
-                              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -1233,7 +1233,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -1254,7 +1254,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
             children: [
               Text(
                 'Refer a Friend 🎁',
-                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
             ],
           ),
@@ -1291,7 +1291,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                       },
                       child: Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(8)),
                         child: const Icon(Icons.copy, size: 16, color: Color(0xFFE65C00)),
                       ),
                     ),
@@ -1304,7 +1304,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                       },
                       child: Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(8)),
                         child: const Icon(Icons.share, size: 16, color: Color(0xFFE65C00)),
                       ),
                     ),
@@ -1348,7 +1348,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         const SizedBox(height: 2),
         Text(
           value,
-          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
       ],
     );
@@ -1426,12 +1426,12 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
           backgroundColor: Colors.white,
           title: Text('Role change not available',
               style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                  fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
           content: Text(
             'You can only change your role within 7 days of creating your account. '
             'That window has closed, so your role is now fixed.',
             style:
-                GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+                GoogleFonts.inter(fontSize: 14, color: context.palette.textSecondary),
           ),
           actions: [
             TextButton(
@@ -1462,7 +1462,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
             title: Text('Switch to Admin — start over?',
                 style: GoogleFonts.outfit(
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B))),
+                    color: context.palette.textPrimary)),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1518,7 +1518,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                       style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569))),
+                          color: context.palette.textSecondary)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: confirmController,
@@ -1540,7 +1540,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                 onPressed: () => Navigator.pop(ctx, false),
                 child: Text('Cancel',
                     style: GoogleFonts.inter(
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                         fontWeight: FontWeight.bold)),
               ),
               ElevatedButton(
@@ -1550,7 +1550,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                     disabledBackgroundColor: const Color(0xFFFCA5A5)),
                 child: Text('Delete & become Admin',
                     style: GoogleFonts.inter(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
+                        color: context.palette.surface, fontWeight: FontWeight.bold)),
               ),
             ],
           );
@@ -1589,7 +1589,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -1640,7 +1640,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B).withValues(alpha: 0.10),
+                        color: context.palette.textPrimary.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(Icons.dark_mode_outlined, size: 20, color: Color(0xFF334155)),
@@ -1655,18 +1655,6 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                       onChanged: (v) => ThemeController.instance.setDark(v),
                     ),
                   );
-                },
-              ),
-              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
-              _buildRowItem(
-                icon: Icons.language_outlined,
-                iconBg: const Color(0xFFF3F4F6),
-                iconColor: const Color(0xFF4B5563),
-                title: 'Language',
-                subtitle: 'English',
-                badgeText: '🔜 Coming Soon',
-                onTap: () {
-                  _showLanguageDialog();
                 },
               ),
               const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
@@ -1706,11 +1694,11 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
       ),
       title: Text(
         title,
-        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
       ),
       subtitle: Text(
         subtitle,
-        style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
+        style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
       ),
       trailing: badgeText != null
           ? Container(
@@ -1726,55 +1714,6 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
             )
           : const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
       onTap: onTap,
-    );
-  }
-
-  void _showLanguageDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFF3ED),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.translate, color: Color(0xFFE65C00), size: 32),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'More Languages',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'More languages will be available in future updates. Stay tuned!',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE65C00),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text('Got it', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              )
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -1844,7 +1783,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -1960,7 +1899,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
   Widget _buildLogoutRow() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -2052,7 +1991,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
       width: double.infinity,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Center(
