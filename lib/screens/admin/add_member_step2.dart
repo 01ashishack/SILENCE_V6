@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -314,7 +315,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
           margin: const EdgeInsets.all(24.0),
           padding: const EdgeInsets.all(24.0),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -337,7 +338,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1A1A2E),
+                  color: context.palette.textPrimary,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -348,7 +349,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                     : 'Please add shifts in Library Setup.',
                 style: GoogleFonts.inter(
                   fontSize: 14,
-                  color: const Color(0xFF6B7280),
+                  color: context.palette.textMuted,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -400,7 +401,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1),
           ),
-          labelStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 14),
+          labelStyle: GoogleFonts.inter(color: context.palette.textMuted, fontSize: 14),
           hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 14),
         ),
       ),
@@ -412,7 +413,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
             // Select Shift
             Text(
               'Select Shift *',
-              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 12),
             ListView.separated(
@@ -442,7 +443,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
@@ -467,7 +468,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                               style: GoogleFonts.outfit(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
-                                color: const Color(0xFF1E293B),
+                                color: context.palette.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -479,7 +480,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                                   '$formattedStart – $formattedEnd',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
-                                    color: const Color(0xFF64748B),
+                                    color: context.palette.textMuted,
                                   ),
                                 ),
                               ],
@@ -491,7 +492,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                           style: GoogleFonts.outfit(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
-                            color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
+                            color: isSelected ? const Color(0xFFE65C00) : context.palette.textPrimary,
                           ),
                         ),
                       ],
@@ -505,7 +506,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
             // Plan Options pills
             Text(
               'Plan Options *',
-              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 12),
             Row(
@@ -536,13 +537,13 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
             if (widget.memberData.mode == 'new') ...[
               Text(
                 'Trial Days (Plan starts after trial)',
-                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _trialDaysController,
                 keyboardType: TextInputType.number,
-                style: GoogleFonts.inter(color: const Color(0xFF1E293B)),
+                style: GoogleFonts.inter(color: context.palette.textPrimary),
                 decoration: const InputDecoration(
                   hintText: 'Enter trial days (0 for none)',
                 ),
@@ -564,7 +565,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                   Expanded(
                     child: Text(
                       'Set custom plan start date (overrides default)',
-                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569)),
+                      style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary),
                     ),
                   ),
                 ],
@@ -596,7 +597,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                   ),
                   child: Text(
                     '${start.day}/${start.month}/${start.year}',
-                    style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 14),
+                    style: GoogleFonts.inter(color: context.palette.textPrimary, fontSize: 14),
                   ),
                 ),
               ),
@@ -639,7 +640,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
             if (_addOns.isNotEmpty) ...[
               Text(
                 'Optional Add-ons & Deposits',
-                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 12),
               ListView.separated(
@@ -671,7 +672,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: context.palette.surface,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
@@ -713,7 +714,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                                   style: GoogleFonts.inter(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
-                                    color: const Color(0xFF1E293B),
+                                    color: context.palette.textPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -721,7 +722,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                                   'Price: ₹$price${deposit > 0 ? ' • Deposit: ₹$deposit' : ''}',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
-                                    color: const Color(0xFF64748B),
+                                    color: context.palette.textMuted,
                                   ),
                                 ),
                                 const SizedBox(height: 6),
@@ -736,7 +737,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                                     style: GoogleFonts.inter(
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
-                                      color: isMonthly ? const Color(0xFFE65C00) : const Color(0xFF64748B),
+                                      color: isMonthly ? const Color(0xFFE65C00) : context.palette.textMuted,
                                     ),
                                   ),
                                 ),
@@ -772,7 +773,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFE5E7EB)),
                 boxShadow: [
@@ -791,9 +792,9 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                     children: [
                       Text(
                         'Plan Price (${widget.memberData.planType == 'monthly' ? 'Monthly' : (widget.memberData.planType == '3_month' ? '3-Month' : '6-Month')})',
-                        style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                        style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                       ),
-                      Text('₹$_planPrice', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                      Text('₹$_planPrice', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                     ],
                   ),
                   if (_addonsPrice > 0) ...[
@@ -801,8 +802,8 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Add-ons & Deposits', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
-                        Text('₹$_addonsPrice', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        Text('Add-ons & Deposits', style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted)),
+                        Text('₹$_addonsPrice', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                       ],
                     ),
                   ],
@@ -810,7 +811,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Total Amount', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                      Text('Total Amount', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                       Text('₹${_planPrice + _addonsPrice}', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                     ],
                   ),
@@ -849,7 +850,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                 style: GoogleFonts.outfit(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
-                  color: isSelected ? Colors.white : const Color(0xFF475569),
+                  color: isSelected ? Colors.white : context.palette.textSecondary,
                 ),
               ),
               const SizedBox(height: 4),
@@ -857,7 +858,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
                 '₹$price',
                 style: GoogleFonts.inter(
                   fontSize: 11,
-                  color: isSelected ? Colors.white70 : const Color(0xFF64748B),
+                  color: isSelected ? Colors.white70 : context.palette.textMuted,
                 ),
               ),
             ],

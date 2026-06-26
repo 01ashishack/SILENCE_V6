@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../theme/app_palette.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -130,7 +131,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -289,7 +290,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
                     ),
                     const SizedBox(height: 12),
                     
-                    Text('Issue Category', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                    Text('Issue Category', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       initialValue: issueType,
@@ -308,7 +309,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    Text('Describe the Issue *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                    Text('Describe the Issue *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: descController,
@@ -389,7 +390,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -439,7 +440,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280), letterSpacing: 1),
+        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: context.palette.textMuted, letterSpacing: 1),
       ),
     );
   }
@@ -447,7 +448,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
   Widget _buildSearchBar() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -485,7 +486,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(
@@ -495,7 +496,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
               const SizedBox(height: 8),
               Text(
                 'No matching FAQs found',
-                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 4),
               Text(
@@ -511,7 +512,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -529,7 +530,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
             child: ExpansionTile(
               title: Text(
                 faq['question']!,
-                style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               iconColor: const Color(0xFFE65C00),
               collapsedIconColor: Colors.grey,
@@ -550,7 +551,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
   Widget _buildContactUsCard() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -565,7 +566,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
               decoration: const BoxDecoration(color: Color(0xFFFFF3ED), shape: BoxShape.circle),
               child: const Icon(Icons.bug_report_outlined, color: Color(0xFFE65C00), size: 20),
             ),
-            title: Text('Report an Issue', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+            title: Text('Report an Issue', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             subtitle: Text('File bug reports, payment issues, or slot feedback.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
           ),
@@ -577,7 +578,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
               decoration: const BoxDecoration(color: Color(0xFFECFDF5), shape: BoxShape.circle),
               child: const Icon(Icons.chat, color: Color(0xFF10B981), size: 20),
             ),
-            title: Text('WhatsApp Support', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+            title: Text('WhatsApp Support', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             subtitle: Text('Chat instantly with the support executive.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
           ),
@@ -589,7 +590,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
               decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
               child: const Icon(Icons.email_outlined, color: Color(0xFF3B82F6), size: 20),
             ),
-            title: Text('Email Support', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+            title: Text('Email Support', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             subtitle: Text('Email details of your query to support team.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
           ),
@@ -618,7 +619,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -676,7 +677,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
           const SizedBox(height: 12),
           Text(
             'App Walkthrough Slideshow (Coming Soon)',
-            style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
           const SizedBox(height: 4),
           Text(

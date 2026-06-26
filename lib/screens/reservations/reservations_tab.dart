@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -155,7 +156,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
             child: Container(
               width: 280,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
@@ -248,7 +249,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                                     style: GoogleFonts.outfit(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF1E293B),
+                                      color: context.palette.textPrimary,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
@@ -256,7 +257,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                                     city ?? 'Location',
                                     style: GoogleFonts.inter(
                                       fontSize: 11,
-                                      color: const Color(0xFF64748B),
+                                      color: context.palette.textMuted,
                                     ),
                                   ),
                                 ],
@@ -345,7 +346,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
     super.build(context);
     if (_selectedLibraryId == null || _selectedLibraryId!.isEmpty || _selectedLibraryId == 'null') {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -364,7 +365,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                   style: GoogleFonts.outfit(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1A1A2E),
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -373,7 +374,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: const Color(0xFF6B7280),
+                    color: context.palette.textMuted,
                     height: 1.5,
                   ),
                 ),
@@ -633,7 +634,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
                                       : FontWeight.w500,
                                   color: isActive
                                       ? const Color(0xFFE65C00)
-                                      : const Color(0xFF6B7280),
+                                      : context.palette.textMuted,
                                 ),
                               ),
                               if (showBadge) ...[

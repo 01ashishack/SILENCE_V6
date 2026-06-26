@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -171,7 +172,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Padding(
         padding: EdgeInsets.only(
@@ -184,13 +185,13 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
           children: [
             Text(
               'Edit ${plan.name} Price',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
               keyboardType: TextInputType.number,
-              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               decoration: const InputDecoration(
                 hintText: 'Enter price (INR)...',
                 prefixText: '₹ ',
@@ -228,7 +229,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => Padding(
@@ -242,7 +243,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
             children: [
               Text(
                 'Add Membership Plan',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -309,7 +310,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -341,7 +342,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
                       margin: const EdgeInsets.only(bottom: 16),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: context.palette.surface,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: plan.isPopular ? const Color(0xFFFFD0B8) : const Color(0xFFE2E8F0), width: plan.isPopular ? 1.5 : 1.0),
                         boxShadow: [
@@ -370,7 +371,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
                                       children: [
                                         Text(
                                           plan.name,
-                                          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                         ),
                                         if (plan.isPopular) ...[
                                           const SizedBox(width: 8),
@@ -391,7 +392,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
                                     const SizedBox(height: 4),
                                     Text(
                                       'Duration: ${plan.duration}',
-                                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                                      style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                                     ),
                                   ],
                                 ),
@@ -442,7 +443,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
                                       onPressed: () => _setPopularPlan(plan.id),
                                       child: Text(
                                         'Set Popular',
-                                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
+                                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: context.palette.textMuted),
                                       ),
                                     ),
                                   ],

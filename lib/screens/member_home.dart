@@ -529,7 +529,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             'action': 'Checked Out',
             'details': 'Completed study session',
             'location': libName,
-            'color': const Color(0xFF64748B),
+            'color': context.palette.textMuted,
           });
         }
       }
@@ -1770,7 +1770,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
                     ),
@@ -1799,7 +1799,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       children: [
                         Text(
                           'Libraries Near You',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         TextButton(
                           onPressed: () {
@@ -1877,7 +1877,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
                     ),
@@ -1913,7 +1913,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       children: [
                         Text(
                           'Libraries Near You',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         TextButton(
                           onPressed: () {
@@ -2018,7 +2018,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       children: [
                         Text(
                           'Explore Study Zones',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         TextButton(
                           onPressed: () {
@@ -2060,7 +2060,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           child: Icon(icon, size: 15, color: color),
         ),
         const SizedBox(width: 8),
-        Text(title, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+        Text(title, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
       ],
     );
   }
@@ -2364,7 +2364,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8)],
                     ),
@@ -2407,7 +2407,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   else
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
                       child: Column(
                         children: [
                           Icon(Icons.lock, color: Colors.grey[300], size: 48),
@@ -2527,7 +2527,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   if (_announcements.isNotEmpty) ...[
                     Text(
                       'Announcements',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 10),
                     _buildAnnouncementsSection(),
@@ -2613,7 +2613,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(16),
                           border: const Border(left: BorderSide(color: Color(0xFF9CA3AF), width: 4)), // gray
                           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8)],
@@ -2628,7 +2628,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             const SizedBox(height: 6),
                             Text(
                               lastLibName,
-                              style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                              style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -2692,7 +2692,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.orange[200]!, style: BorderStyle.solid),
                     ),
@@ -2724,7 +2724,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: context.palette.surface,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8)],
                       ),
@@ -2758,7 +2758,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   if (suggested.isNotEmpty) ...[
                     Text(
                       'Suggested Study Libraries',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -2805,7 +2805,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     final progress = activeStep / stepTitles.length;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: const Border(left: BorderSide(color: Color(0xFFE65C00), width: 4)),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 4))],
@@ -2817,7 +2817,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+              Text(title, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
               Text('Step $activeStep of ${stepTitles.length}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
             ],
           ),
@@ -3029,7 +3029,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: const Border(left: BorderSide(color: Color(0xFFF59E0B), width: 4)),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8)],
@@ -3050,7 +3050,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             ],
           ),
           const SizedBox(height: 12),
-          Text(libName, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+          Text(libName, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
           const SizedBox(height: 8),
           Text('Plan: $planLabel | Method: $paymentLabel', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
           const SizedBox(height: 16),
@@ -3192,7 +3192,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       children: [
         Text(
           'Quick Renew Options',
-          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
         ),
         const SizedBox(height: 8),
         Row(
@@ -3226,7 +3226,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           side: const BorderSide(color: Color(0xFFF59E0B)),
           padding: const EdgeInsets.symmetric(vertical: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
         ),
         child: Column(
           children: [
@@ -3317,7 +3317,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.orange[200]!, style: BorderStyle.solid),
       ),
@@ -3326,7 +3326,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         children: [
           Text(
             'How SILENCE Works',
-            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
           const SizedBox(height: 12),
           _buildHowItWorksRow(1, 'Complete your profile', 'Add your details, photo and ID — needed before you join.', Icons.person_outline_rounded),
@@ -3357,7 +3357,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             children: [
               Text(
                 'Step $step: $title',
-                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               Text(
                 subtitle,
@@ -3433,7 +3433,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   children: [
                     Text(
                       name,
-                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -3459,7 +3459,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     const SizedBox(height: 6),
                     Text(
                       startingPrice > 0 ? 'From ₹$startingPrice/mo' : 'Price TBA',
-                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                   ],
                 ),
@@ -3889,7 +3889,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         Flexible(
                           child: Text(
                             libName,
-                            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), height: 1.1),
+                            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: context.palette.textPrimary, height: 1.1),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -3909,7 +3909,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                           Flexible(
                             child: Text(
                               libCity,
-                              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
+                              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: context.palette.textMuted),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -4083,7 +4083,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               const SizedBox(height: 2),
               Text(
                 value,
-                style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w700, color: valueColor ?? const Color(0xFF1E293B)),
+                style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w700, color: valueColor ?? context.palette.textPrimary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -4313,7 +4313,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                               style: GoogleFonts.outfit(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
-                                color: const Color(0xFF64748B),
+                                color: context.palette.textMuted,
                                 letterSpacing: 1.0,
                               ),
                             ),
@@ -4408,7 +4408,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                                   style: GoogleFonts.inter(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF475569),
+                                    color: context.palette.textSecondary,
                                   ),
                                 ),
                               ),
@@ -4456,7 +4456,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             style: GoogleFonts.inter(
                               fontSize: 12.5,
                               fontStyle: FontStyle.italic,
-                              color: const Color(0xFF64748B),
+                              color: context.palette.textMuted,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -4501,7 +4501,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   Widget _buildSessionEndedTodayCard() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -4544,7 +4544,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                           style: GoogleFonts.outfit(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1E293B),
+                            color: context.palette.textPrimary,
                           ),
                         ),
                       ],
@@ -4554,7 +4554,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         formatDateIST(_checkInTime!.toUtc()),
                         style: GoogleFonts.inter(
                           fontSize: 12,
-                          color: const Color(0xFF64748B),
+                          color: context.palette.textMuted,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -4574,7 +4574,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: const Color(0xFF64748B),
+                              color: context.palette.textMuted,
                             ),
                           ),
                           Text(
@@ -4582,7 +4582,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: const Color(0xFF64748B),
+                              color: context.palette.textMuted,
                             ),
                           ),
                         ],
@@ -4627,7 +4627,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: const Color(0xFF475569),
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   ),
@@ -4651,7 +4651,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -4694,7 +4694,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       formatDateIST(DateTime.now().toUtc()),
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -4714,7 +4714,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF475569),
+                              color: context.palette.textSecondary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -4740,7 +4740,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       'Shift timings',
                       style: GoogleFonts.inter(
                         fontSize: 13,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -4749,7 +4749,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ],
@@ -4762,7 +4762,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       'Your Seat',
                       style: GoogleFonts.inter(
                         fontSize: 13,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -4771,7 +4771,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ],
@@ -4788,7 +4788,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     'Your shift ended without a check-in today. You can check in for your next shift tomorrow.',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -4807,7 +4807,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         : DateFormat('EEEE, dd MMM').format(holiday.startDate);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -4847,7 +4847,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       formatDateIST(DateTime.now().toUtc()),
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -4961,7 +4961,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -5004,7 +5004,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       formatDateIST(DateTime.now().toUtc()),
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -5032,7 +5032,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF475569),
+                              color: context.palette.textSecondary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -5058,7 +5058,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       'Shift timings',
                       style: GoogleFonts.inter(
                         fontSize: 13,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -5067,7 +5067,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ],
@@ -5080,7 +5080,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       'Your Seat',
                       style: GoogleFonts.inter(
                         fontSize: 13,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -5089,7 +5089,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ],
@@ -5163,7 +5163,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF64748B),
+                    color: context.palette.textMuted,
                   ),
                 ),
               ],
@@ -5202,7 +5202,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           style: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: const Color(0xFF1E293B),
+            color: context.palette.textPrimary,
           ),
         ),
       ],
@@ -5213,7 +5213,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
       ),
@@ -5233,7 +5233,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               const SizedBox(width: 10),
               Text(
                 'Study Streak',
-                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const Spacer(),
               Container(
@@ -5351,7 +5351,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       children: [
         Text(value,
             style: GoogleFonts.outfit(
-                fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         const SizedBox(height: 2),
         Text(label,
             style: GoogleFonts.inter(fontSize: 10.5, color: Colors.grey[500])),
@@ -5437,7 +5437,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -5463,7 +5463,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             Text('Refer & Earn',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.outfit(
-                    fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                    fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             const SizedBox(height: 6),
             Text(
               'Share your code with friends. When they join SILENCE, you can earn membership extension days (if your library has rewards enabled).',
@@ -5532,7 +5532,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       width: 100,
       height: 76,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
       ),
@@ -5554,7 +5554,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                 child: Icon(icon, color: accent, size: 19),
               ),
               const SizedBox(height: 7),
-              Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+              Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
             ],
           ),
         ),
@@ -5568,7 +5568,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey[200]!),
         ),
@@ -5581,7 +5581,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 8)],
       ),
@@ -5632,7 +5632,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       children: [
                         Text(
                           act['action'] as String,
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         Text(
                           '${act['details']} • ${act['location']}',
@@ -5668,7 +5668,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4)],
       ),
@@ -5719,7 +5719,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           child: Container(
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border(
                 left: BorderSide(
@@ -5768,7 +5768,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
-                          color: const Color(0xFF1E293B)
+                          color: context.palette.textPrimary
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -5804,7 +5804,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
       builder: (context) {
         return Container(
@@ -5815,7 +5815,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             children: [
               Text(
                 announce['title'] ?? 'Notice',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 4),
               Text(
@@ -5996,7 +5996,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
       builder: (context) {
         return SeatChangeBottomSheet(
@@ -6010,7 +6010,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   void _openMembershipMoreOptions(Map<String, dynamic> membership) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
       builder: (context) {
         return Container(
@@ -6083,7 +6083,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
       builder: (context) {
         int pendingDues = 0;
@@ -6348,7 +6348,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                         ),
                         Expanded(
                           child: Text('Also request a refund from the admin',
-                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
                         ),
                       ],
                     ),
@@ -6489,7 +6489,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             text,
             style: GoogleFonts.inter(
               fontSize: 13,
-              color: const Color(0xFF475569),
+              color: context.palette.textSecondary,
             ),
           ),
         ),

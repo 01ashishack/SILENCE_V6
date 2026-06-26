@@ -1052,14 +1052,14 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           _buildStatCard(
             title: 'Days Absent',
             value: '$_daysAbsent',
-            valueColor: const Color(0xFF1E293B),
+            valueColor: context.palette.textPrimary,
             trendWidget: _buildTrendIndicator(daysAbsentDiff, isLowerBetter: true),
             onTap: () => _scrollToSection(_calendarKey),
           ),
           _buildStatCard(
             title: 'Total Hours',
             value: '${_totalHours.toStringAsFixed(1)}h',
-            valueColor: const Color(0xFF1E293B),
+            valueColor: context.palette.textPrimary,
             subValue: '${(_totalHours / (_daysPresent > 0 ? _daysPresent : 1)).toStringAsFixed(1)}h avg/day',
             trendWidget: _buildTrendIndicator(totalHoursDiff, unit: 'h'),
             onTap: () => _scrollToSection(_chartKey),
@@ -1106,7 +1106,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -1127,7 +1127,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   child: Text(
                     title,
                     style: GoogleFonts.inter(
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1227,7 +1227,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1252,14 +1252,14 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   flex: 3,
                   child: Text(
                     label,
-                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                   ),
                 ),
                 Expanded(
                   flex: 2,
                   child: Text(
                     currentVal,
-                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: const Color(0xFF64748B)),
+                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: context.palette.textMuted),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -1267,7 +1267,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   flex: 2,
                   child: Text(
                     prevVal,
-                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: const Color(0xFF64748B)),
+                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: context.palette.textMuted),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -1297,12 +1297,12 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
             children: [
               Text(
                 'Performance Comparison',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 4),
               Text(
                 _trendLabel,
-                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
               ),
               const SizedBox(height: 20),
               Row(
@@ -1385,7 +1385,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1422,13 +1422,13 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                         const SizedBox(height: 12),
                         Text(
                           'Library Closed',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'This day was scheduled as a closure. Your study streak was protected!',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                         ),
                       ],
                     ),
@@ -1443,13 +1443,13 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                         const SizedBox(height: 12),
                         Text(
                           'No Scan Yet Today',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Scan your QR at the entry gate to start your study session and keep your streak alive!',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                         ),
                       ],
                     ),
@@ -1464,13 +1464,13 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                         const SizedBox(height: 12),
                         Text(
                           'No Sessions',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'No sessions on this day',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                         ),
                       ],
                     ),
@@ -1507,7 +1507,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                                 Expanded(
                                   child: Text(
                                     log['library_name'],
-                                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -1574,7 +1574,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                                   children: [
                                     Text('Time Session', style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF94A3B8))),
                                     const SizedBox(height: 2),
-                                    Text('${log['check_in']} - ${log['check_out']}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                                    Text('${log['check_in']} - ${log['check_out']}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
                                   ],
                                 ),
                                 Column(
@@ -1596,7 +1596,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                                   children: [
                                     Text('Seat', style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF94A3B8))),
                                     const SizedBox(height: 2),
-                                    Text(log['seat'], style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                                    Text(log['seat'], style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
                                   ],
                                 ),
                                 Column(
@@ -1604,7 +1604,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                                   children: [
                                     Text('Shift', style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF94A3B8))),
                                     const SizedBox(height: 2),
-                                    Text(log['shift'], style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                                    Text(log['shift'], style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
                                   ],
                                 ),
                               ],
@@ -1631,7 +1631,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                       children: [
                         Text(
                           'Attendance Details',
-                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         IconButton(
                           icon: const Icon(Icons.close),
@@ -1644,7 +1644,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     padding: const EdgeInsets.symmetric(horizontal: 24.0),
                     child: Text(
                       heading,
-                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                      style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1689,7 +1689,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
@@ -1703,7 +1703,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
               children: [
                 Text(
                   'Leaderboard',
-                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 // Period Filters specific to Leaderboard
                 Row(
@@ -1823,7 +1823,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                           style: GoogleFonts.outfit(
                             fontWeight: FontWeight.bold,
                             fontSize: rank <= 3 ? 15 : 12,
-                            color: const Color(0xFF64748B),
+                            color: context.palette.textMuted,
                           ),
                         ),
                       ),
@@ -1833,7 +1833,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                           isMe ? 'You (${entry['name']})' : entry['name'],
                           style: GoogleFonts.inter(
                             fontWeight: isMe ? FontWeight.bold : FontWeight.w500,
-                            color: isMe ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
+                            color: isMe ? const Color(0xFFE65C00) : context.palette.textPrimary,
                             fontSize: 12.5,
                           ),
                         ),
@@ -1842,7 +1842,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                         '${(entry['hours'] as double).toStringAsFixed(1)}h',
                         style: GoogleFonts.inter(
                           fontWeight: FontWeight.bold,
-                          color: isMe ? const Color(0xFFE65C00) : const Color(0xFF475569),
+                          color: isMe ? const Color(0xFFE65C00) : context.palette.textSecondary,
                           fontSize: 12.5,
                         ),
                       ),
@@ -1914,7 +1914,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ),
@@ -1944,7 +1944,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         child: Text(
           label,
           style: GoogleFonts.inter(
-            color: isSelected ? Colors.white : const Color(0xFF64748B),
+            color: isSelected ? Colors.white : context.palette.textMuted,
             fontSize: 10,
             fontWeight: FontWeight.bold,
           ),
@@ -1976,7 +1976,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
@@ -1987,7 +1987,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           children: [
             Text(
               'Daily Study Hours',
-              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 24),
             Stack(
@@ -2063,7 +2063,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                         child: Text(
                           'No data yet. Start studying to see your hours.',
                           style: GoogleFonts.inter(
-                            color: const Color(0xFF64748B),
+                            color: context.palette.textMuted,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
@@ -2081,7 +2081,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   '${_bestDayText != null ? "Best day: $_bestDayText" : ""}${_weakestDayText != null ? "  ·  Weakest: $_weakestDayText" : ""}',
                   style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: const Color(0xFF64748B),
+                    color: context.palette.textMuted,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -2117,7 +2117,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
@@ -2128,7 +2128,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           children: [
             Text(
               'Activity Heatmap',
-              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 16),
             SingleChildScrollView(
@@ -2278,10 +2278,10 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                       fontSize: 12,
                       fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
                       color: isClosed
-                          ? const Color(0xFF64748B)
+                          ? context.palette.textMuted
                           : hours >= 4.0
                               ? Colors.white
-                              : const Color(0xFF1E293B),
+                              : context.palette.textPrimary,
                     ),
                   ),
                 ),
@@ -2303,7 +2303,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
@@ -2324,7 +2324,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                       children: [
                         Text(
                           DateFormat('MMMM yyyy').format(_heatmapMonth),
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         const SizedBox(width: 4),
                         const Icon(Icons.arrow_drop_down, color: Color(0xFFE65C00), size: 22),
@@ -2392,7 +2392,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         return StatefulBuilder(
           builder: (context, setLocal) {
             return AlertDialog(
-              backgroundColor: Colors.white,
+              backgroundColor: context.palette.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               contentPadding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
               content: SizedBox(
@@ -2410,7 +2410,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                         ),
                         Text(
                           '$pickerYear',
-                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         IconButton(
                           icon: const Icon(Icons.chevron_right, color: Color(0xFFE65C00)),
@@ -2449,7 +2449,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                                       ? const Color(0xFFCBD5E1)
                                       : isSelected
                                           ? Colors.white
-                                          : const Color(0xFF1E293B),
+                                          : context.palette.textPrimary,
                                 ),
                               ),
                             ),
@@ -2463,7 +2463,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B))),
+                  child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textMuted)),
                 ),
               ],
             );
@@ -2513,7 +2513,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         const SizedBox(width: 4),
         Text(
           text,
-          style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B)),
+          style: GoogleFonts.inter(fontSize: 10, color: context.palette.textMuted),
         ),
       ],
     );
@@ -2635,7 +2635,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
@@ -2649,7 +2649,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
               children: [
                 Text(
                   'Achievements',
-                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 Text(
                   '${_earnedBadges.length}/${_allBadgeDefinitions.length}',
@@ -2723,7 +2723,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                             style: GoogleFonts.inter(
                               fontSize: 9,
                               fontWeight: isEarned ? FontWeight.bold : FontWeight.w500,
-                              color: isEarned ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                              color: isEarned ? context.palette.textPrimary : const Color(0xFF94A3B8),
                             ),
                           ),
                         ],
@@ -2742,7 +2742,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
   void _showBadgeDetailSheet(Map<String, String> badgeDef, bool isEarned, String? earnedDate) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -2775,7 +2775,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
               const SizedBox(height: 16),
               Text(
                 badgeDef['title']!,
-                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 8),
               Container(
@@ -2797,7 +2797,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
               Text(
                 badgeDef['condition']!,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B), height: 1.5),
+                style: GoogleFonts.inter(fontSize: 14, color: context.palette.textMuted, height: 1.5),
               ),
               if (isEarned && earnedDate != null) ...[
                 const SizedBox(height: 8),
@@ -2890,7 +2890,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('No attendance data to export for this period.', style: GoogleFonts.inter()),
-              backgroundColor: const Color(0xFF64748B),
+              backgroundColor: context.palette.textMuted,
             ),
           );
         }

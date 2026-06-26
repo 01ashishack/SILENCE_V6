@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -55,7 +56,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -71,7 +72,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       appBar: AppBar(
         backgroundColor: const Color(0xFFE65C00),
         elevation: 0,
@@ -150,7 +151,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
@@ -169,7 +170,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
             children: [
               CircleAvatar(
                 radius: 16,
-                backgroundColor: const Color(0xFFFBF5EE),
+                backgroundColor: context.palette.scaffold,
                 backgroundImage: (photoUrl != null && photoUrl.toString().isNotEmpty)
                     ? NetworkImage(photoUrl)
                     : null,
@@ -187,7 +188,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -195,7 +196,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
                       formattedDate,
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                       ),
                     ),
                   ],
@@ -218,7 +219,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
               '"$reviewText"',
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: const Color(0xFF475569),
+                color: context.palette.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -263,7 +264,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -271,7 +272,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
                     'Replied ${DateFormat('dd MMM yyyy').format(DateTime.parse(review['admin_replied_at']).toLocal())}',
                     style: GoogleFonts.inter(
                       fontSize: 10,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ],

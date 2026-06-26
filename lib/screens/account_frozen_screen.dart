@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -87,7 +88,7 @@ class _AccountFrozenScreenState extends State<AccountFrozenScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         surfaceTintColor: Colors.transparent,
         title: Text('Request account recovery?',
             style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
@@ -95,12 +96,12 @@ class _AccountFrozenScreenState extends State<AccountFrozenScreen> {
           'Your request will be sent to the SILENCE team. They will review and '
           'decide whether to restore your account. You will stay signed out of '
           'the dashboard until it is approved.',
-          style: GoogleFonts.inter(fontSize: 13.5, color: const Color(0xFF475569)),
+          style: GoogleFonts.inter(fontSize: 13.5, color: context.palette.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B))),
+            child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textMuted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -195,7 +196,7 @@ class _AccountFrozenScreenState extends State<AccountFrozenScreen> {
               'Account Scheduled for Deletion',
               textAlign: TextAlign.center,
               style: GoogleFonts.outfit(
-                  fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  fontSize: 20, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 10),
             Text(
@@ -205,7 +206,7 @@ class _AccountFrozenScreenState extends State<AccountFrozenScreen> {
                       '${_purgeDate != null ? ' (on ${_purgeDate!.day}/${_purgeDate!.month}/${_purgeDate!.year})' : ''}.'
                   : 'Your account is past its recovery window and will be permanently deleted shortly.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 14, height: 1.5, color: const Color(0xFF475569)),
+              style: GoogleFonts.inter(fontSize: 14, height: 1.5, color: context.palette.textSecondary),
             ),
             const SizedBox(height: 24),
 
@@ -269,7 +270,7 @@ class _AccountFrozenScreenState extends State<AccountFrozenScreen> {
                 onPressed: _logout,
                 icon: const Icon(Icons.logout_rounded, color: Color(0xFF64748B)),
                 label: Text('Logout',
-                    style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                    style: GoogleFonts.inter(color: context.palette.textMuted, fontWeight: FontWeight.w600)),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   side: const BorderSide(color: Color(0xFFCBD5E1)),

@@ -282,7 +282,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
   Future<void> _pickAndUploadPhoto() async {
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1423,7 +1423,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
       await showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           title: Text('Role change not available',
               style: GoogleFonts.outfit(
                   fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
@@ -1458,7 +1458,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
           final canConfirm =
               confirmController.text.trim().toUpperCase() == 'ADMIN';
           return AlertDialog(
-            backgroundColor: Colors.white,
+            backgroundColor: context.palette.surface,
             title: Text('Switch to Admin — start over?',
                 style: GoogleFonts.outfit(
                     fontWeight: FontWeight.bold,

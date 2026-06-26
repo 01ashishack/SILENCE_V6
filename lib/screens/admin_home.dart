@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import '../theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/cache_service.dart';
@@ -993,7 +994,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
@@ -1033,7 +1034,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -1042,7 +1043,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   'You can now add members, manage seats, and track attendance. Complete additional details like social links, library rules, and branding from the Library Profile section.',
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: const Color(0xFF64748B),
+                    color: context.palette.textMuted,
                     height: 1.5,
                   ),
                   textAlign: TextAlign.center,
@@ -1162,14 +1163,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           title: Text(
             'Prerequisite Required',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
           content: Text(
             'You must complete Step $stepNum ($prerequisiteTitle) first. Would you like to complete it now?',
-            style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+            style: GoogleFonts.inter(color: context.palette.textMuted),
           ),
           actions: [
             TextButton(
@@ -1329,7 +1330,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             child: Container(
               width: 280,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
@@ -1378,7 +1379,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF1A1A2E),
+                                  color: context.palette.textPrimary,
                                 ),
                               ),
                             ),
@@ -1455,7 +1456,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                                     style: GoogleFonts.outfit(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF1E293B),
+                                      color: context.palette.textPrimary,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
@@ -1463,7 +1464,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                                     city ?? 'Location',
                                     style: GoogleFonts.inter(
                                       fontSize: 11,
-                                      color: const Color(0xFF64748B),
+                                      color: context.palette.textMuted,
                                     ),
                                   ),
                                 ],
@@ -1841,7 +1842,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   Widget _buildSetupOnboardingCard() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: const Border(
           left: BorderSide(color: Color(0xFFE65C00), width: 4),
@@ -1867,7 +1868,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   style: GoogleFonts.outfit(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 Text(
@@ -2061,7 +2062,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                     style: GoogleFonts.outfit(
                       fontSize: 14.5,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -2088,7 +2089,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -2352,7 +2353,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -2406,7 +2407,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       height: 96,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -2445,7 +2446,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -2466,7 +2467,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF6B7280),
+                  color: context.palette.textMuted,
                 ),
               ),
               GestureDetector(
@@ -2486,7 +2487,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             style: GoogleFonts.outfit(
               fontSize: 26,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF1A1A2E),
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 6),
@@ -2536,7 +2537,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       height: 120,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -2591,7 +2592,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -2612,7 +2613,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF6B7280),
+                  color: context.palette.textMuted,
                 ),
               ),
               TextButton.icon(
@@ -2671,7 +2672,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                     style: GoogleFonts.outfit(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1A1A2E),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                 ],
@@ -2697,7 +2698,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1A1A2E),
+                            color: context.palette.textPrimary,
                           ),
                         ),
                       ],
@@ -2718,7 +2719,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                           'Vacant: $_vacantSeatsCount seats',
                           style: GoogleFonts.inter(
                             fontSize: 13,
-                            color: const Color(0xFF6B7280),
+                            color: context.palette.textMuted,
                           ),
                         ),
                       ],
@@ -2739,7 +2740,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                           'Hold: $_holdSeatsCount seats',
                           style: GoogleFonts.inter(
                             fontSize: 13,
-                            color: const Color(0xFF6B7280),
+                            color: context.palette.textMuted,
                           ),
                         ),
                       ],
@@ -2766,7 +2767,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             style: GoogleFonts.outfit(
               fontSize: 19,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF1A1A2E),
+              color: context.palette.textPrimary,
             ),
           ),
         ),
@@ -2855,12 +2856,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         : iconColor;
     final Color finalValueColor = _inSetupMode
         ? const Color(0xFF9CA3AF)
-        : const Color(0xFF1A1A2E);
+        : context.palette.textPrimary;
 
     final Widget card = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
@@ -2909,7 +2910,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                     style: GoogleFonts.inter(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF475569),
+                      color: context.palette.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -3038,7 +3039,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               style: GoogleFonts.outfit(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
             ),
           ],
@@ -3061,7 +3062,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
@@ -3089,7 +3090,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
             ),
@@ -3143,7 +3144,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           style: GoogleFonts.outfit(
             fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: const Color(0xFF1A1A2E),
+            color: context.palette.textPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -3299,7 +3300,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -3341,7 +3342,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                         style: GoogleFonts.outfit(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF1A1A2E),
+                          color: context.palette.textPrimary,
                         ),
                       ),
                     ],
@@ -3483,7 +3484,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -3532,7 +3533,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                             style: GoogleFonts.outfit(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1A1A2E),
+                              color: context.palette.textPrimary,
                             ),
                           ),
                         ],
@@ -3591,7 +3592,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                                 style: GoogleFonts.outfit(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF6B7280),
+                                  color: context.palette.textMuted,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -3714,7 +3715,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -3734,7 +3735,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   style: GoogleFonts.outfit(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1A1A2E))),
+                      color: context.palette.textPrimary)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -3746,7 +3747,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 child: Text(
                   query['message']?.toString() ?? '',
                   style: GoogleFonts.inter(
-                      fontSize: 13, color: const Color(0xFF475569)),
+                      fontSize: 13, color: context.palette.textSecondary),
                 ),
               ),
               if (existingReply.isNotEmpty) ...[
@@ -3883,7 +3884,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -3960,7 +3961,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                               style: GoogleFonts.outfit(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFF1A1A2E),
+                                color: context.palette.textPrimary,
                               ),
                             ),
                             Text(
@@ -4205,7 +4206,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       children: [
         Text(label,
             style: GoogleFonts.inter(
-                fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF475569))),
+                fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textSecondary)),
         TextButton.icon(
           onPressed: onTap,
           icon: const Icon(Icons.calendar_month, size: 16, color: Color(0xFFE65C00)),
@@ -4255,10 +4256,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Closing for: $dateLabel',
-                style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
             const SizedBox(height: 10),
             Text('$activeMembers active member${activeMembers == 1 ? '' : 's'} in this library.',
-                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569))),
+                style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary)),
             if (coversToday && openNow > 0) ...[
               const SizedBox(height: 8),
               Container(
@@ -4277,7 +4278,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             ] else if (coversToday) ...[
               const SizedBox(height: 8),
               Text('No one is checked in right now.',
-                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+                  style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted)),
             ],
           ],
         ),
@@ -4417,7 +4418,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           style: GoogleFonts.outfit(
             fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: const Color(0xFF1A1A2E),
+            color: context.palette.textPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -4457,7 +4458,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -4487,7 +4488,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               style: GoogleFonts.outfit(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1A1A2E),
+                color: context.palette.textPrimary,
               ),
             ),
             Text(
@@ -4495,7 +4496,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 9,
-                color: const Color(0xFF6B7280),
+                color: context.palette.textMuted,
               ),
             ),
             const SizedBox(height: 12),
@@ -4518,7 +4519,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                         style: GoogleFonts.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF6B7280),
+                          color: context.palette.textMuted,
                         ),
                       ),
                     ),
@@ -4582,7 +4583,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               style: GoogleFonts.outfit(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1A1A2E),
+                color: context.palette.textPrimary,
               ),
             ),
             Text(
@@ -4590,7 +4591,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF6B7280),
+                color: context.palette.textMuted,
               ),
             ),
           ],
@@ -4602,7 +4603,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             ? Container(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.palette.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
@@ -4630,7 +4631,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             : Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.palette.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
@@ -4713,7 +4714,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                             style: GoogleFonts.inter(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1A1A2E),
+                              color: context.palette.textPrimary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -4755,7 +4756,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               style: GoogleFonts.outfit(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1A1A2E),
+                color: context.palette.textPrimary,
               ),
             ),
             GestureDetector(
@@ -4775,7 +4776,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -4841,7 +4842,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                               act['desc'],
                               style: GoogleFonts.inter(
                                 fontSize: 12,
-                                color: const Color(0xFF1A1A2E),
+                                color: context.palette.textPrimary,
                               ),
                             ),
                           ),
@@ -5002,7 +5003,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           }
         },
         type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         selectedItemColor: const Color(0xFFE65C00),
         unselectedItemColor: const Color(0xFF94A3B8), // slate-400
         selectedLabelStyle: GoogleFonts.inter(

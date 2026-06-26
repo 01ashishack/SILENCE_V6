@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -57,7 +58,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
   Future<void> _chooseRangeAndExport(String type, bool isPdf) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -418,7 +419,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                     Expanded(
                       child: Text(
                         "Tap CSV or PDF on a report — you'll pick the date / month / range next.",
-                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                        style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                       ),
                     ),
                   ],
@@ -514,7 +515,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -537,9 +538,9 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                    Text(title, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                     const SizedBox(height: 4),
-                    Text(description, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), height: 1.4)),
+                    Text(description, style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted, height: 1.4)),
                   ],
                 ),
               ),

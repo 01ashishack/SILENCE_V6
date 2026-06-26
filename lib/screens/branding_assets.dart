@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../theme/app_palette.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -24,7 +25,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
 
   final List<Color> _brandPalette = [
     const Color(0xFFE65C00), // Default Orange
-    const Color(0xFF0F172A), // Slate Dark
+    const Color(0xFF1E293B), // Slate Dark
     const Color(0xFF3B82F6), // Ocean Blue
     const Color(0xFF10B981), // Emerald Green
     const Color(0xFF7C3AED), // Indigo Purple
@@ -56,7 +57,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
   Future<ImageSource?> _showImageSourceBottomSheet(BuildContext context, String title) async {
     return await showModalBottomSheet<ImageSource?>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -122,7 +123,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
             title,
@@ -342,7 +343,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -368,7 +369,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -377,7 +378,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                           children: [
                             Text(
                               'Library Visual Assets',
-                              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                             ),
                             const SizedBox(height: 16),
                             Center(
@@ -420,7 +421,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                             Center(
                               child: Text(
                                 'Tap circle to upload brand logo',
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                               ),
                             ),
                           ],
@@ -432,7 +433,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -441,12 +442,12 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                           children: [
                             Text(
                               'App Primary Accent Color',
-                              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Choose the dominant secondary color used across your member portals.',
-                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                              style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                             ),
                             const SizedBox(height: 16),
                             Row(
@@ -492,7 +493,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -501,7 +502,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                           children: [
                             Text(
                               'Printable Assets & Collateral',
-                              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                             ),
                             const SizedBox(height: 12),
                             _buildCollateralRow('A4 Join QR Poster', 'Premium desk board / entry standee poster format', Icons.crop_portrait),
@@ -558,7 +559,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(

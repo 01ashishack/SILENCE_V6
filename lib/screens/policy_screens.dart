@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Shared, role-agnostic legal/policy screens (used by both member & admin
@@ -31,7 +32,7 @@ class _PolicyScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       appBar: AppBar(
         backgroundColor: const Color(0xFFE65C00),
         foregroundColor: Colors.white,
@@ -47,7 +48,7 @@ class _PolicyScaffold extends StatelessWidget {
           const SizedBox(height: 12),
           Text(intro,
               style: GoogleFonts.inter(
-                  fontSize: 13.5, height: 1.5, color: const Color(0xFF475569))),
+                  fontSize: 13.5, height: 1.5, color: context.palette.textSecondary)),
           const SizedBox(height: 20),
           ...sections.map((s) => Padding(
                 padding: const EdgeInsets.only(bottom: 18),
@@ -58,11 +59,11 @@ class _PolicyScaffold extends StatelessWidget {
                         style: GoogleFonts.outfit(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1A1A2E))),
+                            color: context.palette.textPrimary)),
                     const SizedBox(height: 6),
                     Text(s.body,
                         style: GoogleFonts.inter(
-                            fontSize: 13, height: 1.5, color: const Color(0xFF475569))),
+                            fontSize: 13, height: 1.5, color: context.palette.textSecondary)),
                   ],
                 ),
               )),

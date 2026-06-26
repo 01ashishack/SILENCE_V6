@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/admin_settings_service.dart';
@@ -114,7 +115,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -122,7 +123,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                           contentPadding: EdgeInsets.zero,
                           title: Text(
                             'Referral Rewards Program',
-                            style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                            style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                           ),
                           subtitle: Text(
                             'Enable incentives to reward active members for referring new students.',
@@ -142,7 +143,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.palette.surface,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
@@ -151,13 +152,13 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                             children: [
                               Text(
                                 'Rewards Configuration',
-                                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                               ),
                               const SizedBox(height: 16),
                               
                               Text(
                                 'Free Days for Referrer (Exiting Member)',
-                                style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                               ),
                               const SizedBox(height: 6),
                               Row(
@@ -182,7 +183,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
 
                               Text(
                                 'Free Days for Referee (New Joining Student)',
-                                style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                               ),
                               const SizedBox(height: 6),
                               Row(
@@ -236,7 +237,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -245,7 +246,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                           children: [
                             Text(
                               'Aggregate Metrics',
-                              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                             ),
                             const SizedBox(height: 16),
                             if (_totalReferred == 0)
@@ -257,7 +258,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
                                     Text(
                                       'No referrals yet. Share your library code to get started.',
                                       textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                                     ),
                                   ],
                                 ),
@@ -306,7 +307,7 @@ class _ReferralSettingsScreenState extends State<ReferralSettingsScreen> {
         const SizedBox(height: 2),
         Text(
           label,
-          style: GoogleFonts.inter(fontSize: 10.5, color: const Color(0xFF64748B)),
+          style: GoogleFonts.inter(fontSize: 10.5, color: context.palette.textMuted),
         ),
       ],
     );

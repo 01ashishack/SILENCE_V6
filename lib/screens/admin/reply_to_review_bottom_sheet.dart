@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -120,7 +121,7 @@ class _ReplyToReviewBottomSheetState extends State<ReplyToReviewBottomSheet> {
                 style: GoogleFonts.outfit(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               IconButton(
@@ -137,7 +138,7 @@ class _ReplyToReviewBottomSheetState extends State<ReplyToReviewBottomSheet> {
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF64748B),
+              color: context.palette.textMuted,
             ),
           ),
           const SizedBox(height: 6),
@@ -152,7 +153,7 @@ class _ReplyToReviewBottomSheetState extends State<ReplyToReviewBottomSheet> {
               '"$reviewText"',
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: const Color(0xFF475569),
+                color: context.palette.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -166,14 +167,14 @@ class _ReplyToReviewBottomSheetState extends State<ReplyToReviewBottomSheet> {
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               Text(
                 '$_charCount/200',
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: _charCount > 200 ? Colors.red : const Color(0xFF64748B),
+                  color: _charCount > 200 ? Colors.red : context.palette.textMuted,
                 ),
               ),
             ],
@@ -184,7 +185,7 @@ class _ReplyToReviewBottomSheetState extends State<ReplyToReviewBottomSheet> {
             maxLines: 3,
             maxLength: 200,
             buildCounter: (context, {required currentLength, required isFocused, maxLength}) => const SizedBox.shrink(),
-            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.inter(fontSize: 13, color: context.palette.textPrimary),
             decoration: InputDecoration(
               hintText: 'Type your reply here...',
               hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),

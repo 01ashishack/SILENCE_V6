@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -216,7 +217,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -381,7 +382,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280), letterSpacing: 1),
+        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: context.palette.textMuted, letterSpacing: 1),
       ),
     );
   }
@@ -390,7 +391,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -401,7 +402,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
         value: _masterPush,
         onChanged: (v) => setState(() => _masterPush = v),
         title: Text('Master Push Notifications',
-            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         subtitle: Text('Enable or disable all notifications in the app.',
             style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
         secondary: Container(
@@ -419,7 +420,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
   Widget _buildPreferenceCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -444,7 +445,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
       activeThumbColor: const Color(0xFFE65C00),
       value: value,
       onChanged: onChanged,
-      title: Text(title, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+      title: Text(title, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
       subtitle: Text(subtitle, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
       secondary: Container(
         padding: const EdgeInsets.all(8),
@@ -470,7 +471,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -496,7 +497,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Streak Reminders',
-                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                     Text('Remind me to maintain my daily study streak.',
                         style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                   ],
@@ -561,7 +562,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Quiet Hours',
-                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                     Text('Mute all notifications during a specified duration.',
                         style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                   ],
@@ -598,7 +599,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(_formatTimeForDisplay(_quietHoursStart),
-                                  style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                                  style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                               const Icon(Icons.access_time, size: 14, color: Color(0xFFE65C00)),
                             ],
                           ),
@@ -628,7 +629,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(_formatTimeForDisplay(_quietHoursEnd),
-                                  style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                                  style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                               const Icon(Icons.access_time, size: 14, color: Color(0xFFE65C00)),
                             ],
                           ),

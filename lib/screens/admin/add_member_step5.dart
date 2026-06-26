@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -153,7 +154,7 @@ class AddMemberStep5 extends StatelessWidget {
             style: GoogleFonts.outfit(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
@@ -161,7 +162,7 @@ class AddMemberStep5 extends StatelessWidget {
             'Double check the member details and membership card preview before completing registration.',
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: const Color(0xFF64748B),
+              color: context.palette.textMuted,
             ),
           ),
           const SizedBox(height: 24),
@@ -169,13 +170,13 @@ class AddMemberStep5 extends StatelessWidget {
           // MEMBERSHIP CARD PREVIEW (matching member_home.dart style)
           Text(
             'Membership Card Preview',
-            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
           ),
           const SizedBox(height: 10),
 
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border(left: BorderSide(color: borderColor, width: 4)),
               boxShadow: [
@@ -192,7 +193,7 @@ class AddMemberStep5 extends StatelessWidget {
                     Expanded(
                       child: Text(
                         libraryName.toUpperCase(),
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                     ),
                     Container(
@@ -227,7 +228,7 @@ class AddMemberStep5 extends StatelessWidget {
                     Expanded(
                       child: Text(
                         memberData.name.isNotEmpty ? memberData.name : 'New Member',
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -264,7 +265,7 @@ class AddMemberStep5 extends StatelessWidget {
                     const SizedBox(width: 24),
                     Text(
                       '₹$finalPrice',
-                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                   ],
                 ),
@@ -306,16 +307,16 @@ class AddMemberStep5 extends StatelessWidget {
           const SizedBox(height: 24),
 
           // REVIEW SECTIONS
-          _buildSectionHeader('Personal Details', 0),
-          _buildReviewRow('Name', memberData.name),
-          _buildReviewRow("Father's Name", memberData.fatherName.isNotEmpty ? memberData.fatherName : 'N/A'),
-          _buildReviewRow('DOB', memberData.dob != null ? _formatDate(memberData.dob!) : 'N/A'),
-          _buildReviewRow('Gender', memberData.gender?.toUpperCase() ?? 'N/A'),
-          _buildReviewRow('Phone', '+91 ${memberData.phone}'),
-          _buildReviewRow('Email', memberData.email.isNotEmpty ? memberData.email : 'N/A'),
-          _buildReviewRow('Preparing For', memberData.preparingFor ?? 'N/A'),
-          _buildReviewRow('Joining Date', _formatDate(memberData.joiningDate)),
-          _buildReviewRow(
+          _buildSectionHeader(context, 'Personal Details', 0),
+          _buildReviewRow(context, 'Name', memberData.name),
+          _buildReviewRow(context, "Father's Name", memberData.fatherName.isNotEmpty ? memberData.fatherName : 'N/A'),
+          _buildReviewRow(context, 'DOB', memberData.dob != null ? _formatDate(memberData.dob!) : 'N/A'),
+          _buildReviewRow(context, 'Gender', memberData.gender?.toUpperCase() ?? 'N/A'),
+          _buildReviewRow(context, 'Phone', '+91 ${memberData.phone}'),
+          _buildReviewRow(context, 'Email', memberData.email.isNotEmpty ? memberData.email : 'N/A'),
+          _buildReviewRow(context, 'Preparing For', memberData.preparingFor ?? 'N/A'),
+          _buildReviewRow(context, 'Joining Date', _formatDate(memberData.joiningDate)),
+          _buildReviewRow(context, 
             'ID Upload',
             [
               if (memberData.idProof1File != null || memberData.idProof1Url != null) 'Front',
@@ -329,34 +330,34 @@ class AddMemberStep5 extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          _buildSectionHeader('Plan & Schedule', 1),
-          _buildReviewRow('Shift', memberData.selectedShiftName.isNotEmpty ? memberData.selectedShiftName : 'N/A'),
-          _buildReviewRow('Plan Type', memberData.planType == 'monthly' ? 'Monthly' : (memberData.planType == '3_month' ? '3-Month' : '6-Month')),
-          if (memberData.mode == 'new') _buildReviewRow('Trial Days', '${memberData.trialDays} Days'),
-          _buildReviewRow('Start Date', _formatDate(start)),
-          _buildReviewRow('Expiry Date', _formatDate(expiry)),
+          _buildSectionHeader(context, 'Plan & Schedule', 1),
+          _buildReviewRow(context, 'Shift', memberData.selectedShiftName.isNotEmpty ? memberData.selectedShiftName : 'N/A'),
+          _buildReviewRow(context, 'Plan Type', memberData.planType == 'monthly' ? 'Monthly' : (memberData.planType == '3_month' ? '3-Month' : '6-Month')),
+          if (memberData.mode == 'new') _buildReviewRow(context, 'Trial Days', '${memberData.trialDays} Days'),
+          _buildReviewRow(context, 'Start Date', _formatDate(start)),
+          _buildReviewRow(context, 'Expiry Date', _formatDate(expiry)),
           const SizedBox(height: 16),
 
-          _buildSectionHeader('Seat Assignment', 2),
-          _buildReviewRow('Floor', memberData.selectedFloorName ?? 'N/A'),
-          _buildReviewRow('Section', memberData.selectedSectionName ?? 'N/A'),
-          _buildReviewRow('Seat Label', memberData.selectedSeatLabel ?? 'N/A'),
+          _buildSectionHeader(context, 'Seat Assignment', 2),
+          _buildReviewRow(context, 'Floor', memberData.selectedFloorName ?? 'N/A'),
+          _buildReviewRow(context, 'Section', memberData.selectedSectionName ?? 'N/A'),
+          _buildReviewRow(context, 'Seat Label', memberData.selectedSeatLabel ?? 'N/A'),
           const SizedBox(height: 16),
 
           if (memberData.mode != 'existing') ...[
-            _buildSectionHeader('Payment & Confirmation', 3),
-            _buildReviewRow('Subtotal', '₹${memberData.totalBasePrice}'),
-            _buildReviewRow('Discount', '₹${memberData.discount}'),
-            _buildReviewRow('Final Payable', '₹$finalPrice'),
-            _buildReviewRow('Payment Flow', memberData.paymentFlow == 'paid' ? 'Mark as Paid Now' : 'Send Payment Request'),
-            if (memberData.paymentFlow == 'paid') _buildReviewRow('Payment Mode', memberData.paymentMethod.toUpperCase()),
+            _buildSectionHeader(context, 'Payment & Confirmation', 3),
+            _buildReviewRow(context, 'Subtotal', '₹${memberData.totalBasePrice}'),
+            _buildReviewRow(context, 'Discount', '₹${memberData.discount}'),
+            _buildReviewRow(context, 'Final Payable', '₹$finalPrice'),
+            _buildReviewRow(context, 'Payment Flow', memberData.paymentFlow == 'paid' ? 'Mark as Paid Now' : 'Send Payment Request'),
+            if (memberData.paymentFlow == 'paid') _buildReviewRow(context, 'Payment Mode', memberData.paymentMethod.toUpperCase()),
           ],
           const SizedBox(height: 24),
 
           // SHARE ACTIONS
           Text(
             'Share Details with Member',
-            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
           ),
           const SizedBox(height: 10),
           Row(
@@ -450,7 +451,7 @@ class AddMemberStep5 extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader(String title, int stepIndex) {
+  Widget _buildSectionHeader(BuildContext context, String title, int stepIndex) {
     return Container(
       padding: const EdgeInsets.only(bottom: 6),
       margin: const EdgeInsets.only(bottom: 8),
@@ -472,7 +473,7 @@ class AddMemberStep5 extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   'Edit',
-                  style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+                  style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
@@ -482,7 +483,7 @@ class AddMemberStep5 extends StatelessWidget {
     );
   }
 
-  Widget _buildReviewRow(String label, String value) {
+  Widget _buildReviewRow(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -492,13 +493,13 @@ class AddMemberStep5 extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+              style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted, fontWeight: FontWeight.w500),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B), fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(fontSize: 13, color: context.palette.textPrimary, fontWeight: FontWeight.w600),
             ),
           ),
         ],

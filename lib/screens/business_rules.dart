@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/admin_settings_service.dart';
@@ -117,7 +118,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -145,7 +146,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.palette.surface,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
@@ -158,14 +159,14 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                                   const SizedBox(width: 10),
                                   Text(
                                     'Membership Discounts',
-                                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 16),
                               Text(
                                 'Max Discount Cap (%)',
-                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                               ),
                               const SizedBox(height: 6),
                               TextFormField(
@@ -187,7 +188,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.palette.surface,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
@@ -200,14 +201,14 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                                   const SizedBox(width: 10),
                                   Text(
                                     'Grace Periods & Holds',
-                                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 16),
                               Text(
                                 'Payment Expiry Grace Days',
-                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                               ),
                               const SizedBox(height: 6),
                               TextFormField(
@@ -220,7 +221,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                               const SizedBox(height: 16),
                               Text(
                                 'Max Seat Hold Duration (Days)',
-                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                               ),
                               const SizedBox(height: 6),
                               TextFormField(
@@ -233,7 +234,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                               const SizedBox(height: 16),
                               Text(
                                 'Max Free Holds Per Member',
-                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                               ),
                               const SizedBox(height: 6),
                               TextFormField(
@@ -252,7 +253,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.palette.surface,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
@@ -260,7 +261,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                             contentPadding: EdgeInsets.zero,
                             title: Text(
                               'Allow Check-in after Expiry',
-                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                             ),
                             subtitle: Text(
                               'If disabled, scanner will block entries immediately when a plan ends.',

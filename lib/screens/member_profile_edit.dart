@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../theme/app_palette.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
@@ -221,7 +222,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
   Future<ImageSource?> _showImageSourceBottomSheet() async {
     return await showModalBottomSheet<ImageSource?>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -527,7 +528,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -598,7 +599,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -644,12 +645,12 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           const SizedBox(height: 12),
           Text(
             'Profile Photo',
-            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
           const SizedBox(height: 4),
           Text(
             'Upload a clear front-facing picture',
-            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280)),
+            style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
           ),
         ],
       ),
@@ -661,7 +662,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -673,11 +674,11 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           Text('Personal Details', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
           const SizedBox(height: 16),
           
-          Text('Full Name *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Full Name *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 6),
           TextFormField(
             controller: _nameController,
-            style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+            style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
             decoration: InputDecoration(
               hintText: 'Enter full name',
               hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
@@ -687,11 +688,11 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ),
           const SizedBox(height: 16),
 
-          Text('Nickname (Optional)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Nickname (Optional)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 6),
           TextFormField(
             controller: _nicknameController,
-            style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+            style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
             decoration: InputDecoration(
               hintText: 'Enter nickname',
               hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
@@ -701,11 +702,11 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           const SizedBox(height: 16),
 
           // Father's name
-          Text("Father's Name", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text("Father's Name", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 6),
           TextFormField(
             controller: _fatherNameController,
-            style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+            style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
             decoration: InputDecoration(
               hintText: 'Enter father\'s name',
               hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
@@ -714,7 +715,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ),
           const SizedBox(height: 16),
 
-          Text('Gender *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Gender *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -730,8 +731,8 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                 label: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold)),
                 selected: isSelected,
                 selectedColor: const Color(0xFFFFF3ED),
-                backgroundColor: Colors.white,
-                labelStyle: TextStyle(color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF6B7280)),
+                backgroundColor: context.palette.surface,
+                labelStyle: TextStyle(color: isSelected ? const Color(0xFFE65C00) : context.palette.textMuted),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                   side: BorderSide(color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB)),
@@ -744,7 +745,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ),
           const SizedBox(height: 16),
 
-          Text('Date of Birth *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Date of Birth *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 6),
           GestureDetector(
             onTap: () {
@@ -812,7 +813,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                         : '${_dob!.day}/${_dob!.month}/${_dob!.year}',
                     style: GoogleFonts.inter(
                       fontSize: 15,
-                      color: _dob == null ? const Color(0xFF9CA3AF) : const Color(0xFF1A1A2E),
+                      color: _dob == null ? const Color(0xFF9CA3AF) : context.palette.textPrimary,
                     ),
                   ),
                   const Icon(Icons.calendar_today, size: 18, color: Color(0xFFE65C00)),
@@ -829,7 +830,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ],
           const SizedBox(height: 16),
 
-          Text('Exam Preparing For', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Exam Preparing For', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 6),
           StyledDropdownButton<String>(
             value: _examCategories.contains(_examCategory) ? _examCategory : 'Other',
@@ -844,11 +845,11 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ),
           if (_examCategory == 'Other') ...[
             const SizedBox(height: 12),
-            Text('Custom Exam Name *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+            Text('Custom Exam Name *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
             const SizedBox(height: 6),
             TextFormField(
               controller: _customExamController,
-              style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+              style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Enter custom exam name',
                 hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
@@ -858,12 +859,12 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ],
           const SizedBox(height: 16),
 
-          Text('Address *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Address *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 6),
           TextFormField(
             controller: _addressController,
             maxLines: 3,
-            style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+            style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
             decoration: InputDecoration(
               hintText: 'Enter multiline address',
               hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
@@ -879,7 +880,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -891,7 +892,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           Text('Contact Details', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
           const SizedBox(height: 16),
 
-          Text('Phone Number *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Phone Number *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -917,7 +918,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(10),
                   ],
-                  style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                  style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'Enter 10 digit number',
                     hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
@@ -930,7 +931,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           const SizedBox(height: 16),
 
           // Emergency Contact
-          Text('Emergency Contact (Optional)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Emergency Contact (Optional)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -956,7 +957,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(10),
                   ],
-                  style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                  style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'Emergency phone number',
                     hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
@@ -967,11 +968,11 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           ),
           const SizedBox(height: 16),
 
-          Text('Email', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('Email', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           const SizedBox(height: 6),
           TextFormField(
             controller: _emailController,
-            style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+            style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.email_outlined, size: 20),
             ),
@@ -986,7 +987,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -999,7 +1000,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
           const SizedBox(height: 4),
           Text(
             'Upload a clear photo of your ID. Front is required.',
-            style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B)),
+            style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted),
           ),
           const SizedBox(height: 16),
           Row(
@@ -1026,7 +1027,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
       children: [
         Row(
           children: [
-            Text(label, style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+            Text(label, style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             if (isRequired)
               Text('  *', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
           ],

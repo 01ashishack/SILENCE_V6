@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/admin_settings_service.dart';
 
@@ -65,7 +66,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -90,7 +91,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                       // Header title
                       Text(
                         'Alert & Message Settings',
-                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       const SizedBox(height: 12),
 
@@ -98,7 +99,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -189,7 +190,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
         contentPadding: EdgeInsets.zero,
         title: Text(
           title,
-          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2.0),

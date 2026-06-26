@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -149,7 +150,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -392,11 +393,11 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                 Text('Within 7 days you can request recovery; the SILENCE team reviews '
                     'and decides. There is no self-cancel. After 7 days it is permanent.',
                     style: GoogleFonts.inter(
-                        fontSize: 11.5, color: const Color(0xFF64748B))),
+                        fontSize: 11.5, color: context.palette.textMuted)),
                 const SizedBox(height: 14),
                 Text('Type DELETE to confirm:',
                     style: GoogleFonts.inter(
-                        fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                        fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: confirmCtrl,
@@ -440,7 +441,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569))),
+                style: GoogleFonts.inter(fontSize: 12, color: context.palette.textSecondary)),
           ),
         ],
       ),
@@ -514,7 +515,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -549,7 +550,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                             decoration: const BoxDecoration(color: Color(0xFFFFF3ED), shape: BoxShape.circle),
                             child: const Icon(Icons.vpn_key_outlined, color: Color(0xFFE65C00), size: 20),
                           ),
-                          title: Text('Change Password', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                          title: Text('Change Password', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                           subtitle: Text('Update your app login security password.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                         ),
@@ -561,7 +562,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                               decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
                               child: const Icon(Icons.g_mobiledata, color: Color(0xFF3B82F6), size: 24),
                             ),
-                            title: Text('Connected Google Account', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                            title: Text('Connected Google Account', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                             subtitle: Text(_userEmail!, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                             trailing: _hasGoogleIdentity
                                 ? Container(
@@ -592,7 +593,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                           activeThumbColor: const Color(0xFFE65C00),
                           value: _showOnLeaderboard,
                           onChanged: (v) => setState(() => _showOnLeaderboard = v),
-                          title: Text('Show on Leaderboard', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                          title: Text('Show on Leaderboard', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                           subtitle: Text('Let other library members see your score on study ranks.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                           secondary: Container(
                             padding: const EdgeInsets.all(8),
@@ -605,7 +606,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                           activeThumbColor: const Color(0xFFE65C00),
                           value: _showHours,
                           onChanged: (v) => setState(() => _showHours = v),
-                          title: Text('Show Study Hours to Others', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                          title: Text('Show Study Hours to Others', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                           subtitle: Text('Allow fellow students to view your daily attendance logs.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                           secondary: Container(
                             padding: const EdgeInsets.all(8),
@@ -618,7 +619,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                           activeThumbColor: const Color(0xFFE65C00),
                           value: _hideNickname,
                           onChanged: (v) => setState(() => _hideNickname = v),
-                          title: Text('Hide Nickname from Non-members', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                          title: Text('Hide Nickname from Non-members', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                           subtitle: Text('Prevent users who are not active members from seeing your nickname.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                           secondary: Container(
                             padding: const EdgeInsets.all(8),
@@ -639,7 +640,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                             decoration: const BoxDecoration(color: Color(0xFFF5F3FF), shape: BoxShape.circle),
                             child: const Icon(Icons.file_download_outlined, color: Color(0xFF8B5CF6), size: 20),
                           ),
-                          title: Text('Download My Data', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                          title: Text('Download My Data', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                           subtitle: Text('Generate and export your profile, membership, and attendance logs in JSON.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                         )
@@ -650,7 +651,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                       _buildSectionHeader('Danger Zone'),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: const Color(0xFFFEE2E2), width: 1),
                           boxShadow: [
@@ -732,7 +733,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280), letterSpacing: 1),
+        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: context.palette.textMuted, letterSpacing: 1),
       ),
     );
   }
@@ -740,7 +741,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
   Widget _buildSettingsCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),

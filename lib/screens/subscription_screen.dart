@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/plan_service.dart';
 import '../widgets/app_gradient_scaffold.dart';
@@ -88,7 +89,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   void _onSelectPaidPlan(_Plan plan) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
@@ -111,14 +112,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             Text('${plan.name} plan — coming soon',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.outfit(
-                    fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                    fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             const SizedBox(height: 8),
             Text(
               "You're on the Free plan and everything is free during the beta. "
               'Paid plans (₹${plan.price}/mo) launch later — you\'ll be notified well '
               'before any charges. No payment is taken now.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), height: 1.45),
+              style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted, height: 1.45),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
@@ -156,7 +157,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         const SizedBox(height: 20),
                         Text('Choose a plan',
                             style: GoogleFonts.outfit(
-                                fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                                fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                         const SizedBox(height: 4),
                         Text('Indicative pricing. Billing arrives after the beta.',
                             style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
@@ -229,7 +230,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: plan.highlight ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
@@ -243,7 +244,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             children: [
               Text(plan.name,
                   style: GoogleFonts.outfit(
-                      fontSize: 17, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                      fontSize: 17, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
               const SizedBox(width: 8),
               if (plan.highlight)
                 Container(
@@ -268,7 +269,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ),
           const SizedBox(height: 4),
           Text(plan.tagline,
-              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
+              style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted)),
           const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -276,7 +277,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             children: [
               Text(isFree ? '₹0' : '₹${plan.price}',
                   style: GoogleFonts.outfit(
-                      fontSize: 26, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                      fontSize: 26, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
               const SizedBox(width: 4),
               Text(isFree ? 'always' : '/month',
                   style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
@@ -292,7 +293,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(f,
-                          style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF475569))),
+                          style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textSecondary)),
                     ),
                   ],
                 ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AddMemberModeSelection extends StatefulWidget {
@@ -54,7 +55,7 @@ class _AddMemberModeSelectionState extends State<AddMemberModeSelection> {
                     style: GoogleFonts.outfit(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1A1A2E),
+                      color: context.palette.textPrimary,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -63,7 +64,7 @@ class _AddMemberModeSelectionState extends State<AddMemberModeSelection> {
                     'Select standard mode or pre-existing member mode\nto configure registration options.',
                     style: GoogleFonts.inter(
                       fontSize: 14,
-                      color: const Color(0xFF6B7280),
+                      color: context.palette.textMuted,
                       height: 1.5,
                     ),
                     textAlign: TextAlign.center,
@@ -184,7 +185,7 @@ class _ModeCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
@@ -233,7 +234,7 @@ class _ModeCard extends StatelessWidget {
                           style: GoogleFonts.outfit(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1A1A2E),
+                            color: context.palette.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -241,7 +242,7 @@ class _ModeCard extends StatelessWidget {
                           subtitle,
                           style: GoogleFonts.inter(
                             fontSize: 13,
-                            color: const Color(0xFF6B7280),
+                            color: context.palette.textMuted,
                             height: 1.4,
                           ),
                         ),

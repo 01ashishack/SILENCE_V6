@@ -151,6 +151,33 @@ Community Guidelines; one canonical source; DPDP grievance officer), H2 version 
 (package_info — 1.0.0 vs 1.0.6 mismatch), H3 change-password current-password check (+ admin password
 screen), M1 de-dup the two member Delete-Account flows, dark-mode per-screen polish, Hindi i18n.
 
+### Session 2026-06-26 (c) — Dark theme: full screen migration (phase 2)
+
+Completed the screen-by-screen dark migration started in (b) using a mechanical pass (palette swaps),
+verified with `flutter analyze` (0 new errors) + debug `flutter build apk` (OK) after each batch.
+- **Migrated (all remaining screens):** member batch (member_home, member_analytics_tab, member_history_tab,
+  member_explore, member notification/privacy/about/terms/privacy-policy/licences screens, member_profile_edit);
+  admin batch (admin_home, admin_analytics_tab, admin_profile_tab, admin_profile_complete, admin/* incl.
+  add_member_step1-5/wizard, all_libraries_overview, copy_library_settings, all_reviews, reply_to_review);
+  reservations/* + reports/*; setup/library batch (library_setup_stage1-3, library_profile,
+  library_public_profile, addon_services, business_rules, shift_management, scheduled_closures,
+  referral_settings, branding_assets, qr_assets, social_links_edit, notification_preferences);
+  misc batch (about_us, account_frozen, announcements_history, audit_log, auth, contact_admin, export_center,
+  help_support, member_help_support, notifications, owner_recovery_console, past_library_detail, policy_screens,
+  pricing_plans, role_selection, subscription, terms, verified_badge).
+- **Covered patterns:** scaffold cream bg → `palette.scaffold`; white card surfaces → `palette.surface`;
+  dark text literals (1A1A2E/1E293B/0F172A/475569/64748B/6B7280) → `palette.text*`; **all** modal-sheet /
+  dialog `backgroundColor: Colors.white` → `palette.surface` (high-impact: white sheets no longer pop on dark).
+- **Manual fixes during migration:** threaded `BuildContext context` into helper builders that had no context
+  (member_about `_buildChangelogItem/_buildSectionHeader/_buildSocialButton`, add_member_step5
+  `_buildSectionHeader/_buildReviewRow`, terms_screen `_buildSectionHeader/_buildSectionBody`); de-const'd
+  BoxDecorations whose color became runtime (admin_analytics_tab, layout_sub_tab ×4, members_sub_tab);
+  reverted branding_assets brand-colour picker palette back to literal `0xFF1E293B` (it's a user colour choice,
+  not theme text). One-off migration scripts deleted after use.
+- **⚠️ Still missed (smaller polish, follow-up):** a few inline `color: Colors.white` containers where
+  `borderRadius` is not the immediate next line (e.g. reservations_tab white sub-tab bar, a bordered field
+  container in shift_management) — these stay white on dark and need a manual catch on a device pass.
+
 ### Session 2026-06-26 (b) — Dark theme: foundation (phase 1)
 
 Real dark mode needs screens to stop hardcoding light colours. Established the foundation + a reference

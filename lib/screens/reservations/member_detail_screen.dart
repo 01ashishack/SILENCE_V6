@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -433,7 +434,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return StatefulBuilder(
@@ -592,7 +593,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetCtx) {
         return StatefulBuilder(builder: (ctx, setSheet) {
@@ -652,7 +653,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 Row(children: [
                   const Icon(Icons.ios_share_rounded, color: Color(0xFFE65C00)),
                   const SizedBox(width: 10),
-                  Text('Export member data', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                  Text('Export member data', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                 ]),
                 const SizedBox(height: 16),
                 CheckboxListTile(
@@ -688,7 +689,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       Expanded(
                         child: Text(
                           '${DateFormat('dd MMM yyyy').format(rStart)}  –  ${DateFormat('dd MMM yyyy').format(rEnd)}',
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
                         ),
                       ),
                       Text('Change', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
@@ -860,7 +861,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           children: [
             Text(
               'Pause this membership. The paused days are added back to the plan when you resume it. The seat stays reserved.',
-              style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF475569), height: 1.4),
+              style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textSecondary, height: 1.4),
             ),
             const SizedBox(height: 14),
             TextField(
@@ -877,7 +878,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B)))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textMuted))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white),
@@ -948,10 +949,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         title: Text('Resume Membership', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         content: Text(
           'Lift the hold and reactivate this membership now? The paused days will be added back to the plan.',
-          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.5),
+          style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary, height: 1.5),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B)))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textMuted))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
@@ -1060,7 +1061,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               children: [
                 Text(
                   'This marks $memberName as EXITED, frees their seat and ends their membership. This cannot be undone.',
-                  style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.45),
+                  style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary, height: 1.45),
                 ),
                 if (isActiveLike && endDate != null) ...[
                   const SizedBox(height: 12),
@@ -1087,7 +1088,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       ),
                       Expanded(
                         child: Text('Refund part of their payment',
-                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
                       ),
                     ],
                   ),
@@ -1111,7 +1112,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B)))),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textMuted))),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
@@ -1315,14 +1316,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   // ── Render Utilities ───────────────────────────────────────────────────────
   Widget _buildStatusBadge(String status) {
     Color bg = const Color(0xFFF3F4F6);
-    Color txt = const Color(0xFF6B7280);
+    Color txt = context.palette.textMuted;
     String label = status.toUpperCase();
 
     if (status == 'active') { bg = const Color(0xFFDCFCE7); txt = const Color(0xFF16A34A); }
     else if (status == 'expired') { bg = const Color(0xFFFEE2E2); txt = const Color(0xFFDC2626); }
     else if (status == 'hold') { bg = const Color(0xFFFEF3C7); txt = const Color(0xFFD97706); }
     else if (status == 'trial') { bg = const Color(0xFFEDE9FE); txt = const Color(0xFF7C3AED); label = 'TRIAL'; }
-    else if (status == 'exited') { bg = const Color(0xFFF3F4F6); txt = const Color(0xFF6B7280); label = 'EXITED'; }
+    else if (status == 'exited') { bg = const Color(0xFFF3F4F6); txt = context.palette.textMuted; label = 'EXITED'; }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -1337,9 +1338,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       children: [
         Icon(icon, size: 20, color: const Color(0xFFE65C00)),
         const SizedBox(height: 6),
-        Text(label, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280))),
+        Text(label, style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
         const SizedBox(height: 4),
-        Text(value, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1A1A2E)), maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(value, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: context.palette.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
       ],
     );
   }
@@ -1349,7 +1350,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
@@ -1359,7 +1360,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           Row(children: [
             Icon(icon, size: 18, color: const Color(0xFFE65C00)),
             const SizedBox(width: 8),
-            Text(title, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+            Text(title, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
           ]),
           const SizedBox(height: 12),
           ...children,
@@ -1374,9 +1375,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6B7280))),
+          Text(label, style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted)),
           Flexible(
-            child: Text(value, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: valueColor ?? const Color(0xFF1E293B)),
+            child: Text(value, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: valueColor ?? context.palette.textPrimary),
                 textAlign: TextAlign.right, maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
         ],
@@ -1480,7 +1481,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   Expanded(
                     child: Text(
                       title,
-                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
                     ),
                   ),
                   TextButton.icon(
@@ -1499,7 +1500,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 Container(
                   height: 150,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.palette.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFF1F5F9)),
                   ),
@@ -1804,7 +1805,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       children: [
         Text(value, style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
         const SizedBox(height: 4),
-        Text(label, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280))),
+        Text(label, style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
       ],
     );
   }
@@ -1851,7 +1852,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               ),
               Text(
                 DateFormat('MMMM yyyy').format(_calendarMonth),
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               IconButton(
                 icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Color(0xFFE65C00)),
@@ -1902,7 +1903,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         style: GoogleFonts.outfit(
                           fontSize: 14,
                           fontWeight: hasAttendance ? FontWeight.bold : FontWeight.normal,
-                          color: hasAttendance ? (intensity > 0.5 ? Colors.white : const Color(0xFFE65C00)) : const Color(0xFF1E293B),
+                          color: hasAttendance ? (intensity > 0.5 ? Colors.white : const Color(0xFFE65C00)) : context.palette.textPrimary,
                         ),
                       ),
                       if (hasAttendance && sessions.length > 1)
@@ -2033,7 +2034,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 Expanded(
                   child: Text(
                     '${DateFormat('dd MMM yyyy').format(sDay)}  –  ${DateFormat('dd MMM yyyy').format(eDay)}',
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
                   ),
                 ),
                 Text('Change', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
@@ -2048,7 +2049,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             child: Column(children: [
               Icon(Icons.event_busy_rounded, size: 44, color: Colors.grey[300]),
               const SizedBox(height: 10),
-              Text('No attendance in this range.', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6B7280))),
+              Text('No attendance in this range.', style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted)),
             ]),
           ),
         ] else ...[
@@ -2107,7 +2108,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         children: [
                           Text(
                             '${firstIn != null ? DateFormat('hh:mm a').format(firstIn) : '—'}  →  ${lastOut != null ? DateFormat('hh:mm a').format(lastOut) : 'Open'}',
-                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
                           ),
                           const SizedBox(height: 2),
                           Text('${list.length} session${list.length > 1 ? 's' : ''}', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
@@ -2140,7 +2141,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(DateFormat('EEEE, dd MMMM yyyy').format(date), style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+              Text(DateFormat('EEEE, dd MMMM yyyy').format(date), style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
               const SizedBox(height: 16),
               if (sessions.isEmpty) ...[
                 Text('No attendance sessions logged for this day.', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500])),
@@ -2175,7 +2176,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Session Detail', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                            Text('Session Detail', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
                             Builder(builder: (_) {
                               final tag = attendanceTag(sessionType);
                               return Container(
@@ -2193,8 +2194,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text('In: $checkIn', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B))),
-                        Text('Out: $checkOut', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B))),
+                        Text('In: $checkIn', style: GoogleFonts.inter(fontSize: 13, color: context.palette.textPrimary)),
+                        Text('Out: $checkOut', style: GoogleFonts.inter(fontSize: 13, color: context.palette.textPrimary)),
                         if (dur != null)
                           Padding(padding: const EdgeInsets.only(top: 4), child: Text('Duration: $dur minutes (${(dur / 60).toStringAsFixed(1)} hours)', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic))),
                         if (s['edit_reason'] != null)
@@ -2229,7 +2230,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           children: [
             Icon(Icons.payment_rounded, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
-            Text('No payments registered yet.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+            Text('No payments registered yet.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           ],
         ),
       );
@@ -2259,7 +2260,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         } catch (_) {}
 
         Color statusBg = const Color(0xFFF3F4F6);
-        Color statusText = const Color(0xFF6B7280);
+        Color statusText = context.palette.textMuted;
         if (status == 'confirmed') { statusBg = const Color(0xFFDCFCE7); statusText = const Color(0xFF16A34A); }
         else if (status == 'rejected') { statusBg = const Color(0xFFFEE2E2); statusText = const Color(0xFFDC2626); }
         else if (status == 'pending') { statusBg = const Color(0xFFFEF3C7); statusText = const Color(0xFFD97706); }
@@ -2268,7 +2269,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
           ),
@@ -2278,7 +2279,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('₹$amount', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                  Text('₹$amount', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
@@ -2291,13 +2292,13 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 children: [
                   Icon(Icons.payments_outlined, size: 14, color: Colors.grey[500]),
                   const SizedBox(width: 6),
-                  Text(method, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                  Text(method, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
                   const SizedBox(width: 8),
                   Expanded(child: Text('•  $payDate', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]), overflow: TextOverflow.ellipsis)),
                 ],
               ),
               if (planType.isNotEmpty)
-                Padding(padding: const EdgeInsets.only(top: 4), child: Text('Plan: $planType', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)))),
+                Padding(padding: const EdgeInsets.only(top: 4), child: Text('Plan: $planType', style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted))),
               if (discount != null && (discount as num) > 0)
                 Padding(padding: const EdgeInsets.only(top: 4), child: Text('Discount: ₹$discount', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF16A34A)))),
               if (refId.isNotEmpty)
@@ -2411,7 +2412,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(Icons.history_toggle_off_rounded, size: 64, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          Text('No timeline activity records.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+          Text('No timeline activity records.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
         ]),
       );
     }
@@ -2448,12 +2449,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(child: Text(ev.title, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)))),
+                        Expanded(child: Text(ev.title, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary))),
                         Text(DateFormat('dd MMM, hh:mm a').format(ev.timestamp), style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[400])),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(ev.subtitle, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
+                    Text(ev.subtitle, style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted)),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -2553,7 +2554,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
     if (_errorMessage != null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         appBar: AppBar(backgroundColor: const Color(0xFFE65C00), title: Text('Profile Error', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white))),
         body: Center(
           child: Padding(
@@ -2573,7 +2574,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     final user = _userProfile;
     if (user == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         appBar: AppBar(backgroundColor: const Color(0xFFE65C00), title: Text('No Data Found', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white))),
         body: Center(child: Text('This user does not have an active membership profile.', style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]))),
       );
@@ -2603,7 +2604,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     } catch (_) {}
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2640,7 +2641,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     margin: const EdgeInsets.all(16),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4))],
                     ),
@@ -2662,11 +2663,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           child: _buildProfilePhoto(photo),
                         ),
                         const SizedBox(height: 12),
-                        Text(name, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+                        Text(name, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                         const SizedBox(height: 6),
                         _buildStatusBadge(status),
                         const SizedBox(height: 4),
-                        Text('ID: ${_memberId?.substring(0, 8).toUpperCase() ?? "N/A"}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: const Color(0xFF6B7280))),
+                        Text('ID: ${_memberId?.substring(0, 8).toUpperCase() ?? "N/A"}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: context.palette.textMuted)),
                         if (joinedDate.isNotEmpty) ...[
                           const SizedBox(height: 2),
                           Text(joinedDate, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
@@ -2709,7 +2710,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text(_tabNames[index], style: GoogleFonts.outfit(fontSize: 14, fontWeight: isActive ? FontWeight.bold : FontWeight.w500, color: isActive ? const Color(0xFFE65C00) : const Color(0xFF6B7280))),
+                                  Text(_tabNames[index], style: GoogleFonts.outfit(fontSize: 14, fontWeight: isActive ? FontWeight.bold : FontWeight.w500, color: isActive ? const Color(0xFFE65C00) : context.palette.textMuted)),
                                   const SizedBox(height: 4),
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),

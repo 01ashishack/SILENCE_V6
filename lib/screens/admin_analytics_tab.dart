@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
@@ -307,9 +308,9 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
           minChildSize: 0.5,
           builder: (context, scrollController) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
+              decoration: BoxDecoration(
+                color: context.palette.surface,
+                borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(24),
                   topRight: Radius.circular(24),
                 ),
@@ -934,7 +935,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return StatefulBuilder(
@@ -951,7 +952,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   children: [
                     Text(
                       'Add Expenditures',
-                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -1070,7 +1071,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return StatefulBuilder(
@@ -1087,7 +1088,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   children: [
                     Text(
                       'Edit Expenditure',
-                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -1189,7 +1190,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
             child: Container(
               width: 280,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
@@ -1279,7 +1280,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                     style: GoogleFonts.outfit(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF1E293B),
+                                      color: context.palette.textPrimary,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
@@ -1287,7 +1288,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                     city ?? 'Location',
                                     style: GoogleFonts.inter(
                                       fontSize: 11,
-                                      color: const Color(0xFF64748B),
+                                      color: context.palette.textMuted,
                                     ),
                                   ),
                                 ],
@@ -1362,7 +1363,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
             child: Container(
               width: 220,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
@@ -1394,7 +1395,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: currentFloorId == 'all' ? FontWeight.bold : FontWeight.normal,
-                                color: const Color(0xFF1E293B),
+                                color: context.palette.textPrimary,
                               ),
                             ),
                           ),
@@ -1426,7 +1427,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: const Color(0xFF1E293B),
+                                  color: context.palette.textPrimary,
                                 ),
                               ),
                             ),
@@ -1465,7 +1466,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
             child: Container(
               width: 220,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
@@ -1497,7 +1498,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: currentShiftId == 'all' ? FontWeight.bold : FontWeight.normal,
-                                color: const Color(0xFF1E293B),
+                                color: context.palette.textPrimary,
                               ),
                             ),
                           ),
@@ -1529,7 +1530,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: const Color(0xFF1E293B),
+                                  color: context.palette.textPrimary,
                                 ),
                               ),
                             ),
@@ -1716,7 +1717,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         indicatorWeight: 2.0,
         dividerColor: Colors.transparent,
         labelColor: const Color(0xFFE65C00),
-        unselectedLabelColor: const Color(0xFF64748B),
+        unselectedLabelColor: context.palette.textMuted,
         labelStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold),
         unselectedLabelStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w500),
         tabs: const [
@@ -1755,7 +1756,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
@@ -1784,7 +1785,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                     style: GoogleFonts.inter(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -1793,7 +1794,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1892,7 +1893,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                      color: isSelected ? Colors.white : context.palette.textMuted,
                     ),
                   ),
                 ),
@@ -1915,7 +1916,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                     Icon(
                       Icons.calendar_today_outlined,
                       size: 14,
-                      color: activeFilter == 'custom' ? Colors.white : const Color(0xFF6B7280),
+                      color: activeFilter == 'custom' ? Colors.white : context.palette.textMuted,
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -1925,7 +1926,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: activeFilter == 'custom' ? Colors.white : const Color(0xFF6B7280),
+                        color: activeFilter == 'custom' ? Colors.white : context.palette.textMuted,
                       ),
                     ),
                   ],
@@ -2029,7 +2030,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                   style: GoogleFonts.inter(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: isSelected ? Colors.white.withValues(alpha: 0.8) : const Color(0xFF6B7280),
+                                    color: isSelected ? Colors.white.withValues(alpha: 0.8) : context.palette.textMuted,
                                   ),
                                 ),
                                 const SizedBox(width: 4),
@@ -2038,7 +2039,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                   style: GoogleFonts.outfit(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                                    color: isSelected ? Colors.white : context.palette.textPrimary,
                                   ),
                                 ),
                               ],
@@ -2200,7 +2201,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
@@ -2254,7 +2255,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
               style: GoogleFonts.outfit(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
             ),
           ),
@@ -2266,7 +2267,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFF64748B),
+              color: context.palette.textMuted,
             ),
           ),
           // Non-trend subtitle (e.g. "Expenses: ₹X") sits under the title.
@@ -2326,7 +2327,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2347,7 +2348,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                     style: GoogleFonts.outfit(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   Container(
@@ -2375,14 +2376,14 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 children: [
                   Text(
                     'Expired members (not left)',
-                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                    style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                   ),
                   Text(
                     '₹${_expiredDues.toStringAsFixed(0)}',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                 ],
@@ -2393,14 +2394,14 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 children: [
                   Text(
                     'Expiring in 7 days',
-                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                    style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                   ),
                   Text(
                     '₹${_expiring7DaysDues.toStringAsFixed(0)}',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                 ],
@@ -2414,7 +2415,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2432,7 +2433,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2450,11 +2451,11 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                           style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1E293B)),
+                              color: context.palette.textPrimary),
                         ),
                         Text(
                           'Expected renewal revenue: ₹${_expiringThisWeekRevenue.toStringAsFixed(0)}',
-                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                         ),
                       ],
                     ),
@@ -2476,11 +2477,11 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                           style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1E293B)),
+                              color: context.palette.textPrimary),
                         ),
                         Text(
                           'Expected renewal revenue: ₹${_expiringThisMonthRevenue.toStringAsFixed(0)}',
-                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                         ),
                       ],
                     ),
@@ -2496,7 +2497,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2514,7 +2515,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2557,7 +2558,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2575,7 +2576,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2603,7 +2604,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       children: [
                         _buildLegendItem('Cash', _cashRevenue, const Color(0xFFE65C00)),
                         const SizedBox(height: 8),
-                        _buildLegendItem('UPI', _upiRevenue, const Color(0xFF0F172A)),
+                        _buildLegendItem('UPI', _upiRevenue, context.palette.textPrimary),
                         const SizedBox(height: 8),
                         _buildLegendItem('Add-ons', _addonRevenue, const Color(0xFF94A3B8)),
                       ],
@@ -2620,7 +2621,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2638,7 +2639,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2692,7 +2693,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                               style: GoogleFonts.inter(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF1E293B)),
+                                  color: context.palette.textPrimary),
                             ),
                           ),
                           Column(
@@ -2734,7 +2735,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2752,7 +2753,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2776,7 +2777,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2797,7 +2798,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                     style: GoogleFonts.outfit(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   ElevatedButton.icon(
@@ -2850,7 +2851,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                   style: GoogleFonts.inter(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF1E293B)),
+                                      color: context.palette.textPrimary),
                                 ),
                                 Text(
                                   DateFormat('dd MMM yyyy').format(date),
@@ -2898,7 +2899,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -2916,7 +2917,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2954,9 +2955,9 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       children: [
         Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 8),
-        Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)))),
+        Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted))),
         Text('₹${value.toStringAsFixed(0)}',
-            style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+            style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
       ],
     );
   }
@@ -3323,7 +3324,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -3341,7 +3342,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -3404,7 +3405,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                     style: GoogleFonts.inter(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF1E293B)),
+                                        color: context.palette.textPrimary),
                                   ),
                                   Text(
                                     'Seat: $seatLabel • Shift: $shiftName',
@@ -3427,7 +3428,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                   'OUT: $co',
                                   style: GoogleFonts.inter(
                                       fontSize: 10,
-                                      color: coStr != null ? const Color(0xFF64748B) : const Color(0xFFE65C00),
+                                      color: coStr != null ? context.palette.textMuted : const Color(0xFFE65C00),
                                       fontWeight: coStr != null ? FontWeight.normal : FontWeight.bold),
                                 ),
                               ],
@@ -3445,7 +3446,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -3463,7 +3464,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -3491,7 +3492,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -3509,7 +3510,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -3544,7 +3545,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                   style: GoogleFonts.inter(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF1E293B)),
+                                      color: context.palette.textPrimary),
                                 ),
                                 Text(
                                   'Study Hours: ${hrs.toStringAsFixed(1)}h',
@@ -3595,7 +3596,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 padding: const EdgeInsets.all(16),
                 height: 240,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.palette.surface,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
@@ -3610,7 +3611,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   children: [
                     Text(
                       'Attendance Trend',
-                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 8),
                     Expanded(
@@ -3633,7 +3634,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 padding: const EdgeInsets.all(16),
                 height: 240,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.palette.surface,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
@@ -3648,7 +3649,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   children: [
                     Text(
                       'Peak Hours (8 AM - 10 PM)',
-                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 8),
                     Expanded(
@@ -3671,7 +3672,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -3695,7 +3696,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                     style: GoogleFonts.outfit(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   Row(
@@ -3717,7 +3718,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 _attendanceTableToggle == 'date_wise'
                     ? "Pick a day or range, preview every member's attendance, then export."
                     : 'Pick a month and one/more/all members, preview, then export.',
-                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), height: 1.35),
+                style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted, height: 1.35),
               ),
               const SizedBox(height: 14),
               SizedBox(
@@ -3756,7 +3757,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -3774,7 +3775,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -3802,7 +3803,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -3820,7 +3821,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -3859,7 +3860,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                           final val = _planDistValues[index];
                           final colors = [
                             const Color(0xFFE65C00),
-                            const Color(0xFF0F172A),
+                            context.palette.textPrimary,
                             const Color(0xFF94A3B8),
                           ];
                           return Padding(
@@ -3872,9 +3873,9 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                                   decoration: BoxDecoration(color: colors[index % colors.length], shape: BoxShape.circle),
                                 ),
                                 const SizedBox(width: 8),
-                                Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)))),
+                                Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted))),
                                 Text('${val.toStringAsFixed(0)} members',
-                                    style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                                    style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                               ],
                             ),
                           );
@@ -3890,7 +3891,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -3908,7 +3909,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -3936,7 +3937,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -3954,7 +3955,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -3988,7 +3989,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                       children: [
                         _buildLegendColorDot(const Color(0xFFE65C00), 'Monthly'),
                         const SizedBox(width: 16),
-                        _buildLegendColorDot(const Color(0xFF0F172A), '3-Month'),
+                        _buildLegendColorDot(context.palette.textPrimary, '3-Month'),
                         const SizedBox(width: 16),
                         _buildLegendColorDot(const Color(0xFF94A3B8), '6-Month'),
                       ],
@@ -4008,7 +4009,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       children: [
         Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(label, style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B))),
+        Text(label, style: GoogleFonts.inter(fontSize: 10, color: context.palette.textMuted)),
       ],
     );
   }
@@ -4074,7 +4075,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
           style: GoogleFonts.inter(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: isActive ? Colors.white : const Color(0xFF64748B),
+            color: isActive ? Colors.white : context.palette.textMuted,
           ),
         ),
       ),
@@ -4090,7 +4091,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -4297,7 +4298,7 @@ class _DualMonthCalendarPickerState extends State<DualMonthCalendarPicker> {
             style: GoogleFonts.outfit(
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
+              color: context.palette.textPrimary,
             ),
             textAlign: TextAlign.center,
           ),
@@ -4314,7 +4315,7 @@ class _DualMonthCalendarPickerState extends State<DualMonthCalendarPicker> {
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF6B7280),
+                  color: context.palette.textMuted,
                 ),
               ),
             );
@@ -4397,7 +4398,7 @@ class _DualMonthCalendarPickerState extends State<DualMonthCalendarPicker> {
                         ? Colors.white
                         : isInRange
                             ? const Color(0xFFE65C00)
-                            : const Color(0xFF1E293B),
+                            : context.palette.textPrimary,
                   ),
                 ),
               ),
@@ -4431,7 +4432,7 @@ class _DualMonthCalendarPickerState extends State<DualMonthCalendarPicker> {
               style: GoogleFonts.outfit(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
             ),
             IconButton(

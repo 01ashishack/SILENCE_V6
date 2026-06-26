@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../theme/app_palette.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -126,7 +127,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
   Future<ImageSource?> _showImageSourceBottomSheet() async {
     return await showModalBottomSheet<ImageSource?>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -300,10 +301,10 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
     return await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         title: Text(
           'Confirm Profile Photo',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -321,14 +322,14 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
             Text(
               'Do you want to use this photo for your profile?',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6B7280)),
+              style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+            child: Text('Cancel', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: context.palette.textMuted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -437,7 +438,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                         Container(
                           padding: const EdgeInsets.symmetric(vertical: 24),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.palette.surface,
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -484,12 +485,12 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                               const SizedBox(height: 12),
                               Text(
                                 'Profile Photo',
-                                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+                                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'Tap camera icon to upload profile picture',
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280)),
+                                style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                               ),
                               const SizedBox(height: 4),
                               Text(
@@ -505,7 +506,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -514,11 +515,11 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Full Name *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                            Text('Full Name *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                             const SizedBox(height: 6),
                             TextFormField(
                               controller: _nameController,
-                              style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                              style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                               decoration: InputDecoration(
                                 hintText: 'Your Name',
                                 hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
@@ -528,7 +529,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                             ),
                             const SizedBox(height: 20),
 
-                            Text('Gender', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                            Text('Gender', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                             const SizedBox(height: 8),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -558,7 +559,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                         style: GoogleFonts.inter(
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,
-                                          color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF6B7280),
+                                          color: isSelected ? const Color(0xFFE65C00) : context.palette.textMuted,
                                         ),
                                       ),
                                     ),
@@ -568,7 +569,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                             ),
                             const SizedBox(height: 20),
 
-                            Text('Date of Birth', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                            Text('Date of Birth', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                             const SizedBox(height: 6),
                             GestureDetector(
                               onTap: () {
@@ -636,7 +637,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                           : '${_dob!.day} ${_getMonthName(_dob!.month)} ${_dob!.year}',
                                       style: GoogleFonts.inter(
                                         fontSize: 15,
-                                        color: _dob == null ? const Color(0xFF9CA3AF) : const Color(0xFF1A1A2E),
+                                        color: _dob == null ? const Color(0xFF9CA3AF) : context.palette.textPrimary,
                                       ),
                                     ),
                                     const Icon(Icons.calendar_today, size: 18, color: Color(0xFFE65C00)),
@@ -646,7 +647,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                             ),
                             const SizedBox(height: 20),
 
-                            Text('Contact Number *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                            Text('Contact Number *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                             const SizedBox(height: 6),
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -672,7 +673,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                       FilteringTextInputFormatter.digitsOnly,
                                       LengthLimitingTextInputFormatter(10),
                                     ],
-                                    style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                                    style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                                     decoration: InputDecoration(
                                       hintText: '98765 43210',
                                       hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
@@ -692,7 +693,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                             ),
                             const SizedBox(height: 20),
 
-                            Text('Email Address', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                            Text('Email Address', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                             const SizedBox(height: 6),
                             TextFormField(
                               controller: _emailController,
@@ -704,11 +705,11 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                             ),
                             const SizedBox(height: 20),
 
-                            Text('Address *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                            Text('Address *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                             const SizedBox(height: 6),
                             TextFormField(
                               controller: _addressController,
-                              style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                              style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                               maxLines: 3,
                               decoration: InputDecoration(
                                 hintText: 'Enter your complete address',

@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../theme/app_palette.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -447,7 +448,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             foregroundColor: Colors.white,
@@ -504,7 +505,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
             ),
             const SizedBox(height: 18),
             Text('Renewal not open yet',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             const SizedBox(height: 8),
             Text(
               'Your plan is still active with $_daysLeft day${_daysLeft == 1 ? '' : 's'} left'
@@ -512,7 +513,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
               'Renewal opens in the last $_renewalWindowDays days before it expires — '
               'please come back then.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13.5, color: const Color(0xFF64748B), height: 1.45),
+              style: GoogleFonts.inter(fontSize: 13.5, color: context.palette.textMuted, height: 1.45),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -578,7 +579,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
         content: Text(
           '$daysMsg The new term will be added on top of your current plan once '
           'the admin approves and verifies the payment.',
-          style: GoogleFonts.inter(fontSize: 13.5, height: 1.4, color: const Color(0xFF475569)),
+          style: GoogleFonts.inter(fontSize: 13.5, height: 1.4, color: context.palette.textSecondary),
         ),
         actions: [
           TextButton(
@@ -604,7 +605,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8)],
       ),
@@ -620,7 +621,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(libName, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                Text(libName, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                 const SizedBox(height: 2),
                 Text(address, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500])),
               ],
@@ -635,12 +636,12 @@ class _RenewalScreenState extends State<RenewalScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Select Shift', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+        Text('Select Shift', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         const SizedBox(height: 10),
         if (_shifts.isEmpty)
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
             alignment: Alignment.center,
             child: Text('No shifts available', style: GoogleFonts.inter(color: Colors.grey)),
           )
@@ -696,7 +697,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Select Plan Duration', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+        Text('Select Plan Duration', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         const SizedBox(height: 10),
         _buildPlanPill('monthly', 'Monthly Plan', '₹${_selectedShift != null ? (_selectedShift!['price_monthly'] ?? 0) : 0}'),
         const SizedBox(height: 8),
@@ -734,7 +735,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
                 Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
               ],
             ),
-            Text(priceLabel, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1E293B))),
+            Text(priceLabel, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: context.palette.textPrimary)),
           ],
         ),
       ),
@@ -748,17 +749,17 @@ class _RenewalScreenState extends State<RenewalScreen> {
       children: [
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Grand Total', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+              Text('Grand Total', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
               Text('₹$total', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
             ],
           ),
         ),
         const SizedBox(height: 20),
-        Text('Select Payment Method', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+        Text('Select Payment Method', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         const SizedBox(height: 10),
         _buildPaymentMethodOption('cash', '💵 Cash Payment', 'Pay the total amount in cash directly at the library.'),
         const SizedBox(height: 8),
@@ -779,7 +780,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
     final ids = _upiIds;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

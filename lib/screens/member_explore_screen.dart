@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -130,7 +131,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
       builder: (context) {
         return Padding(
@@ -293,7 +294,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           body: Column(
             children: [
               _buildOrangeHeader(),
@@ -354,7 +355,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           // Search Bar
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 4)),
@@ -389,7 +390,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             const SizedBox(height: 16),
             Text(
               'Failed to load libraries',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -443,7 +444,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             style: GoogleFonts.outfit(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
@@ -474,7 +475,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           const SizedBox(height: 16),
           Text(
             'Search for Study Zones',
-            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
           ),
           const SizedBox(height: 8),
           Text(
@@ -497,7 +498,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           const SizedBox(height: 16),
           Text(
             'No libraries found',
-            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
           ),
           const SizedBox(height: 8),
           Text(
@@ -597,7 +598,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             Flexible(
                               child: Text(
                                 name,
-                                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -738,7 +739,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
@@ -749,7 +750,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         children: [
           Text(
             "Don't see your library?",
-            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
           const SizedBox(height: 4),
           Text(
@@ -790,7 +791,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             child: ElevatedButton(
               onPressed: _isSubmittingSuggestion ? null : _submitSuggestion,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F172A), // Sleek Dark Slate
+                backgroundColor: context.palette.textPrimary, // Sleek Dark Slate
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

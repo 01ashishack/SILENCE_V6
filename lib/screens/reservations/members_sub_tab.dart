@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -432,7 +433,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
         children: [
           Icon(
             icon,
-            color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF64748B),
+            color: isSelected ? const Color(0xFFE65C00) : context.palette.textMuted,
             size: 18,
           ),
           const SizedBox(width: 8),
@@ -442,7 +443,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
+                color: isSelected ? const Color(0xFFE65C00) : context.palette.textPrimary,
               ),
             ),
           ),
@@ -500,7 +501,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
             ],
@@ -528,8 +529,8 @@ class _MembersSubTabState extends State<MembersSubTab> {
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: context.palette.surface,
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(16),
               topRight: Radius.circular(16),
@@ -544,7 +545,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -690,7 +691,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
 
     final chosen = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
@@ -703,13 +704,13 @@ class _MembersSubTabState extends State<MembersSubTab> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text('Assign a seat to $name',
                   style: GoogleFonts.outfit(
-                      fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+                      fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             ),
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text("Vacant seats in this member's shift:",
-                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+                  style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted)),
             ),
             const SizedBox(height: 8),
             Flexible(
@@ -940,7 +941,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -953,7 +954,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                   style: GoogleFonts.outfit(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -962,7 +963,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: const Color(0xFF64748B),
+                    color: context.palette.textMuted,
                     height: 1.5,
                   ),
                 ),
@@ -982,7 +983,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFF64748B),
+                            color: context.palette.textMuted,
                           ),
                         ),
                       ),
@@ -1050,7 +1051,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
       barrierColor: Colors.black.withValues(alpha: 0.15),
       builder: (context) {
         return Dialog(
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           elevation: 8,
           shadowColor: Colors.black.withValues(alpha: 0.2),
           shape: RoundedRectangleBorder(
@@ -1071,7 +1072,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                       style: GoogleFonts.outfit(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     IconButton(
@@ -1112,7 +1113,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
+                            color: isSelected ? const Color(0xFFE65C00) : context.palette.textPrimary,
                           ),
                         ),
                         subtitle: subtitleText.isNotEmpty
@@ -1120,7 +1121,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                                 subtitleText,
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
-                                  color: const Color(0xFF64748B),
+                                  color: context.palette.textMuted,
                                 ),
                               )
                             : null,
@@ -1174,7 +1175,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
@@ -1203,7 +1204,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                     style: GoogleFonts.inter(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -1212,7 +1213,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1345,7 +1346,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
     return Container(
       margin: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
-        label: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: isActive ? Colors.white : const Color(0xFF6B7280))),
+        label: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: isActive ? Colors.white : context.palette.textMuted)),
         selected: isActive,
         onSelected: (val) {
           if (val) {
@@ -1355,7 +1356,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
           }
         },
         selectedColor: const Color(0xFFE65C00),
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(color: isActive ? Colors.transparent : const Color(0xFFE5E7EB)),
@@ -1367,7 +1368,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
 
   Widget _buildStatusBadge(String status) {
     Color bg = const Color(0xFFF3F4F6);
-    Color txt = const Color(0xFF6B7280);
+    Color txt = context.palette.textMuted;
     String label = status.toUpperCase();
 
     if (status == 'active') {
@@ -1406,7 +1407,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 8, offset: const Offset(0, 2)),
@@ -1433,17 +1434,17 @@ class _MembersSubTabState extends State<MembersSubTab> {
                     children: [
                       Text(
                         name.isNotEmpty ? name : 'Unnamed Member',
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Phone: $phone',
-                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                        style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Seat: $seat • Shift: $shift',
-                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                        style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                       ),
                     ],
                   ),
@@ -1599,7 +1600,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 8, offset: const Offset(0, 2)),
@@ -1648,7 +1649,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
             ),
             const SizedBox(width: 8),
@@ -1665,7 +1666,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
-                    child: Text(seatLabel, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                    child: Text(seatLabel, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
                   ),
                   const SizedBox(width: 8),
                   const Icon(Icons.wb_sunny_outlined, size: 12, color: Color(0xFFD97706)),
@@ -1673,7 +1674,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                   Expanded(
                     child: Text(
                       shiftName,
-                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),
+                      style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1714,7 +1715,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
         style: GoogleFonts.outfit(
           fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: const Color(0xFF64748B),
+          color: context.palette.textMuted,
           letterSpacing: 0.5,
         ),
       ),
@@ -1795,7 +1796,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
 
       // Floating Add Button for Wizard
       floatingActionButton: _isSelectMode
@@ -1924,7 +1925,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
               style: GoogleFonts.outfit(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF1A1A2E),
+                color: context.palette.textPrimary,
               ),
             ),
           ),
@@ -1944,7 +1945,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: context.palette.surface,
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Row(
@@ -1980,7 +1981,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                               children: [
                                 Icon(Icons.people_outline_rounded, size: 64, color: Colors.grey[300]),
                                 const SizedBox(height: 16),
-                                Text('No members added yet', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                                Text('No members added yet', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                                 const SizedBox(height: 8),
                                 Text('Add your first member using the + button above.', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
                               ],
@@ -2045,7 +2046,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                       icon: const Icon(Icons.download_rounded, size: 18),
                       label: Text('Export', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
+                        backgroundColor: context.palette.surface,
                         foregroundColor: const Color(0xFFE65C00),
                         side: const BorderSide(color: Color(0xFFE65C00)),
                         elevation: 0,

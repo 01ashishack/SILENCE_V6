@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -252,7 +253,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -289,13 +290,13 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                         const SizedBox(height: 12),
                         Text(
                           'Library Closed',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'This day was scheduled as a closure. Your study streak was protected!',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                         ),
                       ],
                     ),
@@ -310,13 +311,13 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                         const SizedBox(height: 12),
                         Text(
                           'No Sessions',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'No sessions on this day',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                         ),
                       ],
                     ),
@@ -352,7 +353,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                               children: [
                                 Text(
                                   log['shift'] ?? 'N/A',
-                                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF1E293B)),
+                                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: context.palette.textPrimary),
                                 ),
                                 Builder(builder: (_) {
                                   final tag = attendanceTag(log['session_type']);
@@ -393,7 +394,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                   Text(
                     heading,
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                   ),
                   const SizedBox(height: 12),
                   content,
@@ -403,7 +404,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F172A),
+                        backgroundColor: context.palette.textPrimary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -426,8 +427,8 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
-          Text(val, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+          Text(label, style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted)),
+          Text(val, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         ],
       ),
     );
@@ -465,7 +466,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -489,16 +490,16 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         body: const Center(child: CircularProgressIndicator(color: Color(0xFFE65C00))),
       );
     }
 
     if (_errorMessage != null || _membership == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         appBar: AppBar(
-          backgroundColor: const Color(0xFF475569),
+          backgroundColor: context.palette.textSecondary,
           foregroundColor: Colors.white,
           title: Text('History Detail', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
         ),
@@ -529,7 +530,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
     final durationStr = '${DateFormat('dd MMM yyyy').format(DateTime.parse(_membership!['start_date']))} - ${DateFormat('dd MMM yyyy').format(DateTime.parse(_membership!['exited_at'] ?? _membership!['end_date']))}';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -665,7 +666,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
@@ -685,7 +686,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
               style: GoogleFonts.outfit(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -715,7 +716,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
             TextField(
               controller: _reviewController,
               maxLines: 3,
-              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.inter(fontSize: 13, color: context.palette.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Write a review... (optional)',
                 hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
@@ -765,7 +766,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
               style: GoogleFonts.outfit(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 10),
@@ -786,7 +787,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                 '"${_userReview!['review_text']}"',
                 style: GoogleFonts.inter(
                   fontSize: 13,
-                  color: const Color(0xFF475569),
+                  color: context.palette.textSecondary,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -864,7 +865,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 3))],
         border: Border.all(color: const Color(0xFFE2E8F0)),
@@ -877,7 +878,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
             children: [
               Text(
                 'Membership Summary',
-                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -911,16 +912,16 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: const Color(0xFF64748B)),
+        Icon(icon, size: 16, color: context.palette.textMuted),
         const SizedBox(width: 10),
         Text(
           '$label: ',
-          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: const Color(0xFF64748B)),
+          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: context.palette.textMuted),
         ),
         Expanded(
           child: Text(
             value,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
         ),
       ],
@@ -948,7 +949,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
         border: Border.all(color: const Color(0xFFE2E8F0)),
@@ -961,11 +962,11 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
             children: [
               Icon(icon, size: 16, color: color),
               const SizedBox(width: 6),
-              Text(label, style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w500, color: const Color(0xFF64748B))),
+              Text(label, style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w500, color: context.palette.textMuted)),
             ],
           ),
           const SizedBox(height: 6),
-          Text(value, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+          Text(value, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         ],
       ),
     );
@@ -977,7 +978,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       children: [
         Text(
           'Badges Earned Here',
-          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 8),
         SizedBox(
@@ -1025,7 +1026,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.palette.surface,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                   boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4)],
@@ -1034,7 +1035,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                   children: [
                     Text(badgeIcon, style: const TextStyle(fontSize: 18)),
                     const SizedBox(width: 8),
-                    Text(badgeName, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                    Text(badgeName, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                   ],
                 ),
               );
@@ -1083,13 +1084,13 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       children: [
         Text(
           'Study Achievements Here',
-          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
@@ -1106,9 +1107,9 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(m['title']!, style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                          Text(m['title']!, style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                           const SizedBox(height: 2),
-                          Text(m['desc']!, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B))),
+                          Text(m['desc']!, style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
                         ],
                       ),
                     ),
@@ -1128,7 +1129,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       children: [
         Text(
           'Attendance Heatmap',
-          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 8),
         ..._heatmapMonths.map((month) => _buildHeatmapForMonth(month)),
@@ -1217,7 +1218,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
             style: GoogleFonts.inter(
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              color: hours >= 5.0 ? Colors.white : const Color(0xFF1E293B),
+              color: hours >= 5.0 ? Colors.white : context.palette.textPrimary,
             ),
           );
         } else if (closedDatesSet.contains(dateKey)) {
@@ -1257,7 +1258,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -1266,7 +1267,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
         children: [
           Text(
             DateFormat('MMMM yyyy').format(month),
-            style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
           const SizedBox(height: 10),
           GridView.custom(
@@ -1291,14 +1292,14 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       children: [
         Text(
           'Session History',
-          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 8),
         if (_attendanceLogs.isEmpty)
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
@@ -1337,7 +1338,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.palette.surface,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
@@ -1347,9 +1348,9 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(dateStr, style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        Text(dateStr, style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                         const SizedBox(height: 2),
-                        Text(timeStr, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B))),
+                        Text(timeStr, style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
                       ],
                     ),
                     Column(
@@ -1393,14 +1394,14 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       children: [
         Text(
           'Payment History',
-          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 8),
         if (_payments.isEmpty)
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
@@ -1428,7 +1429,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.palette.surface,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
@@ -1438,9 +1439,9 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('₹$amt', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        Text('₹$amt', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                         const SizedBox(height: 2),
-                        Text('$dateStr • $method', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B))),
+                        Text('$dateStr • $method', style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
                       ],
                     ),
                     IconButton(
@@ -1482,13 +1483,13 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
       children: [
         Text(
           'Library Info',
-          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
@@ -1497,12 +1498,12 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
             children: [
               Text(
                 lib['name'] ?? 'SILENCE Library',
-                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 6),
               Text(
                 address,
-                style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B)),
+                style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
@@ -1547,7 +1548,7 @@ class _PastLibraryDetailScreenState extends State<PastLibraryDetailScreen> {
               icon: const Icon(Icons.share_outlined, size: 16),
               label: const Text('Export History'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF475569),
+                foregroundColor: context.palette.textSecondary,
                 side: const BorderSide(color: Color(0xFFCBD5E1)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

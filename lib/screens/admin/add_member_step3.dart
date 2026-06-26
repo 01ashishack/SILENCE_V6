@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../widgets/vacant_seat_grid.dart';
 import '../../models/member_data.dart';
@@ -57,7 +58,7 @@ class _AddMemberStep3State extends State<AddMemberStep3> with AutomaticKeepAlive
             style: GoogleFonts.outfit(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
@@ -65,7 +66,7 @@ class _AddMemberStep3State extends State<AddMemberStep3> with AutomaticKeepAlive
             'Select a seat from the available vacant seats in the library for this shift.',
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: const Color(0xFF64748B),
+              color: context.palette.textMuted,
             ),
           ),
           const SizedBox(height: 24),

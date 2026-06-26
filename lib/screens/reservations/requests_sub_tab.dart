@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -413,7 +414,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                 ),
                 if (isExisting)
                   Text('Existing (offline) member — set their real joining date.',
-                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B))),
+                      style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: discountCtrl,
@@ -614,7 +615,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Reject this seat change request? The member will be notified.',
-                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569))),
+                style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary)),
             const SizedBox(height: 12),
             TextField(
               controller: reasonController,
@@ -812,7 +813,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Reject this out-of-shift check-in? The member will be told to contact you.',
-                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569))),
+                style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary)),
             const SizedBox(height: 12),
             TextField(
               controller: reasonController,
@@ -882,7 +883,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
@@ -907,10 +908,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                     Text(name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                     const SizedBox(height: 2),
                     Text('Wants to check in at $attemptedStr (outside shift)',
-                        style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF6B7280))),
+                        style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted)),
                   ],
                 ),
               ),
@@ -935,7 +936,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                   shiftStart.isNotEmpty && shiftEnd.isNotEmpty
                       ? '$shiftName · ${formatShiftTimeString(shiftStart)} – ${formatShiftTimeString(shiftEnd)}'
                       : shiftName,
-                  style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569)),
+                  style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary),
                 ),
               ),
             ],
@@ -954,7 +955,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     side: const BorderSide(color: Color(0xFFCBD5E1)),
-                    foregroundColor: const Color(0xFF64748B),
+                    foregroundColor: context.palette.textMuted,
                   ),
                   child: const Text('Reject'),
                 ),
@@ -1240,7 +1241,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
@@ -1263,7 +1264,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                     ),
                     Text(
                       'Select a Seat — ${request['shifts']?['name'] ?? 'Shift'}',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 12),
                     Text('Tap a vacant seat to assign membership.', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500])),
@@ -1351,7 +1352,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: isActive ? Colors.white : const Color(0xFF64748B)),
+              Icon(icon, size: 14, color: isActive ? Colors.white : context.palette.textMuted),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
@@ -1361,7 +1362,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                   style: GoogleFonts.outfit(
                     fontSize: 12,
                     fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
-                    color: isActive ? Colors.white : const Color(0xFF64748B),
+                    color: isActive ? Colors.white : context.palette.textMuted,
                   ),
                 ),
               ),
@@ -1413,7 +1414,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetCtx) => DraggableScrollableSheet(
         initialChildSize: 0.7, maxChildSize: 0.95, minChildSize: 0.4, expand: false,
@@ -1462,7 +1463,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                     ),
                                     child: Text(withdrawn ? 'WITHDRAWN' : 'REJECTED',
                                         style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold,
-                                            color: withdrawn ? const Color(0xFF475569) : const Color(0xFFB91C1C))),
+                                            color: withdrawn ? context.palette.textSecondary : const Color(0xFFB91C1C))),
                                   ),
                                 ],
                               ),
@@ -1520,11 +1521,11 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           const SizedBox(width: 10),
           SizedBox(
             width: 96,
-            child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
+            child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted)),
           ),
           Expanded(
             child: Text(value.trim().isEmpty ? '—' : value,
-                style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
           ),
         ],
       ),
@@ -1554,7 +1555,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(label, style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B))),
+        Text(label, style: GoogleFonts.inter(fontSize: 10, color: context.palette.textMuted)),
       ],
     );
   }
@@ -1598,7 +1599,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetCtx) => DraggableScrollableSheet(
         initialChildSize: 0.8, maxChildSize: 0.95, minChildSize: 0.5, expand: false,
@@ -1722,7 +1723,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 8, offset: const Offset(0, 2)),
@@ -1754,14 +1755,14 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                           child: Text(name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                         ),
                         const SizedBox(width: 8),
                         _memberTypePill(isRenewal: isRenewal, isExisting: isExistingMember),
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text('Requested on ${createdAt.toString().substring(0, 16)}', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280))),
+                    Text('Requested on ${createdAt.toString().substring(0, 16)}', style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
                   ],
                 ),
               ),
@@ -1776,11 +1777,11 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             children: [
               const Icon(Icons.wb_sunny_outlined, size: 14, color: Color(0xFFD97706)),
               const SizedBox(width: 6),
-              Text(shiftName, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569))),
+              Text(shiftName, style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary)),
               const SizedBox(width: 16),
               const Icon(Icons.receipt_long_outlined, size: 14, color: Color(0xFF64748B)),
               const SizedBox(width: 6),
-              Text(planType, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569))),
+              Text(planType, style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary)),
             ],
           ),
           const SizedBox(height: 8),
@@ -1790,7 +1791,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             children: [
               const Icon(Icons.payment_outlined, size: 14, color: Colors.blue),
               const SizedBox(width: 6),
-              Text('Mode: ${payMethod.toUpperCase()}', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), fontWeight: FontWeight.bold)),
+              Text('Mode: ${payMethod.toUpperCase()}', style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary, fontWeight: FontWeight.bold)),
             ],
           ),
 
@@ -1954,7 +1955,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => _rejectJoinRequest(request),
-                  child: Text('Reject', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
+                  child: Text('Reject', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                 ),
               ),
             ],
@@ -1974,7 +1975,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -2079,7 +2080,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                 onPressed: _showPastRequests,
                                 icon: const Icon(Icons.history, size: 16),
                                 label: const Text('Past requests'),
-                                style: TextButton.styleFrom(foregroundColor: const Color(0xFF64748B)),
+                                style: TextButton.styleFrom(foregroundColor: context.palette.textMuted),
                               ),
                             ),
                             Expanded(
@@ -2143,7 +2144,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                               padding: const EdgeInsets.symmetric(horizontal: 8),
                                               minimumSize: const Size(0, 36),
                                             ),
-                                            child: Text('Reject', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
+                                            child: Text('Reject', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                                           ),
                                           const SizedBox(width: 2),
                                           ElevatedButton(

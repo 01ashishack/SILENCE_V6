@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -287,7 +288,7 @@ class _RevenueReportPreviewScreenState extends State<RevenueReportPreviewScreen>
               color: sel ? _orange : const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text(p, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: sel ? Colors.white : const Color(0xFF475569))),
+            child: Text(p, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: sel ? Colors.white : context.palette.textSecondary)),
           ),
         ),
       );
@@ -304,7 +305,7 @@ class _RevenueReportPreviewScreenState extends State<RevenueReportPreviewScreen>
             child: ListView(scrollDirection: Axis.horizontal, children: [chip('Today'), chip('This Week'), chip('This Month'), chip('Custom')]),
           ),
           const SizedBox(height: 8),
-          Text('Period: $_periodLabel', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF64748B))),
+          Text('Period: $_periodLabel', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.palette.textMuted)),
         ],
       ),
     );
@@ -371,7 +372,7 @@ class _RevenueReportPreviewScreenState extends State<RevenueReportPreviewScreen>
                 border: Border.all(color: i == accent ? _orange : const Color(0xFFE2E8F0)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(kpis[i][1], style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: i == accent ? _orange : const Color(0xFF1E293B))),
+                Text(kpis[i][1], style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: i == accent ? _orange : context.palette.textPrimary)),
                 Text(kpis[i][0], style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500])),
               ]),
             ),
@@ -387,7 +388,7 @@ class _RevenueReportPreviewScreenState extends State<RevenueReportPreviewScreen>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
       ),
@@ -395,7 +396,7 @@ class _RevenueReportPreviewScreenState extends State<RevenueReportPreviewScreen>
         children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+              Text(title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
               const SizedBox(height: 2),
               Text(subtitle, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
             ]),

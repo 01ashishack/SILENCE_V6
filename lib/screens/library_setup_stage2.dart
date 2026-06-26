@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -204,7 +205,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(left: 24, right: 24, top: 24, bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
@@ -274,7 +275,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(left: 24, right: 24, top: 24, bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
@@ -329,7 +330,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setS) => Padding(
@@ -414,7 +415,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
   void _showSeatActionSheet(SeatModel seat, {SectionModel? section, FloorModel? floor}) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(24),
@@ -627,7 +628,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
-              backgroundColor: Colors.white,
+              backgroundColor: context.palette.surface,
               surfaceTintColor: Colors.transparent,
               title: Text(
                 'Cannot Save Layout Changes',
@@ -858,7 +859,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: _orange,
@@ -883,7 +884,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                   style: GoogleFonts.outfit(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -892,7 +893,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     fontSize: 12.5,
-                    color: const Color(0xFF64748B),
+                    color: context.palette.textMuted,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -932,7 +933,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
@@ -1132,7 +1133,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
         // Floor header card
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFF1F5F9)),
             boxShadow: [
@@ -1167,7 +1168,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                 showDialog(
                   context: context,
                   builder: (ctx) => Dialog(
-                    backgroundColor: Colors.white,
+                    backgroundColor: context.palette.surface,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 8,
                     child: Container(
@@ -1319,7 +1320,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -1919,7 +1920,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -1946,7 +1947,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
               showDialog(
                 context: context,
                 builder: (ctx) => Dialog(
-                  backgroundColor: Colors.white,
+                  backgroundColor: context.palette.surface,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 8,
                   child: Container(

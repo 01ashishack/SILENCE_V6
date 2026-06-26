@@ -671,7 +671,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         height: 32,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
@@ -691,7 +691,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               ),
             Text(
               selectedLib['name'] ?? 'All Libraries',
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
             ),
             const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF64748B)),
           ],
@@ -716,7 +716,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               width: 240,
               margin: const EdgeInsets.only(top: 10),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 8))],
                 border: Border.all(color: const Color(0xFFE2E8F0)),
@@ -758,7 +758,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                  color: const Color(0xFF1E293B),
+                                  color: context.palette.textPrimary,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -801,7 +801,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         height: 32,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
@@ -814,7 +814,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             Expanded(
               child: Text(
                 label,
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -831,7 +831,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       context: context,
       builder: (context) {
         return Dialog(
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -841,7 +841,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               children: [
                 Text(
                   'Select Period',
-                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
@@ -854,7 +854,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                        color: isSel ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
+                        color: isSel ? const Color(0xFFE65C00) : context.palette.textPrimary,
                       ),
                     ),
                     trailing: isSel ? const Icon(Icons.check, color: Color(0xFFE65C00)) : null,
@@ -886,7 +886,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         height: 32,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE65C00)),
         ),
@@ -917,7 +917,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         indicatorColor: const Color(0xFFE65C00),
         indicatorWeight: 3,
         labelColor: const Color(0xFFE65C00),
-        unselectedLabelColor: const Color(0xFF64748B),
+        unselectedLabelColor: context.palette.textMuted,
         labelStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold),
         unselectedLabelStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w500),
         tabs: const [
@@ -960,7 +960,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             Center(
               child: Text(
                 'No sessions found matching this filter.',
-                style: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 13),
+                style: GoogleFonts.inter(color: context.palette.textMuted, fontSize: 13),
               ),
             ),
           ] else ...[
@@ -1027,7 +1027,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       width: 140,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
@@ -1041,8 +1041,8 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(title, style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B))),
-                Text(value, style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                Text(title, style: GoogleFonts.inter(fontSize: 10, color: context.palette.textMuted)),
+                Text(value, style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
               ],
             ),
           ),
@@ -1070,7 +1070,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               labelStyle: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: isSel ? Colors.white : const Color(0xFF475569),
+                color: isSel ? Colors.white : context.palette.textSecondary,
               ),
               onSelected: (val) {
                 if (val) {
@@ -1108,11 +1108,11 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
       children: [
         Text(
           key,
-          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
         ),
         Text(
           '$groupPresents Studied  •  ${groupHours.toStringAsFixed(1)} hrs',
-          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+          style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted, fontWeight: FontWeight.w500),
         ),
       ],
     );
@@ -1166,7 +1166,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             Expanded(
               child: Text(
                 'Absent • $dateStr',
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
               ),
             ),
           ],
@@ -1228,7 +1228,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4, offset: const Offset(0, 2))],
@@ -1250,7 +1250,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                     children: [
                       Text(
                         '$dateStr • $ciTime - $coTime',
-                        style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1281,7 +1281,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                   const SizedBox(height: 4),
                   Text(
                     '$libName • Seat $seatLabel • $shiftName',
-                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                    style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                   ),
                   if (duration.isNotEmpty) ...[
                     const SizedBox(height: 2),
@@ -1375,7 +1375,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
@@ -1386,7 +1386,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             children: [
               Text(
                 'Study Session Details',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -1424,13 +1424,13 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
+          Text(label, style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted)),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
           ),
         ],
@@ -1449,7 +1449,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             const SizedBox(height: 16),
             Text(
               'No study logs found',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1537,7 +1537,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                 Center(
                   child: Text(
                     'No payments found matching this filter.',
-                    style: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 13),
+                    style: GoogleFonts.inter(color: context.palette.textMuted, fontSize: 13),
                   ),
                 ),
               ] else ...[
@@ -1588,7 +1588,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               labelStyle: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: isSel ? Colors.white : const Color(0xFF475569),
+                color: isSel ? Colors.white : context.palette.textSecondary,
               ),
               onSelected: (val) {
                 if (val) {
@@ -1608,7 +1608,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(month, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+        Text(month, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
       ],
     );
   }
@@ -1629,7 +1629,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     } catch (_) {}
 
     Color statusBg = const Color(0xFFF1F5F9);
-    Color statusTxt = const Color(0xFF475569);
+    Color statusTxt = context.palette.textSecondary;
     if (status == 'confirmed') {
       statusBg = const Color(0xFFDCFCE7);
       statusTxt = const Color(0xFF16A34A);
@@ -1647,7 +1647,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4, offset: const Offset(0, 2))],
@@ -1673,7 +1673,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                     children: [
                       Text(
                         '₹$amount • $method',
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1688,7 +1688,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                   const SizedBox(height: 4),
                   Text(
                     '$libName • $dateStr ${refShort.isNotEmpty ? "• Ref: $refShort" : ""}',
-                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                    style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                   ),
                   if (status == 'rejected') ...[
                     const SizedBox(height: 6),
@@ -1732,7 +1732,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return DraggableScrollableSheet(
@@ -1747,14 +1747,14 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               children: [
                 Text(
                   'Transaction details',
-                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
                 Center(
                   child: Column(
                     children: [
-                      Text('RECEIPT TOTAL', style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B))),
+                      Text('RECEIPT TOTAL', style: GoogleFonts.inter(fontSize: 10, color: context.palette.textMuted)),
                       const SizedBox(height: 4),
                       Text(
                         '₹$amount',
@@ -1793,7 +1793,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
 
                 if (proof.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Text('Payment Proof Image:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
+                  Text('Payment Proof Image:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () {
@@ -1832,7 +1832,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        child: Text('Close', style: GoogleFonts.inter(color: const Color(0xFF475569))),
+                        child: Text('Close', style: GoogleFonts.inter(color: context.palette.textSecondary)),
                       ),
                     ),
                     if (status == 'CONFIRMED') ...[
@@ -1876,7 +1876,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
+        color: context.palette.textPrimary,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
       ),
@@ -1921,7 +1921,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             const SizedBox(height: 16),
             Text(
               'No payments logged',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1948,7 +1948,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return ReuploadProofBottomSheet(
@@ -2002,7 +2002,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             Center(
               child: Text(
                 'No memberships found matching this filter.',
-                style: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 13),
+                style: GoogleFonts.inter(color: context.palette.textMuted, fontSize: 13),
               ),
             ),
           ] else ...[
@@ -2036,7 +2036,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               labelStyle: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: isSel ? Colors.white : const Color(0xFF475569),
+                color: isSel ? Colors.white : context.palette.textSecondary,
               ),
               onSelected: (val) {
                 if (val) {
@@ -2069,7 +2069,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     } else if (status == 'expired') {
       cardBorderColor = const Color(0xFFEF4444);
     } else if (status == 'exited') {
-      cardBorderColor = const Color(0xFF64748B);
+      cardBorderColor = context.palette.textMuted;
     } else if (status == 'hold') {
       cardBorderColor = const Color(0xFFD97706);
       statusTitle = 'ON HOLD';
@@ -2097,7 +2097,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                   Expanded(
                     child: Text(
                       libName,
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -2117,7 +2117,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               const SizedBox(height: 4),
               Text(
                 'Plan: ${plan == 'monthly' ? 'Monthly' : plan == '3_month' ? '3-Month' : '6-Month'} • Seat: $seatLabel • Shift: $shiftName',
-                style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B)),
+                style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted),
               ),
               const Divider(height: 24),
               _buildMembershipCardContent(m, status),
@@ -2148,7 +2148,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             children: [
               Text(
                 'Progress: ${(progress * 100).toInt()}% ($daysLeft days left)',
-                style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
               ),
               if (streak > 0)
                 Row(
@@ -2273,7 +2273,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         children: [
           Text(
             'Exited library on $exitedStr',
-            style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), fontWeight: FontWeight.bold),
+            style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Row(
@@ -2291,7 +2291,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                   },
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFFCBD5E1)),
-                    foregroundColor: const Color(0xFF475569),
+                    foregroundColor: context.palette.textSecondary,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   child: const Text('View Full History'),
@@ -2312,7 +2312,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F172A),
+                    backgroundColor: context.palette.textPrimary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     elevation: 0,
@@ -2379,7 +2379,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
           : OutlinedButton(
               onPressed: onTap,
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF475569),
+                foregroundColor: context.palette.textSecondary,
                 side: const BorderSide(color: Color(0xFFCBD5E1)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -2416,7 +2416,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return DraggableScrollableSheet(
@@ -2431,7 +2431,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
               children: [
                 Text(
                   'Membership details',
-                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -2501,7 +2501,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             const SizedBox(height: 16),
             Text(
               'No memberships found',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -2551,7 +2551,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                     margin: const EdgeInsets.symmetric(vertical: 6),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
@@ -2621,13 +2621,13 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             const SizedBox(height: 16),
             Text(
               'Failed to load study history',
-              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               _errorMessage ?? 'Unknown error occurred.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+              style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -2672,7 +2672,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
   void _showExportOptionsBottomSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return ExportOptionsBottomSheet(
@@ -2825,7 +2825,7 @@ class _ReuploadProofBottomSheetState extends State<ReuploadProofBottomSheet> {
         children: [
           Text(
             'Re-upload UPI Payment Proof',
-            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -3107,13 +3107,13 @@ class _ExportOptionsBottomSheetState extends State<ExportOptionsBottomSheet> {
         children: [
           Text(
             'Export History Reports',
-            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
           Text(
             'Selected range: ${widget.dateRangeLabel}',
-            style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B)),
+            style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -3144,7 +3144,7 @@ class _ExportOptionsBottomSheetState extends State<ExportOptionsBottomSheet> {
                   icon: const Icon(Icons.table_chart_outlined, size: 16),
                   label: const Text('Export CSV'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF475569),
+                    foregroundColor: context.palette.textSecondary,
                     side: const BorderSide(color: Color(0xFFCBD5E1)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

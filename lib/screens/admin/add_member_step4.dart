@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/member_data.dart';
@@ -108,7 +109,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1),
           ),
-          labelStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 14),
+          labelStyle: GoogleFonts.inter(color: context.palette.textMuted, fontSize: 14),
           hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 14),
         ),
       ),
@@ -122,7 +123,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
               style: GoogleFonts.outfit(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
@@ -130,7 +131,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
               'Configure fees, discounts, and payment method for this membership.',
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: const Color(0xFF64748B),
+                color: context.palette.textMuted,
               ),
             ),
             const SizedBox(height: 24),
@@ -139,7 +140,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFE5E7EB)),
                 boxShadow: [
@@ -155,8 +156,8 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Plan & Add-ons Base Total', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
-                      Text('₹${widget.memberData.totalBasePrice}', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                      Text('Plan & Add-ons Base Total', style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted)),
+                      Text('₹${widget.memberData.totalBasePrice}', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                     ],
                   ),
                   if (widget.memberData.discount > 0) ...[
@@ -173,7 +174,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Final Payable Amount', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                      Text('Final Payable Amount', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                       Row(
                         children: [
                           if (widget.memberData.discount > 0)
@@ -205,18 +206,18 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
             // Discount / Adjustment Input
             Text(
               'Discount / Fee Adjustment (₹)',
-              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 4),
             Text(
               'Max $_maxDiscountPercent% (₹$_maxDiscountAmount) of ₹${widget.memberData.totalBasePrice}',
-              style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B)),
+              style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted),
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _discountController,
               keyboardType: TextInputType.number,
-              style: GoogleFonts.inter(color: const Color(0xFF1E293B)),
+              style: GoogleFonts.inter(color: context.palette.textPrimary),
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: const InputDecoration(
                 hintText: 'Enter discount amount (e.g. 200)',
@@ -251,7 +252,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
             if (widget.memberData.mode == 'new') ...[
               Text(
                 'Payment Flow *',
-                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 10),
               Row(
@@ -266,12 +267,12 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                       ),
                       selected: widget.memberData.paymentFlow == 'paid',
                       selectedColor: const Color(0xFFE65C00),
-                      backgroundColor: Colors.white,
+                      backgroundColor: context.palette.surface,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(color: widget.memberData.paymentFlow == 'paid' ? Colors.transparent : const Color(0xFFE5E7EB)),
                       ),
-                      labelStyle: TextStyle(color: widget.memberData.paymentFlow == 'paid' ? Colors.white : const Color(0xFF475569)),
+                      labelStyle: TextStyle(color: widget.memberData.paymentFlow == 'paid' ? Colors.white : context.palette.textSecondary),
                       onSelected: (selected) {
                         if (selected) {
                           setState(() {
@@ -292,12 +293,12 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                       ),
                       selected: widget.memberData.paymentFlow == 'request',
                       selectedColor: const Color(0xFFE65C00),
-                      backgroundColor: Colors.white,
+                      backgroundColor: context.palette.surface,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(color: widget.memberData.paymentFlow == 'request' ? Colors.transparent : const Color(0xFFE5E7EB)),
                       ),
-                      labelStyle: TextStyle(color: widget.memberData.paymentFlow == 'request' ? Colors.white : const Color(0xFF475569)),
+                      labelStyle: TextStyle(color: widget.memberData.paymentFlow == 'request' ? Colors.white : context.palette.textSecondary),
                       onSelected: (selected) {
                         if (selected) {
                           setState(() {
@@ -338,7 +339,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
             if (widget.memberData.paymentFlow == 'paid' || widget.memberData.mode == 'existing') ...[
               Text(
                 'Received Payment Via *',
-                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 10),
               Row(
@@ -376,7 +377,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                                   ? const Icon(Icons.check, size: 12, color: Colors.white)
                                   : null,
                             ),
-                            Text('Cash', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                            Text('Cash', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
                           ],
                         ),
                       ),
@@ -416,7 +417,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                                   ? const Icon(Icons.check, size: 12, color: Colors.white)
                                   : null,
                             ),
-                            Text('UPI', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                            Text('UPI', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
                           ],
                         ),
                       ),

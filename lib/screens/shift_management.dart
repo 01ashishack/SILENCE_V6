@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/active_library_store.dart';
@@ -376,7 +377,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
@@ -392,7 +393,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         ),
         content: Text(
           'You changed your shift timings. The "Opening Hours" shown on your public library profile are set separately — please update them in Profile → Library Management → About & Info so members see the correct timings.',
-          style: GoogleFonts.inter(fontSize: 13.5, color: const Color(0xFF475569), height: 1.4),
+          style: GoogleFonts.inter(fontSize: 13.5, color: context.palette.textSecondary, height: 1.4),
         ),
         actions: [
           TextButton(
@@ -510,7 +511,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
@@ -616,7 +617,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -974,7 +975,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1013,7 +1014,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(

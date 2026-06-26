@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -99,7 +100,7 @@ class _ArchiveSubTabState extends State<ArchiveSubTab> {
     final filteredArchive = _getFilteredArchive();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -144,7 +145,7 @@ class _ArchiveSubTabState extends State<ArchiveSubTab> {
                               const SizedBox(height: 16),
                               Text(
                                 'No past members yet',
-                                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280)),
+                                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -175,7 +176,7 @@ class _ArchiveSubTabState extends State<ArchiveSubTab> {
                             child: Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: context.palette.surface,
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: ListTile(
@@ -188,14 +189,14 @@ class _ArchiveSubTabState extends State<ArchiveSubTab> {
                                 ),
                                 title: Text(
                                   name,
-                                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+                                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                 ),
                                 subtitle: Padding(
                                   padding: const EdgeInsets.only(top: 4.0),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('Exited $exitedDate', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280))),
+                                      Text('Exited $exitedDate', style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
                                       const SizedBox(height: 2),
                                       Text('Member since $joinDate', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
                                     ],
@@ -209,7 +210,7 @@ class _ArchiveSubTabState extends State<ArchiveSubTab> {
                                   ),
                                   child: Text(
                                     durationText,
-                                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
                                   ),
                                 ),
                                 onTap: () {

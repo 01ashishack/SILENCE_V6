@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../../theme/app_palette.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -147,12 +148,12 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            backgroundColor: Colors.white,
+            backgroundColor: context.palette.surface,
             surfaceTintColor: Colors.transparent,
-            title: Text('Draft Registration Found', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+            title: Text('Draft Registration Found', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             content: Text(
               'A draft registration exists for this member. Do you want to continue that draft or delete it and create a new one?',
-              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+              style: GoogleFonts.inter(fontSize: 14, color: context.palette.textSecondary),
             ),
             actions: [
               TextButton(
@@ -238,12 +239,12 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               context: context,
               barrierDismissible: false,
               builder: (ctx) => AlertDialog(
-                backgroundColor: Colors.white,
+                backgroundColor: context.palette.surface,
                 surfaceTintColor: Colors.transparent,
                 title: Text('Active Membership Found', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
                 content: Text(
                   'This member already has an active membership in this library. Please renew or exit the existing membership before adding a new one.',
-                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+                  style: GoogleFonts.inter(fontSize: 14, color: context.palette.textSecondary),
                 ),
                 actions: [
                   TextButton(
@@ -295,12 +296,12 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               context: context,
               barrierDismissible: false,
               builder: (ctx) => AlertDialog(
-                backgroundColor: Colors.white,
+                backgroundColor: context.palette.surface,
                 surfaceTintColor: Colors.transparent,
                 title: Text('Active Membership Found', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
                 content: Text(
                   'This member already has an active membership in this library. Please renew or exit the existing membership before adding a new one.',
-                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+                  style: GoogleFonts.inter(fontSize: 14, color: context.palette.textSecondary),
                 ),
                 actions: [
                   TextButton(
@@ -351,7 +352,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            backgroundColor: Colors.white,
+            backgroundColor: context.palette.surface,
             surfaceTintColor: Colors.transparent,
             title: Text('Already Registered',
                 style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
@@ -359,7 +360,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               'This ${isEmail ? 'email' : 'phone number'} is already registered to '
               'another account and cannot be used to add a member. Please use a '
               'different ${isEmail ? 'email' : 'number'}.',
-              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+              style: GoogleFonts.inter(fontSize: 14, color: context.palette.textSecondary),
             ),
             actions: [
               TextButton(
@@ -379,7 +380,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
   void _showAutofillBottomSheet(Map<String, dynamic> userObj, {bool isPhone = false}) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -394,7 +395,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               style: GoogleFonts.outfit(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -406,7 +407,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               'Do you want to link this membership to the existing user?',
               style: GoogleFonts.inter(
                 fontSize: 14,
-                color: const Color(0xFF475569),
+                color: context.palette.textSecondary,
                 height: 1.5,
               ),
             ),
@@ -426,7 +427,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF6B7280),
+                        color: context.palette.textMuted,
                       ),
                     ),
                   ),
@@ -485,7 +486,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
   Future<void> _pickImage(bool isProfile, {bool isId1 = false, bool isId2 = false}) async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -755,7 +756,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1),
           ),
-          labelStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 14),
+          labelStyle: GoogleFonts.inter(color: context.palette.textMuted, fontSize: 14),
           hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 14),
         ),
       ),
@@ -777,7 +778,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                     children: [
                       CircleAvatar(
                         radius: 54,
-                        backgroundColor: Colors.white,
+                        backgroundColor: context.palette.surface,
                         backgroundImage: widget.memberData.profilePhoto != null
                             ? (kIsWeb ? NetworkImage(widget.memberData.profilePhoto!.path) : FileImage(widget.memberData.profilePhoto!) as ImageProvider)
                             : (widget.memberData.existingPhotoUrl != null
@@ -819,7 +820,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               // Full Name Field
               TextFormField(
                 controller: _nameController,
-                style: GoogleFonts.inter(color: const Color(0xFF1E293B)),
+                style: GoogleFonts.inter(color: context.palette.textPrimary),
                 decoration: const InputDecoration(
                   labelText: 'Full Name *',
                   hintText: 'Enter full name',
@@ -836,7 +837,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               // Father's Name Field
               TextFormField(
                 controller: _fatherNameController,
-                style: GoogleFonts.inter(color: const Color(0xFF1E293B)),
+                style: GoogleFonts.inter(color: context.palette.textPrimary),
                 decoration: const InputDecoration(
                   labelText: 'Father\'s Name',
                   hintText: 'Enter father\'s name',
@@ -884,7 +885,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                                 ? '${widget.memberData.dob!.day}/${widget.memberData.dob!.month}/${widget.memberData.dob!.year}'
                                 : 'Select date of birth',
                             style: GoogleFonts.inter(
-                              color: widget.memberData.dob != null ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                              color: widget.memberData.dob != null ? context.palette.textPrimary : const Color(0xFF94A3B8),
                               fontSize: 14,
                             ),
                           ),
@@ -900,7 +901,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               DropdownButtonFormField<String>(
                 initialValue: widget.memberData.gender,
                 decoration: const InputDecoration(labelText: 'Gender *'),
-                style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 14),
+                style: GoogleFonts.inter(color: context.palette.textPrimary, fontSize: 14),
                 dropdownColor: Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 items: const [
@@ -926,7 +927,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                style: GoogleFonts.inter(color: const Color(0xFF1E293B)),
+                style: GoogleFonts.inter(color: context.palette.textPrimary),
                 onChanged: _onEmailChanged,
                 decoration: const InputDecoration(
                   labelText: 'Email Address',
@@ -946,7 +947,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
                 maxLength: 10,
-                style: GoogleFonts.inter(color: const Color(0xFF1E293B)),
+                style: GoogleFonts.inter(color: context.palette.textPrimary),
                 onChanged: _onPhoneChanged,
                 decoration: const InputDecoration(
                   labelText: 'Contact Number *',
@@ -970,7 +971,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               TextFormField(
                 controller: _addressController,
                 maxLines: 2,
-                style: GoogleFonts.inter(color: const Color(0xFF1E293B)),
+                style: GoogleFonts.inter(color: context.palette.textPrimary),
                 decoration: const InputDecoration(
                   labelText: 'Address *',
                   hintText: 'Enter full correspondence address',
@@ -988,7 +989,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
               DropdownButtonFormField<String>(
                 initialValue: widget.memberData.preparingFor,
                 decoration: const InputDecoration(labelText: 'Preparing For *'),
-                style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 14),
+                style: GoogleFonts.inter(color: context.palette.textPrimary, fontSize: 14),
                 dropdownColor: Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 items: const [
@@ -1040,7 +1041,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                       ),
                       child: Text(
                         '${widget.memberData.joiningDate.day}/${widget.memberData.joiningDate.month}/${widget.memberData.joiningDate.year}',
-                        style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 14),
+                        style: GoogleFonts.inter(color: context.palette.textPrimary, fontSize: 14),
                       ),
                     ),
                   );
@@ -1054,7 +1055,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 4),
@@ -1062,7 +1063,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                 'Add a clear photo of the member\'s ID. Front is required.',
                 style: GoogleFonts.inter(
                   fontSize: 12.5,
-                  color: const Color(0xFF64748B),
+                  color: context.palette.textMuted,
                 ),
               ),
               const SizedBox(height: 14),
@@ -1130,7 +1131,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
           style: GoogleFonts.inter(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: const Color(0xFF1E293B),
+            color: context.palette.textPrimary,
           ),
         ),
         if (isRequired)

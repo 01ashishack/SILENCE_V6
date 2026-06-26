@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -136,7 +137,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Padding(
         padding: EdgeInsets.only(
@@ -151,12 +152,12 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
             children: [
               Text(
                 'Report a Bug',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 4),
               Text(
                 'Help us improve. Provide details of the issue you encountered.',
-                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -226,14 +227,14 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                     children: [
                       Text(
                         'Frequently Asked Questions',
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       const SizedBox(height: 12),
 
                       // FAQs Container
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -265,19 +266,19 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
 
                       Text(
                         'Still need help?',
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Choose one of the support options below to contact us or report issues.',
-                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                        style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                       ),
                       const SizedBox(height: 16),
 
                       // Contact Actions Cards
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -296,11 +297,11 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                               ),
                               title: Text(
                                 'Report a Bug',
-                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                               ),
                               subtitle: Text(
                                 'Encountered an issue? Submit a diagnostic report',
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                               ),
                               trailing: const Icon(Icons.chevron_right, size: 18, color: Color(0xFF94A3B8)),
                             ),
@@ -318,11 +319,11 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                               ),
                               title: Text(
                                 'Technical Support',
-                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                               ),
                               subtitle: Text(
                                 'Contact our support engineers directly via email',
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                               ),
                               trailing: const Icon(Icons.chevron_right, size: 18, color: Color(0xFF94A3B8)),
                             ),
@@ -340,11 +341,11 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                               ),
                               title: Text(
                                 'WhatsApp Business Support',
-                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                               ),
                               subtitle: Text(
                                 'Chat live with our customer success team',
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                               ),
                               trailing: const Icon(Icons.chevron_right, size: 18, color: Color(0xFF94A3B8)),
                             ),
@@ -366,7 +367,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
           style: GoogleFonts.inter(
             fontSize: 13,
             fontWeight: FontWeight.bold,
-            color: const Color(0xFF1E293B),
+            color: context.palette.textPrimary,
           ),
         ),
         iconColor: const Color(0xFFE65C00),
@@ -378,7 +379,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               answer,
               style: GoogleFonts.inter(
                 fontSize: 12.5,
-                color: const Color(0xFF475569),
+                color: context.palette.textSecondary,
                 height: 1.5,
               ),
             ),

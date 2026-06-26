@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class MemberLicencesScreen extends StatelessWidget {
@@ -89,7 +90,7 @@ class MemberLicencesScreen extends StatelessWidget {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -135,7 +136,7 @@ class MemberLicencesScreen extends StatelessWidget {
                           collapsedIconColor: Colors.grey,
                           title: Text(
                             pkg['name']!,
-                            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,7 +164,7 @@ class MemberLicencesScreen extends StatelessWidget {
                               ),
                               child: Text(
                                 pkg['text']!,
-                                style: GoogleFonts.spaceMono(fontSize: 10, color: const Color(0xFF475569), height: 1.4),
+                                style: GoogleFonts.spaceMono(fontSize: 10, color: context.palette.textSecondary, height: 1.4),
                               ),
                             ),
                           ],

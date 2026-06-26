@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/app_info.dart';
@@ -20,7 +21,7 @@ class MemberAboutScreen extends StatelessWidget {
   void _showChangelogBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -48,27 +49,27 @@ class MemberAboutScreen extends StatelessWidget {
               Expanded(
                 child: ListView(
                   children: [
-                    _buildChangelogItem(
+                    _buildChangelogItem(context,
                       '📱 OTP Contact Verification',
                       'Verify your phone number and email address instantly with mock OTP authentication.',
                     ),
-                    _buildChangelogItem(
+                    _buildChangelogItem(context,
                       '🪪 ID Document Statuses',
                       'Upload document proofs (Aadhaar, Voter, etc.) and view live statuses (Under Review, Verified).',
                     ),
-                    _buildChangelogItem(
+                    _buildChangelogItem(context,
                       '🔒 Deletion Grace Period',
                       'Safety-first 7-day scheduled deletion — account is frozen, with an owner-approved recovery window.',
                     ),
-                    _buildChangelogItem(
+                    _buildChangelogItem(context,
                       '📊 Data Export Portability',
                       'Download your complete profile and study logs in JSON standard format directly via sharing sheets.',
                     ),
-                    _buildChangelogItem(
+                    _buildChangelogItem(context,
                       '⚙️ Notification Quiet Hours',
                       'Customise exactly when you get notified with time-picker based Quiet Hours and daily Streak Reminders.',
                     ),
-                    _buildChangelogItem(
+                    _buildChangelogItem(context,
                       '🐛 Performance & UI Fixes',
                       'Smoother loading skeletons, clean profile page transitions, and improved error fallbacks.',
                     ),
@@ -82,7 +83,7 @@ class MemberAboutScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildChangelogItem(String title, String description) {
+  Widget _buildChangelogItem(BuildContext context, String title, String description) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Column(
@@ -90,7 +91,7 @@ class MemberAboutScreen extends StatelessWidget {
         children: [
           Text(
             title,
-            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
           const SizedBox(height: 4),
           Text(
@@ -109,7 +110,7 @@ class MemberAboutScreen extends StatelessWidget {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -158,7 +159,7 @@ class MemberAboutScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       Text(
                         'SILENCE',
-                        style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -198,7 +199,7 @@ class MemberAboutScreen extends StatelessWidget {
                 // Actions Card
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.palette.surface,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -213,7 +214,7 @@ class MemberAboutScreen extends StatelessWidget {
                           decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
                           child: const Icon(Icons.history, color: Color(0xFF3B82F6), size: 20),
                         ),
-                        title: Text("What's New", style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        title: Text("What's New", style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                         subtitle: Text('Read latest v1.0.6 release changelog notes.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                       ),
@@ -225,7 +226,7 @@ class MemberAboutScreen extends StatelessWidget {
                           decoration: const BoxDecoration(color: Color(0xFFFFFBEB), shape: BoxShape.circle),
                           child: const Icon(Icons.star_outline, color: Color(0xFFF59E0B), size: 20),
                         ),
-                        title: Text('Rate the App', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        title: Text('Rate the App', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                         subtitle: Text('Show your love by rating us on Play Store.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                       ),
@@ -235,10 +236,10 @@ class MemberAboutScreen extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // Contact Card
-                _buildSectionHeader('Support & Contact'),
+                _buildSectionHeader(context, 'Support & Contact'),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.palette.surface,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -253,7 +254,7 @@ class MemberAboutScreen extends StatelessWidget {
                           decoration: const BoxDecoration(color: Color(0xFFF3F4F6), shape: BoxShape.circle),
                           child: const Icon(Icons.alternate_email, color: Color(0xFF6B7280), size: 20),
                         ),
-                        title: Text('Contact Email', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        title: Text('Contact Email', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                         subtitle: Text('support@silenceapp.in', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
                         trailing: const Icon(Icons.open_in_new, size: 14, color: Colors.grey),
                       ),
@@ -265,7 +266,7 @@ class MemberAboutScreen extends StatelessWidget {
                           decoration: const BoxDecoration(color: Color(0xFFF3F4F6), shape: BoxShape.circle),
                           child: const Icon(Icons.language, color: Color(0xFF6B7280), size: 20),
                         ),
-                        title: Text('Official Website', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                        title: Text('Official Website', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                         subtitle: Text('https://silenceapp.in', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
                         trailing: const Icon(Icons.open_in_new, size: 14, color: Colors.grey),
                       ),
@@ -275,26 +276,26 @@ class MemberAboutScreen extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // Social Handles
-                _buildSectionHeader('Follow Us'),
+                _buildSectionHeader(context, 'Follow Us'),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildSocialButton(
+                    _buildSocialButton(context: context,
                       icon: Icons.camera_alt_outlined,
                       label: 'Instagram',
                       url: 'https://instagram.com/silenceapp',
                     ),
-                    _buildSocialButton(
+                    _buildSocialButton(context: context,
                       icon: Icons.play_circle_outline,
                       label: 'YouTube',
                       url: 'https://youtube.com/@silenceapp',
                     ),
-                    _buildSocialButton(
+                    _buildSocialButton(context: context,
                       icon: Icons.tag,
                       label: 'Twitter',
                       url: 'https://twitter.com/silenceapp',
                     ),
-                    _buildSocialButton(
+                    _buildSocialButton(context: context,
                       icon: Icons.business_center_outlined,
                       label: 'LinkedIn',
                       url: 'https://linkedin.com/company/silenceapp',
@@ -328,17 +329,17 @@ class MemberAboutScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280), letterSpacing: 1),
+        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: context.palette.textMuted, letterSpacing: 1),
       ),
     );
   }
 
-  Widget _buildSocialButton({required IconData icon, required String label, required String url}) {
+  Widget _buildSocialButton({required BuildContext context, required IconData icon, required String label, required String url}) {
     return InkWell(
       onTap: () => _launchUrl(url),
       borderRadius: BorderRadius.circular(12),
@@ -346,7 +347,7 @@ class MemberAboutScreen extends StatelessWidget {
         width: 70,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
@@ -356,7 +357,7 @@ class MemberAboutScreen extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+              style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
             ),
           ],
         ),

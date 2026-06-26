@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -107,7 +108,7 @@ class _AnnouncementsHistoryScreenState
                               style: GoogleFonts.outfit(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFF1E293B),
+                                color: context.palette.textPrimary,
                               ),
                             ),
                           ],
@@ -123,7 +124,7 @@ class _AnnouncementsHistoryScreenState
                             return Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: context.palette.surface,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
                                   color: const Color(0xFFE2E8F0),
@@ -137,7 +138,7 @@ class _AnnouncementsHistoryScreenState
                                     style: GoogleFonts.outfit(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF1E293B),
+                                      color: context.palette.textPrimary,
                                     ),
                                   ),
                                   const SizedBox(height: 6),
@@ -145,7 +146,7 @@ class _AnnouncementsHistoryScreenState
                                     body.toString(),
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
-                                      color: const Color(0xFF475569),
+                                      color: context.palette.textSecondary,
                                       height: 1.4,
                                     ),
                                   ),

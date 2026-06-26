@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -60,7 +61,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
     // Show confirmation sheet
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         final confirmCtrl = TextEditingController();
@@ -81,19 +82,19 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
                     const SizedBox(width: 8),
                     Text(
                       '⚠️ Regenerate QR Code?',
-                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'This will IMMEDIATELY invalidate all old check-in QR codes. Members will not be able to scan until you print the new poster.',
-                  style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), height: 1.4),
+                  style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted, height: 1.4),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   'Type "REGENERATE" to confirm:',
-                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
                 ),
                 const SizedBox(height: 6),
                 TextField(
@@ -176,7 +177,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -226,7 +227,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
@@ -343,7 +344,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F172A),
+                    backgroundColor: context.palette.textPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
@@ -360,7 +361,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
           if (type == 'attendance')
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
+                backgroundColor: context.palette.surface,
                 foregroundColor: const Color(0xFFEF4444),
                 side: const BorderSide(color: Color(0xFFFCA5A5)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -377,7 +378,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
@@ -386,12 +387,12 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
               children: [
                 Text(
                   'What is this QR used for?',
-                  style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   desc,
-                  style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B), height: 1.4),
+                  style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted, height: 1.4),
                 ),
               ],
             ),

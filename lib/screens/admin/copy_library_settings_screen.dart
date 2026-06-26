@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -224,7 +225,7 @@ class _CopyLibrarySettingsScreenState extends State<CopyLibrarySettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       appBar: AppBar(
         backgroundColor: const Color(0xFFE65C00),
         foregroundColor: Colors.white,
@@ -254,7 +255,7 @@ class _CopyLibrarySettingsScreenState extends State<CopyLibrarySettingsScreen> {
           child: Text(
             'You need at least one other library to copy settings from.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(color: const Color(0xFF6B7280)),
+            style: GoogleFonts.inter(color: context.palette.textMuted),
           ),
         ),
       );
@@ -340,7 +341,7 @@ class _CopyLibrarySettingsScreenState extends State<CopyLibrarySettingsScreen> {
       padding: const EdgeInsets.only(top: 8),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
         ),
         child: SwitchListTile(
@@ -348,7 +349,7 @@ class _CopyLibrarySettingsScreenState extends State<CopyLibrarySettingsScreen> {
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           title: Text(title,
               style: GoogleFonts.inter(
-                  fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1A1A2E))),
+                  fontSize: 14, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
           subtitle: Text(subtitle,
               style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF94A3B8))),
           value: value,

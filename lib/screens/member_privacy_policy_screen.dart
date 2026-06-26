@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -104,7 +105,7 @@ class _MemberPrivacyPolicyScreenState extends State<MemberPrivacyPolicyScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -135,7 +136,7 @@ class _MemberPrivacyPolicyScreenState extends State<MemberPrivacyPolicyScreen> {
                                 Text(
                                   'SILENCE Data Privacy',
                                   style: GoogleFonts.outfit(
-                                      fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                      fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                 ),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -216,7 +217,7 @@ class _MemberPrivacyPolicyScreenState extends State<MemberPrivacyPolicyScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),

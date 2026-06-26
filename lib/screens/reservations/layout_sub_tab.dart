@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -699,7 +700,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     if (!mounted) return;
     final chosen = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
@@ -712,13 +713,13 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text('Reassign $memberName — from seat $oldLabel',
                   style: GoogleFonts.outfit(
-                      fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+                      fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             ),
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text('Pick a vacant seat in the same shift:',
-                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+                  style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted)),
             ),
             const SizedBox(height: 8),
             Flexible(
@@ -860,7 +861,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
     final chosen = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
@@ -873,13 +874,13 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text('Assign a member to seat $label',
                   style: GoogleFonts.outfit(
-                      fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+                      fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
             ),
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text('Members in this shift without a seat:',
-                  style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+                  style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted)),
             ),
             const SizedBox(height: 8),
             Flexible(
@@ -998,7 +999,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -1011,7 +1012,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   style: GoogleFonts.outfit(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1020,7 +1021,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: const Color(0xFF64748B),
+                    color: context.palette.textMuted,
                     height: 1.5,
                   ),
                 ),
@@ -1040,7 +1041,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFF64748B),
+                            color: context.palette.textMuted,
                           ),
                         ),
                       ),
@@ -1285,7 +1286,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1327,17 +1328,17 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                         children: [
                           Text(
                             isAllShifts ? 'Physical seat' : memberName,
-                            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+                            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                           ),
                           if (isAllShifts)
                             Text(
                               '${shiftRows.length} shift${shiftRows.length == 1 ? '' : 's'} • status varies by shift',
-                              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),
+                              style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                             )
                           else if (isOccupied && expiryText.isNotEmpty)
                             Text(
                               '[Active] • $expiryText',
-                              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),
+                              style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                             ),
                         ],
                       ),
@@ -1358,7 +1359,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
                   child: Text(
                     'Tap a shift to manage it',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF64748B)),
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: context.palette.textMuted),
                   ),
                 ),
                 ...(() {
@@ -1400,7 +1401,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                       ),
                       subtitle: Text(
                         subtitle,
-                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280)),
+                        style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                       ),
                       trailing: const Icon(Icons.chevron_right, size: 16),
                       onTap: () {
@@ -1554,7 +1555,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return ManageLayoutTreeSheet(
@@ -1596,7 +1597,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
-                    backgroundColor: Colors.white,
+                    backgroundColor: context.palette.surface,
                     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
                     builder: (ctx) {
                       return _AddSeatBottomSheet(
@@ -1781,7 +1782,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                     style: GoogleFonts.inter(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                 ],
@@ -1809,7 +1810,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               ),
               Text(
                 'Page ${(offset / 30).floor() + 1} of ${(totalSeats / 30).ceil()}',
-                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280)),
+                style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
               ),
               TextButton.icon(
                 onPressed: (offset + 30) >= totalSeats
@@ -2034,7 +2035,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       barrierColor: Colors.black.withValues(alpha: 0.15),
       builder: (context) {
         return Dialog(
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           elevation: 8,
           shadowColor: Colors.black.withValues(alpha: 0.2),
           shape: RoundedRectangleBorder(
@@ -2055,7 +2056,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                       style: GoogleFonts.outfit(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     IconButton(
@@ -2098,7 +2099,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
+                            color: isSelected ? const Color(0xFFE65C00) : context.palette.textPrimary,
                           ),
                         ),
                         subtitle: subtitleText.isNotEmpty
@@ -2106,7 +2107,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                                 subtitleText,
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
-                                  color: const Color(0xFF64748B),
+                                  color: context.palette.textMuted,
                                 ),
                               )
                             : null,
@@ -2164,7 +2165,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
@@ -2193,7 +2194,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                     style: GoogleFonts.inter(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -2202,7 +2203,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2231,13 +2232,13 @@ class LayoutSubTabState extends State<LayoutSubTab> {
             // Stats Row shimmer
             Row(
               children: [
-                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))),
+                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)))),
                 const SizedBox(width: 8),
-                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))),
+                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)))),
                 const SizedBox(width: 8),
-                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))),
+                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)))),
                 const SizedBox(width: 8),
-                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))),
+                Expanded(child: Container(height: 70, decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)))),
               ],
             ),
             const SizedBox(height: 24),
@@ -2245,7 +2246,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
@@ -2316,7 +2317,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               const SizedBox(height: 16),
               Text(
                 'No floors configured yet',
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 8),
               Text(
@@ -2330,7 +2331,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
-                    backgroundColor: Colors.white,
+                    backgroundColor: context.palette.surface,
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                     ),
@@ -2373,7 +2374,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               const SizedBox(height: 16),
               Text(
                 'No floors configured yet',
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 8),
               Text(
@@ -2387,7 +2388,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
-                    backgroundColor: Colors.white,
+                    backgroundColor: context.palette.surface,
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                     ),
@@ -2430,7 +2431,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
               const SizedBox(height: 16),
               Text(
                 'No shifts configured yet',
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 8),
               Text(
@@ -2545,7 +2546,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   ),
                   Text(
                     'Active Filter: $_activeFilter',
-                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+                    style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
@@ -2607,7 +2608,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
             style: GoogleFonts.outfit(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
+              color: context.palette.textPrimary,
             ),
           ),
         ),
@@ -2691,7 +2692,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -2700,7 +2701,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                           children: [
                             Text(
                               sectionName,
-                              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                             ),
                             const SizedBox(height: 8),
                             
@@ -2748,7 +2749,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                     // Case B: No sections, render floor seats directly in a single card
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
@@ -2757,12 +2758,12 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                       children: [
                         Text(
                           'All Floor Seats',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '👥 Floor seats loaded directly',
-                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+                          style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted, fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 8),
                         
@@ -2820,7 +2821,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
@@ -2860,7 +2861,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
           style: GoogleFonts.inter(
             fontSize: 12,
             fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-            color: isActive ? Colors.white : const Color(0xFF64748B),
+            color: isActive ? Colors.white : context.palette.textMuted,
           ),
         ),
       ),
@@ -3035,8 +3036,8 @@ void showAddFloorBottomSheet({
               left: 24,
               right: 24,
             ),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: context.palette.surface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
                 BoxShadow(
@@ -3066,7 +3067,7 @@ void showAddFloorBottomSheet({
                   style: GoogleFonts.outfit(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -3074,7 +3075,7 @@ void showAddFloorBottomSheet({
                   controller: controller,
                   decoration: InputDecoration(
                     labelText: 'Floor Name (e.g. Ground Floor)',
-                    labelStyle: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                    labelStyle: GoogleFonts.inter(color: context.palette.textMuted),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -3170,8 +3171,8 @@ void showRenameFloorBottomSheet({
               left: 24,
               right: 24,
             ),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: context.palette.surface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
                 BoxShadow(
@@ -3195,14 +3196,14 @@ void showRenameFloorBottomSheet({
                 const SizedBox(height: 16),
                 Text(
                   'Rename Floor',
-                  style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: controller,
                   decoration: InputDecoration(
                     labelText: 'Floor Name',
-                    labelStyle: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                    labelStyle: GoogleFonts.inter(color: context.palette.textMuted),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -3282,8 +3283,8 @@ void showAddSectionBottomSheet({
               left: 24,
               right: 24,
             ),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: context.palette.surface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
                 BoxShadow(
@@ -3313,7 +3314,7 @@ void showAddSectionBottomSheet({
                   style: GoogleFonts.outfit(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -3321,7 +3322,7 @@ void showAddSectionBottomSheet({
                   controller: controller,
                   decoration: InputDecoration(
                     labelText: 'Section Name (e.g. Girls Section)',
-                    labelStyle: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                    labelStyle: GoogleFonts.inter(color: context.palette.textMuted),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -3415,8 +3416,8 @@ void showEditSectionBottomSheet({
               left: 24,
               right: 24,
             ),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: context.palette.surface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
                 BoxShadow(
@@ -3440,14 +3441,14 @@ void showEditSectionBottomSheet({
                 const SizedBox(height: 16),
                 Text(
                   'Edit Section',
-                  style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: controller,
                   decoration: InputDecoration(
                     labelText: 'Section Name',
-                    labelStyle: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                    labelStyle: GoogleFonts.inter(color: context.palette.textMuted),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -3705,7 +3706,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -3718,7 +3719,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                   style: GoogleFonts.outfit(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -3727,7 +3728,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: const Color(0xFF64748B),
+                    color: context.palette.textMuted,
                     height: 1.5,
                   ),
                 ),
@@ -3747,7 +3748,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFF64748B),
+                            color: context.palette.textMuted,
                           ),
                         ),
                       ),
@@ -3905,7 +3906,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return _AddSeatBottomSheet(
@@ -3940,7 +3941,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       text = 'Hold';
     } else if (cleanStatus == 'maintenance') {
       bgColor = const Color(0xFFF1F5F9);
-      textColor = const Color(0xFF475569);
+      textColor = context.palette.textSecondary;
       text = 'Maint.';
     }
 
@@ -3992,7 +3993,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                     style: GoogleFonts.outfit(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF0F172A),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                 ],
@@ -4020,7 +4021,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                   const SizedBox(height: 12),
                   Text(
                     'No layout configured yet',
-                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
@@ -4068,7 +4069,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                                 leading: const Icon(Icons.apartment_rounded, color: Color(0xFFE65C00)),
                                 title: Text(
                                   floor['name'] ?? '',
-                                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                 ),
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -4083,7 +4084,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                                     ),
                                     Icon(
                                       isFloorExpanded ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_right_rounded,
-                                      color: const Color(0xFF64748B),
+                                      color: context.palette.textMuted,
                                     ),
                                   ],
                                 ),
@@ -4115,7 +4116,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                                         return Container(
                                           margin: const EdgeInsets.only(bottom: 8),
                                           decoration: BoxDecoration(
-                                            color: Colors.white,
+                                            color: context.palette.surface,
                                             borderRadius: BorderRadius.circular(10),
                                             border: Border.all(color: const Color(0xFFF1F5F9)),
                                           ),
@@ -4143,7 +4144,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                                                     Icon(
                                                       isSecExpanded ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_right_rounded,
                                                       size: 18,
-                                                      color: const Color(0xFF64748B),
+                                                      color: context.palette.textMuted,
                                                     ),
                                                   ],
                                                 ),
@@ -4170,7 +4171,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                                                         const SizedBox(width: 8),
                                                         Text(
                                                           seat['seat_label'] ?? '',
-                                                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF475569)),
+                                                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.palette.textSecondary),
                                                         ),
                                                         const SizedBox(width: 8),
                                                         _buildStatusBadge(seat['status']),
@@ -4212,7 +4213,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                                           margin: const EdgeInsets.only(bottom: 6),
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                           decoration: BoxDecoration(
-                                            color: Colors.white,
+                                            color: context.palette.surface,
                                             borderRadius: BorderRadius.circular(8),
                                             border: Border.all(color: const Color(0xFFF1F5F9)),
                                           ),
@@ -4222,7 +4223,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                                               const SizedBox(width: 8),
                                               Text(
                                                 seat['seat_label'] ?? '',
-                                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF475569)),
+                                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.palette.textSecondary),
                                               ),
                                               const SizedBox(width: 8),
                                               _buildStatusBadge(seat['status']),
@@ -4629,7 +4630,7 @@ class _AddSeatBottomSheetState extends State<_AddSeatBottomSheet> with SingleTic
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B))),
+              child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textMuted)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
@@ -4736,7 +4737,7 @@ class _AddSeatBottomSheetState extends State<_AddSeatBottomSheet> with SingleTic
             style: GoogleFonts.outfit(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF0F172A),
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
@@ -4791,7 +4792,7 @@ class _AddSeatBottomSheetState extends State<_AddSeatBottomSheet> with SingleTic
             controller: _tabController,
             indicatorColor: const Color(0xFFE65C00),
             labelColor: const Color(0xFFE65C00),
-            unselectedLabelColor: const Color(0xFF64748B),
+            unselectedLabelColor: context.palette.textMuted,
             labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
             tabs: const [
               Tab(text: 'Single Seat'),
@@ -4957,12 +4958,12 @@ class _AddSeatBottomSheetState extends State<_AddSeatBottomSheet> with SingleTic
                           // Format selector
                           Row(
                             children: [
-                              Text('Number Format:', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569))),
+                              Text('Number Format:', style: GoogleFonts.inter(fontSize: 12, color: context.palette.textSecondary)),
                               const SizedBox(width: 12),
                               DropdownButton<String>(
                                 value: ['1, 2', '01, 02'].contains(_bulkFormat) ? _bulkFormat : '1, 2',
                                 underline: Container(),
-                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                 items: const [
                                   DropdownMenuItem(value: '1, 2', child: Text('Standard (1, 2, ...)')),
                                   DropdownMenuItem(value: '01, 02', child: Text('Padded (01, 02, ...)')),

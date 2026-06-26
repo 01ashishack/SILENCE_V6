@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../theme/app_palette.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -693,7 +694,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
 
     final bool? confirm = await showModalBottomSheet<bool>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
@@ -718,13 +719,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                 style: GoogleFonts.outfit(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Are you sure you want to check out from the library?',
-                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+                style: GoogleFonts.inter(fontSize: 14, color: context.palette.textMuted),
               ),
               const SizedBox(height: 16),
               const Divider(),
@@ -780,7 +781,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                         style: GoogleFonts.inter(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF64748B),
+                          color: context.palette.textMuted,
                         ),
                       ),
                     ),
@@ -843,7 +844,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           ),
           Text(
             value,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
         ],
       ),
@@ -1317,7 +1318,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                 style: GoogleFonts.outfit(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -1363,7 +1364,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                 Text(
                   '$_successLibraryName  ·  Seat $_successSeatLabel',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 const SizedBox(height: 12),
                 const Divider(),
@@ -1439,7 +1440,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
             style: GoogleFonts.inter(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: valueColor ?? const Color(0xFF1E293B),
+              color: valueColor ?? context.palette.textPrimary,
             ),
           ),
         ],
@@ -1471,7 +1472,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
               const SizedBox(height: 16),
               Text(
                 _errorTitle,
-                style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 12),
               Text(
@@ -1494,7 +1495,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                     icon: const Icon(Icons.phone),
                     label: const Text('Contact Admin for Manual Check-in'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F172A),
+                      backgroundColor: context.palette.textPrimary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),

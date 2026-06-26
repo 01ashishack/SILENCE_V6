@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/app_info.dart';
@@ -47,7 +48,7 @@ class AboutUsScreen extends StatelessWidget {
                     style: GoogleFonts.outfit(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                       letterSpacing: 2.0,
                     ),
                   ),
@@ -58,7 +59,7 @@ class AboutUsScreen extends StatelessWidget {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ),
@@ -68,7 +69,7 @@ class AboutUsScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.palette.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
@@ -77,12 +78,12 @@ class AboutUsScreen extends StatelessWidget {
                     children: [
                       Text(
                         'Our Vision',
-                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Silence is built to empower library owners and students by simplifying seat management, attendance tracking, and fee collections. We strive to create the ultimate frictionless study environment.',
-                        style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.5),
+                        style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary, height: 1.5),
                       ),
                     ],
                   ),
@@ -92,25 +93,25 @@ class AboutUsScreen extends StatelessWidget {
                 // Specs list
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.palette.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Column(
                     children: [
                       ListTile(
-                        title: Text('Version', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF1E293B))),
-                        trailing: Text('${AppInfo.version} (Build ${AppInfo.build})', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
+                        title: Text('Version', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: context.palette.textPrimary)),
+                        trailing: Text('${AppInfo.version} (Build ${AppInfo.build})', style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted)),
                       ),
                       const Divider(height: 1, color: Color(0xFFF1F5F9)),
                       ListTile(
-                        title: Text('Privacy Policy', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF1E293B))),
+                        title: Text('Privacy Policy', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: context.palette.textPrimary)),
                         trailing: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF64748B)),
                         onTap: () => _launchUrl('https://silenceapp.in/privacy'),
                       ),
                       const Divider(height: 1, color: Color(0xFFF1F5F9)),
                       ListTile(
-                        title: Text('Terms of Service', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF1E293B))),
+                        title: Text('Terms of Service', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: context.palette.textPrimary)),
                         trailing: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF64748B)),
                         onTap: () => _launchUrl('https://silenceapp.in/terms'),
                       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -383,7 +384,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -407,7 +408,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     style: GoogleFonts.outfit(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1A1A2E),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -415,14 +416,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     'Enter your registered email address to receive a password reset link.',
                     style: GoogleFonts.inter(
                       fontSize: 13,
-                      color: const Color(0xFF6B7280),
+                      color: context.palette.textMuted,
                     ),
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: emailController,
                     keyboardType: TextInputType.emailAddress,
-                    style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                    style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                     decoration: InputDecoration(
                       labelText: 'Email Address',
                       prefixIcon: const Icon(Icons.email_outlined),
@@ -493,7 +494,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -517,7 +518,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               // Interactive Login/Signup Card Container
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.palette.surface,
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 4)),
@@ -530,7 +531,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       controller: _tabController,
                       indicatorColor: const Color(0xFFE65C00),
                       labelColor: const Color(0xFFE65C00),
-                      unselectedLabelColor: const Color(0xFF6B7280),
+                      unselectedLabelColor: context.palette.textMuted,
                       labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15),
                       unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 15),
                       tabs: const [
@@ -563,7 +564,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 child: RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
-                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280), height: 1.5),
+                    style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted, height: 1.5),
                     children: [
                       const TextSpan(text: 'By creating an account, you agree to our\n'),
                       TextSpan(
@@ -755,7 +756,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF6B7280),
+                    color: context.palette.textMuted,
                   ),
                 ),
               ),
@@ -779,7 +780,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
-      style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+      style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
       decoration: InputDecoration(
         labelText: labelText,
         labelStyle: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF9CA3AF)),

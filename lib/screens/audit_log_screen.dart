@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/app_gradient_scaffold.dart';
@@ -179,7 +180,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                   margin: const EdgeInsets.only(bottom: 12),
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: context.palette.surface,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(color: const Color(0xFFE2E8F0)),
                                   ),
@@ -216,12 +217,12 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                       const SizedBox(height: 12),
                                       Text(
                                         log.actionTitle,
-                                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         log.actionDetails,
-                                        style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF475569), height: 1.4),
+                                        style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textSecondary, height: 1.4),
                                       ),
                                       const SizedBox(height: 10),
                                       const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -232,7 +233,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                           const SizedBox(width: 6),
                                           Text(
                                             'By: ${log.performerName}',
-                                            style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
+                                            style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: context.palette.textMuted),
                                           ),
                                         ],
                                       ),

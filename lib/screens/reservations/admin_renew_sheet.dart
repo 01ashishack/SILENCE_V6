@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -19,7 +20,7 @@ Future<bool?> showAdminRenewSheet(
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: context.palette.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -169,16 +170,16 @@ class _AdminRenewSheetState extends State<_AdminRenewSheet> {
                     ),
                   ),
                   Text('Renew — $_memberName',
-                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E))),
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                   const SizedBox(height: 4),
                   Text(
                     curExpiry != null
                         ? 'Current expiry: ${DateFormat('dd MMM yyyy').format(curExpiry)}'
                         : 'No current expiry on record',
-                    style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B)),
+                    style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted),
                   ),
                   const SizedBox(height: 16),
-                  Text('Plan', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF475569))),
+                  Text('Plan', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: context.palette.textSecondary)),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -190,7 +191,7 @@ class _AdminRenewSheetState extends State<_AdminRenewSheet> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text('Payment method', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF475569))),
+                  Text('Payment method', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: context.palette.textSecondary)),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -209,7 +210,7 @@ class _AdminRenewSheetState extends State<_AdminRenewSheet> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Amount', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF475569))),
+                        Text('Amount', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textSecondary)),
                         Text('₹${_priceFor(_plan)}',
                             style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                       ],
@@ -252,7 +253,7 @@ class _AdminRenewSheetState extends State<_AdminRenewSheet> {
                 style: GoogleFonts.inter(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: selected ? Colors.white : const Color(0xFF475569))),
+                    color: selected ? Colors.white : context.palette.textSecondary)),
           ),
         ),
       ),
@@ -276,7 +277,7 @@ class _AdminRenewSheetState extends State<_AdminRenewSheet> {
                 style: GoogleFonts.inter(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: selected ? const Color(0xFFE65C00) : const Color(0xFF475569))),
+                    color: selected ? const Color(0xFFE65C00) : context.palette.textSecondary)),
           ),
         ),
       ),

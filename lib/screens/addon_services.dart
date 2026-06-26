@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -195,7 +196,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Padding(
         padding: EdgeInsets.only(
@@ -208,7 +209,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
           children: [
             Text(
               'Edit ${item.name}',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -262,7 +263,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Padding(
         padding: EdgeInsets.only(
@@ -275,7 +276,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
           children: [
             Text(
               'Add Custom Add-on Service',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -354,7 +355,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -389,7 +390,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
                           margin: const EdgeInsets.only(bottom: 16),
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.palette.surface,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
@@ -412,7 +413,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
                                       children: [
                                         Text(
                                           item.name,
-                                          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                         ),
                                         const SizedBox(height: 4),
                                         Row(
@@ -425,7 +426,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
                                               const SizedBox(width: 8),
                                               Text(
                                                 '• Deposit: ₹${item.securityDeposit.toStringAsFixed(0)}',
-                                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                                                style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                                               ),
                                             ],
                                           ],
@@ -447,11 +448,11 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
                                 children: [
                                   Text(
                                     'Allocation Statistics',
-                                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+                                    style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted, fontWeight: FontWeight.w500),
                                   ),
                                   Text(
                                     '${item.allocatedCount}/${item.totalInventory} units claimed (${(usagePct * 100).toInt()}%)',
-                                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                   ),
                                 ],
                               ),
@@ -500,7 +501,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
               style: GoogleFonts.outfit(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -509,7 +510,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: const Color(0xFF64748B),
+                color: context.palette.textMuted,
                 height: 1.5,
               ),
             ),

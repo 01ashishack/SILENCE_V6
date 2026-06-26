@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -353,7 +354,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text('Date: $_periodLabel',
-                          style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                          style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
                     ),
                     Text('Change', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: _orange)),
                   ],
@@ -369,7 +370,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
                     Expanded(
                       child: Text(DateFormat('MMMM yyyy').format(_month),
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                     ),
                     IconButton(
                       onPressed: (_month.year == DateTime.now().year && _month.month == DateTime.now().month)
@@ -437,7 +438,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
   Future<void> _openFacetSheet(String title, List<String> options, Set<String> selected) async {
     await showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return StatefulBuilder(builder: (ctx, setSheet) {
@@ -508,7 +509,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
     _memberOverride ??= facetMembers.map((m) => m['id'] as String).toSet();
     await showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
@@ -652,14 +653,14 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
             margin: const EdgeInsets.only(bottom: 14),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(14),
               boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                Text(name, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                 Text('${logs.length} session(s)', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                 const Divider(height: 16),
                 ...logs.map((r) => Padding(
@@ -667,7 +668,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
                       child: Row(
                         children: [
                           SizedBox(width: 86, child: Text(_d(r['check_in_time']), style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600))),
-                          Expanded(child: Text('${_t(r['check_in_time'])} – ${r['check_out_time'] != null ? _t(r['check_out_time']) : 'Ongoing'}', style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF475569)))),
+                          Expanded(child: Text('${_t(r['check_in_time'])} – ${r['check_out_time'] != null ? _t(r['check_out_time']) : 'Ongoing'}', style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textSecondary))),
                           Text(_durationOf(r), style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600)),
                           if (r['is_overtime'] == true) ...[
                             const SizedBox(width: 6),
@@ -701,7 +702,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
                 border: Border.all(color: i == 2 ? _orange : const Color(0xFFE2E8F0)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(kpis[i][1], style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: i == 2 ? _orange : const Color(0xFF1E293B))),
+                Text(kpis[i][1], style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: i == 2 ? _orange : context.palette.textPrimary)),
                 Text(kpis[i][0], style: GoogleFonts.inter(fontSize: 10.5, color: Colors.grey[500])),
               ]),
             ),
@@ -717,7 +718,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
@@ -726,7 +727,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
         children: [
           Row(
             children: [
-              Expanded(child: Text(title, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)))),
+              Expanded(child: Text(title, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary))),
               if (overtime)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

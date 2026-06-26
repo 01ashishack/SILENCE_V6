@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../theme/app_palette.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -101,7 +102,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
         builder: (ctx, setD) {
           final canDelete = confirmCtrl.text.trim() == name.trim();
           return AlertDialog(
-            backgroundColor: Colors.white,
+            backgroundColor: context.palette.surface,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Text('Delete library?',
                 style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFDC2626))),
@@ -113,11 +114,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                   'This permanently deletes "$name" and ALL its data — members, '
                   'seats, shifts, attendance, payments and settings. This cannot '
                   'be undone.',
-                  style: GoogleFonts.inter(fontSize: 13, height: 1.45, color: const Color(0xFF475569)),
+                  style: GoogleFonts.inter(fontSize: 13, height: 1.45, color: context.palette.textSecondary),
                 ),
                 const SizedBox(height: 14),
                 Text('Type the library name to confirm:',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: confirmCtrl,
@@ -352,7 +353,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   Future<ImageSource?> _showImageSourceBottomSheet() async {
     return await showModalBottomSheet<ImageSource?>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -541,15 +542,15 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
       await showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           title: Text('Role change not available',
               style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                  fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
           content: Text(
             'You can only change your role within 7 days of creating your account. '
             'That window has closed, so your role is now fixed.',
             style:
-                GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+                GoogleFonts.inter(fontSize: 14, color: context.palette.textSecondary),
           ),
           actions: [
             TextButton(
@@ -576,11 +577,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           final canConfirm =
               confirmController.text.trim().toUpperCase() == 'MEMBER';
           return AlertDialog(
-            backgroundColor: Colors.white,
+            backgroundColor: context.palette.surface,
             title: Text('Switch to Member — start over?',
                 style: GoogleFonts.outfit(
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B))),
+                    color: context.palette.textPrimary)),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -636,7 +637,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569))),
+                          color: context.palette.textSecondary)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: confirmController,
@@ -658,7 +659,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 onPressed: () => Navigator.pop(ctx, false),
                 child: Text('Cancel',
                     style: GoogleFonts.inter(
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                         fontWeight: FontWeight.bold)),
               ),
               ElevatedButton(
@@ -711,11 +712,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         body: RefreshIndicator(
           onRefresh: _loadProfileData,
           color: const Color(0xFFE65C00),
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
@@ -884,7 +885,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     style: GoogleFonts.outfit(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                 ),
@@ -896,7 +897,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                         child: Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.palette.surface,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                             boxShadow: [
@@ -913,13 +914,13 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               const SizedBox(height: 12),
                               Text(
                                 'Manage Your Study Space',
-                                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 'Register your library, configure seats, set timings, and start accepting memberships.',
                                 textAlign: TextAlign.center,
-                                style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B), height: 1.4),
+                                style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted, height: 1.4),
                               ),
                               const SizedBox(height: 16),
                               ElevatedButton(
@@ -1073,7 +1074,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
-                                color: const Color(0xFF1E293B),
+                                color: context.palette.textPrimary,
                               ),
                             ),
                             trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
@@ -1086,7 +1087,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
-                                color: const Color(0xFF1E293B),
+                                color: context.palette.textPrimary,
                               ),
                             ),
                             trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
@@ -1099,7 +1100,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
-                                color: const Color(0xFF1E293B),
+                                color: context.palette.textPrimary,
                               ),
                             ),
                             trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFF94A3B8)),
@@ -1173,11 +1174,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 const SizedBox(height: 8),
                 Text('Within 7 days you can request recovery; the SILENCE team reviews '
                     'and decides. There is no self-cancel. After 7 days it is permanent.',
-                    style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B))),
+                    style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted)),
                 const SizedBox(height: 14),
                 Text('Type DELETE to confirm:',
                     style: GoogleFonts.inter(
-                        fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                        fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: confirmCtrl,
@@ -1242,7 +1243,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569))),
+                style: GoogleFonts.inter(fontSize: 12, color: context.palette.textSecondary)),
           ),
         ],
       ),
@@ -1276,7 +1277,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     style: GoogleFonts.outfit(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -1284,7 +1285,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     'Verified on $formattedDate',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ],
@@ -1297,7 +1298,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
@@ -1320,7 +1321,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                   style: GoogleFonts.outfit(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                 ),
               ],
@@ -1330,7 +1331,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               'Meet the criteria to get the blue verified tick on your library profile.',
               style: GoogleFonts.inter(
                 fontSize: 12.5,
-                color: const Color(0xFF64748B),
+                color: context.palette.textMuted,
                 height: 1.4,
               ),
             ),
@@ -1408,7 +1409,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
@@ -1425,7 +1426,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               Expanded(
                 child: Text(
                   'Library Profile',
-                  style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
               ),
               Text(
@@ -1453,7 +1454,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 Expanded(
                   child: Text(
                     'Profile fully optimised — boosts visibility & helps you qualify for the verified badge.',
-                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569), height: 1.4),
+                    style: GoogleFonts.inter(fontSize: 12, color: context.palette.textSecondary, height: 1.4),
                   ),
                 ),
               ],
@@ -1461,7 +1462,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           else ...[
             Text(
               'Add these to optimise your profile & qualify for the verified badge:',
-              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), height: 1.4),
+              style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted, height: 1.4),
             ),
             const SizedBox(height: 10),
             Wrap(
@@ -1499,13 +1500,13 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
             style: GoogleFonts.outfit(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF64748B),
+              color: context.palette.textMuted,
             ),
           ),
         ),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
@@ -1527,7 +1528,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
         style: GoogleFonts.inter(
           fontSize: 13,
           fontWeight: FontWeight.w500,
-          color: const Color(0xFF1E293B),
+          color: context.palette.textPrimary,
         ),
       ),
       trailing: locked
@@ -1577,7 +1578,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
         height: 200,
         margin: isHorizontalList ? const EdgeInsets.only(right: 16) : EdgeInsets.zero,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -1624,7 +1625,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                             style: GoogleFonts.outfit(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1E293B),
+                              color: context.palette.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -1635,7 +1636,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.w400,
-                              color: const Color(0xFF64748B),
+                              color: context.palette.textMuted,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -1648,7 +1649,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                                 style: GoogleFonts.inter(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF64748B),
+                                  color: context.palette.textMuted,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -1659,7 +1660,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                                 style: GoogleFonts.inter(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF64748B),
+                                  color: context.palette.textMuted,
                                 ),
                               ),
                             ],
@@ -1678,7 +1679,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                                     style: GoogleFonts.inter(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF64748B),
+                                      color: context.palette.textMuted,
                                     ),
                                   ),
                                 ),
@@ -1749,7 +1750,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               style: GoogleFonts.outfit(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
             ),
             if (_myLibrariesList.isEmpty) ...[
@@ -1773,7 +1774,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       style: GoogleFonts.outfit(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -1782,7 +1783,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: const Color(0xFF6B7280),
+                        color: context.palette.textMuted,
                         height: 1.4,
                       ),
                     ),
@@ -1819,7 +1820,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 dropdownColor: Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 menuMaxHeight: 320,
-                style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 13, fontWeight: FontWeight.bold),
+                style: GoogleFonts.inter(color: context.palette.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   border: OutlineInputBorder(
@@ -1943,7 +1944,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF475569),
+              color: context.palette.textSecondary,
             ),
           ),
         ],
@@ -2017,7 +2018,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -2038,19 +2039,19 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                   children: [
                     Text(
                       'About & Info',
-                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Shown on your public library profile.',
-                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                      style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                     ),
                     const SizedBox(height: 16),
 
                     // About (editable)
                     Text(
                       'About Library',
-                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
                     ),
                     const SizedBox(height: 6),
                     TextField(
@@ -2073,7 +2074,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     // Opening Hours (editable — shown on the public profile)
                     Text(
                       'Opening Hours',
-                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
                     ),
                     const SizedBox(height: 6),
                     TextField(
@@ -2102,7 +2103,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     // Members Joined (editable label — social proof on profile)
                     Text(
                       'Members Joined',
-                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
                     ),
                     const SizedBox(height: 6),
                     TextField(
@@ -2195,7 +2196,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -2214,7 +2215,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               children: [
                 Text(
                   'Basic Details',
-                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -2341,7 +2342,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -2387,7 +2388,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -2406,7 +2407,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               children: [
                 Text(
                   'Social Links',
-                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -2501,7 +2502,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -2525,7 +2526,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                       children: [
                         Text(
                           'Rules & Guidelines',
-                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                         ),
                         TextButton.icon(
                           onPressed: () {
@@ -2666,7 +2667,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -2749,7 +2750,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     children: [
                       Text(
                         'Gallery & Photos',
-                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       TextButton.icon(
                         onPressed: addPhotoFromPicker,
@@ -2878,7 +2879,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
               style: GoogleFonts.inter(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: active ? Colors.white : const Color(0xFF475569))),
+                  color: active ? Colors.white : context.palette.textSecondary)),
         ),
       ),
     );
@@ -2910,10 +2911,10 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
     final newAmenity = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         title: Text(
           'Add New Amenity',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         content: TextField(
           controller: textCtrl,
@@ -2926,7 +2927,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.bold)),
+            child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textMuted, fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, textCtrl.text.trim()),
@@ -2987,7 +2988,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -3008,7 +3009,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                   children: [
                     Text(
                       isEdit ? 'Edit Add-on' : 'Add Add-on',
-                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -3033,7 +3034,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                             children: [
                               Text('Price Type',
                                   style: GoogleFonts.inter(
-                                      fontSize: 11, color: const Color(0xFF6B7280))),
+                                      fontSize: 11, color: context.palette.textMuted)),
                               const SizedBox(height: 4),
                               // Inline segmented toggle instead of a DropdownButton:
                               // a dropdown overlay inside a nested bottom sheet was
@@ -3171,13 +3172,13 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: Text('Delete Add-on', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
-        content: Text('Are you sure you want to delete "${addon['name']}"? This action cannot be undone.', style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569))),
+        backgroundColor: context.palette.surface,
+        title: Text('Delete Add-on', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
+        content: Text('Are you sure you want to delete "${addon['name']}"? This action cannot be undone.', style: GoogleFonts.inter(fontSize: 14, color: context.palette.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.bold)),
+            child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textMuted, fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -3228,7 +3229,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
             children: [
               Text(
                 'Amenities & Add-ons',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               IconButton(
                 icon: const Icon(Icons.close, color: Color(0xFF64748B)),
@@ -3272,7 +3273,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                     children: [
                       Text(
                         'Amenities',
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       OutlinedButton.icon(
                         onPressed: _showAddAmenityDialog,
@@ -3300,7 +3301,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                           ),
                           child: Text(
                             'No amenities configured yet.',
-                            style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                            style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                             textAlign: TextAlign.center,
                           ),
                         )
@@ -3311,7 +3312,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                             return Chip(
                               label: Text(
                                 amenity,
-                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: const Color(0xFF1E293B)),
+                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: context.palette.textPrimary),
                               ),
                               backgroundColor: const Color(0xFFE2E8F0),
                               deleteIcon: const Icon(Icons.close, size: 14, color: Color(0xFF475569)),
@@ -3354,7 +3355,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                     children: [
                       Text(
                         'Add-ons',
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       ElevatedButton.icon(
                         onPressed: () => _showAddEditAddonSheet(),
@@ -3388,12 +3389,12 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                               const SizedBox(height: 8),
                               Text(
                                 'No Add-on Services Configured',
-                                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'Add optional services like personal lockers, vehicle parking, or premium VIP cabins.',
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+                                style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                                 textAlign: TextAlign.center,
                               ),
                             ],
@@ -3405,7 +3406,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                               margin: const EdgeInsets.only(bottom: 12),
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: context.palette.surface,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: const Color(0xFFE2E8F0)),
                               ),
@@ -3417,14 +3418,14 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                                       children: [
                                         Text(
                                           addon['name'] ?? 'Add-on',
-                                          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B), fontSize: 14),
+                                          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: context.palette.textPrimary, fontSize: 14),
                                         ),
                                         const SizedBox(height: 4),
                                         Row(
                                           children: [
                                             Text(
                                               'Price: ₹${addon['price']}/${addon['price_type'] == 'one_time' ? 'one-time' : 'monthly'}',
-                                              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                                              style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
                                             ),
                                             if ((addon['refundable_deposit'] as num? ?? 0) > 0) ...[
                                               const SizedBox(width: 8),

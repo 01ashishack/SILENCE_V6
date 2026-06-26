@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -86,7 +87,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
         Navigator.of(context).pushReplacementNamed('/auth');
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20),
@@ -118,12 +119,12 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                       const SizedBox(height: 20),
                       Text(
                         'Select Your Role',
-                        style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+                        style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         'Choose the role that best describes you',
-                        style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF6B7280)),
+                        style: GoogleFonts.inter(fontSize: 14, color: context.palette.textMuted),
                       ),
                     ],
                   ),
@@ -209,7 +210,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       child: Container(
         padding: const EdgeInsets.all(20.0),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
@@ -240,12 +241,12 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6B7280)),
+                    style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                   ),
                 ],
               ),

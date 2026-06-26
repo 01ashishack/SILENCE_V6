@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../theme/app_palette.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -264,7 +265,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
   Future<ImageSource?> _showImageSourceBottomSheet(BuildContext context, String title) async {
     return await showModalBottomSheet<ImageSource?>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -330,7 +331,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: context.palette.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
             title,
@@ -830,7 +831,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
         appBar: AppBar(
           backgroundColor: const Color(0xFFE65C00),
           elevation: 0,
@@ -857,7 +858,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: context.palette.surface,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -912,23 +913,23 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                 const SizedBox(height: 12),
                                 Text(
                                   'Cover Photo',
-                                  style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A2E)),
+                                  style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   'Tap camera icon to upload cover photo',
-                                  style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6B7280)),
+                                  style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(height: 24),
                           
-                          Text('Library Name *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                          Text('Library Name *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _nameController,
-                            style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                            style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                             decoration: InputDecoration(
                               hintText: 'Enter library name',
                               hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
@@ -938,11 +939,11 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                           ),
                           const SizedBox(height: 16),
 
-                          Text('Street Address', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                          Text('Street Address', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _streetController,
-                            style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                            style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                             decoration: InputDecoration(
                               hintText: 'Enter street address',
                               hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
@@ -958,11 +959,11 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('City *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                                    Text('City *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                                     const SizedBox(height: 6),
                                     TextFormField(
                                       controller: _cityController,
-                                      style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                                      style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                                       decoration: InputDecoration(
                                         hintText: 'Enter city',
                                         hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
@@ -977,7 +978,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('State', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                                    Text('State', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                                     const SizedBox(height: 6),
                                     DropdownButtonFormField<String>(
                                       isExpanded: true,
@@ -1012,12 +1013,12 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                           ),
                           const SizedBox(height: 16),
 
-                          Text('PIN Code', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                          Text('PIN Code', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _pinController,
                             keyboardType: TextInputType.number,
-                            style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                            style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                             decoration: InputDecoration(
                               hintText: 'Enter PIN code',
                               hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
@@ -1026,12 +1027,12 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                           ),
                           const SizedBox(height: 16),
 
-                          Text('Emergency Phone *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                          Text('Emergency Phone *', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _emergencyPhoneController,
                             keyboardType: TextInputType.phone,
-                            style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                            style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                             decoration: InputDecoration(
                               hintText: 'Enter emergency phone',
                               hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withValues(alpha: 0.5)),
@@ -1049,7 +1050,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: context.palette.surface,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -1060,7 +1061,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                         children: [
                           Text(
                             'Library Photos',
-                            style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280)),
+                            style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                           ),
                           const SizedBox(height: 4),
                           Text('Add Photos (up to 4) - horizontal 16:9 aspect ratio', style: GoogleFonts.inter(fontSize: 10.5, color: const Color(0xFF9CA3AF))),
@@ -1122,7 +1123,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                         width: 120,
                                         height: 68,
                                         decoration: BoxDecoration(
-                                          color: Colors.white,
+                                          color: context.palette.surface,
                                           borderRadius: BorderRadius.circular(8),
                                           border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.4), style: BorderStyle.solid),
                                         ),
@@ -1166,7 +1167,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: context.palette.surface,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
@@ -1175,7 +1176,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Amenities', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF6B7280))),
+                          Text('Amenities', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                           const SizedBox(height: 12),
                           if (_availableAmenities.isEmpty)
                             Padding(
@@ -1226,7 +1227,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                               style: GoogleFonts.inter(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w600,
-                                                color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                                                color: isSelected ? Colors.white : context.palette.textMuted,
                                               ),
                                             ),
                                             if (isSelected) ...[

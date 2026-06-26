@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -85,7 +86,7 @@ class _OwnerRecoveryConsoleScreenState extends State<OwnerRecoveryConsoleScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         surfaceTintColor: Colors.transparent,
         title: Text(approve ? 'Restore account?' : 'Deny recovery?',
             style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
@@ -94,12 +95,12 @@ class _OwnerRecoveryConsoleScreenState extends State<OwnerRecoveryConsoleScreen>
               ? 'Restore $name\'s account? They will regain full access.'
               : 'Deny $name\'s recovery? Their account stays scheduled and will be '
                   'permanently deleted at the end of the window.',
-          style: GoogleFonts.inter(fontSize: 13.5, color: const Color(0xFF475569)),
+          style: GoogleFonts.inter(fontSize: 13.5, color: context.palette.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF64748B))),
+            child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textMuted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -185,7 +186,7 @@ class _OwnerRecoveryConsoleScreenState extends State<OwnerRecoveryConsoleScreen>
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
@@ -199,7 +200,7 @@ class _OwnerRecoveryConsoleScreenState extends State<OwnerRecoveryConsoleScreen>
             children: [
               Expanded(
                 child: Text(name,
-                    style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                    style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
               ),
               if (role.isNotEmpty)
                 Container(
@@ -213,9 +214,9 @@ class _OwnerRecoveryConsoleScreenState extends State<OwnerRecoveryConsoleScreen>
           ),
           const SizedBox(height: 4),
           if (email.isNotEmpty)
-            Text(email, style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+            Text(email, style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted)),
           if (phone.isNotEmpty)
-            Text('+91 $phone', style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF64748B))),
+            Text('+91 $phone', style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted)),
           if (purge != null) ...[
             const SizedBox(height: 6),
             Text('Permanent deletion: ${purge.day}/${purge.month}/${purge.year}',

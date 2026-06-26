@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../../theme/app_palette.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -210,12 +211,12 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         surfaceTintColor: Colors.transparent,
-        title: Text('Exit Wizard?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+        title: Text('Exit Wizard?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         content: Text(
           'Do you want to save this member registration as a draft to resume later?',
-          style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+          style: GoogleFonts.inter(fontSize: 14, color: context.palette.textSecondary),
         ),
         actions: [
           TextButton(
@@ -455,12 +456,12 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
               context: context,
               barrierDismissible: false,
               builder: (ctx) => AlertDialog(
-                backgroundColor: Colors.white,
+                backgroundColor: context.palette.surface,
                 surfaceTintColor: Colors.transparent,
                 title: Text('Active Membership Found', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.red)),
                 content: Text(
                   'This member already has an active membership in this library. Please renew or exit the existing membership before adding a new one.',
-                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569)),
+                  style: GoogleFonts.inter(fontSize: 14, color: context.palette.textSecondary),
                 ),
                 actions: [
                   TextButton(
@@ -748,7 +749,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
   Widget build(BuildContext context) {
     if (_isLoading && !_initialized) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         appBar: AppBar(
           backgroundColor: const Color(0xFFE65C00),
           title: Text('Add Member Wizard', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
@@ -865,7 +866,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         appBar: AppBar(
           backgroundColor: const Color(0xFFE65C00),
           // Top-left back: previous step when not on the first page (was exiting
@@ -991,7 +992,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
             ),
             child: Text(
               'Back',
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFF6B7280)),
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: context.palette.textMuted),
             ),
           ),
           if (!isLastStep)
@@ -1051,7 +1052,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
                     style: GoogleFonts.outfit(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1A1A2E),
+                      color: context.palette.textPrimary,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -1060,7 +1061,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
                     'Please select the library branch where the member wants to register.',
                     style: GoogleFonts.inter(
                       fontSize: 14,
-                      color: const Color(0xFF6B7280),
+                      color: context.palette.textMuted,
                       height: 1.5,
                     ),
                     textAlign: TextAlign.center,
@@ -1081,7 +1082,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
@@ -1108,7 +1109,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
                                 style: GoogleFonts.outfit(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 15,
-                                  color: const Color(0xFF1E293B),
+                                  color: context.palette.textPrimary,
                                 ),
                               ),
                             ),

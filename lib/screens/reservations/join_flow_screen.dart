@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../theme/app_palette.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -414,7 +415,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       context: context,
       isDismissible: false,
       enableDrag: false,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -438,7 +439,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                   style: GoogleFonts.outfit(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -447,7 +448,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                   'We noticed you were previously a member at $libName. Would you like to use your previous profile details to pre-fill the application?',
                   style: GoogleFonts.inter(
                     fontSize: 13.5,
-                    color: const Color(0xFF64748B),
+                    color: context.palette.textMuted,
                     height: 1.5,
                   ),
                   textAlign: TextAlign.center,
@@ -492,7 +493,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                     });
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF475569),
+                    foregroundColor: context.palette.textSecondary,
                     side: const BorderSide(color: Color(0xFFCBD5E1)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -785,7 +786,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
 
     if (_errorMessage != null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         appBar: AppBar(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white),
         body: ErrorState(error: _errorMessage, onRetry: _loadJoinDetails),
       );
@@ -800,7 +801,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             foregroundColor: Colors.white,
@@ -886,7 +887,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         child: ElevatedButton(
           onPressed: _isSubmitting ? null : _handleNextClick,
           style: ElevatedButton.styleFrom(
-            backgroundColor: isLastStep ? const Color(0xFFE65C00) : const Color(0xFF0F172A),
+            backgroundColor: isLastStep ? const Color(0xFFE65C00) : context.palette.textPrimary,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -986,13 +987,13 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         // Returning history
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Have you studied here before?',
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 12),
               
@@ -1056,7 +1057,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1101,13 +1102,13 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Complete Your Details',
-                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 12),
               
@@ -1146,7 +1147,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       children: [
         Text(
           'Choose a Shift',
-          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 10),
 
@@ -1235,7 +1236,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         const SizedBox(height: 20),
         Text(
           'Choose Plan',
-          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 10),
 
@@ -1313,7 +1314,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                 Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
               ],
             ),
-            Text(priceLabel, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1E293B))),
+            Text(priceLabel, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: context.palette.textPrimary)),
           ],
         ),
       ),
@@ -1327,7 +1328,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       children: [
         Text(
           'Extra Add-ons',
-          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 4),
         Text(
@@ -1349,7 +1350,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: active ? const Color(0xFFE65C00) : Colors.grey[200]!, width: active ? 1.5 : 1),
               ),
@@ -1402,7 +1403,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         // Price breakdown
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1429,7 +1430,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Grand Total', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                  Text('Grand Total', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                   Text('₹$grandTotal', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                 ],
               ),
@@ -1440,7 +1441,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         const SizedBox(height: 20),
         Text(
           'Select Payment Method',
-          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 10),
 
@@ -1464,7 +1465,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
     final ids = _upiIds;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1725,13 +1726,13 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       children: [
         Text(
           'Review Your Application',
-          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
         const SizedBox(height: 12),
 
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1752,7 +1753,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Grand Total', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                  Text('Grand Total', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                   Text('₹$grandTotal', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                 ],
               ),
@@ -1780,7 +1781,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       children: [
         Text(label, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
         const SizedBox(height: 2),
-        Text(val, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+        Text(val, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
       ],
     );
   }
@@ -1790,7 +1791,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
   // ==========================================
   Widget _buildConfirmationScreen() {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -1805,7 +1806,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
               const SizedBox(height: 24),
               Text(
                 'Request sent',
-                style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 12),
               Text(

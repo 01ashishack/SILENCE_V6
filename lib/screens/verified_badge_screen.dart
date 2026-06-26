@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -174,7 +175,7 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            backgroundColor: Colors.white,
+            backgroundColor: context.palette.surface,
             title: Text(
               'Verified Successfully! 🎖️',
               style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),
@@ -303,7 +304,7 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
 
                       Text(
                         'Milestones & Progress',
-                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       const SizedBox(height: 12),
 
@@ -311,7 +312,7 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
@@ -459,7 +460,7 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: isCompleted ? const Color(0xFF1E293B) : const Color(0xFF64748B),
+                    color: isCompleted ? context.palette.textPrimary : context.palette.textMuted,
                   ),
                 ),
                 const SizedBox(height: 2),

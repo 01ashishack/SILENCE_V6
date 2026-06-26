@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -134,7 +135,7 @@ class _LibraryQueryScreenState extends State<LibraryQueryScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             foregroundColor: Colors.white,
@@ -150,7 +151,7 @@ class _LibraryQueryScreenState extends State<LibraryQueryScreen> {
                     children: [
                       Text(
                         'Send a Message to Admin',
-                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -160,7 +161,7 @@ class _LibraryQueryScreenState extends State<LibraryQueryScreen> {
                       const SizedBox(height: 24),
                       Text(
                         'Message/Query *',
-                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary),
                       ),
                       const SizedBox(height: 8),
                       TextField(

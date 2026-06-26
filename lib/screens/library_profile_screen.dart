@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -121,7 +122,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
   Widget build(BuildContext context) {
     if (_libraryData == null && _isLoading) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         body: const Center(
           child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))),
         ),
@@ -130,7 +131,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
 
     if (_libraryData == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         appBar: AppBar(
           backgroundColor: const Color(0xFFE65C00),
           title: const Text('Library Profile', style: TextStyle(color: Colors.white)),
@@ -158,7 +159,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: const Color(0xFFE65C00),
             elevation: 0,
@@ -211,7 +212,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                       children: [
                         Text(
                           'Cover Photo',
-                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                         ),
                         const SizedBox(height: 8),
                         ClipRRect(
@@ -238,7 +239,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                           const SizedBox(height: 16),
                           Text(
                             'Gallery Photos',
-                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted),
                           ),
                           const SizedBox(height: 8),
                           SizedBox(
@@ -280,7 +281,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                     child: amenities.isEmpty
                         ? Text(
                             'No amenities selected yet.',
-                            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                            style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                           )
                         : Wrap(
                             spacing: 8,
@@ -313,7 +314,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                     onEdit: () => _navigateToEdit('/admin/library/setup/1'),
                     child: Text(
                       rules,
-                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.5),
+                      style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary, height: 1.5),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -345,7 +346,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                     child: _shifts.isEmpty
                         ? Text(
                             'No shifts configured yet.',
-                            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                            style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                           )
                         : SizedBox(
                             height: 80,
@@ -363,7 +364,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                                   margin: const EdgeInsets.only(right: 12),
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: context.palette.surface,
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(color: const Color(0xFFE2E8F0)),
                                     boxShadow: [
@@ -378,7 +379,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                                         name,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                                       ),
                                       const SizedBox(height: 4),
                                       Row(
@@ -387,7 +388,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                                           const SizedBox(width: 4),
                                           Text(
                                             '$start - $end',
-                                            style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF64748B)),
+                                            style: GoogleFonts.inter(fontSize: 10, color: context.palette.textMuted),
                                           ),
                                         ],
                                       ),
@@ -407,7 +408,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                     child: _addons.isEmpty
                         ? Text(
                             'No add-on services configured.',
-                            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                            style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                           )
                         : ListView.separated(
                             shrinkWrap: true,
@@ -424,7 +425,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                                   Expanded(
                                     child: Text(
                                       addon['name'] ?? 'Add-on',
-                                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
                                     ),
                                   ),
                                   Text(
@@ -458,7 +459,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
@@ -480,7 +481,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
+                  color: context.palette.textPrimary,
                 ),
               ),
               IconButton(
@@ -511,12 +512,12 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
             children: [
               Text(
                 label,
-                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: context.palette.textMuted),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B), fontWeight: FontWeight.w500),
+                style: GoogleFonts.inter(fontSize: 13, color: context.palette.textPrimary, fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -538,7 +539,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
           style: GoogleFonts.inter(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: hasLink ? const Color(0xFF1E293B) : Colors.grey[400],
+            color: hasLink ? context.palette.textPrimary : Colors.grey[400],
           ),
         ),
         const SizedBox(width: 8),
@@ -550,7 +551,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
             textAlign: TextAlign.end,
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: hasLink ? const Color(0xFF64748B) : Colors.grey[400],
+              color: hasLink ? context.palette.textMuted : Colors.grey[400],
             ),
           ),
         ),
@@ -573,7 +574,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
             style: GoogleFonts.outfit(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF1E293B),
+              color: context.palette.textPrimary,
             ),
           ),
         ),
@@ -583,7 +584,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
@@ -608,7 +609,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                           style: GoogleFonts.outfit(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1E293B),
+                            color: context.palette.textPrimary,
                           ),
                         ),
                       ],
@@ -618,7 +619,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                       '($reviewCount reviews)',
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                       ),
                     ),
                   ],
@@ -649,7 +650,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF64748B),
+                              color: context.palette.textMuted,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -679,7 +680,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                               '$count',
                               style: GoogleFonts.inter(
                                 fontSize: 11,
-                                color: const Color(0xFF64748B),
+                                color: context.palette.textMuted,
                               ),
                               textAlign: TextAlign.end,
                             ),
@@ -700,7 +701,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
@@ -782,7 +783,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -794,7 +795,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
             children: [
               CircleAvatar(
                 radius: 16,
-                backgroundColor: const Color(0xFFFBF5EE),
+                backgroundColor: context.palette.scaffold,
                 backgroundImage: (photoUrl != null && photoUrl.toString().isNotEmpty)
                     ? NetworkImage(photoUrl)
                     : null,
@@ -812,7 +813,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -820,7 +821,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                       formattedDate,
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        color: const Color(0xFF64748B),
+                        color: context.palette.textMuted,
                       ),
                     ),
                   ],
@@ -843,7 +844,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
               '"$reviewText"',
               style: GoogleFonts.inter(
                 fontSize: 13,
-                color: const Color(0xFF475569),
+                color: context.palette.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -888,7 +889,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1E293B),
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -896,7 +897,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                     'Replied ${DateFormat('dd MMM yyyy').format(DateTime.parse(review['admin_replied_at']).toLocal())}',
                     style: GoogleFonts.inter(
                       fontSize: 10,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ],
@@ -911,7 +912,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

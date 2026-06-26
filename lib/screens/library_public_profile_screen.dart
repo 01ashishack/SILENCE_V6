@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -213,7 +214,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(pretty,
-                style: GoogleFonts.inter(fontSize: 13.5, height: 1.4, color: const Color(0xFF475569))),
+                style: GoogleFonts.inter(fontSize: 13.5, height: 1.4, color: context.palette.textSecondary)),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -395,14 +396,14 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+            style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+            style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
           ),
         ],
       ),
@@ -507,7 +508,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
       builder: (ctx) {
         return StatefulBuilder(
@@ -523,7 +524,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                 children: [
                   Text(
                     'Write a Review',
-                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                   ),
                   const SizedBox(height: 16),
                   
@@ -619,7 +620,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
       builder: (ctx) {
         return Padding(
@@ -633,7 +634,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
             children: [
               Text(
                 review['admin_reply'] != null ? 'Edit Admin Reply' : 'Add Admin Reply',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
               ),
               const SizedBox(height: 16),
 
@@ -719,7 +720,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
 
     if (_library == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         appBar: AppBar(backgroundColor: const Color(0xFFE65C00), title: const Text('Not Found')),
         body: const Center(child: Text('Library not found.')),
       );
@@ -823,7 +824,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     final coverPhoto = photos.isNotEmpty ? photos.first.toString() : '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -932,7 +933,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                       boxShadow: [
@@ -961,7 +962,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   if (amenities.isNotEmpty) ...[
                     Text(
                       'Amenities Available',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -970,7 +971,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                       children: amenities.map((a) {
                         return Chip(
                           label: Text(a.toString(), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold)),
-                          backgroundColor: Colors.white,
+                          backgroundColor: context.palette.surface,
                           side: const BorderSide(color: Color(0xFFE2E8F0)),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         );
@@ -983,7 +984,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   if (allPlans.isNotEmpty) ...[
                     Text(
                       'Membership Plans',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -1003,7 +1004,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   if (photos.isNotEmpty) ...[
                     Text(
                       'Photo Gallery',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -1042,7 +1043,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   // 5. About Section
                   Text(
                     'About',
-                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -1050,7 +1051,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       height: 1.5,
-                      color: (aboutText != null && aboutText.trim().isNotEmpty) ? const Color(0xFF475569) : Colors.grey[500],
+                      color: (aboutText != null && aboutText.trim().isNotEmpty) ? context.palette.textSecondary : Colors.grey[500],
                       fontStyle: (aboutText != null && aboutText.trim().isNotEmpty) ? FontStyle.normal : FontStyle.italic,
                     ),
                   ),
@@ -1059,13 +1060,13 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   // 6. Location & Direction
                   Text(
                     'Location Details',
-                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                   ),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
@@ -1079,7 +1080,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                             Expanded(
                               child: Text(
                                 fullAddress,
-                                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569)),
+                                style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary),
                               ),
                             ),
                           ],
@@ -1095,7 +1096,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                           icon: const Icon(Icons.navigation),
                           label: const Text('Get Directions'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0F172A),
+                            backgroundColor: context.palette.textPrimary,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
@@ -1109,7 +1110,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   if (emergency != null && emergency.trim().isNotEmpty) ...[
                     Text(
                       'Contact Admin',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -1120,7 +1121,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                             icon: const Icon(Icons.phone),
                             label: const Text('Call'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
+                              backgroundColor: context.palette.surface,
                               foregroundColor: Colors.green[700],
                               side: BorderSide(color: Colors.green[700]!),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1155,7 +1156,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                     children: [
                       Text(
                         'User Reviews',
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       if (_hasActiveMembership && !_hasReviewed && !widget.isAdmin)
                         TextButton.icon(
@@ -1191,7 +1192,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF64748B),
+                                  color: context.palette.textMuted,
                                 ),
                               ),
                             ],
@@ -1300,7 +1301,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       width: 280,
       margin: const EdgeInsets.only(right: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1322,7 +1323,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
               style: GoogleFonts.outfit(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 2),
@@ -1342,7 +1343,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: const Color(0xFF64748B),
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ],
@@ -1361,7 +1362,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF475569),
+                      color: context.palette.textSecondary,
                     ),
                   ),
                 ),
@@ -1390,7 +1391,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
               fontSize: 11.5,
-              color: const Color(0xFF64748B),
+              color: context.palette.textMuted,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -1406,7 +1407,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       selected: isSelected,
       selectedColor: const Color(0xFFE65C00),
       labelStyle: GoogleFonts.inter(
-        color: isSelected ? Colors.white : const Color(0xFF475569),
+        color: isSelected ? Colors.white : context.palette.textSecondary,
         fontWeight: FontWeight.bold,
         fontSize: 12,
       ),
@@ -1466,7 +1467,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -1483,7 +1484,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   style: GoogleFonts.outfit(
                     fontSize: 40,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1502,7 +1503,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   '$_reviewCount reviews',
                   style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: const Color(0xFF64748B),
+                    color: context.palette.textMuted,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1544,7 +1545,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF64748B),
+                color: context.palette.textMuted,
               ),
             ),
           ),
@@ -1568,7 +1569,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
-                color: const Color(0xFF64748B),
+                color: context.palette.textMuted,
               ),
             ),
           ),
@@ -1588,7 +1589,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -1614,7 +1615,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                     children: [
                       Text(
                         nick,
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
                       ),
                       Text(
                         dateStr,
@@ -1638,7 +1639,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
           const SizedBox(height: 12),
           Text(
             comment,
-            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569)),
+            style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary),
           ),
           
           // Indented admin reply
@@ -1661,7 +1662,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                   const SizedBox(height: 4),
                   Text(
                     reply,
-                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569)),
+                    style: GoogleFonts.inter(fontSize: 12, color: context.palette.textSecondary),
                   ),
                 ],
               ),
