@@ -159,7 +159,7 @@ class MemberLicencesScreen extends StatelessWidget {
                               width: double.infinity,
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFBF5EE),
+                                color: context.palette.scaffold,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(

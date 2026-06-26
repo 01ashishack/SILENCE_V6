@@ -877,7 +877,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFBF5EE),
+                color: context.palette.scaffold,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFFFD0B8)),
               ),

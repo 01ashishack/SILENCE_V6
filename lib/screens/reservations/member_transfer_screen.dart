@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -175,7 +176,7 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Confirm transfer',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,7 +205,7 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppColors.textSecondary)),
+            child: Text('Cancel', style: GoogleFonts.inter(color: context.palette.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -392,7 +393,7 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: AppColors.scaffold,
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: AppColors.primary,
             elevation: 0,
@@ -477,9 +478,9 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Row(
         children: [
@@ -495,10 +496,10 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
               children: [
                 Text(widget.memberName,
                     style: GoogleFonts.outfit(
-                        fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
                 const SizedBox(height: 2),
                 Text('Currently at $_fromLibraryName',
-                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.textMuted)),
+                    style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted)),
               ],
             ),
           ),
@@ -510,7 +511,7 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
   Widget _sectionTitle(String text) {
     return Text(text,
         style: GoogleFonts.outfit(
-            fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary));
+            fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary));
   }
 
   Widget _libraryTile(Map<String, dynamic> lib) {
@@ -523,16 +524,16 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: selected ? AppColors.orangeTintBg : AppColors.surface,
+            color: selected ? AppColors.orangeTintBg : context.palette.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-                color: selected ? AppColors.primary : AppColors.border,
+                color: selected ? AppColors.primary : context.palette.border,
                 width: selected ? 1.5 : 1),
           ),
           child: Row(
             children: [
               Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                  color: selected ? AppColors.primary : AppColors.textMuted, size: 20),
+                  color: selected ? AppColors.primary : context.palette.textMuted, size: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -542,10 +543,10 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
                         style: GoogleFonts.inter(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary)),
+                            color: context.palette.textPrimary)),
                     if ((lib['address_city'] ?? '').toString().isNotEmpty)
                       Text((lib['address_city']).toString(),
-                          style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textMuted)),
+                          style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted)),
                   ],
                 ),
               ),
@@ -581,16 +582,16 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: selected ? AppColors.orangeTintBg : AppColors.surface,
+                color: selected ? AppColors.orangeTintBg : context.palette.surface,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                    color: selected ? AppColors.primary : AppColors.border,
+                    color: selected ? AppColors.primary : context.palette.border,
                     width: selected ? 1.5 : 1),
               ),
               child: Row(
                 children: [
                   Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                      color: selected ? AppColors.primary : AppColors.textMuted, size: 20),
+                      color: selected ? AppColors.primary : context.palette.textMuted, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -600,7 +601,7 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
                       style: GoogleFonts.inter(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary),
+                          color: context.palette.textPrimary),
                     ),
                   ),
                 ],
@@ -643,17 +644,17 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: selected ? AppColors.primary : AppColors.surface,
+                    color: selected ? AppColors.primary : context.palette.surface,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                        color: selected ? AppColors.primary : AppColors.border),
+                        color: selected ? AppColors.primary : context.palette.border),
                   ),
                   child: Text(
                     'Seat ${seat['seat_label']}',
                     style: GoogleFonts.inter(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
-                        color: selected ? Colors.white : AppColors.textPrimary),
+                        color: selected ? Colors.white : context.palette.textPrimary),
                   ),
                 ),
               );
@@ -669,10 +670,10 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _assignSeatLater ? AppColors.orangeTintBg : AppColors.surface,
+              color: _assignSeatLater ? AppColors.orangeTintBg : context.palette.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: _assignSeatLater ? AppColors.primary : AppColors.border,
+                  color: _assignSeatLater ? AppColors.primary : context.palette.border,
                   width: _assignSeatLater ? 1.5 : 1),
             ),
             child: Row(
@@ -681,12 +682,12 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
                     _assignSeatLater
                         ? Icons.check_circle
                         : Icons.circle_outlined,
-                    color: _assignSeatLater ? AppColors.primary : AppColors.textMuted,
+                    color: _assignSeatLater ? AppColors.primary : context.palette.textMuted,
                     size: 20),
                 const SizedBox(width: 10),
                 Text('Assign a seat later',
                     style: GoogleFonts.inter(
-                        fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                        fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
               ],
             ),
           ),
@@ -726,12 +727,12 @@ class _MemberTransferScreenState extends State<MemberTransferScreen> {
           SizedBox(
             width: 110,
             child: Text(label,
-                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textMuted)),
+                style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted)),
           ),
           Expanded(
             child: Text(value,
                 style: GoogleFonts.inter(
-                    fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    fontSize: 12.5, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
           ),
         ],
       ),

@@ -4979,7 +4979,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       body: SafeArea(
         top: false,
         child: Container(
-          color: const Color(0xFFFBF5EE),
+          color: context.palette.scaffold,
           child: IndexedStack(index: _currentTab, children: tabChildren),
         ),
       ),

@@ -641,7 +641,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: const Color(0xFFFBF5EE),
+      color: context.palette.scaffold,
       child: Row(
         children: [
           // Library selector pill
@@ -910,7 +910,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
   // ───────────────────────────────────────────────────────────────────────────
   Widget _buildSubTabsRow() {
     return Container(
-      color: Colors.white,
+      color: context.palette.surface,
       height: 48,
       child: TabBar(
         controller: _tabController,
@@ -1155,13 +1155,13 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: context.palette.surfaceMuted,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: context.palette.border),
         ),
         child: Row(
           children: [
-            const Icon(Icons.cancel_outlined, color: Color(0xFF64748B), size: 18),
+            Icon(Icons.cancel_outlined, color: context.palette.textMuted, size: 18),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -2076,7 +2076,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     }
 
     return Card(
-      color: Colors.white,
+      color: context.palette.surface,
       elevation: 2,
       shadowColor: Colors.black.withValues(alpha: 0.04),
       shape: RoundedRectangleBorder(

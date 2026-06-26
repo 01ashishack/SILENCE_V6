@@ -157,16 +157,16 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Resume your application?',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
         content: Text(
           'You have an unfinished application for this library, saved ${FormDraft.savedAgo(raw['savedAt'])}. '
           'Continue where you left off, or start fresh?',
-          style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: AppColors.textSecondary),
+          style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: context.palette.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Start fresh', style: GoogleFonts.inter(color: AppColors.textMuted)),
+            child: Text('Start fresh', style: GoogleFonts.inter(color: context.palette.textMuted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -1495,13 +1495,13 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
               style: GoogleFonts.outfit(
                 fontSize: 13.5,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               'Tap an app to pay ₹${total.toStringAsFixed(0)}, or copy the UPI ID.',
-              style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textMuted),
+              style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted),
             ),
             const SizedBox(height: 10),
             ...ids.map((id) => _buildUpiAppButton(id, total)),
@@ -1519,7 +1519,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                   Expanded(
                     child: Text(
                       'Payment happens in your UPI app. After paying, confirm below — the admin verifies it and activates your plan.',
-                      style: GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: AppColors.textSecondary),
+                      style: GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: context.palette.textSecondary),
                     ),
                   ),
                 ],
@@ -1548,7 +1548,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
         borderRadius: BorderRadius.circular(10),
       ),
       child: InkWell(
@@ -1574,17 +1574,17 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                   children: [
                     Text(
                       'Pay with ${app.name}',
-                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
                     ),
                     Text(
                       upiId,
-                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted),
+                      style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.textMuted),
+                icon: Icon(Icons.copy_rounded, size: 18, color: context.palette.textMuted),
                 tooltip: 'Copy UPI ID',
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: upiId));
@@ -1610,14 +1610,14 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         children: [
           Icon(
             _paymentDeclared ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-            color: _paymentDeclared ? AppColors.primary : AppColors.textMuted,
+            color: _paymentDeclared ? AppColors.primary : context.palette.textMuted,
             size: 22,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               "I have made this payment to the library's UPI.",
-              style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: AppColors.textPrimary),
+              style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: context.palette.textPrimary),
             ),
           ),
         ],
@@ -1631,7 +1631,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       children: [
         Text(
           'Add payment screenshot (optional)',
-          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.palette.textSecondary),
         ),
         const SizedBox(height: 8),
         InkWell(
@@ -1640,9 +1640,9 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
             height: 110,
             width: double.infinity,
             decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.palette.border),
               borderRadius: BorderRadius.circular(8),
-              color: AppColors.surfaceMuted,
+              color: context.palette.surfaceMuted,
             ),
             alignment: Alignment.center,
             child: _proofImageFile != null
@@ -1653,9 +1653,9 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.add_photo_alternate_outlined, size: 28, color: AppColors.textMuted),
+                      Icon(Icons.add_photo_alternate_outlined, size: 28, color: context.palette.textMuted),
                       const SizedBox(height: 6),
-                      Text('Tap to attach a screenshot', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted)),
+                      Text('Tap to attach a screenshot', style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
                     ],
                   ),
           ),

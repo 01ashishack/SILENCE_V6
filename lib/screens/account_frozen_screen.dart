@@ -161,7 +161,7 @@ class _AccountFrozenScreenState extends State<AccountFrozenScreen> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: AppColors.scaffold,
+        backgroundColor: context.palette.scaffold,
         body: SafeArea(
           child: _loading
               ? const LoadingState()

@@ -256,7 +256,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.scaffold,
+      backgroundColor: context.palette.scaffold,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -391,7 +391,7 @@ class _NotificationTile extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 14.5,
                           fontWeight: unread ? FontWeight.w700 : FontWeight.w600,
-                          color: AppColors.textPrimary,
+                          color: context.palette.textPrimary,
                         ),
                       ),
                     if (body != null && body.isNotEmpty) ...[
@@ -401,7 +401,7 @@ class _NotificationTile extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           height: 1.4,
-                          color: AppColors.textSecondary,
+                          color: context.palette.textSecondary,
                         ),
                       ),
                     ],
@@ -434,7 +434,7 @@ class _NotificationTile extends StatelessWidget {
                           if (time != null)
                             Text(
                               time,
-                              style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textMuted),
+                              style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted),
                             ),
                         ],
                       ),

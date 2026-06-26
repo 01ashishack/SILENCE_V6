@@ -518,7 +518,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFBF5EE),
+                  color: context.palette.scaffold,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: const Color(0xFFFFF3ED)),
                 ),
@@ -586,7 +586,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFBF5EE),
+                        color: context.palette.scaffold,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: const Color(0xFFFFF3ED)),
                       ),
@@ -616,7 +616,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFBF5EE),
+                        color: context.palette.scaffold,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: const Color(0xFFFFF3ED)),
                       ),

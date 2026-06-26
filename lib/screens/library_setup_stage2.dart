@@ -59,9 +59,9 @@ class LibrarySetupStage2Screen extends StatefulWidget {
 
 class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
   static const _orange = Color(0xFFE65C00);
-  static const _bg = Color(0xFFFBF5EE);
-  static const _dark = Color(0xFF1A1A2E);
-  static const _grey = Color(0xFF6B7280);
+  Color get _bg => context.palette.scaffold;
+  Color get _dark => context.palette.textPrimary;
+  Color get _grey => context.palette.textMuted;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -233,7 +233,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(ctx),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: _grey),
+                      side: BorderSide(color: _grey),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -1163,7 +1163,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
             ),
             // Custom modern three-dot popup menu
             IconButton(
-              icon: const Icon(Icons.more_vert, color: _grey),
+              icon: Icon(Icons.more_vert, color: _grey),
               onPressed: () {
                 showDialog(
                   context: context,

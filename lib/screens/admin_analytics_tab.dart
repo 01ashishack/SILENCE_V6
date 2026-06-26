@@ -1821,7 +1821,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: const Color(0xFFFBF5EE),
+      color: context.palette.scaffold,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
@@ -1858,7 +1858,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
 
     return Container(
       padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
-      color: const Color(0xFFFBF5EE),
+      color: context.palette.scaffold,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -1944,7 +1944,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     
     return Container(
       padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
-      color: const Color(0xFFFBF5EE),
+      color: context.palette.scaffold,
       child: Row(
         children: [
           Expanded(
@@ -4451,7 +4451,7 @@ class _DualMonthCalendarPickerState extends State<DualMonthCalendarPicker> {
         Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           decoration: BoxDecoration(
-            color: const Color(0xFFFBF5EE),
+            color: context.palette.scaffold,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(

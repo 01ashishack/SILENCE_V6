@@ -1469,7 +1469,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFFFBF5EE),
+            color: context.palette.scaffold,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFFF1F5F9)),
           ),

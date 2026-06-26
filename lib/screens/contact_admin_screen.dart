@@ -129,10 +129,10 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                   style: GoogleFonts.outfit(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary)),
+                      color: context.palette.textPrimary)),
               const SizedBox(height: 4),
               Text('Send a question or request to your library admin.',
-                  style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textMuted)),
+                  style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted)),
               const SizedBox(height: 16),
 
               // Library selector (only when the member has >1 library).
@@ -141,14 +141,14 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                     style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textSecondary)),
+                        color: context.palette.textSecondary)),
                 const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
+                    color: context.palette.surfaceMuted,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(color: context.palette.border),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
@@ -172,7 +172,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                   style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textSecondary)),
+                      color: context.palette.textSecondary)),
               const SizedBox(height: 6),
               TextField(
                 controller: messageCtrl,
@@ -272,7 +272,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: AppColors.scaffold,
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
@@ -351,7 +351,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
 
     final (badgeBg, badgeFg, badgeText) = switch (status) {
       'replied' => (AppColors.successBg, const Color(0xFF15803D), 'REPLIED'),
-      'closed' => (AppColors.surfaceMuted, AppColors.textMuted, 'CLOSED'),
+      'closed' => (context.palette.surfaceMuted, context.palette.textMuted, 'CLOSED'),
       _ => (AppColors.warningBg, const Color(0xFFB45309), 'OPEN'),
     };
 
@@ -360,7 +360,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
       decoration: BoxDecoration(
         color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -372,7 +372,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                     style: GoogleFonts.outfit(
                         fontSize: 13.5,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary)),
+                        color: context.palette.textPrimary)),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -387,11 +387,11 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
           const SizedBox(height: 8),
           Text(q['message']?.toString() ?? '',
               style: GoogleFonts.inter(
-                  fontSize: 13, color: AppColors.textSecondary, height: 1.35)),
+                  fontSize: 13, color: context.palette.textSecondary, height: 1.35)),
           if (created != null) ...[
             const SizedBox(height: 4),
             Text('Sent ${_stamp(created)}',
-                style: GoogleFonts.inter(fontSize: 10.5, color: AppColors.textMuted)),
+                style: GoogleFonts.inter(fontSize: 10.5, color: context.palette.textMuted)),
           ],
           if (reply.isNotEmpty) ...[
             if (reply.isNotEmpty) ...[
@@ -399,9 +399,9 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.orangeTintBg,
+                  color: AppColors.primary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.orangeTintBorder),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -420,14 +420,14 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                         if (replied != null)
                           Text(_stamp(replied),
                               style: GoogleFonts.inter(
-                                  fontSize: 10, color: AppColors.textMuted)),
+                                  fontSize: 10, color: context.palette.textMuted)),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Text(reply,
                         style: GoogleFonts.inter(
                             fontSize: 13,
-                            color: AppColors.textPrimary,
+                            color: context.palette.textPrimary,
                             height: 1.35)),
                   ],
                 ),
@@ -437,11 +437,11 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
             const SizedBox(height: 10),
             Row(
               children: [
-                const Icon(Icons.hourglass_empty, size: 13, color: AppColors.textMuted),
+                Icon(Icons.hourglass_empty, size: 13, color: context.palette.textMuted),
                 const SizedBox(width: 6),
                 Text('Waiting for the admin to reply',
                     style: GoogleFonts.inter(
-                        fontSize: 11.5, color: AppColors.textMuted)),
+                        fontSize: 11.5, color: context.palette.textMuted)),
               ],
             ),
           ],

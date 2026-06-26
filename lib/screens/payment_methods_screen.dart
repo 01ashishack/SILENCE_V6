@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -167,7 +168,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           Expanded(
             child: Text(
               'Members pay you directly via these methods. You verify the payment in your own UPI/bank app, then confirm their request.',
-              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: AppColors.textSecondary),
+              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: context.palette.textSecondary),
             ),
           ),
         ],
@@ -179,9 +180,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: SwitchListTile(
         contentPadding: EdgeInsets.zero,
@@ -190,11 +191,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         onChanged: (v) => setState(() => _cashEnabled = v),
         title: Text(
           'Accept cash at the library',
-          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: context.palette.textPrimary),
         ),
         subtitle: Text(
           'Members can choose to pay cash at the desk.',
-          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textMuted),
+          style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
         ),
       ),
     );
@@ -204,21 +205,21 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'UPI IDs',
-            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
           ),
           const SizedBox(height: 2),
           Text(
             'Add the UPI IDs where members should send payment.',
-            style: GoogleFonts.inter(fontSize: 12, color: AppColors.textMuted),
+            style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted),
           ),
           const SizedBox(height: 14),
           Row(
@@ -251,7 +252,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 'No UPI IDs added yet.',
-                style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textMuted),
+                style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted),
               ),
             )
           else
@@ -267,7 +268,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: context.palette.surfaceMuted,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -286,8 +287,8 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(id, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                Text(app.name, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted)),
+                Text(id, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
+                Text(app.name, style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted)),
               ],
             ),
           ),

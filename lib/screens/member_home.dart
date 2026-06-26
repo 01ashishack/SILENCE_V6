@@ -1326,9 +1326,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               : _errorMessage != null
                   ? _buildErrorState()
                   : _buildCurrentTabContent(),
-          // White bottom inset so the nav bar (white) blends with the gesture area.
+          // Bottom inset so the nav bar blends with the gesture area.
           bottomNavigationBar: Container(
-            color: Colors.white,
+            color: context.palette.surface,
             child: SafeArea(
               top: false,
               child: _buildBottomNav(),
@@ -3850,8 +3850,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white,
-            const Color(0xFFFFF7F0),
+            context.palette.surface,
+            context.palette.surface,
           ],
         ),
         borderRadius: BorderRadius.circular(16),
@@ -5907,9 +5907,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   Widget _buildBottomNav() {
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(top: BorderSide(color: context.palette.border)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,

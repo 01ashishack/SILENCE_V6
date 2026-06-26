@@ -390,7 +390,7 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Container(
-        color: const Color(0xFFFBF5EE),
+        color: context.palette.scaffold,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -595,9 +595,9 @@ class _ReservationsTabState extends State<ReservationsTab> with AutomaticKeepAli
               ),
             ),
 
-            // 2. White Horizontal Sub-tabs (Layout, Members, Requests, Archive)
+            // 2. Horizontal Sub-tabs (Layout, Members, Requests, Archive)
             Container(
-              color: Colors.white,
+              color: context.palette.surface,
               height: 48,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,

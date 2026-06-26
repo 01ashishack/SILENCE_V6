@@ -1039,7 +1039,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
             height: 120,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: const Color(0xFFFBF5EE),
+              color: context.palette.scaffold,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE5E7EB)),
             ),

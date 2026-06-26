@@ -56,9 +56,9 @@ class _ShiftModel {
 
 class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
   static const _orange = Color(0xFFE65C00);
-  static const _bg = Color(0xFFFBF5EE);
-  static const _dark = Color(0xFF1A1A2E);
-  static const _grey = Color(0xFF6B7280);
+  Color get _bg => context.palette.scaffold;
+  Color get _dark => context.palette.textPrimary;
+  Color get _grey => context.palette.textMuted;
 
   bool _isLoading = false;
   String? _libraryId;
@@ -729,7 +729,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                                   initialTime: shift.startTime,
                                   builder: (ctx, child) => Theme(
                                     data: Theme.of(ctx).copyWith(
-                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: _dark),
+                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: Color(0xFF1A1A2E)),
                                     ),
                                     child: child!,
                                   ),
@@ -752,7 +752,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                                   initialTime: shift.endTime,
                                   builder: (ctx, child) => Theme(
                                     data: Theme.of(ctx).copyWith(
-                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: _dark),
+                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: Color(0xFF1A1A2E)),
                                     ),
                                     child: child!,
                                   ),

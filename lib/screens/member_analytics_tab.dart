@@ -1494,7 +1494,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                       return Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFBF5EE),
+                          color: context.palette.scaffold,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),

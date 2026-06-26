@@ -1024,7 +1024,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
 
   Widget _buildLibrarySelectionStep() {
     return Container(
-      color: const Color(0xFFFBF5EE),
+      color: context.palette.scaffold,
       child: Column(
         children: [
           Expanded(

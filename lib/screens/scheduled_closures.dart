@@ -143,7 +143,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                   style: GoogleFonts.outfit(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -152,7 +152,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
+                    color: context.palette.surfaceMuted,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -191,7 +191,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                       : (_) => setSheet(() => reasonError = null),
                   decoration: InputDecoration(
                     hintText: 'Reason (e.g. Diwali, Maintenance)',
-                    hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textMuted),
+                    hintStyle: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
                     errorText: reasonError,
                   ),
                 ),
@@ -203,12 +203,12 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   subtitle: Text(
                     'Sends an in-app notification and protects their streak.',
-                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted),
+                    style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
                   ),
                   value: notify,
                   activeThumbColor: AppColors.primary,
@@ -314,7 +314,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
             style: GoogleFonts.inter(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: active ? AppColors.primary : AppColors.textMuted,
+              color: active ? AppColors.primary : context.palette.textMuted,
             ),
           ),
         ),
@@ -331,7 +331,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
           style: GoogleFonts.inter(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
+            color: context.palette.textSecondary,
           ),
         ),
         TextButton.icon(
@@ -430,10 +430,10 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
           children: [
             Text('Closing for: $dateLabel',
                 style: GoogleFonts.inter(
-                    fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    fontSize: 13.5, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
             const SizedBox(height: 10),
             Text('$activeMembers active member${activeMembers == 1 ? '' : 's'} in this library.',
-                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+                style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary)),
             if (coversToday && openNow > 0) ...[
               const SizedBox(height: 8),
               Container(
@@ -452,7 +452,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
             ] else if (coversToday) ...[
               const SizedBox(height: 8),
               Text('No one is checked in right now.',
-                  style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textMuted)),
+                  style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textMuted)),
             ],
           ],
         ),
@@ -460,7 +460,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text('Cancel',
-                style: GoogleFonts.inter(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+                style: GoogleFonts.inter(color: context.palette.textMuted, fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -483,7 +483,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
       body: SafeArea(
         top: true,
         child: Scaffold(
-          backgroundColor: AppColors.scaffold,
+          backgroundColor: context.palette.scaffold,
           appBar: AppBar(
             backgroundColor: AppColors.primary,
             elevation: 0,
@@ -597,7 +597,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
         color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: coversToday ? AppColors.primary : AppColors.border,
+          color: coversToday ? AppColors.primary : context.palette.border,
           width: coversToday ? 1.4 : 1,
         ),
       ),
@@ -606,12 +606,12 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isUpcoming ? AppColors.orangeTintBg : AppColors.surfaceMuted,
+              color: isUpcoming ? AppColors.orangeTintBg : context.palette.surfaceMuted,
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.event_busy,
-              color: isUpcoming ? AppColors.primary : AppColors.textMuted,
+              color: isUpcoming ? AppColors.primary : context.palette.textMuted,
               size: 20,
             ),
           ),
@@ -628,7 +628,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                         style: GoogleFonts.outfit(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: context.palette.textPrimary,
                         ),
                       ),
                     ),
@@ -650,7 +650,7 @@ class _ScheduledClosuresScreenState extends State<ScheduledClosuresScreen>
                 const SizedBox(height: 3),
                 Text(
                   h.reason,
-                  style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textSecondary),
+                  style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textSecondary),
                 ),
                 const SizedBox(height: 6),
                 Row(

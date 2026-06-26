@@ -24,7 +24,7 @@ class _AddMemberModeSelectionState extends State<AddMemberModeSelection> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFFBF5EE),
+      color: context.palette.scaffold,
       child: Column(
         children: [
           Expanded(
