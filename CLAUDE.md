@@ -151,6 +151,46 @@ Community Guidelines; one canonical source; DPDP grievance officer), H2 version 
 (package_info — 1.0.0 vs 1.0.6 mismatch), H3 change-password current-password check (+ admin password
 screen), M1 de-dup the two member Delete-Account flows, dark-mode per-screen polish, Hindi i18n.
 
+### Session 2026-06-26 (d) — Dark-mode completion + library create/delete + charts
+
+Follow-on fixes after the phase-2 dark migration, addressing on-device reports (multiple commits,
+all pushed; `flutter analyze` 0 new errors + debug APK build OK each time):
+
+- **Structural dark surfaces (`27b1b91`)**: migrated the neutral `AppColors` tokens
+  (scaffold/surface/surfaceMuted/text*/border/divider) → `context.palette.*` across the 8 screens
+  that used them (brand + status colours untouched); member_home bottom nav + nav builder +
+  membership-card gradient; member_history filter bar / sub-tab strip / absent rows / payment Card;
+  reservations white sub-tab strip; contact_admin reply bubble → alpha-orange; converted cream
+  page-bg literal `0xFFFBF5EE` → `palette.scaffold` app-wide; setup stage2/3 `static const`
+  `_bg/_dark/_grey` → palette-backed getters.
+- **Invisible typed text (`305b71f`)**: dark `inputDecorationTheme` in main.dart + replaced hardcoded
+  `fillColor: Colors.white` (auth, member_home refund, add_member_step1/2/4) → `palette.surface`.
+- **Admin App Settings (`6da0ddb`)**: removed duplicate Account section (Manage Subscription + Logout
+  live on Profile tab) + the "App Language — Soon" tile (returns with Hindi i18n).
+- **Library create/delete + web image (`629038c`)**:
+  - Web image upload fixed — `ImageOptimizer.compressBytes` (no dart:io File) + `Image.network` on web
+    in the cover/gallery preview; uploads read `XFile.readAsBytes` on web. Kills the
+    "Image.file not supported on web" crash.
+  - New-library flow is now Basic Details → Layout → success popup (popup + status flip moved to
+    AFTER the layout save). New library is created/finalised `status='active'` so the home 4-step
+    onboarding wizard NO LONGER reappears for additional libraries (it stays for first-time signup).
+  - Profile → Library Management: dark-aware; per-card 3-dot menu with **Delete library**; removed the
+    bottom "Delete this library" button and the "Copy settings from another library" button.
+  - Fixed admin-home recent-activity query (audit_log has `action` + `details` JSONB, not
+    `category/action_title/action_details`) → resolves the `column audit_log.category does not exist` 400.
+  - **DB migration `2026-06-26_library_delete_cascade.sql`** — converts the RESTRICT FKs to libraries
+    (memberships/attendance/payments) to ON DELETE CASCADE so library delete works. **APPLIED to live
+    DB + folded into `supabase_schema.sql`.** (overtime-grace migration also applied.)
+- **Charts + sub-tab surfaces + heatmap (`7cd6690`)**: `analytics_painters.dart` got a `ChartTheme`
+  + `isDark` flag (grid/labels/bars adapt; the navy Revenue-Comparison "plan" bars now render bright
+  blue on dark); threaded from admin_analytics (all painters) + member_analytics weekly chart. Member
+  heatmap "Absent" (white) + "Closed" cells + legend now dark-aware. Reservations cream content
+  wrapper + Requests/Members/Layout filter/header bars → `palette.surface`.
+
+**Dark-mode status:** effectively complete across member + admin + reservations + analytics + setup.
+Remaining nits (follow-up, device-pass): a few warm orange-tint accent boxes still read light on dark;
+a couple of `const` cream loading Scaffolds.
+
 ### Session 2026-06-26 (c) — Dark theme: full screen migration (phase 2)
 
 Completed the screen-by-screen dark migration started in (b) using a mechanical pass (palette swaps),

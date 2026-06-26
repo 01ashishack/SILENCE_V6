@@ -73,10 +73,14 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
 
 ## 5. Current state (keep this in sync)
 
-- Branch `main`. Latest committed checkpoint: **`a26943a`** (2026-06-19) — Analytics overhaul +
-  unified admin sub-screen headers (`AppGradientScaffold`) + admin-profile restructure (completeness
-  bar, Privacy section, About&Info) + signup JWT fix + member-area polish. **A further member-home
-  audit-fix batch (C1/C2/H1–H5) is uncommitted** (see CLAUDE.md 2026-06-19 entry).
+- Branch `main`. Latest committed checkpoint: **`7cd6690`** (2026-06-26) — dark-mode completion
+  (charts theme-aware + reservations sub-tab surfaces + heatmap cells). Recent line: full per-screen
+  dark migration → structural surfaces/AppColors → input-field text fix → admin App Settings dedup →
+  library create(web image)/delete(cascade)/new-lib flow → charts/sub-tabs/heatmap. Working tree clean.
+- **✅ Migrations APPLIED to live DB (2026-06-26):** `2026-06-26_overtime_grace_minutes.sql`
+  (configurable auto-checkout grace) + `2026-06-26_library_delete_cascade.sql` (RESTRICT→CASCADE FKs to
+  libraries on memberships/attendance/payments so library delete works). Both folded into
+  `supabase_schema.sql`. **No outstanding live-DB action.**
 - **✅ Migration APPLIED to live DB (2026-06-19)** + folded into `supabase_schema.sql`:
   `silence_app/migrations/2026-06-19_library_display_fields.sql` (opening_hours, display_members_joined).
   **No outstanding live-DB action.** *(lat/long geo feature dropped — `location_link` "View on Map" used instead.)*
