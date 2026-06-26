@@ -106,14 +106,14 @@ class _ArchiveSubTabState extends State<ArchiveSubTab> {
         children: [
           // 1. Search Bar Sticky Header (S035 Spec)
           Container(
-            color: Colors.white,
+            color: context.palette.surface,
             padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: '🔍 Search archived members...',
                 hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
-                fillColor: const Color(0xFFF8FAFC),
+                fillColor: context.palette.surfaceMuted,
                 prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(

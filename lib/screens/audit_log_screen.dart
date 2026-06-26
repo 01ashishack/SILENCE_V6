@@ -124,7 +124,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                   children: [
                     // 1. Horizontal filter pills
                     Container(
-                      color: Colors.white,
+                      color: context.palette.surface,
                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
@@ -182,7 +182,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                   decoration: BoxDecoration(
                                     color: context.palette.surface,
                                     borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(color: context.palette.border),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,7 +225,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                         style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textSecondary, height: 1.4),
                                       ),
                                       const SizedBox(height: 10),
-                                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                                      Divider(height: 1, color: context.palette.divider),
                                       const SizedBox(height: 8),
                                       Row(
                                         children: [
@@ -258,9 +258,9 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFFFF3ED),
+          color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFFFD0B8)),
+          border: Border.all(color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.30)),
         ),
         child: Text(
           title,

@@ -336,7 +336,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
 
   Widget _buildControls() {
     return Container(
-      color: Colors.white,
+      color: context.palette.surface,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: _isDateWise
           ? InkWell(
@@ -345,7 +345,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                 decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: context.palette.border),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
@@ -420,7 +420,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF3ED),
+            color: const Color(0xFFE65C00).withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: _orange.withValues(alpha: 0.4)),
           ),
@@ -697,9 +697,9 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
               decoration: BoxDecoration(
-                color: i == 2 ? const Color(0xFFFFF3ED) : Colors.white,
+                color: i == 2 ? const Color(0xFFE65C00).withValues(alpha: 0.12) : context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: i == 2 ? _orange : const Color(0xFFE2E8F0)),
+                border: Border.all(color: i == 2 ? _orange : context.palette.border),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(kpis[i][1], style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: i == 2 ? _orange : context.palette.textPrimary)),
@@ -759,7 +759,7 @@ class _AttendanceExportPreviewScreenState extends State<AttendanceExportPreviewS
     return Container(
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, -2))],
       ),
       child: Row(

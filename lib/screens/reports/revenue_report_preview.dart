@@ -285,7 +285,7 @@ class _RevenueReportPreviewScreenState extends State<RevenueReportPreviewScreen>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: sel ? _orange : const Color(0xFFF1F5F9),
+              color: sel ? _orange : context.palette.surfaceMuted,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(p, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: sel ? Colors.white : context.palette.textSecondary)),
@@ -295,7 +295,7 @@ class _RevenueReportPreviewScreenState extends State<RevenueReportPreviewScreen>
     }
 
     return Container(
-      color: Colors.white,
+      color: context.palette.surface,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,9 +367,9 @@ class _RevenueReportPreviewScreenState extends State<RevenueReportPreviewScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
               decoration: BoxDecoration(
-                color: i == accent ? const Color(0xFFFFF3ED) : Colors.white,
+                color: i == accent ? const Color(0xFFE65C00).withValues(alpha: 0.12) : context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: i == accent ? _orange : const Color(0xFFE2E8F0)),
+                border: Border.all(color: i == accent ? _orange : context.palette.border),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(kpis[i][1], style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: i == accent ? _orange : context.palette.textPrimary)),
@@ -412,7 +412,7 @@ class _RevenueReportPreviewScreenState extends State<RevenueReportPreviewScreen>
     return Container(
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, -2))],
       ),
       child: Row(

@@ -1711,7 +1711,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
 
   Widget _buildSubTabBar() {
     return Container(
-      color: Colors.white,
+      color: context.palette.surface,
       height: 48,
       child: TabBar(
         controller: _tabController,
@@ -1885,11 +1885,11 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFE65C00) : Colors.white,
+                    color: isSelected ? const Color(0xFFE65C00) : context.palette.surface,
                     borderRadius: BorderRadius.circular(20),
                     border: isSelected
                         ? null
-                        : Border.all(color: const Color(0xFFE5E7EB)),
+                        : Border.all(color: context.palette.border),
                   ),
                   child: Text(
                     labels[p]!,
@@ -1907,11 +1907,11 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: activeFilter == 'custom' ? const Color(0xFFE65C00) : Colors.white,
+                  color: activeFilter == 'custom' ? const Color(0xFFE65C00) : context.palette.surface,
                   borderRadius: BorderRadius.circular(20),
                   border: activeFilter == 'custom'
                       ? null
-                      : Border.all(color: const Color(0xFFE5E7EB)),
+                      : Border.all(color: context.palette.border),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -2019,11 +2019,11 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFFE65C00) : Colors.white,
+                              color: isSelected ? const Color(0xFFE65C00) : context.palette.surface,
                               borderRadius: BorderRadius.circular(20),
                               border: isSelected
                                   ? null
-                                  : Border.all(color: const Color(0xFFE5E7EB)),
+                                  : Border.all(color: context.palette.border),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
