@@ -350,6 +350,24 @@ class SilenceApp extends StatelessWidget {
       textTheme: GoogleFonts.interTextTheme(
         Typography.material2021().white,
       ),
+      // Dark form fields: dark fill + visible borders so typed text (light) is
+      // readable. Screens that hardcode `fillColor: Colors.white` use
+      // `context.palette.surface` so they adapt too.
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF1E1E1E),
+        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+        hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+        labelStyle: const TextStyle(color: Color(0xFFCBD5E1)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF334155), width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
+        ),
+      ),
     );
   }
 }

@@ -387,7 +387,7 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
       data: theme.copyWith(
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white,
+          fillColor: context.palette.surface,
           contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),

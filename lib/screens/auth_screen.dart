@@ -787,7 +787,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         prefixIcon: Icon(prefixIcon, color: const Color(0xFF9CA3AF), size: 20),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.white,
+        fillColor: context.palette.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

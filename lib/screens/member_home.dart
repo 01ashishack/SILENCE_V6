@@ -6361,7 +6361,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                           style: GoogleFonts.inter(fontSize: 13),
                           decoration: InputDecoration(
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: context.palette.surface,
                             hintText: 'Reason for refund (optional)',
                             hintStyle: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey[400]),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
