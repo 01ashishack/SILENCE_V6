@@ -18,7 +18,6 @@ import '../core/plan_service.dart';
 import '../widgets/upgrade_sheet.dart';
 import 'library_public_profile_screen.dart';
 import 'payment_methods_screen.dart';
-import 'admin/copy_library_settings_screen.dart';
 import '../core/active_library_store.dart';
 import '../widgets/change_password_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -68,26 +67,8 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   String? _selectedLibraryIdToManage;
   bool _isAppOwner = false; // gates the Recovery Console entry
 
-  Widget _buildDeleteLibraryButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: _confirmDeleteLibrary,
-        icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFDC2626)),
-        label: Text('Delete this library',
-            style: GoogleFonts.inter(
-                fontSize: 13.5, fontWeight: FontWeight.bold, color: const Color(0xFFDC2626))),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Color(0xFFFECACA)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _confirmDeleteLibrary() async {
-    final libId = _selectedLibraryIdToManage ?? widget.libraryId;
+  Future<void> _confirmDeleteLibrary({String? libraryId}) async {
+    final libId = libraryId ?? _selectedLibraryIdToManage ?? widget.libraryId;
     if (libId == null) return;
     final lib = _myLibrariesList.firstWhere(
       (l) => l['id'] == libId,
@@ -1010,8 +991,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 if (_myLibrariesList.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   _buildLibraryManagementGridCard(),
-                  const SizedBox(height: 12),
-                  _buildDeleteLibraryButton(),
                 ],
 
                 const SizedBox(height: 24),
@@ -1551,6 +1530,39 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     );
   }
 
+  Widget _buildLibraryCardMenu(String libId, String name) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.35),
+      shape: const CircleBorder(),
+      child: PopupMenuButton<String>(
+        tooltip: 'Manage',
+        icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
+        padding: EdgeInsets.zero,
+        color: context.palette.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        onSelected: (value) {
+          if (value == 'delete') {
+            _confirmDeleteLibrary(libraryId: libId);
+          }
+        },
+        itemBuilder: (ctx) => [
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                const Icon(Icons.delete_outline, size: 18, color: Color(0xFFDC2626)),
+                const SizedBox(width: 10),
+                Text('Delete library',
+                    style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600, color: const Color(0xFFDC2626))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSingleLibraryCard(Map<String, dynamic> lib, {required bool isHorizontalList}) {
     final String libId = lib['id'];
     final String name = lib['name'] ?? 'Study Center';
@@ -1587,7 +1599,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               offset: const Offset(0, 4),
             ),
           ],
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: context.palette.border),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -1595,20 +1607,31 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                child: coverUrl != null && coverUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: coverUrl,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(color: Colors.grey[200]),
-                        errorWidget: (context, url, error) => Container(
-                          color: const Color(0xFFFFF3ED),
-                          child: const Icon(Icons.storefront, color: Color(0xFFE65C00), size: 36),
-                        ),
-                      )
-                    : Container(
-                        color: const Color(0xFFFFF3ED),
-                        child: const Icon(Icons.storefront, color: Color(0xFFE65C00), size: 36),
-                      ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    coverUrl != null && coverUrl.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: coverUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(color: Colors.grey[200]),
+                            errorWidget: (context, url, error) => Container(
+                              color: const Color(0xFFFFF3ED),
+                              child: const Icon(Icons.storefront, color: Color(0xFFE65C00), size: 36),
+                            ),
+                          )
+                        : Container(
+                            color: const Color(0xFFFFF3ED),
+                            child: const Icon(Icons.storefront, color: Color(0xFFE65C00), size: 36),
+                          ),
+                    // 3-dot management menu (Delete) pinned to the card's top-right.
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: _buildLibraryCardMenu(libId, name),
+                    ),
+                  ],
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.all(12.0),
@@ -1734,11 +1757,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   Widget _buildLibraryManagementGridCard() {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 20),
-      color: Colors.white,
+      color: context.palette.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: BorderSide(color: context.palette.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1758,7 +1781,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3ED),
+                  color: const Color(0xFFE65C00).withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -1817,7 +1840,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _myLibrariesList.any((lib) => lib['id'] == _selectedLibraryIdToManage) ? _selectedLibraryIdToManage : (_myLibrariesList.isNotEmpty ? _myLibrariesList.first['id'] : null),
-                dropdownColor: Colors.white,
+                dropdownColor: context.palette.surface,
                 borderRadius: BorderRadius.circular(14),
                 menuMaxHeight: 320,
                 style: GoogleFonts.inter(color: context.palette.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
@@ -1855,41 +1878,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     widget.onLibraryChanged(val);
                   }
                 },
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () {
-                  final targetId = _selectedLibraryIdToManage ?? widget.libraryId;
-                  if (targetId == null) return;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CopyLibrarySettingsScreen(
-                        targetLibraryId: targetId,
-                        targetLibraryName:
-                            (_selectedLibrary?['name'] ?? 'this library').toString(),
-                      ),
-                    ),
-                  ).then((copied) {
-                    if (copied == true) {
-                      _loadProfileData();
-                      widget.onLibraryUpdated?.call();
-                    }
-                  });
-                },
-                icon: const Icon(Icons.copy_all_rounded,
-                    size: 18, color: Color(0xFFE65C00)),
-                label: Text('Copy settings from another library',
-                    style: GoogleFonts.inter(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFE65C00))),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFFFD8BF)),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                ),
               ),
             ],
             if (_myLibrariesList.isNotEmpty) ...[
@@ -1932,7 +1920,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF3ED),
+              color: const Color(0xFFE65C00).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, size: 24, color: const Color(0xFFE65C00)),

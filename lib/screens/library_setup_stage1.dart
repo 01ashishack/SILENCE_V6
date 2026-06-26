@@ -351,10 +351,15 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                 borderRadius: BorderRadius.circular(12),
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
-                  child: Image.file(
-                    File(image.path),
-                    fit: BoxFit.cover,
-                  ),
+                  child: kIsWeb
+                      ? Image.network(
+                          image.path,
+                          fit: BoxFit.cover,
+                        )
+                      : Image.file(
+                          File(image.path),
+                          fit: BoxFit.cover,
+                        ),
                 ),
               ),
             ],
@@ -478,7 +483,9 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
       // 4. Upload
       final libId = await _ensureLibraryId();
-      final bytes = await ImageOptimizer.compressImage(finalPath);
+      final bytes = kIsWeb
+          ? await ImageOptimizer.compressBytes(await image.readAsBytes())
+          : await ImageOptimizer.compressImage(finalPath);
       final path = 'library_photos/$libId/cover.jpg';
       
       final supabase = Supabase.instance.client;
@@ -623,7 +630,9 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
 
       // 4. Upload
       final libId = await _ensureLibraryId();
-      final bytes = await ImageOptimizer.compressImage(finalPath);
+      final bytes = kIsWeb
+          ? await ImageOptimizer.compressBytes(await image.readAsBytes())
+          : await ImageOptimizer.compressImage(finalPath);
 
       final index = _uploadedPhotos.length + 1;
       final path = 'library_photos/$libId/gallery_$index.jpg';
@@ -787,41 +796,17 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Color(0xFF16A34A)),
-            const SizedBox(width: 8),
-            Text('Library created',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Text(
-          sourceId != null
-              ? 'Your new library is ready. All other settings (plans, shifts, '
-                  'amenities, add-ons, rules) have been set to your first '
-                  'library\'s defaults — change them anytime in Library Management. '
-                  'Next, set up this library\'s layout.'
-              : 'Your new library is ready. Next, set up this library\'s layout.',
-          style: GoogleFonts.inter(fontSize: 13.5, height: 1.5),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Set up layout',
-                style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
-          ),
-        ],
-      ),
+    // Go straight to Layout setup for the NEW library. The success popup (and
+    // the status -> active flip) happen AFTER the layout is saved, in stage 2.
+    Navigator.pushReplacementNamed(
+      context,
+      '/admin/library/setup/2',
+      arguments: {
+        'libraryId': newId,
+        'isNew': true,
+        'sourceCopied': sourceId != null,
+      },
     );
-    if (!mounted) return;
-    // Go to Layout setup for the NEW library; popping it returns to Admin Home.
-    Navigator.pushReplacementNamed(context, '/admin/library/setup/2', arguments: newId);
   }
 
   @override

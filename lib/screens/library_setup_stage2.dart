@@ -66,6 +66,10 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
   bool _isLoading = true;
   bool _isSaving = false;
   String? _libraryId;
+  // Add-library flow: when true, saving the layout finalises a brand-new
+  // library (flip status -> active + show the "created" popup).
+  bool _isNewLibrary = false;
+  bool _sourceCopied = false;
 
   List<FloorModel> _floors = [];
   int _activeFloorIndex = 0;
@@ -103,6 +107,10 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
       String? passedId;
       if (args is String) {
         passedId = args;
+      } else if (args is Map) {
+        passedId = args['libraryId']?.toString();
+        _isNewLibrary = args['isNew'] == true;
+        _sourceCopied = args['sourceCopied'] == true;
       }
 
       String? libId = await ActiveLibraryStore.resolve(passedId);
@@ -801,6 +809,24 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
       }
 
       if (!mounted) return;
+
+      // Add-library flow: finalise the brand-new library now that its layout
+      // is done — flip status to active (so the home onboarding wizard does NOT
+      // reappear) and show the "created" popup mentioning inherited settings.
+      if (_isNewLibrary && _libraryId != null) {
+        try {
+          await sb.from('libraries').update({'status': 'active'}).eq('id', _libraryId!);
+        } catch (e) {
+          debugPrint('finalise new library status failed: $e');
+        }
+        if (!mounted) return;
+        setState(() => _isSaving = false);
+        await _showNewLibraryCreatedDialog();
+        if (!mounted) return;
+        Navigator.pop(context, true);
+        return;
+      }
+
       _showSuccess('Layout saved successfully ✓');
       Navigator.pop(context, true);
     } catch (e) {
@@ -808,6 +834,45 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<void> _showNewLibraryCreatedDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.palette.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Color(0xFF16A34A)),
+            const SizedBox(width: 8),
+            Text('Library created',
+                style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
+          ],
+        ),
+        content: Text(
+          _sourceCopied
+              ? 'Your new library is ready! Its shifts, plans, amenities, add-ons '
+                  'and rules have been copied from your primary library. To change '
+                  'any of them, go to Profile → Library Management and pick this '
+                  'library.'
+              : 'Your new library is ready! Set up its shifts, plans and other '
+                  'details anytime from Profile → Library Management.',
+          style: GoogleFonts.inter(
+              fontSize: 13.5, height: 1.5, color: context.palette.textSecondary),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Done',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── build ─────────────────────────────────────────────────────────────────

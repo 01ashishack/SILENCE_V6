@@ -905,17 +905,24 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     try {
       final activityRes = await supabase
           .from('audit_log')
-          .select('category, action_title, action_details, created_at')
+          .select('action, details, created_at')
           .order('created_at', ascending: false)
           .limit(6);
 
       _recentActivities = List<Map<String, dynamic>>.from(activityRes).map((
         row,
       ) {
-        final title = row['action_title']?.toString() ?? 'Activity recorded';
-        final details = row['action_details']?.toString() ?? '';
+        // Display fields are stored inside the `details` JSONB
+        // ({category, title, details, performer_name}); fall back to the
+        // flat `action` column for any legacy rows.
+        final meta = row['details'];
+        final Map<String, dynamic> d =
+            meta is Map ? Map<String, dynamic>.from(meta) : <String, dynamic>{};
+        final title =
+            (d['title'] ?? row['action'] ?? 'Activity recorded').toString();
+        final details = (d['details'] ?? '').toString();
         return {
-          'type': row['category']?.toString() ?? 'settings',
+          'type': (d['category'] ?? 'settings').toString(),
           'desc': details.isNotEmpty ? '$title: $details' : title,
           'time': _formatRelativeTime(row['created_at']),
         };
