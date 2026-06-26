@@ -15,6 +15,7 @@ import 'past_library_detail_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/shimmer_box.dart';
+import '../theme/app_palette.dart';
 import '../utils/time_utils.dart';
 
 
@@ -562,7 +563,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

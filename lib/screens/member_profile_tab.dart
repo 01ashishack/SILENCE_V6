@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/app_info.dart';
 import '../core/account_deletion_service.dart';
+import '../theme/app_palette.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -477,7 +478,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
 
     if (_errorMessage != null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -505,7 +506,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
     final isProfileIncomplete = _isProfileIncomplete();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -1358,7 +1359,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
   // SKELETON LOADERS
   Widget _buildSkeletonLoading() {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: SingleChildScrollView(
         child: Column(
           children: [

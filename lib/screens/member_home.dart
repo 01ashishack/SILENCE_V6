@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../core/offline_sync.dart';
 import '../core/cache_service.dart';
+import '../theme/app_palette.dart';
 import '../utils/time_utils.dart';
 import '../services/notification_service.dart';
 import '../utils/holiday_service.dart';
@@ -1319,7 +1320,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         top: true,
         bottom: false,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFBF5EE),
+          backgroundColor: context.palette.scaffold,
           body: _isLoading
               ? _buildHomeSkeleton()
               : _errorMessage != null

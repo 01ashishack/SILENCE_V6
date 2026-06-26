@@ -10,6 +10,7 @@ import '../utils/attendance_format.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/shimmer_box.dart';
 import '../widgets/states/error_state.dart';
+import '../theme/app_palette.dart';
 
 // Import removed to avoid unused library dependency
 
@@ -522,7 +523,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     // joining a library now lives on the Home tab.)
     if (widget.memberLibraries.isEmpty) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBF5EE),
+        backgroundColor: context.palette.scaffold,
         body: Column(
           children: [
             _buildHeaderAndFilters(),
@@ -575,7 +576,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EE),
+      backgroundColor: context.palette.scaffold,
       body: Column(
         children: [
           _buildHeaderAndFilters(),
