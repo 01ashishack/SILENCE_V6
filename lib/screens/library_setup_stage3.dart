@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_palette.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/active_library_store.dart';
@@ -56,9 +55,15 @@ class _ShiftModel {
 
 class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
   static const _orange = Color(0xFFE65C00);
-  Color get _bg => context.palette.scaffold;
-  Color get _dark => context.palette.textPrimary;
-  Color get _grey => context.palette.textMuted;
+  // Brightness-based (independent of the ThemeExtension lookup) so text on this
+  // screen is always readable in dark mode.
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _bg => _isDark ? const Color(0xFF121212) : const Color(0xFFFBF5EE);
+  Color get _dark => _isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1A1A2E);
+  Color get _grey => _isDark ? const Color(0xFFCBD5E1) : const Color(0xFF6B7280);
+  Color get _surface => _isDark ? const Color(0xFF1E1E1E) : Colors.white;
+  Color get _surfaceMuted => _isDark ? const Color(0xFF262626) : const Color(0xFFF1F5F9);
+  Color get _border => _isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB);
 
   bool _isLoading = false;
   String? _libraryId;
@@ -494,9 +499,9 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: context.palette.surface,
+        color: _surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: _border),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -600,7 +605,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: context.palette.surface,
+      backgroundColor: _surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -667,7 +672,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: shift.shiftType == 'fixed' ? _orange : context.palette.surfaceMuted,
+                                color: shift.shiftType == 'fixed' ? _orange : _surfaceMuted,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                   color: shift.shiftType == 'fixed' ? _orange : const Color(0xFFE5E7EB),
@@ -693,7 +698,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: shift.shiftType == 'hourly' ? _orange : context.palette.surfaceMuted,
+                                color: shift.shiftType == 'hourly' ? _orange : _surfaceMuted,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                   color: shift.shiftType == 'hourly' ? _orange : const Color(0xFFE5E7EB),
@@ -917,8 +922,8 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              color: _surface,
+              border: Border.all(color: _border),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -958,7 +963,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: context.palette.surface,
+        color: _surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -996,7 +1001,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: context.palette.surface,
+        color: _surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1051,7 +1056,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
             children: _upiIds.map((id) {
               final app = _upiAppName(id);
               return Chip(
-                backgroundColor: const Color(0xFFF3F4F6),
+                backgroundColor: _surfaceMuted,
                 avatar: app.isNotEmpty
                     ? Icon(_upiAppIcon(app), size: 16, color: _upiAppColor(app))
                     : const Icon(Icons.qr_code, size: 16, color: Color(0xFF6B7280)),
