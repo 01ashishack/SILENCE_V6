@@ -2860,7 +2860,7 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
           padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? const Color(0xFFE65C00) : const Color(0xFFF1F5F9),
+            color: active ? const Color(0xFFE65C00) : context.palette.surfaceMuted,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(label,
@@ -3302,11 +3302,11 @@ class _AddonsAmenitiesSheetState extends State<AddonsAmenitiesSheet> {
                                 amenity,
                                 style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: context.palette.textPrimary),
                               ),
-                              backgroundColor: const Color(0xFFE2E8F0),
-                              deleteIcon: const Icon(Icons.close, size: 14, color: Color(0xFF475569)),
+                              backgroundColor: context.palette.surfaceMuted,
+                              deleteIcon: Icon(Icons.close, size: 14, color: context.palette.textSecondary),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(20),
-                                side: BorderSide.none,
+                                side: BorderSide(color: context.palette.border),
                               ),
                               onDeleted: () {
                                 setState(() {

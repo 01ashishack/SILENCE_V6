@@ -667,7 +667,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: shift.shiftType == 'fixed' ? _orange : const Color(0xFFF9FAFB),
+                                color: shift.shiftType == 'fixed' ? _orange : context.palette.surfaceMuted,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                   color: shift.shiftType == 'fixed' ? _orange : const Color(0xFFE5E7EB),
@@ -693,7 +693,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: shift.shiftType == 'hourly' ? _orange : const Color(0xFFF9FAFB),
+                                color: shift.shiftType == 'hourly' ? _orange : context.palette.surfaceMuted,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                   color: shift.shiftType == 'hourly' ? _orange : const Color(0xFFE5E7EB),
@@ -786,7 +786,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF7F0),
+                                  color: const Color(0xFFE65C00).withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(color: _orange.withValues(alpha: 0.3)),
                                 ),

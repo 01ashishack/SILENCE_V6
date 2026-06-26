@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../theme/app_palette.dart';
 
 class StyledDropdownButton<T> extends StatelessWidget {
   final T value;
@@ -28,9 +29,9 @@ class StyledDropdownButton<T> extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.0),
+          border: Border.all(color: context.palette.border, width: 1.0),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -38,7 +39,7 @@ class StyledDropdownButton<T> extends StatelessWidget {
             Expanded(
               child: Text(
                 itemLabelBuilder(value),
-                style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF1A1A2E)),
+                style: GoogleFonts.inter(fontSize: 15, color: context.palette.textPrimary),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -52,7 +53,7 @@ class StyledDropdownButton<T> extends StatelessWidget {
   void _showPickerSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -73,7 +74,7 @@ class StyledDropdownButton<T> extends StatelessWidget {
                       style: GoogleFonts.outfit(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     IconButton(
@@ -85,7 +86,8 @@ class StyledDropdownButton<T> extends StatelessWidget {
                   ],
                 ),
               ),
-              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 0),
+              Divider(height: 1, color: context.palette.divider),
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
@@ -99,7 +101,7 @@ class StyledDropdownButton<T> extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isSelected ? const Color(0xFFE65C00) : const Color(0xFF1E293B),
+                          color: isSelected ? const Color(0xFFE65C00) : context.palette.textPrimary,
                         ),
                       ),
                       trailing: isSelected

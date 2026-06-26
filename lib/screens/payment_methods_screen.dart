@@ -158,7 +158,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.infoBg,
+        color: AppColors.info.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(

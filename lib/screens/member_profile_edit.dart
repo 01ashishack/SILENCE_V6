@@ -753,13 +753,14 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               showCupertinoModalPopup(
                 context: context,
                 builder: (BuildContext context) {
+                  final bool isDark = Theme.of(context).brightness == Brightness.dark;
                   return Container(
                     height: 320,
-                    color: Colors.white,
+                    color: context.palette.surface,
                     child: Column(
                       children: [
                         Container(
-                          color: Colors.grey[100],
+                          color: context.palette.surfaceMuted,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -781,14 +782,19 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                           ),
                         ),
                         Expanded(
-                          child: CupertinoDatePicker(
-                            mode: CupertinoDatePickerMode.date,
-                            initialDateTime: tempDate,
-                            minimumYear: 1950,
-                            maximumDate: DateTime.now(),
-                            onDateTimeChanged: (DateTime newDate) {
-                              tempDate = newDate;
-                            },
+                          child: CupertinoTheme(
+                            data: CupertinoThemeData(
+                              brightness: isDark ? Brightness.dark : Brightness.light,
+                            ),
+                            child: CupertinoDatePicker(
+                              mode: CupertinoDatePickerMode.date,
+                              initialDateTime: tempDate,
+                              minimumYear: 1950,
+                              maximumDate: DateTime.now(),
+                              onDateTimeChanged: (DateTime newDate) {
+                                tempDate = newDate;
+                              },
+                            ),
                           ),
                         ),
                       ],
@@ -800,9 +806,9 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+                border: Border.all(color: context.palette.border),
                 borderRadius: BorderRadius.circular(8),
-                color: Colors.white,
+                color: context.palette.surface,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -3396,7 +3396,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       width: 200,
       margin: const EdgeInsets.only(right: 16),
       child: Card(
-        color: Colors.white,
+        color: context.palette.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 2,
         child: InkWell(
