@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/app_info.dart';
-import '../core/account_deletion_service.dart';
+import '../core/theme_controller.dart';
 import '../theme/app_palette.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
@@ -533,8 +533,6 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                   _buildSupportAndLegalSection(),
                   const SizedBox(height: 24),
                   _buildLogoutRow(),
-                  const SizedBox(height: 12),
-                  _buildDeleteAccountRow(),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -1632,6 +1630,34 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
                 },
               ),
               const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
+              ValueListenableBuilder<ThemeMode>(
+                valueListenable: ThemeController.instance.mode,
+                builder: (context, mode, _) {
+                  final isDark = mode == ThemeMode.dark;
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B).withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.dark_mode_outlined, size: 20, color: Color(0xFF334155)),
+                    ),
+                    title: Text('Dark Mode',
+                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
+                    subtitle: Text(isDark ? 'On' : 'Off',
+                        style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted)),
+                    trailing: Switch(
+                      value: isDark,
+                      activeThumbColor: const Color(0xFFE65C00),
+                      onChanged: (v) => ThemeController.instance.setDark(v),
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
               _buildRowItem(
                 icon: Icons.language_outlined,
                 iconBg: const Color(0xFFF3F4F6),
@@ -1959,106 +1985,6 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         },
       ),
     );
-  }
-
-  Widget _buildDeleteAccountRow() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFECACA)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: const BoxDecoration(color: Color(0xFFFEE2E2), shape: BoxShape.circle),
-          child: const Icon(Icons.delete_forever_outlined, color: Color(0xFFDC2626), size: 20),
-        ),
-        title: Text('Delete Account',
-            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFFDC2626))),
-        subtitle: Text('Schedule permanent deletion (7-day recovery)',
-            style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF94A3B8))),
-        trailing: const Icon(Icons.chevron_right, size: 16, color: Color(0xFFDC2626)),
-        onTap: _confirmDeleteAccount,
-      ),
-    );
-  }
-
-  void _confirmDeleteAccount() {
-    final confirmCtrl = TextEditingController();
-    showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialog) {
-          final canDelete = confirmCtrl.text.trim().toUpperCase() == 'DELETE';
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Row(children: [
-              const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Delete your account?',
-                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: const Color(0xFFEF4444))),
-              ),
-            ]),
-            content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(
-                  'This schedules permanent deletion in 7 days. Your account is frozen '
-                  'immediately — the dashboard is locked meanwhile.',
-                  style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
-              const SizedBox(height: 10),
-              Text(
-                  'Within 7 days you can request recovery; the SILENCE team reviews and '
-                  'decides. There is no self-cancel. After 7 days it is permanent.',
-                  style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B))),
-              const SizedBox(height: 14),
-              Text('Type DELETE to confirm:',
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
-              const SizedBox(height: 6),
-              TextField(
-                controller: confirmCtrl,
-                textCapitalization: TextCapitalization.characters,
-                onChanged: (_) => setDialog(() {}),
-                decoration: const InputDecoration(hintText: 'DELETE'),
-              ),
-            ]),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text('Cancel', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.grey[600])),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444), disabledBackgroundColor: const Color(0xFFFCA5A5)),
-                onPressed: canDelete ? () => Navigator.pop(ctx, true) : null,
-                child: Text('Schedule deletion', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
-              ),
-            ],
-          );
-        },
-      ),
-    ).then((confirmed) async {
-      if (confirmed == true) await _scheduleDeletion();
-    });
-  }
-
-  Future<void> _scheduleDeletion() async {
-    try {
-      await AccountDeletionService.schedule();
-      if (!mounted) return;
-      // Freeze immediately — block dashboard, only recovery/logout remain.
-      Navigator.of(context).pushNamedAndRemoveUntil('/account-frozen', (r) => false);
-    } catch (e) {
-      debugPrint('schedule deletion failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not schedule deletion. Please try again.')),
-        );
-      }
-    }
   }
 
   void _showLogoutDialog() {
