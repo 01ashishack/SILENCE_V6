@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme_controller.dart';
 import '../core/active_library_store.dart';
+import '../theme/app_palette.dart';
 import '../widgets/app_gradient_scaffold.dart';
 
 class AppSettingsScreen extends StatefulWidget {
@@ -253,10 +254,10 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                               style: GoogleFonts.inter(
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.bold,
-                                                  color: const Color(0xFF1E293B))),
+                                                  color: context.palette.textPrimary)),
                                           Text('Auto-checkout this many minutes after shift end',
                                               style: GoogleFonts.inter(
-                                                  fontSize: 11, color: const Color(0xFF64748B))),
+                                                  fontSize: 11, color: context.palette.textMuted)),
                                         ],
                                       ),
                                     ),
@@ -358,7 +359,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
         style: GoogleFonts.outfit(
           fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: const Color(0xFF475569),
+          color: context.palette.textSecondary,
           letterSpacing: 0.5,
         ),
       ),
@@ -367,9 +368,9 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 
   BoxDecoration _buildCardDecoration() {
     return BoxDecoration(
-      color: Colors.white,
+      color: context.palette.surface,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE2E8F0)),
+      border: Border.all(color: context.palette.border),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.01),
@@ -399,11 +400,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       ),
       title: Text(
         title,
-        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
       ),
       subtitle: Text(
         subtitle,
-        style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+        style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -411,7 +412,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
           if (trailingText != null) ...[
             Text(
               trailingText,
-              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+              style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted, fontWeight: FontWeight.w500),
             ),
             const SizedBox(width: 4),
           ],
@@ -441,11 +442,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       ),
       title: Text(
         title,
-        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
       ),
       subtitle: Text(
         subtitle,
-        style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+        style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
       ),
       trailing: Switch(
         value: value,
@@ -476,11 +477,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       ),
       title: Text(
         title,
-        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: textColor ?? const Color(0xFF1E293B)),
+        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: textColor ?? context.palette.textPrimary),
       ),
       subtitle: Text(
         subtitle,
-        style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B)),
+        style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
       ),
       onTap: onTap,
     );

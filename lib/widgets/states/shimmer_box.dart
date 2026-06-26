@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 
 /// A lightweight shimmer effect (no external package) used to build skeleton
 /// loading placeholders. Wrap any layout of [SkeletonBox]es in a [Shimmer] to
 /// animate them with a moving highlight.
 class Shimmer extends StatefulWidget {
   final Widget child;
-  final Color baseColor;
-  final Color highlightColor;
+  final Color? baseColor;
+  final Color? highlightColor;
   final Duration period;
 
   const Shimmer({
     super.key,
     required this.child,
-    this.baseColor = AppColors.shimmerBase,
-    this.highlightColor = AppColors.shimmerHighlight,
+    this.baseColor,
+    this.highlightColor,
     this.period = const Duration(milliseconds: 1300),
   });
 
@@ -34,6 +34,8 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final base = widget.baseColor ?? context.palette.shimmerBase;
+    final highlight = widget.highlightColor ?? context.palette.shimmerHighlight;
     return AnimatedBuilder(
       animation: _controller,
       child: widget.child,
@@ -46,9 +48,9 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                widget.baseColor,
-                widget.highlightColor,
-                widget.baseColor,
+                base,
+                highlight,
+                base,
               ],
               stops: const [0.35, 0.5, 0.65],
               transform: _SlideGradient(dx),
@@ -91,7 +93,7 @@ class SkeletonBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: AppColors.shimmerBase,
+        color: context.palette.shimmerBase,
         borderRadius: borderRadius ?? BorderRadius.circular(8),
       ),
     );

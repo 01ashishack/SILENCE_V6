@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// A Scaffold with the brand's curved orange-gradient header — the single,
 /// consistent header used across every admin sub-screen (Subscription, Shifts,
@@ -47,7 +48,7 @@ class AppGradientScaffold extends StatelessWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: AppColors.scaffold,
+        backgroundColor: context.palette.scaffold,
         floatingActionButton: floatingActionButton,
         floatingActionButtonLocation: floatingActionButtonLocation,
         bottomNavigationBar: bottomNavigationBar,

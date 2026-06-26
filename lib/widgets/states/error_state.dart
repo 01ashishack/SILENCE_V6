@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../utils/error_messages.dart';
 
 /// Honest error state with a friendly message and a Retry action. Pass the raw
@@ -59,7 +60,7 @@ class ErrorState extends StatelessWidget {
               style: GoogleFonts.outfit(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -69,7 +70,7 @@ class ErrorState extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 13.5,
                 height: 1.45,
-                color: AppColors.textMuted,
+                color: context.palette.textMuted,
               ),
             ),
             if (onRetry != null) ...[

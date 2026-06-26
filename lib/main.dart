@@ -7,6 +7,7 @@ import 'core/supabase_config.dart';
 import 'core/offline_db.dart';
 import 'core/theme_controller.dart';
 import 'core/app_info.dart';
+import 'theme/app_palette.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/role_selection_screen.dart';
@@ -170,6 +171,7 @@ class SilenceApp extends StatelessWidget {
       // Global Brand Design System (Premium Orange Aesthetics)
       theme: ThemeData(
         useMaterial3: true,
+        extensions: const [AppPalette.light],
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFFE65C00),
           primary: const Color(0xFFE65C00),
@@ -319,12 +321,22 @@ class SilenceApp extends StatelessWidget {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      extensions: const [AppPalette.dark],
       colorScheme: ColorScheme.fromSeed(
         seedColor: const Color(0xFFE65C00),
         brightness: Brightness.dark,
         primary: const Color(0xFFE65C00),
       ),
       scaffoldBackgroundColor: const Color(0xFF121212),
+      cardColor: const Color(0xFF1E1E1E),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: Color(0xFF1E1E1E),
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Color(0xFF1E1E1E),
+        surfaceTintColor: Colors.transparent,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Color(0xFFE65C00),
         foregroundColor: Colors.white,

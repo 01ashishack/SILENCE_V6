@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 
 /// Honest empty state: an icon, a title, an optional description and an optional
 /// call-to-action. Use this instead of inventing a positive message (never show
@@ -57,7 +58,7 @@ class EmptyState extends StatelessWidget {
               style: GoogleFonts.outfit(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             if (message != null) ...[
@@ -68,7 +69,7 @@ class EmptyState extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 13.5,
                   height: 1.45,
-                  color: AppColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
               ),
             ],

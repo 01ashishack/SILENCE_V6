@@ -151,6 +151,26 @@ Community Guidelines; one canonical source; DPDP grievance officer), H2 version 
 (package_info — 1.0.0 vs 1.0.6 mismatch), H3 change-password current-password check (+ admin password
 screen), M1 de-dup the two member Delete-Account flows, dark-mode per-screen polish, Hindi i18n.
 
+### Session 2026-06-26 (b) — Dark theme: foundation (phase 1)
+
+Real dark mode needs screens to stop hardcoding light colours. Established the foundation + a reference
+screen; remaining screens migrate incrementally.
+- **`lib/theme/app_palette.dart`** — `AppPalette extends ThemeExtension<AppPalette>` with semantic, brightness-aware
+  colours (scaffold/surface/surfaceMuted/textPrimary/Secondary/Muted/border/divider/shimmer). `AppPalette.light`
+  mirrors existing values exactly (light = visual no-op); `AppPalette.dark` = charcoal surfaces + light text.
+  `context.palette` getter. Registered as a ThemeExtension on BOTH themes in main.dart.
+- main.dart `_buildDarkTheme()`: added dark card/dialog/bottomSheet surfaces so framework-default ones adapt.
+- **Migrated to palette (pattern + high-leverage shared widgets):** `states/empty_state`, `states/error_state`,
+  `states/shimmer_box` (Shimmer/SkeletonBox now palette-based), `widgets/app_gradient_scaffold` (admin
+  sub-screen background), and the full `app_settings_screen` (cards, borders, text, section headers, attendance).
+- **MIGRATION PATTERN for remaining screens:** replace `Colors.white` cards → `context.palette.surface`;
+  `0xFFFBF5EE`/`0xFFF8FAFC` backgrounds → `context.palette.scaffold`/`surfaceMuted`; dark text
+  `0xFF1E293B/0xFF1A1A2E` → `palette.textPrimary`; `0xFF475569` → `textSecondary`; `0xFF64748B/0xFF94A3B8`
+  → `textMuted`; borders `0xFFE5E7EB/0xFFE2E8F0` → `palette.border`; dividers `0xFFF1F5F9` → `palette.divider`.
+  Keep brand orange + status colours as-is. Each screen is an independent, low-risk commit.
+- **Remaining (big):** migrate the ~45 other screens (member_home, admin_home, reservations/*, member tabs,
+  setup, etc.) screen-by-screen. `flutter analyze` 0 issues; debug build OK.
+
 ### Session 2026-06-26 — Library mgmt: delete, configurable overtime, new-lib flow, UI fixes
 
 Addresses on-device pain points + audit polish (multiple commits).
