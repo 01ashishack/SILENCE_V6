@@ -11,6 +11,7 @@ import '../../utils/pdf_exporter.dart';
 import '../../utils/attendance_format.dart';
 import '../../utils/csv_exporter.dart';
 import '../../core/picker_theme.dart';
+import '../../core/app_snackbar.dart';
 import 'member_transfer_screen.dart';
 
 class MemberDetailScreen extends StatefulWidget {
@@ -260,16 +261,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       }).eq('id', mId);
       if (mounted) {
         setState(() => _isSavingNote = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Private admin note saved successfully! ✓')),
-        );
+        AppSnackbar.success(context, 'Private admin note saved successfully!');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSavingNote = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save note: $e')),
-        );
+        AppSnackbar.error(context, 'Failed to save note: ${friendlyError(e)}');
       }
     }
   }
@@ -299,12 +296,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
       await _fetchMemberData();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment confirmed. Member notified.')));
+        AppSnackbar.success(context, 'Payment confirmed. Member notified.');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+        AppSnackbar.error(context, friendlyError(e));
       }
     }
   }
@@ -330,12 +327,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
       await _fetchMemberData();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment marked as rejected. Member notified.')));
+        AppSnackbar.info(context, 'Payment marked as rejected. Member notified.');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+        AppSnackbar.error(context, friendlyError(e));
       }
     }
   }
@@ -385,7 +382,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.trim().isEmpty || phoneController.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name and phone cannot be empty')));
+                AppSnackbar.warning(context, 'Name and phone cannot be empty');
                 return;
               }
               Navigator.pop(ctx);
@@ -397,12 +394,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 }).eq('id', _memberId ?? '');
                 _fetchMemberData();
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Member profile updated successfully! ✓')));
+                  AppSnackbar.success(context, 'Member profile updated successfully!');
                 }
               } catch (e) {
                 if (mounted) {
                   setState(() => _isLoading = false);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
+                  AppSnackbar.error(context, 'Error updating profile: ${friendlyError(e)}');
                 }
               }
             },
@@ -491,13 +488,13 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   ElevatedButton(
                     onPressed: () async {
                       if (reasonController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide an edit reason')));
+                        AppSnackbar.warning(context, 'Please provide an edit reason');
                         return;
                       }
                       final checkInDateTime = DateTime(date.year, date.month, date.day, checkInTime.hour, checkInTime.minute);
                       final checkOutDateTime = DateTime(date.year, date.month, date.day, checkOutTime.hour, checkOutTime.minute);
                       if (checkOutDateTime.isBefore(checkInDateTime)) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Check-out time must be after check-in time')));
+                        AppSnackbar.warning(context, 'Check-out time must be after check-in time');
                         return;
                       }
                       final int durationMins = checkOutDateTime.difference(checkInDateTime).inMinutes;
@@ -534,12 +531,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         }
                         await _fetchMemberData();
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Attendance saved successfully! ✓')));
+                          AppSnackbar.success(context, 'Attendance saved successfully!');
                         }
                       } catch (e) {
                         if (context.mounted) {
                           setState(() => _isLoading = false);
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving attendance: $e')));
+                          AppSnackbar.error(context, 'Error saving attendance: ${friendlyError(e)}');
                         }
                       }
                     },
@@ -557,7 +554,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppSnackbar.info(context, msg);
   }
 
   bool _canHoldOrResume() {
@@ -611,8 +608,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
           Future<void> run(String format) async {
             if (!expAttendance && !expPayments) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select at least one section to export.')));
+              AppSnackbar.warning(context, 'Select at least one section to export.');
               return;
             }
             // Capture before the await so we don't touch a BuildContext across
@@ -760,8 +756,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
     if (attn.isEmpty && pays.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nothing to export in this date range.')));
+        AppSnackbar.info(context, 'Nothing to export in this date range.');
       }
       return false;
     }
@@ -1124,9 +1119,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     if (isActiveLike && wantRefund) {
       refundAmount = int.tryParse(refundCtrl.text.trim()) ?? 0;
       if (refundAmount <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter a valid refund amount, or uncheck refund.')),
-        );
+        AppSnackbar.warning(context, 'Enter a valid refund amount, or uncheck refund.');
         return;
       }
     }
@@ -1216,16 +1209,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       }
       await _fetchMemberData();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(refundAmount > 0
-              ? 'Member removed. ₹$refundAmount refund recorded.'
-              : 'Member removed.')),
-        );
+        AppSnackbar.success(context, refundAmount > 0
+            ? 'Member removed. ₹$refundAmount refund recorded.'
+            : 'Member removed.');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+        AppSnackbar.error(context, friendlyError(e));
       }
     }
   }
@@ -1234,9 +1225,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   Future<void> _exportMemberProfilePdf() async {
     final user = _userProfile;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Member data is still loading. Please try again.')),
-      );
+      AppSnackbar.warning(context, 'Member data is still loading. Please try again.');
       return;
     }
     setState(() => _isExportingPdf = true);
@@ -1693,7 +1682,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         icon: const Icon(Icons.copy, size: 18, color: Color(0xFFE65C00)),
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: user['referral_code'] ?? ''));
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Referral code copied!')));
+                          AppSnackbar.info(context, 'Referral code copied!');
                         },
                       ),
                     ],

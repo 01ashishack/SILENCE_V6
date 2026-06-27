@@ -8,6 +8,7 @@ import '../../utils/audit_logger.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/shift_overlap.dart';
 import '../../core/picker_theme.dart';
+import '../../core/app_snackbar.dart';
 import '../../widgets/states/shimmer_box.dart';
 import 'admin_renew_sheet.dart';
 
@@ -439,9 +440,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     final membershipId = membership?['id'];
     if (membershipId == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No active membership details found for this member.')),
-      );
+      AppSnackbar.warning(context, 'No active membership details found for this member.');
       return;
     }
 
@@ -482,9 +481,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     final now = DateTime.now();
     final checkIn = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
     if (checkIn.isAfter(now)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Check-in time can't be in the future.")),
-      );
+      AppSnackbar.warning(context, "Check-in time can't be in the future.");
       return;
     }
 
@@ -509,14 +506,10 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       );
       _fetchSeatsAndSections();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Checked in on Seat $seatLabel at $pickedLabel ✓', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
-      );
+      AppSnackbar.success(context, 'Checked in on Seat $seatLabel at $pickedLabel');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error checking in: ${friendlyError(e)}')),
-      );
+      AppSnackbar.error(context, 'Error checking in: ${friendlyError(e)}');
     }
   }
 
@@ -545,15 +538,11 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         checkInLocal.hour, checkInLocal.minute);
     final nowMin = DateTime(now.year, now.month, now.day, now.hour, now.minute);
     if (!checkOut.isAfter(ciMin)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Check-out time must be after check-in time.')),
-      );
+      AppSnackbar.warning(context, 'Check-out time must be after check-in time.');
       return;
     }
     if (checkOut.isAfter(nowMin)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Check-out time can't be in the future.")),
-      );
+      AppSnackbar.warning(context, "Check-out time can't be in the future.");
       return;
     }
     final durationMins = checkOut.difference(ciMin).inMinutes;
@@ -572,14 +561,10 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       );
       _fetchSeatsAndSections();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Checked out Seat $seatLabel at $pickedLabel ✓', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
-      );
+      AppSnackbar.success(context, 'Checked out Seat $seatLabel at $pickedLabel');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error checking out: ${friendlyError(e)}')),
-      );
+      AppSnackbar.error(context, 'Error checking out: ${friendlyError(e)}');
     }
   }
 
@@ -624,17 +609,13 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       _fetchSeatsAndSections();
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(memberId != null
-            ? 'Seat $label released. Member notified.'
-            : 'Seat $label set to vacant.')),
-      );
+      AppSnackbar.success(context, memberId != null
+          ? 'Seat $label released. Member notified.'
+          : 'Seat $label set to vacant.');
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      AppSnackbar.error(context, friendlyError(e));
     }
   }
 
@@ -694,9 +675,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
     if (vacant.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No vacant seats available in this shift to reassign.')),
-      );
+      AppSnackbar.warning(context, 'No vacant seats available in this shift to reassign.');
       return;
     }
 
@@ -792,14 +771,10 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
       _fetchSeatsAndSections();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$memberName moved to seat $newLabel. Member notified.')),
-      );
+      AppSnackbar.success(context, '$memberName moved to seat $newLabel. Member notified.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      AppSnackbar.error(context, friendlyError(e));
     }
   }
 
@@ -811,9 +786,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     final label = (seat['seat_label'] ?? 'seat').toString();
     final shiftId = seat['shift_id']?.toString();
     if (shiftId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This seat has no shift configured.')),
-      );
+      AppSnackbar.warning(context, 'This seat has no shift configured.');
       return;
     }
 
@@ -828,9 +801,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     );
     if (overlapBlocked.contains(label)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Seat $label is occupied in an overlapping shift, so it can't be assigned here.")),
-      );
+      AppSnackbar.warning(context, "Seat $label is occupied in an overlapping shift, so it can't be assigned here.");
       return;
     }
 
@@ -855,10 +826,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
     if (!mounted) return;
     if (candidates.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(
-            'No seatless members in this shift. Approve a join request in the Requests tab first.')),
-      );
+      AppSnackbar.info(context, 'No seatless members in this shift. Approve a join request in the Requests tab first.');
       return;
     }
 
@@ -957,14 +925,10 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
       _fetchSeatsAndSections();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$memberName assigned to seat $label. Member notified.')),
-      );
+      AppSnackbar.success(context, '$memberName assigned to seat $label. Member notified.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      AppSnackbar.error(context, friendlyError(e));
     }
   }
 
@@ -977,15 +941,11 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       _fetchSeatsAndSections();
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Seat $label updated to $status ✓')),
-      );
+      AppSnackbar.success(context, 'Seat $label updated to $status');
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating status: $e')),
-      );
+      AppSnackbar.error(context, 'Error updating status: ${friendlyError(e)}');
     }
   }
 
@@ -1116,15 +1076,11 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       _fetchSeatsAndSections();
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Seat $label deleted from all shifts.')),
-      );
+      AppSnackbar.success(context, 'Seat $label deleted from all shifts.');
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting seat: ${friendlyError(e)}')),
-      );
+      AppSnackbar.error(context, 'Error deleting seat: ${friendlyError(e)}');
     }
   }
 
@@ -1462,9 +1418,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                     if (member == null || !mounted) return;
                     final m = _getMemberMembership(member['id']);
                     if (m == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('No membership found to renew for this member.')),
-                      );
+                      AppSnackbar.warning(context, 'No membership found to renew for this member.');
                       return;
                     }
                     final ok = await showAdminRenewSheet(context, membership: m);
@@ -3110,9 +3064,7 @@ void showAddFloorBottomSheet({
                           } catch (e) {
                             setState(() => isLoading = false);
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error adding floor: $e')),
-                            );
+                            AppSnackbar.error(context, 'Error adding floor: ${friendlyError(e)}');
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -3234,9 +3186,7 @@ void showRenameFloorBottomSheet({
                           } catch (e) {
                             setState(() => isLoading = false);
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error renaming floor: $e')),
-                            );
+                            AppSnackbar.error(context, 'Error renaming floor: ${friendlyError(e)}');
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -3356,9 +3306,7 @@ void showAddSectionBottomSheet({
                           } catch (e) {
                             setState(() => isLoading = false);
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error adding section: $e')),
-                            );
+                            AppSnackbar.error(context, 'Error adding section: ${friendlyError(e)}');
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -3481,9 +3429,7 @@ void showEditSectionBottomSheet({
                           } catch (e) {
                             setState(() => isLoading = false);
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error updating section: $e')),
-                            );
+                            AppSnackbar.error(context, 'Error updating section: ${friendlyError(e)}');
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -3584,9 +3530,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading tree layout: $e')),
-        );
+        AppSnackbar.error(context, 'Error loading tree layout: ${friendlyError(e)}');
       }
     }
   }
@@ -3684,7 +3628,7 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
                 } catch (e) {
                   setState(() => _isLoading = false);
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating seat: $e')));
+                  AppSnackbar.error(context, 'Error updating seat: ${friendlyError(e)}');
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white),
@@ -3807,16 +3751,14 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       await supabase.from('floors').delete().eq('id', floorId);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Floor "$name" and all its sections/seats deleted successfully! ✓')),
-      );
+      AppSnackbar.success(context, 'Floor "$name" and all its sections/seats deleted successfully!');
 
       _fetchTreeData();
       widget.onRefreshParent();
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting floor: $e')));
+      AppSnackbar.error(context, 'Error deleting floor: ${friendlyError(e)}');
     }
   }
 
@@ -3838,16 +3780,14 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       await supabase.from('sections').delete().eq('id', sectionId);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Section "$name" and all its seats deleted successfully! ✓')),
-      );
+      AppSnackbar.success(context, 'Section "$name" and all its seats deleted successfully!');
 
       _fetchTreeData();
       widget.onRefreshParent();
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting section: $e')));
+      AppSnackbar.error(context, 'Error deleting section: ${friendlyError(e)}');
     }
   }
 
@@ -3883,27 +3823,20 @@ class _ManageLayoutTreeSheetState extends State<ManageLayoutTreeSheet> {
       await supabase.from('seats').delete().inFilter('id', seatIds);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Seat "$label" deleted from all shifts ✓')),
-      );
+      AppSnackbar.success(context, 'Seat "$label" deleted from all shifts');
 
       _fetchTreeData();
       widget.onRefreshParent();
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting seat: ${friendlyError(e)}')));
+      AppSnackbar.error(context, 'Error deleting seat: ${friendlyError(e)}');
     }
   }
 
   void _showAddSeatBottomSheet({required String floorId, required String? sectionId}) {
     if (widget.selectedShiftId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please configure shifts first before adding seats.'),
-          backgroundColor: Color(0xFFEF4444),
-        ),
-      );
+      AppSnackbar.warning(context, 'Please configure shifts first before adding seats.');
       return;
     }
     showModalBottomSheet(

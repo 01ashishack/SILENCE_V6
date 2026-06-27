@@ -8,6 +8,7 @@ import '../../utils/audit_logger.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/time_utils.dart';
 import '../../core/picker_theme.dart';
+import '../../core/app_snackbar.dart';
 import '../../widgets/states/shimmer_box.dart';
 
 class RequestsSubTab extends StatefulWidget {
@@ -214,14 +215,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       if (mounted) setState(() => _confirmedPaymentsInUi.add(requestId));
       _fetchRequests();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment verified. You can approve now. ✓')),
-      );
+      AppSnackbar.success(context, 'Payment verified. You can approve now.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${friendlyError(e)}')),
-      );
+      AppSnackbar.error(context, friendlyError(e));
     }
   }
 
@@ -250,14 +247,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
       _fetchRequests();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment marked unverified. Member notified to re-pay. Request kept pending.')),
-      );
+      AppSnackbar.info(context, 'Payment marked unverified. Member notified to re-pay. Request kept pending.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${friendlyError(e)}')),
-      );
+      AppSnackbar.error(context, friendlyError(e));
     }
   }
 
@@ -354,14 +347,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
       _fetchRequests();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Join request rejected.')),
-      );
+      AppSnackbar.info(context, 'Join request rejected.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      AppSnackbar.error(context, friendlyError(e));
     }
   }
 
@@ -490,22 +479,11 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       _fetchRequests();
       if (!mounted) return;
       if (sheetContext.mounted) Navigator.pop(sheetContext); // Close seat picker bottom sheet
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Member $memberName approved and seat $assignedSeat assigned successfully.",
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500),
-          ),
-          backgroundColor: const Color(0xFF22C55E),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      AppSnackbar.success(context,
+          "Member $memberName approved and seat $assignedSeat assigned successfully.");
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      AppSnackbar.error(context, friendlyError(e));
     } finally {
       _isApproving = false;
     }
@@ -658,7 +636,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       await _fetchRequests();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not reject: $e')));
+        AppSnackbar.error(context, friendlyError(e));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -681,12 +659,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         newSeatId == null ||
         newSeatId.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot approve: this request has no selected target seat.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppSnackbar.warning(context, 'Cannot approve: this request has no selected target seat.');
       return;
     }
 
@@ -742,15 +715,11 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       await _fetchRequests();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Seat change approved. Assigned $newSeatLabel.')),
-      );
+      AppSnackbar.success(context, 'Seat change approved. Assigned $newSeatLabel.');
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Seat change approval failed: $e')),
-      );
+      AppSnackbar.error(context, 'Seat change approval failed: ${friendlyError(e)}');
     }
   }
 
@@ -786,12 +755,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       );
       await _fetchRequests();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Check-in approved. The member can scan again now.')),
-      );
+      AppSnackbar.success(context, 'Check-in approved. The member can scan again now.');
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not approve: ${friendlyError(e)}')));
+        AppSnackbar.error(context, 'Could not approve: ${friendlyError(e)}');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -862,7 +829,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       await _fetchRequests();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not reject: ${friendlyError(e)}')));
+        AppSnackbar.error(context, 'Could not reject: ${friendlyError(e)}');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -967,14 +934,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                 child: ElevatedButton(
                   onPressed: _isProfileComplete
                       ? () => _approveCheckinApproval(r)
-                      : () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
-                              backgroundColor: const Color(0xFFE65C00),
-                            ),
-                          );
-                        },
+                      : () => AppSnackbar.warning(context, 'Complete your profile first to approve requests'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.5),
                     foregroundColor: Colors.white,
@@ -1120,15 +1080,11 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
       _fetchRequests();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$memberName renewed — new expiry ${DateFormat('dd MMM yyyy').format(newEnd)}.'),
-          backgroundColor: const Color(0xFF22C55E),
-        ),
-      );
+      AppSnackbar.success(context,
+          '$memberName renewed — new expiry ${DateFormat('dd MMM yyyy').format(newEnd)}.');
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+        AppSnackbar.error(context, friendlyError(e));
       }
     } finally {
       _isApproving = false;
@@ -1200,9 +1156,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             }).eq('id', request['id']);
             _fetchRequests();
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Join request rejected successfully ✓')),
-              );
+              AppSnackbar.success(context, 'Join request rejected successfully');
             }
           }
           if (mounted) {
@@ -1322,7 +1276,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        AppSnackbar.error(context, friendlyError(e));
       }
     }
   }
@@ -1925,14 +1879,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: !_isProfileComplete
-                      ? () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
-                              backgroundColor: const Color(0xFFE65C00),
-                            ),
-                          );
-                        }
+                      ? () => AppSnackbar.warning(context, 'Complete your profile first to approve requests')
                       : (isPaymentConfirmed ? () => _onApprovePressed(request) : null),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isProfileComplete
@@ -2150,14 +2097,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                           ),
                                           const SizedBox(width: 2),
                                           ElevatedButton(
-                                            onPressed: _isProfileComplete ? () => _approveSeatChangeRequest(r) : () {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
-                                                  backgroundColor: const Color(0xFFE65C00),
-                                                ),
-                                              );
-                                            },
+                                            onPressed: _isProfileComplete ? () => _approveSeatChangeRequest(r) : () => AppSnackbar.warning(context, 'Complete your profile first to approve requests'),
                                             style: ElevatedButton.styleFrom(
                                               backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.5),
                                               foregroundColor: Colors.white,
@@ -2241,14 +2181,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                           if (!mounted) return;
                                           
                                           _fetchRequests();
-                                        } : () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text('Complete your profile first to approve requests', style: GoogleFonts.inter()),
-                                              backgroundColor: const Color(0xFFE65C00),
-                                            ),
-                                          );
-                                        },
+                                        } : () => AppSnackbar.warning(context, 'Complete your profile first to approve requests'),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: _isProfileComplete ? const Color(0xFFE65C00) : const Color(0xFFE65C00).withValues(alpha: 0.5),
                                           foregroundColor: Colors.white,
