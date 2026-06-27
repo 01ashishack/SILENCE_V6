@@ -191,6 +191,45 @@ all pushed; `flutter analyze` 0 new errors + debug APK build OK each time):
 Remaining nits (follow-up, device-pass): a few warm orange-tint accent boxes still read light on dark;
 a couple of `const` cream loading Scaffolds.
 
+### Session 2026-06-27 — Picker theme, unified pickers, semantic snackbars, overlay polish (`c14d88c`, pushed)
+
+Deep dark-theme consistency pass + two infra helpers (`flutter analyze` 0 errors + debug APK OK):
+
+- **`lib/core/picker_theme.dart` (new)** — `brandPickerTheme(context, child)`: brightness-aware
+  Theme wrapper for `showDatePicker`/`showTimePicker`/`showDateRangePicker` (dark surface + brand
+  orange in both modes). All native picker call sites (reservations member_detail/layout/requests,
+  member_history, shift_management, setup stage3, member notif prefs, add_expense, admin_profile_tab
+  opening-hours) routed through it.
+- **Unified date pickers** — `core/calendar_picker.dart` (`showCalendarGridBottomSheet` /
+  `showCustomCalendarDialog`, ~13 call sites) and `widgets/year_month_day_picker.dart` now **delegate
+  to native `showDatePicker` + brandPickerTheme**; signatures unchanged so no call-site edits. One
+  picker app-wide. (Old bespoke grid/3-dropdown UIs removed.)
+- **`lib/core/app_snackbar.dart` (new)** — `AppSnackbar.success/error/warning/info`:
+  green/red/amber/slate, floating, rounded, icon, shown via the **root** ScaffoldMessenger (sits
+  above sheets/dialogs). Per-screen `_showSuccess*/_showError*` helpers routed through it in: library
+  setup stage1/2/3, shift_management, admin_home, admin_profile_complete, auth, role_selection,
+  member_profile_edit, member_privacy_security, member_help_support, add_member_wizard. Orange
+  "success" snackbars (blended into the orange UI) are now green. **Still TODO:** inline
+  (non-helper) snackbars in reservations member_detail/layout_sub_tab/requests_sub_tab — neutral ones
+  now render themed-dark, not green; shift to AppSnackbar in a later focused sweep.
+- **main.dart theme** — dark theme gained full overlay component themes (canvasColor, dropdown/popup/
+  menu, snackBar floating, tooltip, date/time picker, expansionTile, listTile, divider, icon,
+  progress, textSelection, switch/checkbox/radio brand-orange, chip); light theme got matching
+  floating snackBar + datePicker + popup themes.
+- **White-on-dark fixes** — Layout Setup (stage2 + `seat_generation_inline_widget`): floor-tab bar,
+  save bar, creation-mode toggle, seat-tag chips, Add Section&Seats form. Gender/Preparing/State/
+  source dropdown menus (`dropdownColor: white` → `palette.surface`). Cupertino DOB picker + field
+  (admin complete). shift_management text/plan-chips/UPI chip. add-member wizard + mode bottom bars.
+  upgrade / change-password / QR-regenerate sheets. (QR *display* dialog stays white for scan/print.)
+- **Delete-account dialog** (admin + member) — content wrapped in `SingleChildScrollView` to fix the
+  keyboard-driven RenderFlex bottom-overflow.
+- **Library photo upload** (`library_setup_stage1`) — `_uploadBytesWithRetry` retries transient
+  network drops (Connection reset by peer) up to 3×; raw `SocketException` replaced with a friendly
+  message via `friendlyError`/`isNetworkError`.
+- **Permissions Q (no code change)** — notifications prompt proactively at launch
+  (`PushNotificationService.initialize`); camera/photos are on-demand, and on Android 13+ gallery uses
+  the OS Photo Picker (no prompt by design). On web, `permission_handler` is skipped (kIsWeb).
+
 ### Session 2026-06-26 (c) — Dark theme: full screen migration (phase 2)
 
 Completed the screen-by-screen dark migration started in (b) using a mechanical pass (palette swaps),
