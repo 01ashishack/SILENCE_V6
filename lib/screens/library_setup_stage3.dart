@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/active_library_store.dart';
+import '../core/theme_controller.dart';
 
 class LibrarySetupStage3Screen extends StatefulWidget {
   const LibrarySetupStage3Screen({super.key});
@@ -57,7 +58,11 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
   static const _orange = Color(0xFFE65C00);
   // Brightness-based (independent of the ThemeExtension lookup) so text on this
   // screen is always readable in dark mode.
-  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  // Use the app's real dark-mode flag (the in-app toggle), independent of any
+  // context/Theme resolution, so text on this screen is always readable.
+  bool get _isDark =>
+      ThemeController.instance.isDark ||
+      Theme.of(context).brightness == Brightness.dark;
   Color get _bg => _isDark ? const Color(0xFF121212) : const Color(0xFFFBF5EE);
   Color get _dark => _isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1A1A2E);
   Color get _grey => _isDark ? const Color(0xFFCBD5E1) : const Color(0xFF6B7280);
