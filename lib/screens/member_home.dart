@@ -2331,9 +2331,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: allowScan ? const Color(0xFFFFF3ED) : const Color(0xFFFEF2F2),
+                      color: allowScan ? const Color(0x1FE65C00) : const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: allowScan ? const Color(0xFFFCD34D) : const Color(0xFFFCA5A5)),
+                      border: Border.all(color: allowScan ? const Color(0x33E65C00) : const Color(0xFFFCA5A5)),
                     ),
                     child: Row(
                       children: [
@@ -2472,7 +2472,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7ED), // light amber bg
+                      color: const Color(0x1FE65C00), // light amber bg
                       borderRadius: BorderRadius.circular(16),
                       border: const Border(left: BorderSide(color: Color(0xFFB45309), width: 4)),
                     ),
@@ -2843,7 +2843,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               leadingIcon = Container(
                 width: 20,
                 height: 20,
-                decoration: const BoxDecoration(color: Color(0xFFFFF3ED), shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: Color(0x1FE65C00), shape: BoxShape.circle),
                 alignment: Alignment.center,
                 child: Container(
                   width: 8,
@@ -3347,7 +3347,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         Container(
           width: 36,
           height: 36,
-          decoration: BoxDecoration(color: const Color(0xFFFFF3ED), shape: BoxShape.circle),
+          decoration: BoxDecoration(color: const Color(0x1FE65C00), shape: BoxShape.circle),
           child: Icon(icon, color: const Color(0xFFE65C00), size: 18),
         ),
         const SizedBox(width: 12),
@@ -3870,7 +3870,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             children: [
               CircleAvatar(
                 radius: 26,
-                backgroundColor: const Color(0xFFFFF1E8),
+                backgroundColor: const Color(0x1FE65C00),
                 backgroundImage: libPhoto.isNotEmpty ? CachedNetworkImageProvider(libPhoto) : null,
                 child: libPhoto.isEmpty
                     ? Text(
@@ -4859,7 +4859,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: const BoxDecoration(
-                        color: Color(0xFFFFF3ED),
+                        color: Color(0x1FE65C00),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.event_busy,
@@ -5017,7 +5017,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1E8),
+                        color: const Color(0x1FE65C00),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(Icons.location_off_rounded, color: Color(0xFFE65C00), size: 22),
@@ -5239,7 +5239,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1E8),
+                  color: const Color(0x1FE65C00),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -5475,9 +5475,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             Container(
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
+                color: const Color(0x1FE65C00),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFFD1B3)),
+                border: Border.all(color: const Color(0x33E65C00)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -6327,9 +6327,9 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF7ED),
+                        color: const Color(0x1FE65C00),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFFFD1B3)),
+                        border: Border.all(color: const Color(0x33E65C00)),
                       ),
                       child: Text(
                         'Your plan is still active with $daysLeft day${daysLeft == 1 ? '' : 's'} left'

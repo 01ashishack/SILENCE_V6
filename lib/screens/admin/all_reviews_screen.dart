@@ -254,7 +254,7 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
               decoration: BoxDecoration(
                 color: context.palette.scaffold,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFFFD0B8)),
+                border: Border.all(color: const Color(0x33E65C00)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

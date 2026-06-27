@@ -547,7 +547,7 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                           onTap: _showChangePasswordBottomSheet,
                           leading: Container(
                             padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(color: Color(0xFFFFF3ED), shape: BoxShape.circle),
+                            decoration: const BoxDecoration(color: Color(0x1FE65C00), shape: BoxShape.circle),
                             child: const Icon(Icons.vpn_key_outlined, color: Color(0xFFE65C00), size: 20),
                           ),
                           title: Text('Change Password', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),

@@ -30,7 +30,7 @@ class AboutUsScreen extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3ED),
+                      color: const Color(0x1FE65C00),
                       shape: BoxShape.circle,
                       border: Border.all(color: const Color(0xFFE65C00), width: 2),
                     ),

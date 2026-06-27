@@ -252,7 +252,7 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
                               width: 80,
                               height: 80,
                               decoration: const BoxDecoration(
-                                color: Color(0xFFFFF3ED),
+                                color: Color(0x1FE65C00),
                                 shape: BoxShape.circle,
                               ),
                               child: const Center(
@@ -441,7 +441,7 @@ class _VerifiedBadgeScreenState extends State<VerifiedBadgeScreen> {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: isCompleted ? const Color(0xFFFFF3ED) : const Color(0xFFF1F5F9),
+              color: isCompleted ? const Color(0x1FE65C00) : const Color(0xFFF1F5F9),
               shape: BoxShape.circle,
             ),
             child: Icon(

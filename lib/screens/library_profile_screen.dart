@@ -225,13 +225,13 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                                   fit: BoxFit.cover,
                                   placeholder: (context, url) => Container(color: Colors.grey[200]),
                                   errorWidget: (context, url, error) => Container(
-                                    color: const Color(0xFFFFF3ED),
+                                    color: const Color(0x1FE65C00),
                                     child: const Icon(Icons.image_outlined, color: Color(0xFFE65C00), size: 36),
                                   ),
                                 )
                               : Container(
                                   height: 140,
-                                  color: const Color(0xFFFFF3ED),
+                                  color: const Color(0x1FE65C00),
                                   child: const Center(child: Icon(Icons.image_outlined, color: Color(0xFFE65C00), size: 36)),
                                 ),
                         ),
@@ -259,7 +259,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                                       fit: BoxFit.cover,
                                       placeholder: (context, url) => Container(color: Colors.grey[200]),
                                       errorWidget: (context, url, error) => Container(
-                                        color: const Color(0xFFFFF3ED),
+                                        color: const Color(0x1FE65C00),
                                         child: const Icon(Icons.broken_image_outlined, color: Color(0xFFE65C00), size: 20),
                                       ),
                                     ),
@@ -290,9 +290,9 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
                               return Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3ED),
+                                  color: const Color(0x1FE65C00),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: const Color(0xFFFFD0B8)),
+                                  border: Border.all(color: const Color(0x33E65C00)),
                                 ),
                                 child: Text(
                                   a.toString(),
@@ -879,7 +879,7 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
               decoration: BoxDecoration(
                 color: context.palette.scaffold,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFFFD0B8)),
+                border: Border.all(color: const Color(0x33E65C00)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -215,7 +215,7 @@ class _AccountFrozenScreenState extends State<AccountFrozenScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
+                  color: const Color(0x1FE65C00),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFFFD9B3)),
                 ),

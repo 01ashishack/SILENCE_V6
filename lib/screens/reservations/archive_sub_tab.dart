@@ -183,7 +183,7 @@ class _ArchiveSubTabState extends State<ArchiveSubTab> {
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                 leading: CircleAvatar(
                                   radius: 24,
-                                  backgroundColor: const Color(0xFFFFF7F0),
+                                  backgroundColor: const Color(0x1FE65C00),
                                   backgroundImage: photo.isNotEmpty ? ResizeImage(NetworkImage(photo), width: 150) : null,
                                   child: photo.isEmpty ? const Icon(Icons.person, color: Color(0xFFE65C00)) : null,
                                 ),

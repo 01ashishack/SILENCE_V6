@@ -803,7 +803,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF7F0),
+                                  color: const Color(0x1FE65C00),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(color: _orange.withValues(alpha: 0.3)),
                                 ),

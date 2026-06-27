@@ -204,7 +204,7 @@ class _AdminRenewSheetState extends State<_AdminRenewSheet> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7F0),
+                      color: const Color(0x1FE65C00),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(

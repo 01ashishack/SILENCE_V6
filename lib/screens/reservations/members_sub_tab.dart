@@ -1424,7 +1424,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: const Color(0xFFFFF7ED),
+                  backgroundColor: const Color(0x1FE65C00),
                   child: const Icon(Icons.edit_note, color: Color(0xFFE65C00), size: 24),
                 ),
                 const SizedBox(width: 12),
@@ -1452,7 +1452,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFEDD5),
+                    color: const Color(0x33E65C00),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -1547,7 +1547,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
     Widget fallback() {
       return const CircleAvatar(
         radius: 26,
-        backgroundColor: Color(0xFFFFF7F0),
+        backgroundColor: Color(0x1FE65C00),
         child: Icon(Icons.person, color: Color(0xFFE65C00), size: 24),
       );
     }
@@ -1564,7 +1564,7 @@ class _MembersSubTabState extends State<MembersSubTab> {
         memCacheWidth: 200,
         placeholder: (context, url) => const CircleAvatar(
           radius: 26,
-          backgroundColor: Color(0xFFFFF7F0),
+          backgroundColor: Color(0x1FE65C00),
           child: SizedBox(
             width: 16,
             height: 16,

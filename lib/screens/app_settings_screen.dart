@@ -261,7 +261,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF3ED),
+          color: const Color(0x1FE65C00),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, size: 18, color: const Color(0xFFE65C00)),
@@ -311,7 +311,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF3ED),
+          color: const Color(0x1FE65C00),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, color: const Color(0xFFE65C00), size: 20),
@@ -353,7 +353,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF3ED),
+          color: const Color(0x1FE65C00),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, color: const Color(0xFFE65C00), size: 20),
@@ -369,7 +369,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       trailing: Switch(
         value: value,
         activeThumbColor: const Color(0xFFE65C00),
-        activeTrackColor: const Color(0xFFFFF3ED),
+        activeTrackColor: const Color(0x1FE65C00),
         onChanged: onChanged,
       ),
     );
@@ -388,7 +388,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: iconColor == Colors.redAccent ? const Color(0xFFFFF1F2) : const Color(0xFFFFF3ED),
+          color: iconColor == Colors.redAccent ? const Color(0xFFFFF1F2) : const Color(0x1FE65C00),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, color: iconColor ?? const Color(0xFFE65C00), size: 20),

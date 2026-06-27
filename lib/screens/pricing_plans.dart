@@ -344,7 +344,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
                       decoration: BoxDecoration(
                         color: context.palette.surface,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: plan.isPopular ? const Color(0xFFFFD0B8) : const Color(0xFFE2E8F0), width: plan.isPopular ? 1.5 : 1.0),
+                        border: Border.all(color: plan.isPopular ? const Color(0x33E65C00) : const Color(0xFFE2E8F0), width: plan.isPopular ? 1.5 : 1.0),
                         boxShadow: [
                           if (plan.isPopular)
                             BoxShadow(color: const Color(0xFFE65C00).withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
@@ -357,7 +357,7 @@ class _PricingPlansScreenState extends State<PricingPlansScreen> {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3ED),
+                                  color: const Color(0x1FE65C00),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Icon(Icons.receipt_long, color: Color(0xFFE65C00), size: 22),

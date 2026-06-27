@@ -289,7 +289,7 @@ class _QRAssetsScreenState extends State<QRAssetsScreen> with SingleTickerProvid
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3ED),
+                    color: const Color(0x1FE65C00),
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: Row(

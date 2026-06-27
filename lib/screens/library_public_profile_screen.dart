@@ -219,9 +219,9 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
+                color: const Color(0x1FE65C00),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFFD1B3)),
+                border: Border.all(color: const Color(0x33E65C00)),
               ),
               child: Row(
                 children: [
@@ -1603,7 +1603,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                 children: [
                   CircleAvatar(
                     radius: 16,
-                    backgroundColor: const Color(0xFFFFF3ED),
+                    backgroundColor: const Color(0x1FE65C00),
                     child: Text(
                       nick.isNotEmpty ? nick[0].toUpperCase() : 'A',
                       style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00)),

@@ -1162,7 +1162,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
         onTap: (uploading || done) ? null : onPick,
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF7ED),
+            color: const Color(0x1FE65C00),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: done ? const Color(0xFFFFB877) : const Color(0xFFFFD9B3),

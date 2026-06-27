@@ -893,7 +893,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                   return ListTile(
                     leading: CircleAvatar(
                       radius: 18,
-                      backgroundColor: const Color(0xFFFFF7F0),
+                      backgroundColor: const Color(0x1FE65C00),
                       backgroundImage: photo.isNotEmpty ? ResizeImage(NetworkImage(photo), width: 150) : null,
                       child: photo.isEmpty
                           ? const Icon(Icons.person, color: Color(0xFFE65C00), size: 18)
@@ -2650,7 +2650,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
                 title: 'Available',
                 count: '$_availableSeatsCount',
                 icon: Icons.weekend_rounded,
-                bgColor: const Color(0xFFFFF7ED),
+                bgColor: const Color(0x1FE65C00),
                 borderColor: const Color(0xFFFFD8BE),
                 iconBgColor: const Color(0xFFFFEAD8),
                 themeColor: const Color(0xFFC2410C),

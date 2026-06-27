@@ -175,9 +175,9 @@ class MemberAboutScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3ED),
+                    color: const Color(0x1FE65C00),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFFFF7F0)),
+                    border: Border.all(color: const Color(0x1FE65C00)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

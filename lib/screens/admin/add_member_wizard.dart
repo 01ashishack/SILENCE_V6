@@ -914,7 +914,7 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
               children: [
                 LinearProgressIndicator(
                   value: currentProgress,
-                  backgroundColor: const Color(0xFFFFEDD5),
+                  backgroundColor: const Color(0x33E65C00),
                   valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
                   minHeight: 4,
                 ),

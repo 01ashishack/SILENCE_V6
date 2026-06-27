@@ -896,7 +896,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: const Color(0xFFFFF7F0),
+                backgroundColor: const Color(0x1FE65C00),
                 backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
                 child: photo.isEmpty ? const Icon(Icons.person, color: Color(0xFFE65C00)) : null,
               ),
@@ -1613,7 +1613,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                   decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
               Row(
                 children: [
-                  CircleAvatar(radius: 26, backgroundColor: const Color(0xFFFFF7F0),
+                  CircleAvatar(radius: 26, backgroundColor: const Color(0x1FE65C00),
                       backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
                       child: photo.isEmpty ? const Icon(Icons.person, color: Color(0xFFE65C00)) : null),
                   const SizedBox(width: 12),
@@ -1740,7 +1740,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: const Color(0xFFFFF7F0),
+                backgroundColor: const Color(0x1FE65C00),
                 backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
                 child: photo.isEmpty ? const Icon(Icons.person, color: Color(0xFFE65C00)) : null,
               ),

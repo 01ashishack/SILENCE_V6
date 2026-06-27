@@ -740,7 +740,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
   Widget _buildCompletionBanner() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3ED),
+        color: const Color(0x1FE65C00),
         borderRadius: BorderRadius.circular(14),
         border: const Border(left: BorderSide(color: Color(0xFFE65C00), width: 4)),
         boxShadow: [
@@ -1111,7 +1111,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         child: Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF3ED),
+            color: const Color(0x1FE65C00),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Icon(icon, size: 16, color: const Color(0xFFE65C00)),
@@ -1269,7 +1269,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF3ED),
+              color: const Color(0x1FE65C00),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFFFD8C2)),
             ),
@@ -1599,7 +1599,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
             children: [
               _buildRowItem(
                 icon: Icons.person_outline,
-                iconBg: const Color(0xFFFFF3ED),
+                iconBg: const Color(0x1FE65C00),
                 iconColor: const Color(0xFFE65C00),
                 title: 'Edit Profile',
                 subtitle: 'Name, photo, DOB, address, ID documents',
@@ -1704,7 +1704,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
           ? Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF3ED),
+                color: const Color(0x1FE65C00),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -1793,7 +1793,7 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
             children: [
               _buildRowItem(
                 icon: Icons.forum_outlined,
-                iconBg: const Color(0xFFFFEDD5),
+                iconBg: const Color(0x33E65C00),
                 iconColor: const Color(0xFFE65C00),
                 title: 'Contact Admin',
                 subtitle: 'Send queries & see admin replies',

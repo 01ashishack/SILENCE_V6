@@ -612,7 +612,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               children: [
                 CircleAvatar(
                   radius: 48,
-                  backgroundColor: const Color(0xFFFFF7F0),
+                  backgroundColor: const Color(0x1FE65C00),
                   backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200) : null,
                   child: _photoUrl == null || _photoUrl!.isEmpty
                       ? const Icon(Icons.person, size: 48, color: Color(0xFFE65C00))
@@ -730,7 +730,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               return ChoiceChip(
                 label: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold)),
                 selected: isSelected,
-                selectedColor: const Color(0xFFFFF3ED),
+                selectedColor: const Color(0x1FE65C00),
                 backgroundColor: context.palette.surface,
                 labelStyle: TextStyle(color: isSelected ? const Color(0xFFE65C00) : context.palette.textMuted),
                 shape: RoundedRectangleBorder(
@@ -906,7 +906,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3ED),
+                  color: const Color(0x1FE65C00),
                   border: Border.all(color: const Color(0xFFE5E7EB)),
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -945,7 +945,7 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3ED),
+                  color: const Color(0x1FE65C00),
                   border: Border.all(color: const Color(0xFFE5E7EB)),
                   borderRadius: BorderRadius.circular(8),
                 ),

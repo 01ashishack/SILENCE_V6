@@ -528,7 +528,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3ED),
+                  color: const Color(0x1FE65C00),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: const Color(0xFFE65C00), size: 22),

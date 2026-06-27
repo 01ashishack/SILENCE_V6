@@ -1018,7 +1018,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   width: 72,
                   height: 72,
                   decoration: const BoxDecoration(
-                    color: Color(0xFFFFF3ED),
+                    color: Color(0x1FE65C00),
                     shape: BoxShape.circle,
                   ),
                   child: const Center(
@@ -3952,7 +3952,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3ED),
+                          color: const Color(0x1FE65C00),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(Icons.event_busy,
@@ -4022,9 +4022,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7ED),
+                      color: const Color(0x1FE65C00),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFFFD1B3)),
+                      border: Border.all(color: const Color(0x33E65C00)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4315,7 +4315,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3ED),
+        color: const Color(0x1FE65C00),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE65C00), width: 1.2),
       ),
@@ -4481,7 +4481,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF3ED),
+                color: const Color(0x1FE65C00),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: const Color(0xFFE65C00).withValues(alpha: 0.2),
@@ -4569,7 +4569,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   Widget _attendanceInitial(String? name) {
     final n = (name ?? '').trim();
     return Container(
-      color: const Color(0xFFFFF3ED),
+      color: const Color(0x1FE65C00),
       alignment: Alignment.center,
       child: Text(
         n.isNotEmpty ? n[0].toUpperCase() : '?',

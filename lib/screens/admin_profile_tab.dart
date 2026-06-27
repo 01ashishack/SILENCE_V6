@@ -978,7 +978,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                                 fontWeight: FontWeight.bold,
                                 color: const Color(0xFFE65C00))),
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFFFD8BF)),
+                          side: const BorderSide(color: Color(0x33E65C00)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
@@ -1451,9 +1451,9 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
+                    color: const Color(0x1FE65C00),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFFEDD5)),
+                    border: Border.all(color: const Color(0x33E65C00)),
                   ),
                   child: Text(
                     m,
@@ -1616,12 +1616,12 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                             fit: BoxFit.cover,
                             placeholder: (context, url) => Container(color: Colors.grey[200]),
                             errorWidget: (context, url, error) => Container(
-                              color: const Color(0xFFFFF3ED),
+                              color: const Color(0x1FE65C00),
                               child: const Icon(Icons.storefront, color: Color(0xFFE65C00), size: 36),
                             ),
                           )
                         : Container(
-                            color: const Color(0xFFFFF3ED),
+                            color: const Color(0x1FE65C00),
                             child: const Icon(Icons.storefront, color: Color(0xFFE65C00), size: 36),
                           ),
                     // 3-dot management menu (Delete) pinned to the card's top-right.

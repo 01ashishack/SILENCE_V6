@@ -2147,9 +2147,9 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
+        color: const Color(0x1FE65C00),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFD1B3)),
+        border: Border.all(color: const Color(0x33E65C00)),
       ),
       child: Row(
         children: [
@@ -2224,7 +2224,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                 width: 36,
                 height: 36,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFFF7ED),
+                  color: Color(0x1FE65C00),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: const Color(0xFFE65C00), size: 18),
@@ -2684,7 +2684,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                         children: [
                           CircleAvatar(
                             radius: 16,
-                            backgroundColor: const Color(0xFFFFF7ED),
+                            backgroundColor: const Color(0x1FE65C00),
                             backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
                             child: photo.isEmpty
                                 ? const Icon(Icons.person, color: Color(0xFFE65C00), size: 16)
@@ -2713,7 +2713,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF7ED),
+                                    color: const Color(0x1FE65C00),
                                     borderRadius: BorderRadius.circular(4)),
                                 child: Text(
                                   method,
@@ -2971,7 +2971,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
+        color: const Color(0x1FE65C00),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -3394,7 +3394,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
                           children: [
                             CircleAvatar(
                               radius: 18,
-                              backgroundColor: const Color(0xFFFFF7ED),
+                              backgroundColor: const Color(0x1FE65C00),
                               backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
                               child: photo.isEmpty
                                   ? const Icon(Icons.person, color: Color(0xFFE65C00), size: 18)
@@ -4395,7 +4395,7 @@ class _DualMonthCalendarPickerState extends State<DualMonthCalendarPicker> {
                   color: (isStart || isEnd)
                       ? const Color(0xFFE65C00)
                       : isInRange
-                          ? const Color(0xFFFFF3ED)
+                          ? const Color(0x1FE65C00)
                           : Colors.transparent,
                   border: isToday && !(isStart || isEnd)
                       ? Border.all(color: const Color(0xFFE65C00), width: 1.5)

@@ -861,7 +861,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                   children: [
                                     CircleAvatar(
                                       radius: 48,
-                                      backgroundColor: const Color(0xFFFFF7F0),
+                                      backgroundColor: const Color(0x1FE65C00),
                                       backgroundImage: _coverPhotoUrl != null && _coverPhotoUrl!.isNotEmpty
                                           ? ResizeImage(NetworkImage(_coverPhotoUrl!), width: 200)
                                           : null,

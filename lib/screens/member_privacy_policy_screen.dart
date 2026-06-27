@@ -141,7 +141,7 @@ class _MemberPrivacyPolicyScreenState extends State<MemberPrivacyPolicyScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3ED),
+                                    color: const Color(0x1FE65C00),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(

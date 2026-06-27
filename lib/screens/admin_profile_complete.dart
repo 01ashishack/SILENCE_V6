@@ -452,7 +452,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                   children: [
                                     CircleAvatar(
                                       radius: 48,
-                                      backgroundColor: const Color(0xFFFFF7F0),
+                                      backgroundColor: const Color(0x1FE65C00),
                                       backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200) : null,
                                       child: _photoUrl == null || _photoUrl!.isEmpty
                                           ? const Icon(Icons.person, size: 48, color: Color(0xFFE65C00))
@@ -546,7 +546,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                       margin: const EdgeInsets.symmetric(horizontal: 4),
                                       padding: const EdgeInsets.symmetric(vertical: 10),
                                       decoration: BoxDecoration(
-                                        color: isSelected ? const Color(0xFFFFF3ED) : Colors.white,
+                                        color: isSelected ? const Color(0x1FE65C00) : Colors.white,
                                         borderRadius: BorderRadius.circular(8),
                                         border: Border.all(
                                           color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
@@ -655,7 +655,7 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                 Container(
                                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3ED),
+                                    color: const Color(0x1FE65C00),
                                     border: Border.all(color: const Color(0xFFE5E7EB)),
                                     borderRadius: BorderRadius.circular(12),
                                   ),

@@ -965,7 +965,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3ED),
+                    color: const Color(0x1FE65C00),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -1162,7 +1162,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF3ED),
+                color: const Color(0x1FE65C00),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: _orange, width: 1.2),
               ),
@@ -1420,7 +1420,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7F0),
+                  color: const Color(0x1FE65C00),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: _orange.withValues(alpha: 0.4)),
                 ),
@@ -1444,7 +1444,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                 width: double.infinity,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7F0),
+                  color: const Color(0x1FE65C00),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: _orange.withValues(alpha: 0.4)),
                 ),
@@ -1913,7 +1913,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF3ED),
+                color: const Color(0x1FE65C00),
                 borderRadius: BorderRadius.circular(6),
               ),
               width: double.infinity,
@@ -2070,7 +2070,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7F0),
+                  color: const Color(0x1FE65C00),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: widget.orange.withValues(alpha: 0.4)),
                 ),
@@ -2095,7 +2095,7 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
                   onTap: () => setState(() => _isAddingSeat = true),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7F0),
+                      color: const Color(0x1FE65C00),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: widget.orange.withValues(alpha: 0.5), style: BorderStyle.solid),
                     ),

@@ -41,20 +41,22 @@ class AppColors {
   static const Color border = Color(0xFFE5E7EB);
   static const Color divider = Color(0xFFF1F5F9);
 
-  // ── Orange tints (cards / chips) ─────────────────────────────────────────
-  static const Color orangeTintBg = Color(0xFFFFF7ED);
-  static const Color orangeTintBorder = Color(0xFFFFEDD5);
-  static const Color orangeText = Color(0xFF9A3412);
+  // ── Orange tints (cards / chips) — translucent so they adapt to light/dark
+  //    surfaces (faint orange on white, subtle orange on charcoal). ──────────
+  static const Color orangeTintBg = Color(0x1FE65C00);
+  static const Color orangeTintBorder = Color(0x33E65C00);
+  static const Color orangeText = Color(0xFFF97316); // readable on light + dark orange tints
 
   // ── Status ───────────────────────────────────────────────────────────────
+  // Background tints are translucent so they read correctly on light AND dark.
   static const Color success = Color(0xFF22C55E);
-  static const Color successBg = Color(0xFFF0FDF4);
+  static const Color successBg = Color(0x1F22C55E);
   static const Color warning = Color(0xFFF59E0B); // amber (expiring soon)
-  static const Color warningBg = Color(0xFFFFFBEB);
+  static const Color warningBg = Color(0x1FF59E0B);
   static const Color danger = Color(0xFFEF4444); // red (expired / errors)
-  static const Color dangerBg = Color(0xFFFEF2F2);
+  static const Color dangerBg = Color(0x1FEF4444);
   static const Color info = Color(0xFF3B82F6);
-  static const Color infoBg = Color(0xFFEFF6FF);
+  static const Color infoBg = Color(0x1F3B82F6);
 
   // ── Shimmer (skeleton loaders) ───────────────────────────────────────────
   static const Color shimmerBase = Color(0xFFE9E2D8); // tinted for cream bg

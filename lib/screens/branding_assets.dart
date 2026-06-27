@@ -390,7 +390,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
                                       width: 80,
                                       height: 80,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFFFF3ED),
+                                        color: const Color(0x1FE65C00),
                                         shape: BoxShape.circle,
                                         border: Border.all(color: _selectedAccent, width: 1.5),
                                         image: _logoUrl != null
@@ -547,7 +547,7 @@ class _BrandingAssetsScreenState extends State<BrandingAssetsScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF3ED),
+              color: const Color(0x1FE65C00),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: const Color(0xFFE65C00), size: 18),

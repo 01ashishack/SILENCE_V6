@@ -351,7 +351,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                         decoration: BoxDecoration(
-                          color: widget.memberData.paymentMethod == 'cash' ? const Color(0xFFFFF7ED) : Colors.white,
+                          color: widget.memberData.paymentMethod == 'cash' ? const Color(0x1FE65C00) : Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: widget.memberData.paymentMethod == 'cash' ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
@@ -391,7 +391,7 @@ class _AddMemberStep4State extends State<AddMemberStep4> with AutomaticKeepAlive
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                         decoration: BoxDecoration(
-                          color: widget.memberData.paymentMethod == 'upi' ? const Color(0xFFFFF7ED) : Colors.white,
+                          color: widget.memberData.paymentMethod == 'upi' ? const Color(0x1FE65C00) : Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: widget.memberData.paymentMethod == 'upi' ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),

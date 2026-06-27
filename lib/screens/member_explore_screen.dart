@@ -572,7 +572,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
                         height: 130,
-                        color: const Color(0xFFFFF3ED),
+                        color: const Color(0x1FE65C00),
                         child: const Center(
                           child: CircularProgressIndicator(
                             valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),

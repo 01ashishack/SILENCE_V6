@@ -327,7 +327,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
                         ElevatedButton.icon(
                           onPressed: isUploadingFile ? null : pickAndUploadScreenshot,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFFF3ED),
+                            backgroundColor: const Color(0x1FE65C00),
                             foregroundColor: const Color(0xFFE65C00),
                             elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -563,7 +563,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
             onTap: _showReportIssueSheet,
             leading: Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(color: Color(0xFFFFF3ED), shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: Color(0x1FE65C00), shape: BoxShape.circle),
               child: const Icon(Icons.bug_report_outlined, color: Color(0xFFE65C00), size: 20),
             ),
             title: Text('Report an Issue', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),

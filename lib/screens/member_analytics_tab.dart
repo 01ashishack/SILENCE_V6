@@ -544,9 +544,9 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF7ED),
+                          color: const Color(0x1FE65C00),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFFFD1B3)),
+                          border: Border.all(color: const Color(0x33E65C00)),
                         ),
                         child: Row(
                           children: [
@@ -1739,7 +1739,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3ED),
+                      color: const Color(0x1FE65C00),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.3)),
                     ),
@@ -1814,7 +1814,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isMe ? const Color(0xFFFFF3ED) : const Color(0xFFF8FAFC),
+                    color: isMe ? const Color(0x1FE65C00) : const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: isMe ? const Color(0xFFE65C00).withValues(alpha: 0.3) : const Color(0xFFF1F5F9),
@@ -1869,7 +1869,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3ED),
+                    color: const Color(0x1FE65C00),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: const Color(0xFFE65C00).withValues(alpha: 0.3)),
                   ),
@@ -2696,7 +2696,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                             width: 52,
                             height: 52,
                             decoration: BoxDecoration(
-                              color: isEarned ? const Color(0xFFFFF3ED) : const Color(0xFFF1F5F9),
+                              color: isEarned ? const Color(0x1FE65C00) : const Color(0xFFF1F5F9),
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: isEarned ? const Color(0xFFE65C00) : Colors.grey[300]!,
@@ -2763,7 +2763,7 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: isEarned ? const Color(0xFFFFF3ED) : const Color(0xFFF8FAFC),
+                  color: isEarned ? const Color(0x1FE65C00) : const Color(0xFFF8FAFC),
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: isEarned ? const Color(0xFFE65C00) : Colors.grey[300]!,

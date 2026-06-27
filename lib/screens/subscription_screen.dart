@@ -250,7 +250,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3ED), borderRadius: BorderRadius.circular(6)),
+                      color: const Color(0x1FE65C00), borderRadius: BorderRadius.circular(6)),
                   child: Text('POPULAR',
                       style: GoogleFonts.inter(
                           fontSize: 8.5, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),

@@ -679,7 +679,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7F0),
+                      color: const Color(0x1FE65C00),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFFFD8BE)),
                     ),
@@ -1068,9 +1068,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7ED),
+                      color: const Color(0x1FE65C00),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFFD1B3)),
+                      border: Border.all(color: const Color(0x33E65C00)),
                     ),
                     child: Text(
                       'Their membership is still ACTIVE with $daysLeft day${daysLeft == 1 ? '' : 's'} left '
@@ -1389,7 +1389,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     Widget fallback() {
       return const CircleAvatar(
         radius: 36,
-        backgroundColor: Color(0xFFFFF7F0),
+        backgroundColor: Color(0x1FE65C00),
         child: Icon(Icons.person, color: Color(0xFFE65C00), size: 36),
       );
     }
@@ -1450,9 +1450,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     return Container(
       height: 150,
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7F0),
+        color: const Color(0x1FE65C00),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFFEDD5)),
+        border: Border.all(color: const Color(0x33E65C00)),
       ),
       child: const Center(
         child: Icon(Icons.image_not_supported_outlined, color: Color(0xFFE65C00), size: 32),
@@ -1685,7 +1685,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               if (user['referral_code'] != null && user['referral_code'].toString().isNotEmpty) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(color: const Color(0x1FE65C00), borderRadius: BorderRadius.circular(10)),
                   child: Row(
                     children: [
                       Expanded(
@@ -1891,7 +1891,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: hasAttendance ? Color.lerp(const Color(0xFFFFF7F0), const Color(0xFFE65C00), intensity * 0.6) : Colors.transparent,
+                    color: hasAttendance ? Color.lerp(const Color(0x1FE65C00), const Color(0xFFE65C00), intensity * 0.6) : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: hasAttendance ? const Color(0xFFFFD8BE) : const Color(0xFFF1F5F9), width: 1),
                   ),
@@ -1927,7 +1927,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               ...List.generate(5, (i) => Container(
                 width: 16, height: 16, margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
-                  color: Color.lerp(const Color(0xFFFFF7F0), const Color(0xFFE65C00), (i + 1) / 5 * 0.6),
+                  color: Color.lerp(const Color(0x1FE65C00), const Color(0xFFE65C00), (i + 1) / 5 * 0.6),
                   borderRadius: BorderRadius.circular(3),
                 ),
               )),
@@ -2023,7 +2023,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF7F0),
+              color: const Color(0x1FE65C00),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFFFD8BE)),
             ),
@@ -2117,7 +2117,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(color: const Color(0xFFFFF7F0), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(color: const Color(0x1FE65C00), borderRadius: BorderRadius.circular(8)),
                       child: Text(_fmtStudyMinutes(dayMinutes), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                     ),
                   ],
@@ -2182,7 +2182,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                               return Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                    color: tag.isManual ? const Color(0xFFFFF7E6) : const Color(0xFFFFF7F0),
+                                    color: tag.isManual ? const Color(0xFFFFF7E6) : const Color(0x1FE65C00),
                                     borderRadius: BorderRadius.circular(6)),
                                 child: Text(tag.label.toUpperCase(),
                                     style: GoogleFonts.inter(

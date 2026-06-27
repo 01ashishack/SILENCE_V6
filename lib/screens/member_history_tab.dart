@@ -1237,7 +1237,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(color: Color(0xFFFFF3ED), shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: Color(0x1FE65C00), shape: BoxShape.circle),
               child: const Icon(Icons.login, color: Color(0xFFE65C00), size: 16),
             ),
             const SizedBox(width: 12),
@@ -1656,7 +1656,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: status == 'confirmed' ? const Color(0xFFDCFCE7) : const Color(0xFFFFF3ED), shape: BoxShape.circle),
+              decoration: BoxDecoration(color: status == 'confirmed' ? const Color(0xFFDCFCE7) : const Color(0x1FE65C00), shape: BoxShape.circle),
               child: Icon(
                 method == 'UPI' ? Icons.phone_android_rounded : Icons.payments_outlined,
                 color: status == 'confirmed' ? const Color(0xFF16A34A) : const Color(0xFFE65C00),

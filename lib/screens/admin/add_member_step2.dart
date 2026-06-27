@@ -608,8 +608,8 @@ class _AddMemberStep2State extends State<AddMemberStep2> with AutomaticKeepAlive
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                border: Border.all(color: const Color(0xFFFFEDD5)),
+                color: const Color(0x1FE65C00),
+                border: Border.all(color: const Color(0x33E65C00)),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(

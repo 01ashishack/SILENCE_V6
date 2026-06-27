@@ -500,7 +500,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(18),
-              decoration: const BoxDecoration(color: Color(0xFFFFF3ED), shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: Color(0x1FE65C00), shape: BoxShape.circle),
               child: const Icon(Icons.schedule_rounded, color: Color(0xFFE65C00), size: 40),
             ),
             const SizedBox(height: 18),
@@ -546,9 +546,9 @@ class _RenewalScreenState extends State<RenewalScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
+        color: const Color(0x1FE65C00),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFFD1B3)),
+        border: Border.all(color: const Color(0x33E65C00)),
       ),
       child: Row(
         children: [
@@ -613,7 +613,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFFFF3ED), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: const Color(0x1FE65C00), borderRadius: BorderRadius.circular(10)),
             child: const Icon(Icons.business, color: Color(0xFFE65C00), size: 28),
           ),
           const SizedBox(width: 16),

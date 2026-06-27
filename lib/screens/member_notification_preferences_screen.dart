@@ -408,7 +408,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
         secondary: Container(
           padding: const EdgeInsets.all(8),
           decoration: const BoxDecoration(
-            color: Color(0xFFFFF3ED),
+            color: Color(0x1FE65C00),
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.notifications_active, color: Color(0xFFE65C00), size: 24),
@@ -486,7 +486,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFFF3ED),
+                  color: Color(0x1FE65C00),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.workspace_premium_outlined, color: Color(0xFFE65C00), size: 20),
@@ -520,7 +520,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
                 decoration: BoxDecoration(
                   color: context.palette.scaffold,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFFFF3ED)),
+                  border: Border.all(color: const Color(0x1FE65C00)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -588,7 +588,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
                       decoration: BoxDecoration(
                         color: context.palette.scaffold,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFFFF3ED)),
+                        border: Border.all(color: const Color(0x1FE65C00)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,7 +618,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
                       decoration: BoxDecoration(
                         color: context.palette.scaffold,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFFFF3ED)),
+                        border: Border.all(color: const Color(0x1FE65C00)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

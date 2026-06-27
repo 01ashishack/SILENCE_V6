@@ -229,7 +229,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: const BoxDecoration(
-                color: Color(0xFFFFF3ED), // constant light orange tint backdrop
+                color: Color(0x1FE65C00), // constant light orange tint backdrop
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, size: 28, color: const Color(0xFFE65C00)),
