@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/active_library_store.dart';
+import '../core/app_snackbar.dart';
 import '../widgets/seat_generation_inline_widget.dart';
 
 
@@ -189,20 +190,12 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-      backgroundColor: const Color(0xFFEF4444),
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppSnackbar.error(context, msg);
   }
 
   void _showSuccess(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-      backgroundColor: Colors.green,
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppSnackbar.success(context, msg);
   }
 
   // ── floor operations ──────────────────────────────────────────────────────
@@ -365,9 +358,9 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                       duration: const Duration(milliseconds: 150),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
-                        color: selectedTag == t ? _orange : Colors.white,
+                        color: selectedTag == t ? _orange : context.palette.surfaceMuted,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: selectedTag == t ? _orange : const Color(0xFFE5E7EB)),
+                        border: Border.all(color: selectedTag == t ? _orange : context.palette.border),
                       ),
                       child: Text(
                         _tagLabel(t),
@@ -1000,7 +993,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
           decoration: BoxDecoration(
             color: context.palette.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: context.palette.border),
           ),
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -1011,7 +1004,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
-                      color: _creationMode == 'section' ? _orange : const Color(0xFFF1F5F9),
+                      color: _creationMode == 'section' ? _orange : context.palette.surfaceMuted,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     alignment: Alignment.center,
@@ -1033,7 +1026,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
-                      color: _creationMode == 'direct' ? _orange : const Color(0xFFF1F5F9),
+                      color: _creationMode == 'direct' ? _orange : context.palette.surfaceMuted,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     alignment: Alignment.center,
@@ -1117,7 +1110,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
 
   Widget _buildFloorTabs() {
     return Container(
-      color: Colors.white,
+      color: context.palette.surface,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       child: Row(
         children: [
@@ -1133,9 +1126,9 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: _activeFloorIndex == i ? _orange : Colors.white,
+                        color: _activeFloorIndex == i ? _orange : context.palette.surfaceMuted,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _activeFloorIndex == i ? _orange : const Color(0xFFE5E7EB)),
+                        border: Border.all(color: _activeFloorIndex == i ? _orange : context.palette.border),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Text(
@@ -1541,7 +1534,7 @@ class _LibrarySetupStage2ScreenState extends State<LibrarySetupStage2Screen> {
 
   Widget _buildSaveButton() {
     return Container(
-      color: Colors.white,
+      color: context.palette.surface,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       child: ElevatedButton(
         onPressed: (_isSaving || _isLoading) ? null : _handleSave,
@@ -1644,19 +1637,13 @@ class _SectionCardWidgetState extends State<_SectionCardWidget> {
   }
 
   void _showErrorSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-      backgroundColor: const Color(0xFFEF4444),
-      behavior: SnackBarBehavior.floating,
-    ));
+    if (!mounted) return;
+    AppSnackbar.error(context, msg);
   }
 
   void _showSuccessSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-      backgroundColor: Colors.green,
-      behavior: SnackBarBehavior.floating,
-    ));
+    if (!mounted) return;
+    AppSnackbar.success(context, msg);
   }
 
   String _getInlinePreviewText() {

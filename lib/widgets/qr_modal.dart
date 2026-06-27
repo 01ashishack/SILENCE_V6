@@ -8,6 +8,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../theme/app_palette.dart';
 
 class QRModal extends StatefulWidget {
   final String libraryId;
@@ -73,7 +74,7 @@ class _QRModalState extends State<QRModal> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFFE65C00),
+        backgroundColor: const Color(0xFF16A34A),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
@@ -492,7 +493,7 @@ class _QRModalState extends State<QRModal> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),

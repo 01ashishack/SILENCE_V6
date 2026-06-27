@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../core/picker_theme.dart';
 import '../core/image_optimizer.dart';
 
 class AddExpenseBottomSheet extends StatefulWidget {
@@ -94,18 +95,7 @@ class _AddExpenseBottomSheetState extends State<AddExpenseBottomSheet> {
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFE65C00),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF1E293B),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (context, child) => brandPickerTheme(context, child),
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);

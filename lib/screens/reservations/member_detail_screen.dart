@@ -10,6 +10,7 @@ import '../../utils/audit_logger.dart';
 import '../../utils/pdf_exporter.dart';
 import '../../utils/attendance_format.dart';
 import '../../utils/csv_exporter.dart';
+import '../../core/picker_theme.dart';
 import 'member_transfer_screen.dart';
 
 class MemberDetailScreen extends StatefulWidget {
@@ -462,7 +463,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         icon: const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFFE65C00)),
                         label: Text(checkInTime.format(context), style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                         onPressed: () async {
-                          final picked = await showTimePicker(context: context, initialTime: checkInTime);
+                          final picked = await showTimePicker(context: context, initialTime: checkInTime, builder: (c, ch) => brandPickerTheme(c, ch));
                           if (picked != null) setModalState(() => checkInTime = picked);
                         },
                       ),
@@ -477,7 +478,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         icon: const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFFE65C00)),
                         label: Text(checkOutTime.format(context), style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
                         onPressed: () async {
-                          final picked = await showTimePicker(context: context, initialTime: checkOutTime);
+                          final picked = await showTimePicker(context: context, initialTime: checkOutTime, builder: (c, ch) => brandPickerTheme(c, ch));
                           if (picked != null) setModalState(() => checkOutTime = picked);
                         },
                       ),
@@ -603,13 +604,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               initialDateRange: DateTimeRange(start: rStart, end: rEnd),
               firstDate: DateTime(2024, 1, 1),
               lastDate: DateTime(now.year + 1, 12, 31),
-              builder: (c, child) => Theme(
-                data: Theme.of(c).copyWith(
-                  colorScheme: const ColorScheme.light(
-                      primary: Color(0xFFE65C00), onPrimary: Colors.white, onSurface: Color(0xFF1E293B)),
-                ),
-                child: child!,
-              ),
+              builder: (c, child) => brandPickerTheme(c, child),
             );
             if (picked != null) setSheet(() { rStart = picked.start; rEnd = picked.end; });
           }
@@ -1956,13 +1951,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       initialDateRange: DateTimeRange(start: start, end: end),
       firstDate: DateTime(2024, 1, 1),
       lastDate: DateTime(now.year + 1, 12, 31),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(
-              primary: Color(0xFFE65C00), onPrimary: Colors.white, onSurface: Color(0xFF1E293B)),
-        ),
-        child: child!,
-      ),
+      builder: (ctx, child) => brandPickerTheme(ctx, child),
     );
     if (picked != null && mounted) {
       setState(() {

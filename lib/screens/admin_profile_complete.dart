@@ -1,5 +1,6 @@
 import 'dart:io';
 import '../theme/app_palette.dart';
+import '../core/app_snackbar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -82,21 +83,13 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFFEF4444),
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.error(context, message);
   }
 
   void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFF10B981),
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.success(context, message);
   }
 
   Future<bool> _requestCameraPermission() async {
@@ -577,13 +570,14 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                 showCupertinoModalPopup(
                                   context: context,
                                   builder: (BuildContext context) {
+                                    final bool isDark = Theme.of(context).brightness == Brightness.dark;
                                     return Container(
                                       height: 320,
-                                      color: Colors.white,
+                                      color: context.palette.surface,
                                       child: Column(
                                         children: [
                                           Container(
-                                            color: Colors.grey[100],
+                                            color: context.palette.surfaceMuted,
                                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                             child: Row(
                                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -605,14 +599,19 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                                             ),
                                           ),
                                           Expanded(
-                                            child: CupertinoDatePicker(
-                                              mode: CupertinoDatePickerMode.date,
-                                              initialDateTime: tempDate,
-                                              minimumYear: 1950,
-                                              maximumDate: DateTime.now(),
-                                              onDateTimeChanged: (DateTime newDate) {
-                                                tempDate = newDate;
-                                              },
+                                            child: CupertinoTheme(
+                                              data: CupertinoThemeData(
+                                                brightness: isDark ? Brightness.dark : Brightness.light,
+                                              ),
+                                              child: CupertinoDatePicker(
+                                                mode: CupertinoDatePickerMode.date,
+                                                initialDateTime: tempDate,
+                                                minimumYear: 1950,
+                                                maximumDate: DateTime.now(),
+                                                onDateTimeChanged: (DateTime newDate) {
+                                                  tempDate = newDate;
+                                                },
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -624,9 +623,9 @@ class _AdminProfileCompleteScreenState extends State<AdminProfileCompleteScreen>
                               child: Container(
                                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                                 decoration: BoxDecoration(
-                                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                                  border: Border.all(color: context.palette.border),
                                   borderRadius: BorderRadius.circular(12),
-                                  color: Colors.white,
+                                  color: context.palette.surface,
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

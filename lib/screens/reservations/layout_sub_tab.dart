@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/shift_overlap.dart';
+import '../../core/picker_theme.dart';
 import '../../widgets/states/shimmer_box.dart';
 import 'admin_renew_sheet.dart';
 
@@ -472,6 +473,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       context: context,
       initialTime: TimeOfDay.now(),
       helpText: 'Select check-in time',
+      builder: (c, ch) => brandPickerTheme(c, ch),
     );
     if (picked == null) return;
     if (!mounted) return;
@@ -527,6 +529,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
       context: context,
       initialTime: TimeOfDay.now(),
       helpText: 'Select check-out time',
+      builder: (c, ch) => brandPickerTheme(c, ch),
     );
     if (picked == null) return;
     if (!mounted) return;

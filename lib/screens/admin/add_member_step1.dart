@@ -902,7 +902,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                 initialValue: widget.memberData.gender,
                 decoration: const InputDecoration(labelText: 'Gender *'),
                 style: GoogleFonts.inter(color: context.palette.textPrimary, fontSize: 14),
-                dropdownColor: Colors.white,
+                dropdownColor: context.palette.surface,
                 borderRadius: BorderRadius.circular(14),
                 items: const [
                   DropdownMenuItem(value: 'male', child: Text('Male')),
@@ -990,7 +990,7 @@ class _AddMemberStep1State extends State<AddMemberStep1> with AutomaticKeepAlive
                 initialValue: widget.memberData.preparingFor,
                 decoration: const InputDecoration(labelText: 'Preparing For *'),
                 style: GoogleFonts.inter(color: context.palette.textPrimary, fontSize: 14),
-                dropdownColor: Colors.white,
+                dropdownColor: context.palette.surface,
                 borderRadius: BorderRadius.circular(14),
                 items: const [
                   DropdownMenuItem(value: 'UPSC', child: Text('UPSC')),

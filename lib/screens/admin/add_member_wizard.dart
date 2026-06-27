@@ -10,6 +10,7 @@ import '../../models/member_data.dart';
 import '../../services/draft_service.dart';
 import '../../core/image_optimizer.dart';
 import '../../utils/error_messages.dart';
+import '../../core/app_snackbar.dart';
 import 'add_member_mode_selection.dart';
 import 'add_member_step1.dart';
 import 'add_member_step2.dart';
@@ -285,12 +286,8 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
-        backgroundColor: Colors.red[600],
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.error(context, message);
   }
 
   DateTime get _calculatedPlanStart {
@@ -971,9 +968,9 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(top: BorderSide(color: context.palette.border)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1126,9 +1123,9 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
           // Next Button
           Container(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+            decoration: BoxDecoration(
+              color: context.palette.surface,
+              border: Border(top: BorderSide(color: context.palette.border)),
             ),
             child: SizedBox(
               width: double.infinity,

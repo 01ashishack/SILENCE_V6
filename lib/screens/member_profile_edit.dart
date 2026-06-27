@@ -1,5 +1,6 @@
 import 'dart:io';
 import '../theme/app_palette.dart';
+import '../core/app_snackbar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
@@ -167,21 +168,13 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFFEF4444),
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.error(context, message);
   }
 
   void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFF10B981),
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.success(context, message);
   }
 
   int? _calculateAge(DateTime? birthDate) {

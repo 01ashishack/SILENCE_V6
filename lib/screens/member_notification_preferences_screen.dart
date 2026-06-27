@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/error_messages.dart';
+import '../core/picker_theme.dart';
 
 class MemberNotificationPreferencesScreen extends StatefulWidget {
   const MemberNotificationPreferencesScreen({super.key});
@@ -162,18 +163,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: _streakTime,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFE65C00),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF1E293B),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (context, child) => brandPickerTheme(context, child),
     );
     if (!mounted) return;
     if (picked != null && picked != _streakTime) {
@@ -185,18 +175,7 @@ class _MemberNotificationPreferencesScreenState extends State<MemberNotification
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: isStart ? _quietHoursStart : _quietHoursEnd,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFE65C00),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF1E293B),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (context, child) => brandPickerTheme(context, child),
     );
     if (!mounted) return;
     if (picked != null) {

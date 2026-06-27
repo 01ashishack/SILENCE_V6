@@ -13,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
 import '../core/image_optimizer.dart';
+import '../core/picker_theme.dart';
 import '../utils/error_messages.dart';
 import '../core/plan_service.dart';
 import '../widgets/upgrade_sheet.dart';
@@ -1139,33 +1140,35 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                 ),
               ],
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('This schedules permanent deletion in 7 days. Your account is '
-                    'frozen immediately — the dashboard is locked meanwhile.',
-                    style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
-                const SizedBox(height: 10),
-                _adminDelWarn('Your library, seats, shifts & settings will be removed'),
-                _adminDelWarn('Your members lose access to this library'),
-                _adminDelWarn('Analytics, payments & audit history will be erased'),
-                const SizedBox(height: 8),
-                Text('Within 7 days you can request recovery; the SILENCE team reviews '
-                    'and decides. There is no self-cancel. After 7 days it is permanent.',
-                    style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted)),
-                const SizedBox(height: 14),
-                Text('Type DELETE to confirm:',
-                    style: GoogleFonts.inter(
-                        fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: confirmCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  onChanged: (_) => setDialog(() {}),
-                  decoration: const InputDecoration(hintText: 'DELETE'),
-                ),
-              ],
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('This schedules permanent deletion in 7 days. Your account is '
+                      'frozen immediately — the dashboard is locked meanwhile.',
+                      style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
+                  const SizedBox(height: 10),
+                  _adminDelWarn('Your library, seats, shifts & settings will be removed'),
+                  _adminDelWarn('Your members lose access to this library'),
+                  _adminDelWarn('Analytics, payments & audit history will be erased'),
+                  const SizedBox(height: 8),
+                  Text('Within 7 days you can request recovery; the SILENCE team reviews '
+                      'and decides. There is no self-cancel. After 7 days it is permanent.',
+                      style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted)),
+                  const SizedBox(height: 14),
+                  Text('Type DELETE to confirm:',
+                      style: GoogleFonts.inter(
+                          fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: confirmCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    onChanged: (_) => setDialog(() {}),
+                    decoration: const InputDecoration(hintText: 'DELETE'),
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -2067,11 +2070,35 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     const SizedBox(height: 6),
                     TextField(
                       controller: hoursCtrl,
-                      style: GoogleFonts.inter(fontSize: 13),
+                      readOnly: true,
+                      style: GoogleFonts.inter(fontSize: 13, color: context.palette.textPrimary),
+                      onTap: () async {
+                        final TimeOfDay? open = await showTimePicker(
+                          context: context,
+                          initialTime: const TimeOfDay(hour: 6, minute: 0),
+                          helpText: 'Opening time',
+                          builder: (c, ch) => brandPickerTheme(c, ch),
+                        );
+                        if (open == null) return;
+                        if (!sheetContext.mounted) return;
+                        final TimeOfDay? close = await showTimePicker(
+                          context: context,
+                          initialTime: const TimeOfDay(hour: 23, minute: 0),
+                          helpText: 'Closing time',
+                          builder: (c, ch) => brandPickerTheme(c, ch),
+                        );
+                        if (close == null) return;
+                        if (!sheetContext.mounted) return;
+                        setSheet(() {
+                          hoursCtrl.text =
+                              '${open.format(sheetContext)} – ${close.format(sheetContext)}';
+                        });
+                      },
                       decoration: InputDecoration(
                         hintText: 'e.g. 6:00 AM – 11:00 PM',
                         hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
                         prefixIcon: const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFFE65C00)),
+                        suffixIcon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF94A3B8)),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -2181,6 +2208,15 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     final locationLinkCtrl = TextEditingController(text: lib['location_link'] ?? '');
     final emergencyCtrl = TextEditingController(text: lib['emergency_phone'] ?? '');
 
+    const List<String> indianStates = [
+      'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+      'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+      'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+      'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+      'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+      'Delhi', 'Jammu & Kashmir', 'Ladakh', 'Puducherry'
+    ];
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2226,9 +2262,32 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
-                        controller: stateCtrl,
-                        decoration: const InputDecoration(labelText: 'State'),
+                      child: StatefulBuilder(
+                        builder: (ctx, setLocal) {
+                          final String? current = indianStates.contains(stateCtrl.text)
+                              ? stateCtrl.text
+                              : null;
+                          return DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: current,
+                            dropdownColor: context.palette.surface,
+                            borderRadius: BorderRadius.circular(14),
+                            menuMaxHeight: 320,
+                            decoration: const InputDecoration(labelText: 'State'),
+                            items: indianStates.map((s) {
+                              return DropdownMenuItem<String>(
+                                value: s,
+                                child: Text(
+                                  s,
+                                  style: GoogleFonts.inter(color: context.palette.textPrimary),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setLocal(() => stateCtrl.text = val);
+                            },
+                          );
+                        },
                       ),
                     ),
                   ],

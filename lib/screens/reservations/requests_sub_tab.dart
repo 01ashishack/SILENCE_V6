@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../utils/audit_logger.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/time_utils.dart';
+import '../../core/picker_theme.dart';
 import '../../widgets/states/shimmer_box.dart';
 
 class RequestsSubTab extends StatefulWidget {
@@ -406,6 +407,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                           initialDate: startDate,
                           firstDate: DateTime(2020),
                           lastDate: DateTime.now().add(const Duration(days: 31)),
+                          builder: (ctx, ch) => brandPickerTheme(ctx, ch),
                         );
                         if (picked != null) setD(() => startDate = picked);
                       },

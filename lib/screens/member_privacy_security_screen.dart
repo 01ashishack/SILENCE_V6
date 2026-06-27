@@ -1,5 +1,6 @@
 import 'dart:convert';
 import '../theme/app_palette.dart';
+import '../core/app_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -88,21 +89,13 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
   }
 
   void _showErrorSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFFEF4444),
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.error(context, msg);
   }
 
   void _showSuccessSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFF10B981),
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.success(context, msg);
   }
 
   Future<void> _savePrivacySettings() async {
@@ -378,34 +371,36 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                 ),
               ],
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('This schedules permanent deletion in 7 days. Your account is '
-                    'frozen immediately — the dashboard is locked meanwhile.',
-                    style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
-                const SizedBox(height: 10),
-                _delWarnRow('Your profile, study hours, streaks & history will be erased'),
-                _delWarnRow('Your memberships and seat will be released'),
-                _delWarnRow('You will be signed out and check-in will be disabled'),
-                const SizedBox(height: 8),
-                Text('Within 7 days you can request recovery; the SILENCE team reviews '
-                    'and decides. There is no self-cancel. After 7 days it is permanent.',
-                    style: GoogleFonts.inter(
-                        fontSize: 11.5, color: context.palette.textMuted)),
-                const SizedBox(height: 14),
-                Text('Type DELETE to confirm:',
-                    style: GoogleFonts.inter(
-                        fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: confirmCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  onChanged: (_) => setDialog(() {}),
-                  decoration: const InputDecoration(hintText: 'DELETE'),
-                ),
-              ],
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('This schedules permanent deletion in 7 days. Your account is '
+                      'frozen immediately — the dashboard is locked meanwhile.',
+                      style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
+                  const SizedBox(height: 10),
+                  _delWarnRow('Your profile, study hours, streaks & history will be erased'),
+                  _delWarnRow('Your memberships and seat will be released'),
+                  _delWarnRow('You will be signed out and check-in will be disabled'),
+                  const SizedBox(height: 8),
+                  Text('Within 7 days you can request recovery; the SILENCE team reviews '
+                      'and decides. There is no self-cancel. After 7 days it is permanent.',
+                      style: GoogleFonts.inter(
+                          fontSize: 11.5, color: context.palette.textMuted)),
+                  const SizedBox(height: 14),
+                  Text('Type DELETE to confirm:',
+                      style: GoogleFonts.inter(
+                          fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: confirmCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    onChanged: (_) => setDialog(() {}),
+                    decoration: const InputDecoration(hintText: 'DELETE'),
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(

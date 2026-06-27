@@ -3,7 +3,9 @@ import '../theme/app_palette.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/active_library_store.dart';
+import '../core/picker_theme.dart';
 import '../widgets/app_gradient_scaffold.dart';
+import '../core/app_snackbar.dart';
 
 class ShiftManagementScreen extends StatefulWidget {
   final String? libraryId;
@@ -58,8 +60,10 @@ class _ShiftModel {
 
 class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
   static const _orange = Color(0xFFE65C00);
-  static const _dark = Color(0xFF1A1A2E);
-  static const _grey = Color(0xFF6B7280);
+  // Theme-aware: dark navy text on a dark card was invisible. Resolve from the
+  // active palette so titles/labels adapt in both light and dark.
+  Color get _dark => context.palette.textPrimary;
+  Color get _grey => context.palette.textSecondary;
 
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
@@ -163,20 +167,12 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-      backgroundColor: const Color(0xFFEF4444),
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppSnackbar.error(context, msg);
   }
 
   void _showSuccess(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-      backgroundColor: Colors.green,
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppSnackbar.success(context, msg);
   }
 
   // ── Shift operations ──────────────────────────────────────────────────────
@@ -684,10 +680,10 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: shift.shiftType == 'fixed' ? _orange : const Color(0xFFF9FAFB),
+                                color: shift.shiftType == 'fixed' ? _orange : context.palette.surfaceMuted,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: shift.shiftType == 'fixed' ? _orange : const Color(0xFFE5E7EB),
+                                  color: shift.shiftType == 'fixed' ? _orange : context.palette.border,
                                 ),
                               ),
                               child: Text(
@@ -710,10 +706,10 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: shift.shiftType == 'hourly' ? _orange : const Color(0xFFF9FAFB),
+                                color: shift.shiftType == 'hourly' ? _orange : context.palette.surfaceMuted,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: shift.shiftType == 'hourly' ? _orange : const Color(0xFFE5E7EB),
+                                  color: shift.shiftType == 'hourly' ? _orange : context.palette.border,
                                 ),
                               ),
                               child: Text(
@@ -744,12 +740,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                                 final picked = await showTimePicker(
                                   context: context,
                                   initialTime: shift.startTime,
-                                  builder: (ctx, child) => Theme(
-                                    data: Theme.of(ctx).copyWith(
-                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: _dark),
-                                    ),
-                                    child: child!,
-                                  ),
+                                  builder: (ctx, child) => brandPickerTheme(ctx, child),
                                 );
                                 if (picked != null) {
                                   sheetState(() => shift.startTime = picked);
@@ -767,12 +758,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                                 final picked = await showTimePicker(
                                   context: context,
                                   initialTime: shift.endTime,
-                                  builder: (ctx, child) => Theme(
-                                    data: Theme.of(ctx).copyWith(
-                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: _dark),
-                                    ),
-                                    child: child!,
-                                  ),
+                                  builder: (ctx, child) => brandPickerTheme(ctx, child),
                                 );
                                 if (picked != null) {
                                   sheetState(() => shift.endTime = picked);
@@ -934,8 +920,8 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              color: context.palette.surface,
+              border: Border.all(color: context.palette.border),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -1069,15 +1055,15 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
             children: _upiIds.map((id) {
               final app = _upiAppName(id);
               return Chip(
-                backgroundColor: const Color(0xFFF3F4F6),
+                backgroundColor: context.palette.surfaceMuted,
                 avatar: app.isNotEmpty
                     ? Icon(_upiAppIcon(app), size: 16, color: _upiAppColor(app))
-                    : const Icon(Icons.qr_code, size: 16, color: Color(0xFF6B7280)),
-                label: Text(id, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500)),
-                deleteIcon: const Icon(Icons.close, size: 14),
+                    : Icon(Icons.qr_code, size: 16, color: context.palette.textMuted),
+                label: Text(id, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: context.palette.textPrimary)),
+                deleteIcon: Icon(Icons.close, size: 14, color: context.palette.textSecondary),
                 onDeleted: () => _removeUpiId(id),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                side: const BorderSide(color: Color(0xFFE5E7EB)),
+                side: BorderSide(color: context.palette.border),
               );
             }).toList(),
           ),

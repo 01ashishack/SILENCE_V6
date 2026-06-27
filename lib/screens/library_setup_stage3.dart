@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/active_library_store.dart';
 import '../core/theme_controller.dart';
+import '../core/picker_theme.dart';
+import '../core/app_snackbar.dart';
 
 class LibrarySetupStage3Screen extends StatefulWidget {
   const LibrarySetupStage3Screen({super.key});
@@ -173,20 +175,12 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-      backgroundColor: const Color(0xFFEF4444),
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppSnackbar.error(context, msg);
   }
 
   void _showSuccess(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-      backgroundColor: Colors.green,
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppSnackbar.success(context, msg);
   }
 
   // ── Shift operations ──────────────────────────────────────────────────────
@@ -737,12 +731,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                                 final picked = await showTimePicker(
                                   context: context,
                                   initialTime: shift.startTime,
-                                  builder: (ctx, child) => Theme(
-                                    data: Theme.of(ctx).copyWith(
-                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: Color(0xFF1A1A2E)),
-                                    ),
-                                    child: child!,
-                                  ),
+                                  builder: (ctx, child) => brandPickerTheme(ctx, child),
                                 );
                                 if (picked != null) {
                                   sheetState(() => shift.startTime = picked);
@@ -760,12 +749,7 @@ class _LibrarySetupStage3ScreenState extends State<LibrarySetupStage3Screen> {
                                 final picked = await showTimePicker(
                                   context: context,
                                   initialTime: shift.endTime,
-                                  builder: (ctx, child) => Theme(
-                                    data: Theme.of(ctx).copyWith(
-                                      colorScheme: const ColorScheme.light(primary: _orange, onPrimary: Colors.white, onSurface: Color(0xFF1A1A2E)),
-                                    ),
-                                    child: child!,
-                                  ),
+                                  builder: (ctx, child) => brandPickerTheme(ctx, child),
                                 );
                                 if (picked != null) {
                                   sheetState(() => shift.endTime = picked);

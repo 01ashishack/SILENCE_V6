@@ -11,6 +11,8 @@ import 'package:image_cropper/image_cropper.dart';
 import '../core/image_optimizer.dart';
 import '../core/active_library_store.dart';
 import '../core/library_settings_copier.dart';
+import '../utils/error_messages.dart';
+import '../core/app_snackbar.dart';
 
 
 class LibrarySetupStage1Screen extends StatefulWidget {
@@ -206,23 +208,13 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFFEF4444),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.error(context, message);
   }
 
   void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFFE65C00),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.success(context, message);
   }
 
   Future<String> _ensureLibraryId() async {
@@ -260,6 +252,34 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
     _libraryId = newLib['id'];
     _libraryCode = tempCode;
     return _libraryId!;
+  }
+
+  /// Upload bytes to storage with a few retries. Mobile networks frequently drop
+  /// a single request mid-upload ("Connection reset by peer"); a quick retry
+  /// usually succeeds instead of failing the whole flow.
+  Future<void> _uploadBytesWithRetry(String path, List<int> bytes) async {
+    final supabase = Supabase.instance.client;
+    Object? lastError;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await supabase.storage.from('silence_assets').uploadBinary(
+              path,
+              Uint8List.fromList(bytes),
+              fileOptions: const FileOptions(
+                contentType: 'image/jpeg',
+                cacheControl: '3600',
+                upsert: true,
+              ),
+            );
+        return; // success
+      } catch (e) {
+        lastError = e;
+        // Only retry transient network errors; rethrow real failures fast.
+        if (!isNetworkError(e) || attempt == 3) rethrow;
+        await Future.delayed(Duration(milliseconds: 600 * attempt));
+      }
+    }
+    if (lastError != null) throw lastError;
   }
 
   Future<ImageSource?> _showImageSourceBottomSheet(BuildContext context, String title) async {
@@ -490,17 +510,9 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
       
       final supabase = Supabase.instance.client;
 
-      // Upload cover directly to pre-provisioned assets bucket
+      // Upload cover directly to pre-provisioned assets bucket (with retry)
 
-      await supabase.storage.from('silence_assets').uploadBinary(
-        path,
-        Uint8List.fromList(bytes),
-        fileOptions: const FileOptions(
-          contentType: 'image/jpeg',
-          cacheControl: '3600', 
-          upsert: true,
-        ),
-      );
+      await _uploadBytesWithRetry(path, bytes);
       if (!mounted) return;
 
       final publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
@@ -524,7 +536,9 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
       _showSuccessSnackBar('Cover photo uploaded successfully! ✓');
     } catch (e) {
       debugPrint('Cover upload failed: $e');
-      _showErrorSnackBar('Cover upload failed: $e');
+      _showErrorSnackBar(isNetworkError(e)
+          ? 'Cover upload failed — weak connection. Please retry.'
+          : friendlyError(e));
     } finally {
       if (mounted) {
         setState(() => _isUploadingCover = false);
@@ -639,17 +653,9 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
       
       final supabase = Supabase.instance.client;
 
-      // Upload gallery photo directly to pre-provisioned assets bucket
+      // Upload gallery photo directly to pre-provisioned assets bucket (with retry)
 
-      await supabase.storage.from('silence_assets').uploadBinary(
-        path,
-        Uint8List.fromList(bytes),
-        fileOptions: const FileOptions(
-          contentType: 'image/jpeg',
-          cacheControl: '3600', 
-          upsert: true,
-        ),
-      );
+      await _uploadBytesWithRetry(path, bytes);
       if (!mounted) return;
 
       final publicUrl = supabase.storage.from('silence_assets').getPublicUrl(path);
@@ -673,7 +679,9 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
       _showSuccessSnackBar('Gallery photo uploaded successfully! ✓');
     } catch (e) {
       debugPrint('Gallery upload failed: $e');
-      _showErrorSnackBar('Gallery upload failed: $e');
+      _showErrorSnackBar(isNetworkError(e)
+          ? 'Gallery upload failed — weak connection. Please retry.'
+          : friendlyError(e));
     } finally {
       if (mounted) {
         setState(() => _isUploadingGallery = false);
@@ -967,7 +975,7 @@ class _LibrarySetupStage1ScreenState extends State<LibrarySetupStage1Screen> {
                                     const SizedBox(height: 6),
                                     DropdownButtonFormField<String>(
                                       isExpanded: true,
-                                      dropdownColor: Colors.white,
+                                      dropdownColor: context.palette.surface,
                                       borderRadius: BorderRadius.circular(14),
                                       menuMaxHeight: 320,
                                       initialValue: _stateController.text.isNotEmpty && _indianStates.contains(_stateController.text)

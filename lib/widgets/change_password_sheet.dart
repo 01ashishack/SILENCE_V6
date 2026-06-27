@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/error_messages.dart';
+import '../theme/app_palette.dart';
 
 /// Shared "Change Password" bottom sheet used by BOTH the member and admin
 /// profile screens (single implementation → no divergence).
@@ -21,7 +22,7 @@ Future<void> showChangePasswordSheet(BuildContext context) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: context.palette.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),

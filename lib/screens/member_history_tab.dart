@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import '../utils/error_messages.dart';
 import '../widgets/states/shimmer_box.dart';
 import '../theme/app_palette.dart';
+import '../core/picker_theme.dart';
 import '../utils/time_utils.dart';
 
 
@@ -536,18 +537,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
             start: DateTime.now().subtract(const Duration(days: 30)),
             end: DateTime.now(),
           ),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFE65C00),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF1E293B),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (context, child) => brandPickerTheme(context, child),
     );
     if (!mounted) return;
 

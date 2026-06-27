@@ -1,5 +1,6 @@
 import 'dart:io';
 import '../theme/app_palette.dart';
+import '../core/app_snackbar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -79,21 +80,13 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
   }
 
   void _showErrorSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFFEF4444),
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.error(context, msg);
   }
 
   void _showSuccessSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
-        backgroundColor: const Color(0xFF10B981),
-      ),
-    );
+    if (!mounted) return;
+    AppSnackbar.success(context, msg);
   }
 
   Future<bool> _requestPhotosPermission() async {

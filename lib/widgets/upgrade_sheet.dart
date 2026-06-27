@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/plan_service.dart';
+import '../theme/app_palette.dart';
 
 /// Gate an admin **management** action behind the plan.
 ///
@@ -27,7 +28,7 @@ Future<bool> ensurePlan(
   final nav = Navigator.of(context);
   await showModalBottomSheet<void>(
     context: context,
-    backgroundColor: Colors.white,
+    backgroundColor: context.palette.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),

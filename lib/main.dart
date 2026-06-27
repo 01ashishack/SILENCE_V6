@@ -201,6 +201,28 @@ class SilenceApp extends StatelessWidget {
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
         ),
+
+        // Floating snackbars (consistent radius/animation app-wide), matching
+        // the dark theme. Per-call green/red backgrounds still take precedence.
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFF1E293B),
+          contentTextStyle: const TextStyle(color: Colors.white),
+          actionTextColor: const Color(0xFFFFD8BE),
+          elevation: 6,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        datePickerTheme: const DatePickerThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          headerBackgroundColor: Color(0xFFE65C00),
+          headerForegroundColor: Colors.white,
+        ),
+        popupMenuTheme: PopupMenuThemeData(
+          color: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
         
         // Custom Typography. Build from a concrete Typography (NOT
         // Theme.of(context) — that context is above this MaterialApp, so it
@@ -329,6 +351,10 @@ class SilenceApp extends StatelessWidget {
       ),
       scaffoldBackgroundColor: const Color(0xFF121212),
       cardColor: const Color(0xFF1E1E1E),
+      // Legacy DropdownButton menus read their background from canvasColor;
+      // keep it dark so any dropdown we didn't touch still adapts.
+      canvasColor: const Color(0xFF1E1E1E),
+      dividerColor: const Color(0xFF2A2A2A),
       dialogTheme: const DialogThemeData(
         backgroundColor: Color(0xFF1E1E1E),
         surfaceTintColor: Colors.transparent,
@@ -336,6 +362,102 @@ class SilenceApp extends StatelessWidget {
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Color(0xFF1E1E1E),
         surfaceTintColor: Colors.transparent,
+        modalBackgroundColor: Color(0xFF1E1E1E),
+      ),
+      // Dropdown menus (M3 DropdownMenu + legacy DropdownButton popups).
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: const WidgetStatePropertyAll(Color(0xFF1E1E1E)),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: const Color(0xFF1E1E1E),
+        surfaceTintColor: Colors.transparent,
+        textStyle: const TextStyle(color: Color(0xFFF1F5F9)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      menuTheme: const MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(Color(0xFF1E1E1E)),
+          surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
+        ),
+      ),
+      // Floating snackbars so they sit ABOVE bottom sheets/dialogs and look
+      // identical app-wide. Per-call backgroundColor (green/red) still wins.
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF262626),
+        contentTextStyle: const TextStyle(color: Color(0xFFF1F5F9)),
+        actionTextColor: const Color(0xFFE65C00),
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: const Color(0xFF262626),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        textStyle: const TextStyle(color: Color(0xFFF1F5F9), fontSize: 12),
+      ),
+      datePickerTheme: const DatePickerThemeData(
+        backgroundColor: Color(0xFF1E1E1E),
+        surfaceTintColor: Colors.transparent,
+        headerBackgroundColor: Color(0xFFE65C00),
+        headerForegroundColor: Colors.white,
+      ),
+      timePickerTheme: const TimePickerThemeData(
+        backgroundColor: Color(0xFF1E1E1E),
+      ),
+      expansionTileTheme: const ExpansionTileThemeData(
+        backgroundColor: Color(0xFF1E1E1E),
+        collapsedBackgroundColor: Color(0xFF1E1E1E),
+        textColor: Color(0xFFF1F5F9),
+        collapsedTextColor: Color(0xFFF1F5F9),
+        iconColor: Color(0xFFE65C00),
+        collapsedIconColor: Color(0xFF94A3B8),
+      ),
+      listTileTheme: const ListTileThemeData(
+        iconColor: Color(0xFFCBD5E1),
+        textColor: Color(0xFFF1F5F9),
+      ),
+      dividerTheme: const DividerThemeData(color: Color(0xFF2A2A2A)),
+      iconTheme: const IconThemeData(color: Color(0xFFCBD5E1)),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: Color(0xFFE65C00),
+      ),
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: Color(0xFFE65C00),
+        selectionColor: Color(0x55E65C00),
+        selectionHandleColor: Color(0xFFE65C00),
+      ),
+      // Selection controls: brand-orange when on/checked/selected.
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? const Color(0xFFE65C00) : const Color(0xFF94A3B8)),
+        trackColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? const Color(0x55E65C00) : const Color(0xFF3A3A3A)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? const Color(0xFFE65C00) : Colors.transparent),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+        side: const BorderSide(color: Color(0xFF94A3B8)),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? const Color(0xFFE65C00) : const Color(0xFF94A3B8)),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: const Color(0xFF262626),
+        selectedColor: const Color(0x33E65C00),
+        labelStyle: const TextStyle(color: Color(0xFFF1F5F9)),
+        secondaryLabelStyle: const TextStyle(color: Color(0xFFF1F5F9)),
+        side: const BorderSide(color: Color(0xFF334155)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Color(0xFFE65C00),

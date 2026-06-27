@@ -115,9 +115,9 @@ class _AddMemberModeSelectionState extends State<AddMemberModeSelection> {
           // Bottom Continue Button
           Container(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+            decoration: BoxDecoration(
+              color: context.palette.surface,
+              border: Border(top: BorderSide(color: context.palette.border)),
             ),
             child: SizedBox(
               width: double.infinity,

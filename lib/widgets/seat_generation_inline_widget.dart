@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../theme/app_palette.dart';
 
 class SeatGenerationInlineWidget extends StatefulWidget {
   final String creationMode; // 'section' or 'direct'
@@ -148,14 +149,14 @@ class _SeatGenerationInlineWidgetState extends State<SeatGenerationInlineWidget>
   @override
   Widget build(BuildContext context) {
     const Color orange = Color(0xFFE65C00);
-    const Color dark = Color(0xFF0F172A);
-    const Color grey = Color(0xFF64748B);
+    final Color dark = context.palette.textPrimary;
+    final Color grey = context.palette.textMuted;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: context.palette.border),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -363,7 +364,7 @@ class _SeatGenerationInlineWidgetState extends State<SeatGenerationInlineWidget>
                   onPressed: _isSaving ? null : widget.onCancel,
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    side: BorderSide(color: context.palette.border),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: Text(

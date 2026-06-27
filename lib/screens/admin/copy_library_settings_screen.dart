@@ -287,7 +287,7 @@ class _CopyLibrarySettingsScreenState extends State<CopyLibrarySettingsScreen> {
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           initialValue: _sourceId,
-          dropdownColor: Colors.white,
+          dropdownColor: context.palette.surface,
           decoration: InputDecoration(
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
