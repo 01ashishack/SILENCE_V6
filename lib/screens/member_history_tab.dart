@@ -1238,10 +1238,14 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '$dateStr • $ciTime - $coTime',
-                        style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
+                      Flexible(
+                        child: Text(
+                          '$dateStr • $ciTime - $coTime',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
+                        ),
                       ),
+                      const SizedBox(width: 6),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -1866,7 +1870,7 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: context.palette.textPrimary,
+        color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
       ),

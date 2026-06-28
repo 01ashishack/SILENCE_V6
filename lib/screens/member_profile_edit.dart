@@ -159,7 +159,21 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
             (_idDocumentUrl != null ? 'Under Review' : 'Not uploaded');
         _idProof2Status = prefs.getString('id_proof_status_2_$userId') ?? 
             (_idDocument2Url != null ? 'Under Review' : 'Not uploaded');
-            
+
+        // Private-bucket signed URLs expire (1h), so a stored URL goes stale and
+        // the preview breaks (red cross). Regenerate fresh signed URLs from the
+        // fixed storage paths whenever the screen loads.
+        final freshFront = await _freshIdUrl(userId, 'id_document_1.jpg');
+        if (freshFront != null) {
+          _idDocumentUrl = freshFront;
+          if (_idProofStatus == 'Not uploaded') _idProofStatus = 'Under Review';
+        }
+        final freshBack = await _freshIdUrl(userId, 'id_document_2.jpg');
+        if (freshBack != null) {
+          _idDocument2Url = freshBack;
+          if (_idProof2Status == 'Not uploaded') _idProof2Status = 'Under Review';
+        }
+
       } catch (e) {
         debugPrint('Error loading profile: $e');
       }
@@ -1015,6 +1029,19 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
     );
   }
 
+  /// Generates a fresh signed URL for a private-bucket ID document at its fixed
+  /// path. Returns null if the object doesn't exist (so callers can keep the
+  /// "not uploaded" state instead of showing a broken image).
+  Future<String?> _freshIdUrl(String userId, String fileName) async {
+    try {
+      return await Supabase.instance.client.storage
+          .from('silence_private')
+          .createSignedUrl('member_profiles/$userId/$fileName', 3600);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Widget _buildIdPhotoTile(String label, bool isRequired, String? docUrl, String status, String uploadType) {
     Color statusColor = Colors.grey;
     if (status == 'Verified') statusColor = const Color(0xFF10B981);
@@ -1051,6 +1078,26 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                         child: CachedNetworkImage(
                           imageUrl: docUrl,
                           fit: BoxFit.cover,
+                          placeholder: (context, url) => const Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.image_not_supported_outlined,
+                                  size: 22, color: Color(0xFF94A3B8)),
+                              const SizedBox(height: 4),
+                              Text('Tap to re-upload',
+                                  style: GoogleFonts.inter(
+                                      fontSize: 10, color: context.palette.textMuted)),
+                            ],
+                          ),
                         ),
                       ),
                       Container(

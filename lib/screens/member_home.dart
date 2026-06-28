@@ -5137,15 +5137,15 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       child: Container(
         margin: const EdgeInsets.only(top: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: context.palette.border),
         ),
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: title + date
+            // Header: title
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -5156,14 +5156,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                     fontWeight: FontWeight.w800,
                     color: const Color(0xFF94A3B8),
                     letterSpacing: 1.0,
-                  ),
-                ),
-                Text(
-                  prev['date'] ?? '',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: context.palette.textMuted,
                   ),
                 ),
               ],
