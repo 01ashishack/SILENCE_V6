@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_palette.dart';
 import '../core/app_snackbar.dart';
+import '../utils/error_messages.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -69,13 +70,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       return;
     }
 
-    if (password.length < 6) {
+    // Score on real variety, not just length, so "aaaaaaaaaa" isn't "Strong".
+    int score = 0;
+    if (password.length >= 8) score++;
+    if (password.length >= 12) score++;
+    if (RegExp(r'[A-Z]').hasMatch(password) && RegExp(r'[a-z]').hasMatch(password)) score++;
+    if (RegExp(r'\d').hasMatch(password)) score++;
+    if (RegExp(r'[^A-Za-z0-9]').hasMatch(password)) score++;
+
+    if (password.length < 8 || score <= 1) {
       setState(() {
         _passwordStrength = 'Weak';
         _passwordStrengthPercent = 0.33;
         _passwordStrengthColor = const Color(0xFFEF4444); // red
       });
-    } else if (password.length < 10) {
+    } else if (score <= 3) {
       setState(() {
         _passwordStrength = 'Medium';
         _passwordStrengthPercent = 0.66;
@@ -137,7 +146,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         }
       }
     } on AuthException catch (e) {
-      _showErrorSnackBar(e.message);
+      _showErrorSnackBar(friendlyError(e));
     } catch (e) {
       _showErrorSnackBar('Login failed. Please check your credentials.');
     } finally {
@@ -428,9 +437,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         : () async {
                             final email = emailController.text.trim();
                             if (email.isEmpty || !email.contains('@')) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please enter a valid email address.')),
-                              );
+                              AppSnackbar.warning(context, 'Please enter a valid email address.');
                               return;
                             }
                             setModalState(() => isResetting = true);
@@ -442,9 +449,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                               }
                             } catch (e) {
                               if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
+                              AppSnackbar.error(context, friendlyError(e));
                             } finally {
                               setModalState(() => isResetting = false);
                             }
@@ -496,9 +501,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8.0),
                   child: Image.asset(
-                    'assets/images/transparent_logo_with_black_name.png',
+                    Theme.of(context).brightness == Brightness.dark
+                        ? 'assets/images/transparent_logo_with_white_name.png'
+                        : 'assets/images/transparent_logo_with_black_name.png',
                     height: 54,
                     fit: BoxFit.contain,
+                    semanticLabel: 'SILENCE',
                   ),
                 ),
               ),
@@ -619,6 +627,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               prefixIcon: Icons.lock_outline,
               obscureText: _obscureLoginPassword,
               suffixIcon: IconButton(
+                tooltip: _obscureLoginPassword ? 'Show password' : 'Hide password',
                 icon: Icon(_obscureLoginPassword ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF9CA3AF)),
                 onPressed: () => setState(() => _obscureLoginPassword = !_obscureLoginPassword),
               ),
@@ -683,10 +692,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               prefixIcon: Icons.lock_outline,
               obscureText: _obscureSignupPassword,
               suffixIcon: IconButton(
+                tooltip: _obscureSignupPassword ? 'Show password' : 'Hide password',
                 icon: Icon(_obscureSignupPassword ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF9CA3AF)),
                 onPressed: () => setState(() => _obscureSignupPassword = !_obscureSignupPassword),
               ),
-              validator: (v) => v == null || v.length < 6 ? 'Password must be min 6 characters' : null,
+              validator: (v) => v == null || v.length < 8 ? 'Use at least 8 characters' : null,
             ),
             const SizedBox(height: 6),
 
@@ -721,6 +731,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               prefixIcon: Icons.lock_outline,
               obscureText: _obscureSignupConfirmPassword,
               suffixIcon: IconButton(
+                tooltip: _obscureSignupConfirmPassword ? 'Show password' : 'Hide password',
                 icon: Icon(_obscureSignupConfirmPassword ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF9CA3AF)),
                 onPressed: () => setState(() => _obscureSignupConfirmPassword = !_obscureSignupConfirmPassword),
               ),
@@ -828,12 +839,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   Widget _buildSocialDivider() {
     return Row(
       children: [
-        const Expanded(child: Divider(color: Color(0xFFE5E7EB))),
+        Expanded(child: Divider(color: context.palette.border)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: Text('or', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF9CA3AF))),
+          child: Text('or', style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted)),
         ),
-        const Expanded(child: Divider(color: Color(0xFFE5E7EB))),
+        Expanded(child: Divider(color: context.palette.border)),
       ],
     );
   }
@@ -842,33 +853,58 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildSocialCircleButton('Google', () => _handleOAuth('Google')),
+        _buildSocialCircleButton('Google', () => _handleOAuth('Google'), enabled: true),
         const SizedBox(width: 20),
-        _buildSocialCircleButton('Apple', () => _handleOAuth('Apple')),
+        // Apple sign-in isn't wired yet — show it visibly "Soon" instead of a
+        // button that always errors on tap.
+        _buildSocialCircleButton('Apple', () => _handleOAuth('Apple'), enabled: false),
       ],
     );
   }
 
-  Widget _buildSocialCircleButton(String provider, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
-          ],
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+  Widget _buildSocialCircleButton(String provider, VoidCallback onTap, {required bool enabled}) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color iconColor = provider == 'Google'
+        ? const Color(0xFFDB4437)
+        : (isDark ? Colors.white : Colors.black);
+    final chip = Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+        border: Border.all(color: context.palette.border, width: 1),
+      ),
+      child: Center(
+        child: FaIcon(
+          provider == 'Google' ? FontAwesomeIcons.google : FontAwesomeIcons.apple,
+          size: 24,
+          color: iconColor,
         ),
-        child: Center(
-          child: FaIcon(
-            provider == 'Google' ? FontAwesomeIcons.google : FontAwesomeIcons.apple,
-            size: 24,
-            color: provider == 'Google' ? const Color(0xFFDB4437) : Colors.black,
-          ),
+      ),
+    );
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: enabled ? 'Sign in with $provider' : '$provider sign-in coming soon',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Opacity(opacity: enabled ? 1.0 : 0.45, child: chip),
+            if (!enabled) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Soon',
+                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: context.palette.textMuted),
+              ),
+            ],
+          ],
         ),
       ),
     );

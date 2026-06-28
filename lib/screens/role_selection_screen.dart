@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_palette.dart';
 import '../core/app_snackbar.dart';
+import '../utils/error_messages.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -45,14 +46,19 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       }
 
       final email = user.email ?? '';
+      final metaName = (user.userMetadata?['full_name'] as String?)?.trim();
       final Map<String, dynamic> upsertData = {
         'id': user.id,
         'role': _selectedRole,
-        'full_name': user.userMetadata?['full_name'] ?? 'Admin User',
-        'nickname': (user.userMetadata?['full_name'] as String?)?.split(' ').first ?? 'Admin',
       };
       if (email.isNotEmpty) {
         upsertData['email'] = email;
+      }
+      // Only set the name if we actually have one — never clobber the name the
+      // user gave at signup with a placeholder (old bug: members became 'Admin User').
+      if (metaName != null && metaName.isNotEmpty) {
+        upsertData['full_name'] = metaName;
+        upsertData['nickname'] = metaName.split(' ').first;
       }
 
       // Save selection to DB users table (Using upsert to satisfy non-null role constraint)
@@ -67,19 +73,32 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
         Navigator.of(context).pushReplacementNamed('/member/home');
       }
     } catch (e) {
-      _showErrorSnackBar('Failed to save selection: $e');
+      _showErrorSnackBar(friendlyError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  // Leaving role-selection mid-onboarding (role still null) → sign out so /auth
+  // is a clean state, not a confusing "logged-in but on the login screen" loop.
+  Future<void> _exitToAuth() async {
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {}
+    if (mounted) Navigator.of(context).pushReplacementNamed('/auth');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final String logoAsset = isDark
+        ? 'assets/images/transparent_logo_with_white_name.png'
+        : 'assets/images/transparent_logo_with_black_name.png';
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        Navigator.of(context).pushReplacementNamed('/auth');
+        _exitToAuth();
       },
       child: Scaffold(
         backgroundColor: context.palette.scaffold,
@@ -92,10 +111,9 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 Align(
                   alignment: Alignment.topLeft,
                   child: IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Color(0xFF1A1A2E)),
-                    onPressed: () {
-                      Navigator.of(context).pushReplacementNamed('/auth');
-                    },
+                    icon: Icon(Icons.arrow_back, color: context.palette.textPrimary),
+                    tooltip: 'Back',
+                    onPressed: _exitToAuth,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -106,9 +124,10 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8.0),
                         child: Image.asset(
-                          'assets/images/transparent_logo_with_black_name.png',
+                          logoAsset,
                           height: 54,
                           fit: BoxFit.contain,
+                          semanticLabel: 'SILENCE',
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -148,11 +167,13 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.lock_outline, size: 14, color: Color(0xFF9CA3AF)),
+                    Icon(Icons.lock_outline, size: 14, color: context.palette.textMuted),
                     const SizedBox(width: 6),
-                    Text(
-                      'You cannot change your role after selection.',
-                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF9CA3AF), fontStyle: FontStyle.italic),
+                    Flexible(
+                      child: Text(
+                        'Changing your role later resets your account.',
+                        style: GoogleFonts.inter(fontSize: 12, color: context.palette.textMuted, fontStyle: FontStyle.italic),
+                      ),
                     ),
                   ],
                 ),
@@ -196,69 +217,74 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   }) {
     final isSelected = _selectedRole == role;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedRole = role;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.all(20.0),
-        decoration: BoxDecoration(
-          color: context.palette.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFE65C00) : const Color(0xFFE5E7EB),
-            width: isSelected ? 2.0 : 1.0,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: '$title. $description',
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedRole = role;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.all(20.0),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0x14E65C00) : context.palette.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? const Color(0xFFE65C00) : context.palette.border,
+              width: isSelected ? 2.0 : 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isSelected ? const Color(0xFFE65C00).withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              )
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected ? const Color(0xFFE65C00).withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Color(0x1FE65C00), // constant light orange tint backdrop
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 28, color: const Color(0xFFE65C00)),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
+          child: Row(
+            children: [
               Container(
-                width: 18,
-                height: 18,
+                padding: const EdgeInsets.all(12),
                 decoration: const BoxDecoration(
-                  color: Color(0xFFE65C00),
+                  color: Color(0x1FE65C00), // constant light orange tint backdrop
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check, size: 12, color: Colors.white),
-              )
-            else
-              const Icon(Icons.chevron_right, size: 20, color: Color(0xFF9CA3AF)),
-          ],
+                child: Icon(icon, size: 28, color: const Color(0xFFE65C00)),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Container(
+                  width: 18,
+                  height: 18,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE65C00),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 12, color: Colors.white),
+                )
+              else
+                Icon(Icons.chevron_right, size: 20, color: context.palette.textMuted),
+            ],
+          ),
         ),
       ),
     );
