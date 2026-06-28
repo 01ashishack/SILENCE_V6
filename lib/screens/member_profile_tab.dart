@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../core/app_info.dart';
 import '../core/theme_controller.dart';
 import '../theme/app_palette.dart';
 import 'package:intl/intl.dart';
@@ -17,7 +16,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/image_optimizer.dart';
-import 'contact_admin_screen.dart';
 import 'reservations/renewal_screen.dart';
 import 'reservations/join_flow_screen.dart';
 import 'library_public_profile_screen.dart';
@@ -1609,6 +1607,17 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
               ),
               const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
               _buildRowItem(
+                icon: Icons.face_retouching_natural_outlined,
+                iconBg: const Color(0xFFEDE9FE),
+                iconColor: const Color(0xFF7C3AED),
+                title: 'Avatar & Nickname',
+                subtitle: 'Pick your leaderboard avatar & display name',
+                onTap: () {
+                  Navigator.pushNamed(context, '/member/avatar').then((_) => _loadData());
+                },
+              ),
+              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
+              _buildRowItem(
                 icon: Icons.notifications_none_outlined,
                 iconBg: const Color(0xFFDBEAFE),
                 iconColor: const Color(0xFF2563EB),
@@ -1719,179 +1728,147 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
 
   // 6. SHARE APP CARD
   Widget _buildShareAppCard() {
+    final refCode = _userProfile?['referral_code']?.toString();
+    final hasCode = refCode != null && refCode.isNotEmpty;
+    final shareMsg = hasCode
+        ? 'Join me on SILENCE Study Zone — find quiet study spaces, track your hours & streaks. '
+            'Use my referral code $refCode when you join so we BOTH get free study days! '
+            'Download: https://silenceapp.in/download'
+        : 'Hey! Download the SILENCE Study Zone app to find quiet study spaces near you: '
+            'https://silenceapp.in/download';
+
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFE65C00), Color(0xFFC44E00)],
+          colors: [Color(0xFFFF7A2D), Color(0xFFE65C00), Color(0xFFC44E00)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFFE65C00).withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 8)),
+        ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            Share.share(
-              'Hey! Download the SILENCE Study Zone App to find silent study spaces near you: https://silenceapp.in/download',
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 20.0),
-            child: Row(
-              children: [
-                const Text(
-                  '📲',
-                  style: TextStyle(fontSize: 32),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🎁', style: TextStyle(fontSize: 30)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Refer & Earn Free Days',
+                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                    const SizedBox(height: 2),
+                    Text('Invite friends to SILENCE',
+                        style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.9))),
+                  ],
                 ),
-                const SizedBox(width: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _shareBenefit('You both get free study days when they join'),
+          const SizedBox(height: 6),
+          _shareBenefit('Help friends find quiet, focused study spaces'),
+          const SizedBox(height: 6),
+          _shareBenefit('Climb the leaderboard together'),
+          if (hasCode) ...[
+            const SizedBox(height: 16),
+            Text('YOUR REFERRAL CODE',
+                style: GoogleFonts.outfit(
+                    fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.8), letterSpacing: 1.5)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Share SILENCE App',
-                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Invite your study buddies to join!',
-                        style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
-                      ),
-                    ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(refCode,
+                            style: GoogleFonts.outfit(
+                                fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5)),
+                        GestureDetector(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: refCode));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Referral code copied ✓'), backgroundColor: Color(0xFF10B981)),
+                            );
+                          },
+                          child: const Icon(Icons.copy_rounded, color: Colors.white, size: 18),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: Colors.white, size: 20),
               ],
             ),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Share.share(shareMsg),
+              icon: const Icon(Icons.share_rounded, size: 18, color: Color(0xFFE65C00)),
+              label: Text(hasCode ? 'Share invite' : 'Share app',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  // 7. SUPPORT & LEGAL SECTION
-  Widget _buildSupportAndLegalSection() {
-    return Column(
+  Widget _shareBenefit(String text) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'HELP & LEGAL',
-          style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.w800, color: const Color(0xFF9CA3AF), letterSpacing: 1.5),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: context.palette.surface,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
-            ],
-          ),
-          child: Column(
-            children: [
-              _buildRowItem(
-                icon: Icons.forum_outlined,
-                iconBg: const Color(0x33E65C00),
-                iconColor: const Color(0xFFE65C00),
-                title: 'Contact Admin',
-                subtitle: 'Send queries & see admin replies',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ContactAdminScreen(),
-                    ),
-                  );
-                },
-              ),
-              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
-              _buildRowItem(
-                icon: Icons.chat_bubble_outline,
-                iconBg: const Color(0xFFDBEAFE),
-                iconColor: const Color(0xFF2563EB),
-                title: 'Help & Support',
-                subtitle: 'FAQs, contact us, report issues',
-                onTap: () {
-                  Navigator.pushNamed(context, '/member/help');
-                },
-              ),
-              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
-              _buildRowItem(
-                icon: Icons.info_outline,
-                iconBg: const Color(0xFFF3F4F6),
-                iconColor: const Color(0xFF4B5563),
-                title: 'About SILENCE',
-                subtitle: 'Version ${AppInfo.version} · Meet the team',
-                onTap: () {
-                  Navigator.pushNamed(context, '/member/about');
-                },
-              ),
-              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
-              _buildRowItem(
-                icon: Icons.description_outlined,
-                iconBg: const Color(0xFFF3F4F6),
-                iconColor: const Color(0xFF4B5563),
-                title: 'Terms & Conditions',
-                subtitle: 'Last updated: Jan 2026',
-                onTap: () {
-                  Navigator.pushNamed(context, '/member/terms');
-                },
-              ),
-              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
-              _buildRowItem(
-                icon: Icons.shield_outlined,
-                iconBg: const Color(0xFFF3F4F6),
-                iconColor: const Color(0xFF4B5563),
-                title: 'Privacy Policy',
-                subtitle: 'Last updated: Jan 2026',
-                onTap: () {
-                  Navigator.pushNamed(context, '/member/privacy-policy');
-                },
-              ),
-              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
-              _buildRowItem(
-                icon: Icons.assignment_outlined,
-                iconBg: const Color(0xFFF3F4F6),
-                iconColor: const Color(0xFF4B5563),
-                title: 'Licences',
-                subtitle: 'Third-party libraries used',
-                onTap: () {
-                  Navigator.pushNamed(context, '/member/licences');
-                },
-              ),
-              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
-              _buildRowItem(
-                icon: Icons.payments_outlined,
-                iconBg: const Color(0xFFF3F4F6),
-                iconColor: const Color(0xFF4B5563),
-                title: 'Refund Policy',
-                subtitle: 'When refunds apply',
-                onTap: () => Navigator.pushNamed(context, '/policy/refund'),
-              ),
-              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
-              _buildRowItem(
-                icon: Icons.cancel_outlined,
-                iconBg: const Color(0xFFF3F4F6),
-                iconColor: const Color(0xFF4B5563),
-                title: 'Cancellation Policy',
-                subtitle: 'Cancelling memberships & subscriptions',
-                onTap: () => Navigator.pushNamed(context, '/policy/cancellation'),
-              ),
-              const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9)),
-              _buildRowItem(
-                icon: Icons.groups_outlined,
-                iconBg: const Color(0xFFF3F4F6),
-                iconColor: const Color(0xFF4B5563),
-                title: 'Community Guidelines',
-                subtitle: 'How we keep spaces calm & safe',
-                onTap: () => Navigator.pushNamed(context, '/policy/community'),
-              ),
-            ],
-          ),
+        const Icon(Icons.check_circle_rounded, color: Colors.white, size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(text,
+              style: GoogleFonts.inter(fontSize: 12.5, color: Colors.white, height: 1.3)),
         ),
       ],
+    );
+  }
+
+  // 7. SUPPORT & LEGAL SECTION (single entry → full list lives on its own screen)
+  Widget _buildSupportAndLegalSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: _buildRowItem(
+        icon: Icons.help_outline,
+        iconBg: const Color(0xFFDBEAFE),
+        iconColor: const Color(0xFF2563EB),
+        title: 'Help & Legal',
+        subtitle: 'Support, contact, terms, privacy & policies',
+        onTap: () => Navigator.pushNamed(context, '/member/help-legal'),
+      ),
     );
   }
 

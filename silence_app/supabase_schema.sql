@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS users (
     gender TEXT CHECK (gender IN ('male', 'female', 'other', 'prefer_not_to_say')),
     date_of_birth DATE,
     photo_url TEXT,
+    avatar_id INT,  -- preset leaderboard avatar index (0–9); null → initials
     exam_category TEXT,
     address TEXT,
     phone_verified BOOLEAN DEFAULT false,
@@ -1581,7 +1582,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.library_leaderboard(
     p_library uuid, p_start date, p_end date)
-RETURNS TABLE(member_id uuid, name text, total_minutes bigint)
+RETURNS TABLE(member_id uuid, name text, total_minutes bigint, avatar_id int)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 BEGIN
@@ -1603,12 +1604,13 @@ BEGIN
                    ELSE coalesce(nullif(btrim(u.full_name), ''), 'User')
                  END
                ), ''), 'User') AS name,
-               sum(mds.total_minutes)::bigint AS total_minutes
+               sum(mds.total_minutes)::bigint AS total_minutes,
+               u.avatar_id AS avatar_id
         FROM public.member_daily_stats mds
         JOIN public.users u ON u.id = mds.member_id
         WHERE mds.library_id = p_library
           AND mds.date BETWEEN p_start AND p_end
-        GROUP BY mds.member_id, u.nickname, u.full_name
+        GROUP BY mds.member_id, u.nickname, u.full_name, u.avatar_id
         HAVING sum(mds.total_minutes) > 0
         ORDER BY total_minutes DESC;
 END;

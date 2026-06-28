@@ -51,6 +51,8 @@ import 'screens/member_terms_screen.dart';
 import 'screens/member_privacy_policy_screen.dart';
 import 'screens/member_licences_screen.dart';
 import 'screens/member_blocked_users_screen.dart';
+import 'screens/member_avatar_screen.dart';
+import 'screens/member_help_legal_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/policy_screens.dart';
 
@@ -267,6 +269,8 @@ class SilenceApp extends StatelessWidget {
         '/member/privacy-policy': (context) => const MemberPrivacyPolicyScreen(),
         '/member/licences': (context) => const MemberLicencesScreen(),
         '/member/blocked-users': (context) => const MemberBlockedUsersScreen(),
+        '/member/avatar': (context) => const MemberAvatarScreen(),
+        '/member/help-legal': (context) => const MemberHelpLegalScreen(),
         '/policy/refund': (context) => const RefundPolicyScreen(),
         '/policy/cancellation': (context) => const CancellationPolicyScreen(),
         '/policy/community': (context) => const CommunityGuidelinesScreen(),

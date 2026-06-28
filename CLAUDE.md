@@ -38,7 +38,28 @@
 `auth_screen.dart` `_handleGoogleSignIn()` does the native flow: `GoogleSignIn.instance.initialize(serverClientId: SupabaseConfig.googleWebClientId)` → `authenticate()` → `authorizationClient` for the access token → `supabase.auth.signInWithIdToken(provider: google, idToken, accessToken)`; web falls back to `signInWithOAuth`. After sign-in it bootstraps the `users` row (`_routeAfterAuth`) and routes like login (role null → `/role-select`, else admin/member home); user-cancel (`GoogleSignInException.canceled`) is silent. `google_sign_in: ^7.2.0`. **Web client ID `1085738355311-4pbt15ndhhcngedpp28ob8ru2bsl7bdl...` baked as the `googleWebClientId` default** (public, safe in-APK; `--dart-define=GOOGLE_WEB_CLIENT_ID=` still overrides) so plain `flutter run`/`build` work without flags. **Console DONE (user):** OAuth consent screen (External, test users), Web + Android (`com.silence.app.silence` + debug SHA-1 `7E:39:...:63`) client IDs, Supabase Google provider enabled (Web+Android client IDs, Web secret). Apple → "coming soon".
 - **⚠️ Before Play Store:** add the **release keystore SHA-1** to the Android OAuth client (debug SHA-1 only works for `flutter run`/debug APK). Consent screen is in **Testing** → only added test users can log in until Published.
 
+### ✅ Member avatars + leaderboard redesign + analytics animations + profile cleanup (2026-06-28)
+
+- **Preset avatars (no real photos):** `lib/core/member_avatars.dart` — 10 icon-avatars +
+  `MemberAvatarView` (icon by `avatar_id`, else initials). Migration `2026-06-28_member_avatar.sql`
+  (APPLIED + folded): `users.avatar_id INT` + `library_leaderboard` RPC now returns `avatar_id`
+  (icon index, privacy-safe — note: RPC return type changed 3→4 cols so the migration DROPs the
+  function first). New **Avatar & Nickname** screen (`/member/avatar`, entry in Profile under Edit
+  Profile) — pick 1 of 10 + edit nickname → updates `users.avatar_id`+`nickname`.
+- **Leaderboard redesign** (`member_analytics_tab`): top-3 **podium** (pillars #2/#1/#3) with
+  avatar+nickname+hours, ranked **list** below, current-user highlight + outside-top-10 pinned row.
+- **Analytics entrance animations:** bar chart grows 0→up (painter `progress`), podium pillars +
+  list fade/slide. **Replays on every tab open** — member_home passes an incrementing
+  `animationTrigger` (IndexedStack keeps the tab alive, so a key-bumped epoch re-runs the anims).
+- **Profile tab cleanup:** all support/legal links collapsed into ONE "Help & Legal" entry →
+  `MemberHelpLegalScreen` (`/member/help-legal`). Share card rebuilt: wide highlighted gradient with
+  **referral code (copy)** + benefits ("why share") + Share-invite button.
+- **Library rules** now shown to members: a "Library Rules" section on the library public profile
+  (`library_public_profile_screen`) reading `libraries.rules`.
+- All `flutter analyze` clean (0 new). Not yet on-device verified by the agent.
+
 ### ✅ Marketing posters gallery (2026-06-28) — code DONE; migration APPLIED + folded into schema
+
 
 Admin-curated, **upload-based** poster library (no in-app AI; the app owner designs posters
 externally and uploads finished images; library owners browse + download).

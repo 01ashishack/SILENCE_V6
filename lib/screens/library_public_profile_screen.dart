@@ -743,6 +743,10 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     final addressStreet = _library!['address_street'] ?? '';
     final addressPin = _library!['address_pincode'] ?? '';
     final aboutText = _library!['about_text'] as String?;
+    final rulesRaw = _library!['rules'];
+    final String rulesText = rulesRaw is List
+        ? rulesRaw.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).join('\n')
+        : (rulesRaw?.toString().trim() ?? '');
     final photos = _library!['photos'] as List? ?? [];
     final amenities = _library!['amenities'] as List? ?? [];
     final emergency = _library!['emergency_phone'] as String?;
@@ -1093,6 +1097,35 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  // 5b. Library Rules (set by the owner) — shown to members.
+                  if (rulesText.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.gavel_rounded, size: 18, color: Color(0xFFE65C00)),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Library Rules',
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0x14E65C00),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0x33E65C00)),
+                      ),
+                      child: Text(
+                        rulesText,
+                        style: GoogleFonts.inter(fontSize: 13.5, height: 1.55, color: context.palette.textSecondary),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // 6. Location & Direction
                   Text(

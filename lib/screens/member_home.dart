@@ -50,6 +50,7 @@ class MemberHomeScreen extends StatefulWidget {
 
 class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerProviderStateMixin {
   int _currentBottomTab = 0; // 0 = Home, 1 = Analytics, 2 = History, 3 = Profile
+  int _analyticsViewTick = 0; // bumped each time Analytics tab is opened → replays its animations
   
   bool _isLoading = true;
   String? _errorMessage;
@@ -2719,7 +2720,10 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   // Lifetime stats card
                   InkWell(
                     onTap: () {
-                      setState(() => _currentBottomTab = 1); // Analytics
+                      setState(() {
+                        _currentBottomTab = 1; // Analytics
+                        _analyticsViewTick++;
+                      });
                     },
                     child: Container(
                       padding: const EdgeInsets.all(16),
@@ -5871,6 +5875,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       userProfile: _userProfile,
       activeLibraryId: activeLibId,
       memberLibraries: _myMemberships,
+      animationTrigger: _analyticsViewTick,
       onSwitchTab: (index) {
         setState(() => _currentBottomTab = index);
       },
@@ -5921,6 +5926,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       onTap: () {
         setState(() {
           _currentBottomTab = index;
+          if (index == 1) _analyticsViewTick++;
         });
         if (index == 0) {
           _loadInitialData();

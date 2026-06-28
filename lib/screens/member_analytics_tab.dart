@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/member_analytics_service.dart';
+import '../core/member_avatars.dart';
 import '../utils/csv_exporter.dart';
 import '../utils/time_utils.dart';
 import '../utils/attendance_format.dart';
@@ -19,6 +20,7 @@ class MemberAnalyticsTab extends StatefulWidget {
   final String? activeLibraryId;
   final List<dynamic> memberLibraries; // List of memberships the member is part of
   final void Function(int)? onSwitchTab; // Callback to switch bottom nav tab
+  final int animationTrigger; // bump this to replay entrance animations (e.g. on tab open)
 
   const MemberAnalyticsTab({
     super.key,
@@ -26,6 +28,7 @@ class MemberAnalyticsTab extends StatefulWidget {
     required this.activeLibraryId,
     required this.memberLibraries,
     this.onSwitchTab,
+    this.animationTrigger = 0,
   });
 
   @override
@@ -34,6 +37,18 @@ class MemberAnalyticsTab extends StatefulWidget {
 
 class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticKeepAliveClientMixin {
   bool _isLoading = true;
+  // Bumped whenever the screen is (re)opened so podium/bars replay their grow
+  // animation from zero. Mixed into the animated widgets' keys.
+  int _animEpoch = 0;
+
+  @override
+  void didUpdateWidget(covariant MemberAnalyticsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.animationTrigger != oldWidget.animationTrigger) {
+      setState(() => _animEpoch++);
+    }
+  }
+
   String? _errorMessage; // set when the first load fails (shows ErrorState instead of fake zeros)
 
   // Global period filters
@@ -1789,75 +1804,8 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                 ),
               )
             else ...[
-              // Top 10 members — scrollable when there are many; the member's own
-              // pinned row (rendered below) stays fixed and never scrolls away.
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 300),
-                child: ListView(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  physics: const ClampingScrollPhysics(),
-                  children: _leaderboardList.map((entry) {
-                final rank = entry['rank'] as int;
-                final isMe = entry['member_id'] == widget.userProfile?['id'];
-                
-                String rankIcon = '$rank';
-                if (rank == 1) {
-                  rankIcon = '🥇';
-                } else if (rank == 2) {
-                  rankIcon = '🥈';
-                } else if (rank == 3) {
-                  rankIcon = '🥉';
-                }
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isMe ? const Color(0x1FE65C00) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isMe ? const Color(0xFFE65C00).withValues(alpha: 0.3) : const Color(0xFFF1F5F9),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 24,
-                        child: Text(
-                          rankIcon,
-                          style: GoogleFonts.outfit(
-                            fontWeight: FontWeight.bold,
-                            fontSize: rank <= 3 ? 15 : 12,
-                            color: context.palette.textMuted,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          isMe ? 'You (${entry['name']})' : entry['name'],
-                          style: GoogleFonts.inter(
-                            fontWeight: isMe ? FontWeight.bold : FontWeight.w500,
-                            color: isMe ? const Color(0xFFE65C00) : context.palette.textPrimary,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${(entry['hours'] as double).toStringAsFixed(1)}h',
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.bold,
-                          color: isMe ? const Color(0xFFE65C00) : context.palette.textSecondary,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-                  }).toList(),
-                ),
-              ),
+              // Top-3 podium + ranked list below, with an entrance animation.
+              _leaderboardBody(),
 
               // Dotted divider and current user row if outside top 10 — this row
               // is OUTSIDE the scroll area above, so it's always visible.
@@ -1926,6 +1874,184 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                 ),
               ],
             ]
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Leaderboard: podium (top 3) + animated ranked list ───────────────────
+
+  /// Avatar for a leaderboard entry: chosen preset icon (avatar_id) or initials.
+  Widget _lbAvatar(Map<String, dynamic> e, double radius, {Color? ring}) {
+    return MemberAvatarView(
+      avatarId: (e['avatar_id'] as num?)?.toInt(),
+      name: (e['name'] ?? '').toString(),
+      radius: radius,
+      ring: ring,
+    );
+  }
+
+  Color _rankColor(int rank) {
+    switch (rank) {
+      case 1:
+        return const Color(0xFFF59E0B); // gold
+      case 2:
+        return const Color(0xFF94A3B8); // silver
+      default:
+        return const Color(0xFFB45309); // bronze
+    }
+  }
+
+  Widget _leaderboardBody() {
+    final list = _leaderboardList;
+    final top = list.take(3).toList();
+    final rest = list.length > 3 ? list.sublist(3) : const <Map<String, dynamic>>[];
+    return Column(
+      // Re-key on filter/data change so the entrance animation replays.
+      key: ValueKey('lb-$_animEpoch-$_leaderboardPeriod-$_leaderboardLibraryId-${list.length}'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (top.isNotEmpty) _podium(top),
+        if (rest.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          ...rest.asMap().entries.map((e) => _animatedLbRow(e.value, e.key)),
+        ],
+      ],
+    );
+  }
+
+  Widget _podium(List<Map<String, dynamic>> top) {
+    final byRank = {for (final e in top) (e['rank'] as int): e};
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(child: byRank[2] != null ? _podiumColumn(byRank[2]!, 80) : const SizedBox()),
+          Expanded(child: byRank[1] != null ? _podiumColumn(byRank[1]!, 108) : const SizedBox()),
+          Expanded(child: byRank[3] != null ? _podiumColumn(byRank[3]!, 64) : const SizedBox()),
+        ],
+      ),
+    );
+  }
+
+  Widget _podiumColumn(Map<String, dynamic> e, double pillarHeight) {
+    final rank = e['rank'] as int;
+    final isMe = e['member_id'] == widget.userProfile?['id'];
+    final color = _rankColor(rank);
+    final name = isMe ? 'You' : (e['name'] ?? '').toString();
+    final hours = (e['hours'] as num).toDouble();
+    final radius = rank == 1 ? 30.0 : 25.0;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 600 + rank * 120),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(opacity: t.clamp(0, 1), child: child),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (rank == 1)
+            Icon(Icons.emoji_events_rounded, color: color, size: 20),
+          const SizedBox(height: 2),
+          _lbAvatar(e, radius, ring: color),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: isMe ? const Color(0xFFE65C00) : context.palette.textPrimary)),
+          ),
+          Text('${hours.toStringAsFixed(1)}h',
+              style: GoogleFonts.inter(
+                  fontSize: 11, fontWeight: FontWeight.w600, color: context.palette.textSecondary)),
+          const SizedBox(height: 6),
+          // Animated pillar (grows from the base).
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: Duration(milliseconds: 700 + rank * 120),
+            curve: Curves.easeOutCubic,
+            builder: (context, t, _) => Container(
+              height: pillarHeight * t.clamp(0, 1),
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [color.withValues(alpha: 0.85), color.withValues(alpha: 0.45)],
+                ),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              ),
+              alignment: Alignment.topCenter,
+              padding: const EdgeInsets.only(top: 6),
+              child: t > 0.6
+                  ? Text('$rank',
+                      style: GoogleFonts.outfit(
+                          fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))
+                  : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _animatedLbRow(Map<String, dynamic> entry, int index) {
+    final rank = entry['rank'] as int;
+    final isMe = entry['member_id'] == widget.userProfile?['id'];
+    final name = (entry['name'] ?? '').toString();
+    final hours = (entry['hours'] as num).toDouble();
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 350 + index * 70),
+      curve: Curves.easeOut,
+      builder: (context, t, child) => Opacity(
+        opacity: t.clamp(0, 1),
+        child: Transform.translate(offset: Offset(0, 12 * (1 - t)), child: child),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isMe ? const Color(0x1FE65C00) : context.palette.surfaceMuted,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isMe ? const Color(0xFFE65C00).withValues(alpha: 0.3) : context.palette.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              child: Text('$rank',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.bold, fontSize: 12, color: context.palette.textMuted)),
+            ),
+            const SizedBox(width: 6),
+            _lbAvatar(entry, 16),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(isMe ? 'You ($name)' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                      fontWeight: isMe ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 12.5,
+                      color: isMe ? const Color(0xFFE65C00) : context.palette.textPrimary)),
+            ),
+            Text('${hours.toStringAsFixed(1)}h',
+                style: GoogleFonts.inter(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12.5,
+                    color: isMe ? const Color(0xFFE65C00) : context.palette.textSecondary)),
           ],
         ),
       ),
@@ -2037,12 +2163,19 @@ class _MemberAnalyticsTabState extends State<MemberAnalyticsTab> with AutomaticK
                       child: SizedBox(
                         height: 130,
                         width: double.infinity,
-                        child: CustomPaint(
-                          painter: _StackedBarChartPainter(
-                            chartData: displayData,
-                            uniqueLibraries: _getUniqueLibraries(),
-                            dateFilter: _dateFilter,
-                            isDark: Theme.of(context).brightness == Brightness.dark,
+                        child: TweenAnimationBuilder<double>(
+                          key: ValueKey('bar-$_animEpoch-$_dateFilter-${displayData.length}'),
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 900),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, t, _) => CustomPaint(
+                            painter: _StackedBarChartPainter(
+                              chartData: displayData,
+                              uniqueLibraries: _getUniqueLibraries(),
+                              dateFilter: _dateFilter,
+                              isDark: Theme.of(context).brightness == Brightness.dark,
+                              progress: t,
+                            ),
                           ),
                         ),
                       ),
@@ -2950,9 +3083,11 @@ class _StackedBarChartPainter extends CustomPainter {
     required this.uniqueLibraries,
     required this.dateFilter,
     this.isDark = false,
+    this.progress = 1.0,
   });
 
   final bool isDark;
+  final double progress; // 0..1 grow-from-base animation factor
 
   Color _getLibraryColor(String libId) {
     final idx = uniqueLibraries.indexWhere((e) => e['id'] == libId);
@@ -3076,7 +3211,7 @@ class _StackedBarChartPainter extends CustomPainter {
 
       hoursMap.forEach((libId, hoursVal) {
         final double hours = (hoursVal as num).toDouble();
-        final double segmentHeight = (hours / maxHours) * chartHeight;
+        final double segmentHeight = (hours / maxHours) * chartHeight * progress;
         if (segmentHeight <= 0.0) return;
 
         final Color baseColor = _getLibraryColor(libId);
@@ -3101,7 +3236,7 @@ class _StackedBarChartPainter extends CustomPainter {
           ..color = const Color(0xFFE65C00)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5;
-        final totalHeight = (totalDayHours / maxHours) * chartHeight;
+        final totalHeight = (totalDayHours / maxHours) * chartHeight * progress;
         final rect = RRect.fromLTRBR(
           x - 1,
           chartHeight - totalHeight - 1,

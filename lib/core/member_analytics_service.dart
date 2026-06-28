@@ -757,6 +757,7 @@ class MemberAnalyticsService {
               'member_id': r['member_id'],
               'name': (r['name'] ?? 'User').toString(),
               'total_duration': (r['total_minutes'] as num?)?.toInt() ?? 0,
+              'avatar_id': (r['avatar_id'] as num?)?.toInt(),
             })
         .toList();
     leaderboard.sort((a, b) => (b['total_duration'] as int).compareTo(a['total_duration'] as int));
@@ -773,6 +774,7 @@ class MemberAnalyticsService {
         'member_id': item['member_id'],
         'name': item['name'],
         'hours': item['total_duration'] / 60.0,
+        'avatar_id': item['avatar_id'],
       });
     }
 
