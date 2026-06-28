@@ -577,7 +577,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
           ),
           const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6), indent: 56),
           ListTile(
-            onTap: () => _launchUrl('mailto:support@silenceapp.in'),
+            onTap: () => _launchUrl('mailto:ashish.premierbro@gmail.com'),
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),

@@ -323,7 +323,7 @@ class _QRModalState extends State<QRModal> {
                       ),
                     ),
                     pw.Text(
-                      'support@silenceapp.in',
+                      'ashish.premierbro@gmail.com',
                       style: pw.TextStyle(
                         fontSize: 9,
                         color: PdfColor.fromInt(0xFF4B5563),

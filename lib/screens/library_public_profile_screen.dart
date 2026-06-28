@@ -8,6 +8,10 @@ import 'package:intl/intl.dart';
 import 'reservations/join_flow_screen.dart';
 import 'member_profile_edit.dart';
 import '../services/notification_service.dart';
+import '../services/moderation_service.dart';
+import '../widgets/report_sheet.dart';
+import '../core/app_snackbar.dart';
+import '../utils/error_messages.dart';
 
 
 class LibraryPublicProfileScreen extends StatefulWidget {
@@ -52,6 +56,7 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
   bool _hasActiveMembership = false;
   bool _hasReviewed = false;
   int _membersServed = 0; // distinct members who have ever joined this library
+  Set<String> _blockedIds = {}; // users the current viewer has blocked
 
   // Active UI States
   double _avgRating = 0.0;
@@ -295,6 +300,8 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
 
       // 3. Fetch reviews
       try {
+        // Load the viewer's block list so blocked authors are hidden.
+        _blockedIds = await ModerationService.loadMyBlockedIds();
         final reviewsRes = await _supabase
             .from('reviews')
             .select()
@@ -302,6 +309,10 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
             .order('created_at', ascending: false);
         if (mounted) {
           _reviews = List<Map<String, dynamic>>.from(reviewsRes);
+
+          // 3b. Hide moderated (hidden) reviews and blocked authors' reviews.
+          _reviews = ModerationService.filterHidden(_reviews);
+          _reviews = ModerationService.filterBlocked(_reviews, _blockedIds);
 
           // 4. Enrich reviews with nicknames from users table
           for (var review in _reviews) {
@@ -867,6 +878,32 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                     ),
                   ),
                 ),
+                if (!widget.isAdmin && _supabase.auth.currentUser != null)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 10,
+                    right: 16,
+                    child: CircleAvatar(
+                      backgroundColor: Colors.black45,
+                      child: PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                        tooltip: 'More',
+                        onSelected: (value) async {
+                          if (value == 'report_library') {
+                            await showReportSheet(
+                              context,
+                              targetType: 'library',
+                              targetId: libraryId,
+                              libraryId: libraryId,
+                              targetLabel: 'this library',
+                            );
+                          }
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: 'report_library', child: Text('Report this library')),
+                        ],
+                      ),
+                    ),
+                  ),
                 Positioned(
                   bottom: 20,
                   left: 20,
@@ -1578,6 +1615,45 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
     );
   }
 
+  /// Report/Block overflow for a review. Hidden for the viewer's own review
+  /// (Property 1 — no self-report).
+  Widget _reviewModerationMenu(Map<String, dynamic> r) {
+    final uid = _supabase.auth.currentUser?.id;
+    final authorId = (r['member_id'] ?? '').toString();
+    if (uid == null || authorId.isEmpty || uid == authorId) {
+      return const SizedBox.shrink();
+    }
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert, size: 18, color: Colors.grey[500]),
+      tooltip: 'More',
+      onSelected: (value) async {
+        if (value == 'report') {
+          await showReportSheet(
+            context,
+            targetType: 'review',
+            targetId: r['id'].toString(),
+            libraryId: libraryId,
+            targetLabel: 'review',
+          );
+        } else if (value == 'block') {
+          try {
+            await ModerationService.blockUser(authorId);
+            if (!mounted) return;
+            AppSnackbar.success(context, 'User blocked. Their content is now hidden.');
+            _loadPublicData();
+          } catch (e) {
+            if (!mounted) return;
+            AppSnackbar.error(context, friendlyError(e));
+          }
+        }
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'report', child: Text('Report review')),
+        PopupMenuItem(value: 'block', child: Text('Block this user')),
+      ],
+    );
+  }
+
   Widget _buildReviewCard(Map<String, dynamic> r) {
     final nick = r['nickname'] ?? 'Anonymous';
     final comment = r['review_text'] ?? r['comment'] ?? '';
@@ -1626,13 +1702,17 @@ class _LibraryPublicProfileScreenState extends State<LibraryPublicProfileScreen>
                 ],
               ),
               Row(
-                children: List.generate(5, (index) {
-                  return Icon(
-                    index < rating ? Icons.star : Icons.star_border,
-                    color: Colors.amber,
-                    size: 14,
-                  );
-                }),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ...List.generate(5, (index) {
+                    return Icon(
+                      index < rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 14,
+                    );
+                  }),
+                  _reviewModerationMenu(r),
+                ],
               ),
             ],
           ),

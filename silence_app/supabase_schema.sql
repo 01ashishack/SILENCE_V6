@@ -461,10 +461,45 @@ CREATE TABLE IF NOT EXISTS reviews (
     admin_reply TEXT,
     admin_replied_at TIMESTAMPTZ,
     is_read_by_admin BOOLEAN DEFAULT false,
+    hidden BOOLEAN DEFAULT false,
+    hidden_by UUID REFERENCES users(id),
+    hidden_reason TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE (library_id, member_id)
 );
+
+-- UGC moderation: abuse reports (2026-06-28)
+CREATE TABLE IF NOT EXISTS abuse_reports (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    reporter_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_type  TEXT NOT NULL CHECK (target_type IN ('review','query','user','library')),
+    target_id    UUID NOT NULL,
+    library_id   UUID REFERENCES libraries(id) ON DELETE CASCADE,
+    reason       TEXT NOT NULL CHECK (reason IN
+                   ('spam','harassment','inappropriate','impersonation','copyright','other')),
+    description  TEXT,
+    status       TEXT NOT NULL DEFAULT 'open'
+                   CHECK (status IN ('open','reviewed','actioned','dismissed')),
+    reviewed_by  UUID REFERENCES users(id),
+    reviewed_at  TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_abuse_open
+    ON abuse_reports(reporter_id, target_type, target_id) WHERE status = 'open';
+CREATE INDEX IF NOT EXISTS idx_abuse_status  ON abuse_reports(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_abuse_library ON abuse_reports(library_id);
+
+-- UGC moderation: user blocks (2026-06-28)
+CREATE TABLE IF NOT EXISTS user_blocks (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    blocker_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blocked_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (blocker_id, blocked_id),
+    CHECK (blocker_id <> blocked_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON user_blocks(blocker_id);
 
 CREATE TRIGGER trigger_update_reviews_updated_at
 BEFORE UPDATE ON reviews
@@ -702,6 +737,8 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scheduled_closures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE abuse_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenditures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE streaks ENABLE ROW LEVEL SECURITY;
@@ -1120,6 +1157,7 @@ CREATE POLICY "member_read_reviews" ON reviews
     library_id IN (
       SELECT library_id FROM memberships WHERE member_id = auth.uid()
     )
+    AND (hidden IS NOT TRUE OR member_id = auth.uid())
   );
 
 CREATE POLICY "member_insert_own_review" ON reviews
@@ -1145,7 +1183,33 @@ CREATE POLICY "public_read_active_library_reviews" ON reviews
     library_id IN (
       SELECT id FROM libraries WHERE status = 'active'
     )
+    AND (hidden IS NOT TRUE OR member_id = auth.uid())
   );
+
+CREATE POLICY "app_owner_read_reviews" ON reviews
+  FOR SELECT
+  USING (EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.is_app_owner));
+
+-- 4.27 UGC moderation policies (2026-06-28)
+CREATE POLICY "report_insert_self" ON abuse_reports
+  FOR INSERT WITH CHECK (reporter_id = auth.uid());
+
+CREATE POLICY "report_select_scoped" ON abuse_reports
+  FOR SELECT USING (
+    reporter_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.is_app_owner)
+    OR EXISTS (SELECT 1 FROM libraries l WHERE l.id = abuse_reports.library_id AND l.owner_id = auth.uid())
+  );
+
+CREATE POLICY "report_update_moderator" ON abuse_reports
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.is_app_owner)
+    OR EXISTS (SELECT 1 FROM libraries l WHERE l.id = abuse_reports.library_id AND l.owner_id = auth.uid())
+  ) WITH CHECK (true);
+
+CREATE POLICY "blocks_owner_all" ON user_blocks
+  FOR ALL USING (blocker_id = auth.uid())
+  WITH CHECK (blocker_id = auth.uid());
 
 -- 4.25 Expenditures Policies
 CREATE POLICY "admin_manage_expenditures" ON expenditures

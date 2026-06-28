@@ -50,11 +50,13 @@ import 'screens/member_about_screen.dart';
 import 'screens/member_terms_screen.dart';
 import 'screens/member_privacy_policy_screen.dart';
 import 'screens/member_licences_screen.dart';
+import 'screens/member_blocked_users_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/policy_screens.dart';
 
 import 'screens/account_frozen_screen.dart';
 import 'screens/owner_recovery_console_screen.dart';
+import 'screens/owner_abuse_reports_screen.dart';
 
 import 'screens/admin/add_member_wizard.dart';
 import 'screens/reservations/renewal_screen.dart';
@@ -264,12 +266,14 @@ class SilenceApp extends StatelessWidget {
         '/member/terms': (context) => const MemberTermsScreen(),
         '/member/privacy-policy': (context) => const MemberPrivacyPolicyScreen(),
         '/member/licences': (context) => const MemberLicencesScreen(),
+        '/member/blocked-users': (context) => const MemberBlockedUsersScreen(),
         '/policy/refund': (context) => const RefundPolicyScreen(),
         '/policy/cancellation': (context) => const CancellationPolicyScreen(),
         '/policy/community': (context) => const CommunityGuidelinesScreen(),
         '/member/notifications': (context) => const NotificationsScreen(),
         '/account-frozen': (context) => const AccountFrozenScreen(),
         '/owner/recovery-console': (context) => const OwnerRecoveryConsoleScreen(),
+        '/owner/abuse-reports': (context) => const OwnerAbuseReportsScreen(),
         '/admin/profile/complete': (context) => const AdminProfileCompleteScreen(),
         '/admin/library/setup/1': (context) => const LibrarySetupStage1Screen(),
         '/admin/library/setup/2': (context) => const LibrarySetupStage2Screen(),

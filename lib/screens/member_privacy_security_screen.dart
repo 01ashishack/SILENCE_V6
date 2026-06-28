@@ -622,6 +622,18 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
                             child: const Icon(Icons.visibility_off_outlined, color: Color(0xFFE65C00), size: 20),
                           ),
                         ),
+                        const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6), indent: 56),
+                        ListTile(
+                          onTap: () => Navigator.pushNamed(context, '/member/blocked-users'),
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(color: Color(0xFFFEF2F2), shape: BoxShape.circle),
+                            child: const Icon(Icons.block, color: Color(0xFFEF4444), size: 20),
+                          ),
+                          title: Text('Blocked Users', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
+                          subtitle: Text('Manage users you have blocked from your reviews and feeds.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
+                          trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                        ),
                       ]),
                       const SizedBox(height: 20),
 

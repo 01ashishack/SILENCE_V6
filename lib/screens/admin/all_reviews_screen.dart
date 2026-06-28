@@ -4,6 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'reply_to_review_bottom_sheet.dart';
+import '../../core/app_snackbar.dart';
+import '../../services/moderation_service.dart';
+import '../../utils/error_messages.dart';
 
 class AllReviewsScreen extends StatefulWidget {
   final String libraryId;
@@ -49,6 +52,23 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _toggleHide(Map<String, dynamic> review) async {
+    final isHidden = review['hidden'] == true;
+    try {
+      if (isHidden) {
+        await ModerationService.unhideReview(review['id'].toString());
+      } else {
+        await ModerationService.hideReview(review['id'].toString());
+      }
+      if (!mounted) return;
+      AppSnackbar.success(context, isHidden ? 'Review is visible again.' : 'Review hidden.');
+      _fetchReviews();
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackbar.error(context, friendlyError(e));
     }
   }
 
@@ -211,8 +231,35 @@ class _AllReviewsScreenState extends State<AllReviewsScreen> {
                   );
                 }),
               ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, size: 18, color: Colors.grey[500]),
+                tooltip: 'Moderate',
+                onSelected: (v) {
+                  if (v == 'hide' || v == 'unhide') _toggleHide(review);
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: review['hidden'] == true ? 'unhide' : 'hide',
+                    child: Text(review['hidden'] == true ? 'Unhide review' : 'Hide review'),
+                  ),
+                ],
+              ),
             ],
           ),
+          if (review['hidden'] == true) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Text('Hidden from members',
+                  style: GoogleFonts.inter(
+                      fontSize: 10.5, fontWeight: FontWeight.bold, color: const Color(0xFFDC2626))),
+            ),
+          ],
           if (reviewText != null && reviewText.toString().trim().isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(

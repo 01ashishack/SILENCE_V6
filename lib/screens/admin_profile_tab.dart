@@ -1036,6 +1036,9 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           if (_isAppOwner)
                             _buildSettingsItem(context, Icons.shield_moon_outlined,
                                 'Recovery Console', '/owner/recovery-console'),
+                          if (_isAppOwner)
+                            _buildSettingsItem(context, Icons.flag_outlined,
+                                'Abuse Reports', '/owner/abuse-reports'),
                           _buildSettingsItem(context, Icons.campaign_outlined, 'Announcement History', '/admin/announcements',
                               feature: AdminFeature.announcements, featureLabel: 'Announcements'),
                           _buildSettingsItem(context, Icons.ios_share, 'Exports & Reports', '/admin/exports',

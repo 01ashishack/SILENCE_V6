@@ -3,6 +3,8 @@ import '../theme/app_palette.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../legal/legal_content.dart';
+import 'policy_screens.dart';
 
 class MemberTermsScreen extends StatefulWidget {
   const MemberTermsScreen({super.key});
@@ -156,7 +158,7 @@ class _MemberTermsScreenState extends State<MemberTermsScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Last updated: June 5, 2026',
+                              kLegalLastUpdated,
                               style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
                             ),
                             const SizedBox(height: 20),
@@ -221,24 +223,7 @@ class _MemberTermsScreenState extends State<MemberTermsScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Text(
-        '1. INTRODUCTION\n'
-        'Welcome to SILENCE. These Terms & Conditions govern your use of the SILENCE mobile application and the physical library space services offered at our branches. By accessing or using our services, you agree to comply with and be bound by these terms.\n\n'
-        '2. ELIGIBILITY & MEMBERSHIP\n'
-        'Memberships are individual and non-transferable. You agree to provide accurate, complete information during profile setup. Sharing your account or library QR code with non-members is strictly prohibited and will result in immediate termination without refund.\n\n'
-        '3. ACCESS RULES & CHECK-IN\n'
-        '• Members must check in by scanning the QR code upon entry and check out when leaving.\n'
-        '• Desks are assigned by the administrator or via slot booking. You may only occupy your assigned seat.\n'
-        '• Silence must be maintained inside the library rooms at all times. Phone calls and group discussions should only take place in designated zones.\n\n'
-        '4. SUBSCRIPTION PAYMENTS & RENEWAL\n'
-        'Fees are collected in advance for the subscription cycle. Failure to renew prior to expiration will result in seat forfeiture. Payment histories and receipts can be viewed directly under the My History tab.\n\n'
-        '5. REFUNDS, PAUSE & HOLD POLICY\n'
-        '• All subscription plans are non-refundable.\n'
-        '• Pause or hold requests are subject to approval by the administrator and must follow the guidelines detailed under My Libraries hold configuration.\n\n'
-        '6. TERMINATION OF ACCESS\n'
-        'SILENCE reserves the right to suspend or terminate access to any member who repeatedly violates silence guidelines, exhibits misconduct, or damages facility property.',
-        style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF334155), height: 1.6),
-      ),
+      child: legalSectionsColumn(context, legalTerms),
     );
   }
 }

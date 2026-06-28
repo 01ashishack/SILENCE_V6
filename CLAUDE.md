@@ -38,6 +38,54 @@
 `auth_screen.dart` `_handleGoogleSignIn()` does the native flow: `GoogleSignIn.instance.initialize(serverClientId: SupabaseConfig.googleWebClientId)` → `authenticate()` → `authorizationClient` for the access token → `supabase.auth.signInWithIdToken(provider: google, idToken, accessToken)`; web falls back to `signInWithOAuth`. After sign-in it bootstraps the `users` row (`_routeAfterAuth`) and routes like login (role null → `/role-select`, else admin/member home); user-cancel (`GoogleSignInException.canceled`) is silent. `google_sign_in: ^7.2.0`. **Web client ID `1085738355311-4pbt15ndhhcngedpp28ob8ru2bsl7bdl...` baked as the `googleWebClientId` default** (public, safe in-APK; `--dart-define=GOOGLE_WEB_CLIENT_ID=` still overrides) so plain `flutter run`/`build` work without flags. **Console DONE (user):** OAuth consent screen (External, test users), Web + Android (`com.silence.app.silence` + debug SHA-1 `7E:39:...:63`) client IDs, Supabase Google provider enabled (Web+Android client IDs, Web secret). Apple → "coming soon".
 - **⚠️ Before Play Store:** add the **release keystore SHA-1** to the Android OAuth client (debug SHA-1 only works for `flutter run`/debug APK). Consent screen is in **Testing** → only added test users can log in until Published.
 
+### ✅ Legal pages sync + UGC reporting/moderation (2026-06-28) — code DONE; migration APPLIED + folded into schema
+
+Spec: `.kiro/specs/legal-and-ugc-compliance/` (requirements/design/tasks). Two launch-blocking gaps closed:
+
+**1. In-app legal screens now single-sourced & accurate.** New `lib/legal/legal_content.dart` is the
+single in-app source of truth (mirrors `legal/*.md`): operator **Ashish Kumar, Alwar Rajasthan**,
+`ashish.premierbro@gmail.com` / `+91 72978 79930`, Grievance Officer (48h/15d), Supabase **Seoul
+(ap-northeast-2)** + cross-border, **30-day** deletion, foreground-only location, camera/photo,
+**Firebase Analytics/Crashlytics/Cloud Messaging**, out-of-app UPI (owner = Data Fiduciary, SILENCE =
+Processor), non-refundable SaaS sub, **18+**, **no government-ID type named**. Shared renderer
+`LegalDocScreen`/`buildLegalBody`/`legalSectionsColumn` in `policy_screens.dart` (dark-aware,
+warm-orange, related-policy links). Refactored: `terms_screen` (admin) + `member_terms_screen`
+(keeps version-accept banner) → `legalTerms`; `member_privacy_policy_screen` → `legalPrivacy`
+(removed the old "Aadhaar/Voter ID thumbnails" line); `about_us_screen` (admin) + `member_about_screen`
+→ `legalAbout`; refund/cancellation/community → new docs. Contact email fixed to the locked value in
+both help screens + the PDF receipt footer (`qr_modal.dart`). `[INSERT DATE]` → "28 June 2026" in all
+5 `legal/*.md`.
+
+**2. UGC report / block / moderate (Play UGC policy).**
+- **Migration APPLIED to live DB (user, 2026-06-28) + folded into `supabase_schema.sql`:**
+  `silence_app/migrations/2026-06-28_ugc_moderation.sql` — `abuse_reports` (reason/status CHECK
+  domains + partial unique index `uq_abuse_open` → no
+  duplicate open report), `user_blocks` (unique pair + self-block CHECK), `reviews.hidden/hidden_by/
+  hidden_reason`; RLS: report insert-self / select self+app-owner+lib-owner / update moderator;
+  user_blocks scoped to blocker; reviews SELECT policies now exclude hidden for non-moderators +
+  `app_owner_read_reviews`. **Applied + folded into `supabase_schema.sql`.** Account-deletion
+  cleanup is automatic: `reporter_id`/`blocker_id`/`blocked_id` are `ON DELETE CASCADE`, and the
+  purge `DELETE FROM public.users` cascades these rows (no extra cleanup lines needed for member
+  deletion; only `reviewed_by`/`hidden_by` are plain FKs — relevant only to rare app-owner deletion).
+- **Code:** `lib/services/moderation_service.dart` (submitReport/block/unblock/loadMyBlockedIds/
+  myBlocks/hideReview/unhideReview + pure `filterBlocked`/`filterHidden`), `lib/widgets/report_sheet.dart`
+  (reason chips + honest snackbars; duplicate → info, never false success), `member_blocked_users_screen`
+  (route `/member/blocked-users`, entry in Privacy & Security), `owner_abuse_reports_screen`
+  (route `/owner/abuse-reports`, `is_app_owner`-gated, entry in admin Profile → Operations).
+  Entry points: review overflow → Report/Block (hidden on own review); library header → Report library;
+  owner `all_reviews_screen` → Hide/Unhide + "Hidden from members" badge; public profile filters
+  blocked authors + hidden reviews client-side. Tests: `test/moderation_service_test.dart` (7 pass).
+- **Store mapping:** Play UGC → in-app **Report** (reviews/library; infra also supports user/query) +
+  **Block users** + **moderation/removal** (owner hide + app-owner console) ✅. Data-Safety/Privacy
+  disclosures now match the in-app Privacy screen ✅.
+- **Deferred (noted):** Report entry points on member↔library *queries* and standalone user profiles
+  (infra ready — `targetType` 'query'/'user' supported, just need UI hooks); per-library-owner report
+  inbox (app-owner console + inline hide ship now); server-enforced (vs client-side) block delivery
+  (no server tier). **Apple Sign-In** still to be added before iOS.
+- **Verify:** `flutter analyze` → 0 new errors (only pre-existing baseline infos). **Not committed** —
+  awaiting user's go-ahead.
+
+
 **R1-old. Google + Apple social login (UI exists, wiring is a stub).**
 `auth_screen.dart` already shows Google/Apple buttons but `_handleOAuth()` just shows a "disabled"
 message. To finish:
