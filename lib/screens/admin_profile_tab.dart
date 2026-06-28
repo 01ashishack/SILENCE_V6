@@ -132,7 +132,26 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     if (confirmed != true) return;
 
     try {
-      await _supabase.from('libraries').delete().eq('id', libId);
+      // Verify the delete actually removed a row — an RLS-blocked delete does
+      // NOT throw, it removes 0 rows. Without this check the UI falsely claims
+      // success. .select() returns the deleted rows.
+      final deleted = await _supabase
+          .from('libraries')
+          .delete()
+          .eq('id', libId)
+          .select('id');
+
+      if (deleted.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Couldn't delete \"$name\". You may not have permission, or it was already removed."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+
       // If the deleted library was the persisted active one, clear it so the
       // app re-picks another owned library on reload.
       final persisted = await ActiveLibraryStore.load();

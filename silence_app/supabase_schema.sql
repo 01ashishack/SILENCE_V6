@@ -777,8 +777,10 @@ CREATE POLICY "Only owner can insert" ON libraries
 CREATE POLICY "Only owner can update" ON libraries
     FOR UPDATE USING (auth.uid() = owner_id) WITH CHECK (auth.uid() = owner_id);
 
-CREATE POLICY "Only owner can delete (only if status = setup)" ON libraries
-    FOR DELETE USING (auth.uid() = owner_id AND status = 'setup');
+CREATE POLICY "Owner can delete own library" ON libraries
+    FOR DELETE USING (auth.uid() = owner_id);
+    -- Owner may delete their own library in any status; dependent rows cascade
+    -- (2026-06-26_library_delete_cascade.sql). See 2026-06-27_library_delete_any_status.sql.
 
 -- 4.3 Shifts Policies
 CREATE POLICY "Admins can manage shifts of their libraries" ON shifts
