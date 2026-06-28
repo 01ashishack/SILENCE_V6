@@ -1200,21 +1200,43 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    -- Also runs on INSERT (sanitises a crafted client row) and covers
+    -- is_app_owner — see migrations/2026-06-27_users_privilege_insert_guard.sql.
     IF current_setting('app.allow_privileged_update', true) IS DISTINCT FROM 'on' THEN
-        IF OLD.role IS NOT NULL AND NEW.role IS DISTINCT FROM OLD.role THEN
-            RAISE EXCEPTION 'Role can only be changed through change_my_role()'
-                USING errcode = '42501';
-        END IF;
-        IF NEW.subscription_plan   IS DISTINCT FROM OLD.subscription_plan
-        OR NEW.subscription_status IS DISTINCT FROM OLD.subscription_status
-        OR NEW.subscription_expiry IS DISTINCT FROM OLD.subscription_expiry THEN
-            RAISE EXCEPTION 'Subscription can only be changed by the trial/billing flow'
-                USING errcode = '42501';
-        END IF;
-        IF NEW.phone_verified IS DISTINCT FROM OLD.phone_verified
-        OR NEW.email_verified IS DISTINCT FROM OLD.email_verified THEN
-            RAISE EXCEPTION 'Verification flags are set only after OTP verification'
-                USING errcode = '42501';
+
+        IF TG_OP = 'UPDATE' THEN
+            IF OLD.role IS NOT NULL AND NEW.role IS DISTINCT FROM OLD.role THEN
+                RAISE EXCEPTION 'Role can only be changed through change_my_role()'
+                    USING errcode = '42501';
+            END IF;
+            IF NEW.subscription_plan   IS DISTINCT FROM OLD.subscription_plan
+            OR NEW.subscription_status IS DISTINCT FROM OLD.subscription_status
+            OR NEW.subscription_expiry IS DISTINCT FROM OLD.subscription_expiry THEN
+                RAISE EXCEPTION 'Subscription can only be changed by the trial/billing flow'
+                    USING errcode = '42501';
+            END IF;
+            IF NEW.phone_verified IS DISTINCT FROM OLD.phone_verified
+            OR NEW.email_verified IS DISTINCT FROM OLD.email_verified THEN
+                RAISE EXCEPTION 'Verification flags are set only after OTP verification'
+                    USING errcode = '42501';
+            END IF;
+            IF NEW.is_app_owner IS DISTINCT FROM OLD.is_app_owner THEN
+                RAISE EXCEPTION 'The app-owner flag cannot be changed by clients'
+                    USING errcode = '42501';
+            END IF;
+
+        ELSIF TG_OP = 'INSERT' THEN
+            -- Role is self-chosen at signup (by design) + locked on UPDATE;
+            -- everything else is forced to a safe baseline so a crafted
+            -- INSERT/UPSERT can't pre-grant privileges.
+            NEW.is_app_owner        := false;
+            NEW.phone_verified      := false;
+            NEW.email_verified      := false;
+            NEW.subscription_expiry := NULL;
+            IF NEW.subscription_plan IS NOT NULL
+               AND NEW.subscription_plan NOT IN ('free', 'trial') THEN
+                NEW.subscription_plan := 'free';
+            END IF;
         END IF;
     END IF;
     RETURN NEW;
@@ -1223,8 +1245,8 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_guard_user_privileged_columns ON public.users;
 CREATE TRIGGER trg_guard_user_privileged_columns
-    BEFORE UPDATE OF role, subscription_plan, subscription_status,
-                     subscription_expiry, phone_verified, email_verified
+    BEFORE INSERT OR UPDATE OF role, subscription_plan, subscription_status,
+                     subscription_expiry, phone_verified, email_verified, is_app_owner
     ON public.users
     FOR EACH ROW
     EXECUTE FUNCTION public.guard_user_privileged_columns();

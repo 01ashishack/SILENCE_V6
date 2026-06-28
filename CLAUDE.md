@@ -230,6 +230,35 @@ Deep dark-theme consistency pass + two infra helpers (`flutter analyze` 0 errors
   (`PushNotificationService.initialize`); camera/photos are on-demand, and on Android 13+ gallery uses
   the OS Photo Picker (no prompt by design). On web, `permission_handler` is skipped (kIsWeb).
 
+### Session 2026-06-27 (b) — Security: finish Wave-0 users-table locks (⏳ NEEDS LIVE-DB APPLY)
+
+Pre-Play-Store RLS audit of the canonical schema. RLS is comprehensively owner/self-scoped across all
+30+ tables + the privileged-column UPDATE trigger — Wave-0 was essentially complete. The audit found
+**two real holes on `users`**, now closed by a new migration:
+- **`is_app_owner` was un-guarded** — a logged-in user could `UPDATE users SET is_app_owner=true` on
+  their own row (allowed by the self-update policy) and unlock the owner Recovery Console. Escalation.
+- **INSERT was wide open** (`WITH CHECK(true)`, must stay so: admins insert member rows with a
+  generated UUID + role is self-chosen at signup) — but a crafted INSERT/UPSERT could pre-grant a paid
+  plan / active subscription / verified flags / `is_app_owner` (the UPDATE trigger doesn't fire on INSERT).
+
+**Fix:** `migrations/2026-06-27_users_privilege_insert_guard.sql` (folded into `supabase_schema.sql`):
+`guard_user_privileged_columns()` now also runs on INSERT (sanitises a client row to a safe baseline:
+`is_app_owner/verified=false`, `expiry=null`, non-free plan→`free`; role untouched — self-chosen at
+signup, still locked on UPDATE) and the UPDATE branch now blocks `is_app_owner` changes. Trigger →
+`BEFORE INSERT OR UPDATE OF ...`. Escape hatch unchanged: SECURITY-DEFINER RPCs set
+`app.allow_privileged_update='on'`; manual grants wrap `SET LOCAL app.allow_privileged_update='on';`.
+Verified non-breaking vs every users insert/upsert in the code (signup/role-select/add-member/profile).
+- **`migrations/2026-06-27_rls_verify.sql`** — read-only pre-launch checks (RLS on every table, trigger
+  fires INSERT+UPDATE, guard covers is_app_owner, permissive-policy audit, storage owner-scope, no
+  self-granted app-owner / surprise paid plan).
+- **✅ APPLIED + VERIFIED on live DB (2026-06-27):** user ran `2026-06-27_users_privilege_insert_guard.sql`
+  then `2026-06-27_rls_verify.sql` — #1 returned 0 rows (RLS on every table), trigger fires
+  `BEFORE INSERT OR UPDATE` incl. `is_app_owner`, guard covers is_app_owner, no unknown app-owner rows.
+  (#7 showed 3 `starter` rows = owner's own test accounts; harmless under betaMode — optional cleanup to
+  `free` with `SET LOCAL app.allow_privileged_update='on'`.) **No outstanding live-DB action.**
+- Wave-1 (server tier for all privileged mutations, real Razorpay, phone-OTP identity) stays deferred
+  by decision — not required for a beta Play launch.
+
 ### Session 2026-06-26 (c) — Dark theme: full screen migration (phase 2)
 
 Completed the screen-by-screen dark migration started in (b) using a mechanical pass (palette swaps),
