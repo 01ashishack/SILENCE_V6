@@ -38,6 +38,28 @@
 `auth_screen.dart` `_handleGoogleSignIn()` does the native flow: `GoogleSignIn.instance.initialize(serverClientId: SupabaseConfig.googleWebClientId)` → `authenticate()` → `authorizationClient` for the access token → `supabase.auth.signInWithIdToken(provider: google, idToken, accessToken)`; web falls back to `signInWithOAuth`. After sign-in it bootstraps the `users` row (`_routeAfterAuth`) and routes like login (role null → `/role-select`, else admin/member home); user-cancel (`GoogleSignInException.canceled`) is silent. `google_sign_in: ^7.2.0`. **Web client ID `1085738355311-4pbt15ndhhcngedpp28ob8ru2bsl7bdl...` baked as the `googleWebClientId` default** (public, safe in-APK; `--dart-define=GOOGLE_WEB_CLIENT_ID=` still overrides) so plain `flutter run`/`build` work without flags. **Console DONE (user):** OAuth consent screen (External, test users), Web + Android (`com.silence.app.silence` + debug SHA-1 `7E:39:...:63`) client IDs, Supabase Google provider enabled (Web+Android client IDs, Web secret). Apple → "coming soon".
 - **⚠️ Before Play Store:** add the **release keystore SHA-1** to the Android OAuth client (debug SHA-1 only works for `flutter run`/debug APK). Consent screen is in **Testing** → only added test users can log in until Published.
 
+### ✅ Marketing posters gallery (2026-06-28) — code DONE; migration APPLIED + folded into schema
+
+Admin-curated, **upload-based** poster library (no in-app AI; the app owner designs posters
+externally and uploads finished images; library owners browse + download).
+- **Migration** `silence_app/migrations/2026-06-28_marketing_assets.sql` (APPLIED + folded into
+  `supabase_schema.sql`): table `marketing_assets` (scope `general`|`personalised`, category
+  `wall_poster`/`pamphlet`/`banner`/`social`/`other`, `target_library_id`, `image_path`,
+  `sort_order`, `active`) + **public `marketing` storage bucket** + RLS (general → all owners;
+  personalised → only the target library's owner; writes app-owner only).
+- **UI:** `lib/screens/marketing_posters_screen.dart` → Profile → **App & Support → "Marketing &
+  Posters"** (route `/admin/marketing-posters`). Two scopes ("For Your Library" + "For Everyone"),
+  category-wise horizontal scroll, full-screen preview, **one-tap save-to-gallery** via `gal`.
+- **Removed** the earlier rejected approach: old branding screen (logo/accent/QR) +
+  `poster_generator.dart` (template PDFs) + the home-screen card. Dependency added: `gal ^2.3.0`.
+- **Manual upload (current):** Supabase Storage → bucket `marketing`, upload to a path (e.g.
+  `general/wall_poster/x.jpg`); Table editor → `marketing_assets` insert row with `scope`,
+  `category`, exact `image_path` (must match the storage path incl. folder — case-sensitive),
+  and `target_library_id` for personalised (NULL for general). **`image_path` MUST equal the full
+  storage object path** or the public URL 400s.
+- **Deferred:** in-app app-owner upload UI; iOS needs `NSPhotoLibraryAddUsageDescription` in
+  Info.plist before gallery save works on iOS. Commit `bc97432` (pushed).
+
 ### ✅ Legal pages sync + UGC reporting/moderation (2026-06-28) — code DONE; migration APPLIED + folded into schema
 
 Spec: `.kiro/specs/legal-and-ugc-compliance/` (requirements/design/tasks). Two launch-blocking gaps closed:
