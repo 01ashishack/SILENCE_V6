@@ -1054,6 +1054,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                         title: 'App & Support',
                         items: [
                           _buildSettingsItem(context, Icons.workspace_premium_outlined, 'Subscription & Billing', '/admin/subscription'),
+                          _buildSettingsItem(context, Icons.palette_outlined, 'Marketing & Posters', '/admin/marketing-posters'),
                           _buildSettingsItem(context, Icons.settings_outlined, 'Settings', '/admin/app-settings'),
                           _buildShareAppItem(),
                           _buildSettingsItem(context, Icons.info_outline, 'About Us', '/admin/about-us'),

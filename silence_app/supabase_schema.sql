@@ -501,6 +501,29 @@ CREATE TABLE IF NOT EXISTS user_blocks (
 );
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON user_blocks(blocker_id);
 
+-- Marketing posters asset catalog (2026-06-28) — images live in the public
+-- `marketing` storage bucket; this table is the catalog. scope 'general' shows
+-- to all owners; 'personalised' only to the target library's owner.
+CREATE TABLE IF NOT EXISTS marketing_assets (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scope             TEXT NOT NULL CHECK (scope IN ('general', 'personalised')),
+    category          TEXT NOT NULL CHECK (category IN
+                        ('wall_poster', 'pamphlet', 'banner', 'social', 'other')),
+    target_library_id UUID REFERENCES libraries(id) ON DELETE CASCADE,
+    title             TEXT,
+    image_path        TEXT NOT NULL,
+    sort_order        INT DEFAULT 0,
+    active            BOOLEAN DEFAULT true,
+    created_by        UUID REFERENCES users(id),
+    created_at        TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT marketing_scope_target_chk CHECK (
+        (scope = 'general' AND target_library_id IS NULL)
+        OR (scope = 'personalised' AND target_library_id IS NOT NULL)
+    )
+);
+CREATE INDEX IF NOT EXISTS idx_marketing_scope  ON marketing_assets(scope, category);
+CREATE INDEX IF NOT EXISTS idx_marketing_target ON marketing_assets(target_library_id);
+
 CREATE TRIGGER trigger_update_reviews_updated_at
 BEFORE UPDATE ON reviews
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -739,6 +762,7 @@ ALTER TABLE scheduled_closures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE abuse_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE marketing_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenditures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE streaks ENABLE ROW LEVEL SECURITY;
@@ -1210,6 +1234,24 @@ CREATE POLICY "report_update_moderator" ON abuse_reports
 CREATE POLICY "blocks_owner_all" ON user_blocks
   FOR ALL USING (blocker_id = auth.uid())
   WITH CHECK (blocker_id = auth.uid());
+
+-- 4.28 Marketing posters policies (2026-06-28)
+CREATE POLICY "marketing_select_scoped" ON marketing_assets
+  FOR SELECT USING (
+    (active AND scope = 'general')
+    OR (active AND scope = 'personalised' AND target_library_id IN (
+          SELECT id FROM libraries WHERE owner_id = auth.uid()))
+    OR EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.is_app_owner)
+  );
+
+CREATE POLICY "marketing_write_app_owner" ON marketing_assets
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.is_app_owner)
+  ) WITH CHECK (
+    EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.is_app_owner)
+  );
+-- Storage: public bucket `marketing` + object policies are created in
+-- migrations/2026-06-28_marketing_assets.sql (storage schema, applied separately).
 
 -- 4.25 Expenditures Policies
 CREATE POLICY "admin_manage_expenditures" ON expenditures
