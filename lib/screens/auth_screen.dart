@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/gestures.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../core/supabase_config.dart';
@@ -44,6 +45,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {}); // resize the card to the active tab
+    });
     _signupPasswordController.addListener(_checkPasswordStrength);
   }
 
@@ -504,7 +508,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     Theme.of(context).brightness == Brightness.dark
                         ? 'assets/images/transparent_logo_with_white_name.png'
                         : 'assets/images/transparent_logo_with_black_name.png',
-                    height: 54,
+                    height: 76,
                     fit: BoxFit.contain,
                     semanticLabel: 'SILENCE',
                   ),
@@ -537,17 +541,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       ],
                     ),
                     
-                    // Tab View Contents
-                    SizedBox(
-                      height: 420,
-                      child: TabBarView(
-                        controller: _tabController,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          _buildLoginTab(),
-                          _buildSignupTab(),
-                        ],
-                      ),
+                    // Tab View Contents — sized to the active tab so the card
+                    // hugs its content (no dead space below Login).
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      alignment: Alignment.topCenter,
+                      child: _tabController.index == 0
+                          ? _buildLoginTab()
+                          : _buildSignupTab(),
                     ),
                   ],
                 ),
@@ -647,7 +649,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 ),
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 28),
 
             // Login Button
             _buildPrimaryButton(
@@ -663,7 +665,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   Widget _buildSignupTab() {
     return Form(
       key: _signupFormKey,
-      child: SingleChildScrollView(
+      child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -879,11 +881,17 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         border: Border.all(color: context.palette.border, width: 1),
       ),
       child: Center(
-        child: FaIcon(
-          provider == 'Google' ? FontAwesomeIcons.google : FontAwesomeIcons.apple,
-          size: 24,
-          color: iconColor,
-        ),
+        child: provider == 'Google'
+            ? SvgPicture.asset(
+                'assets/images/google_g.svg',
+                width: 24,
+                height: 24,
+              )
+            : FaIcon(
+                FontAwesomeIcons.apple,
+                size: 24,
+                color: iconColor,
+              ),
       ),
     );
 
