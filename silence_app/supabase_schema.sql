@@ -2672,3 +2672,192 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_library_created
     ON audit_log (library_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_attendance_library_ist_date
     ON attendance (library_id, ((check_in_time AT TIME ZONE 'Asia/Kolkata')::date));
+
+-- ============================================================================
+-- Server-tier RPCs folded for fresh-deploy reproducibility (schema-drift fix,
+-- audit Wave 9). These were applied to the live DB via their dated migrations
+-- but had not been folded into this canonical file — so a fresh deploy lacked
+-- them. Canonical copies below; see the named migrations for full rationale.
+-- ============================================================================
+
+-- find_user_by_contact — owner-only existing-MEMBER resolver for Add-Member.
+-- Canonical copy of migrations/2026-06-12_rpc_find_user_by_contact.sql.
+CREATE OR REPLACE FUNCTION public.find_user_by_contact(
+    p_phone text DEFAULT NULL,
+    p_email text DEFAULT NULL
+)
+RETURNS TABLE (
+    id uuid, full_name text, phone text, email text, gender text,
+    date_of_birth date, address text, exam_category text, photo_url text
+)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_phone text := nullif(btrim(coalesce(p_phone, '')), '');
+    v_email text := lower(nullif(btrim(coalesce(p_email, '')), ''));
+BEGIN
+    IF auth.uid() IS NULL
+       OR NOT EXISTS (SELECT 1 FROM public.libraries WHERE owner_id = auth.uid()) THEN
+        RAISE EXCEPTION 'not authorized to look up users' USING errcode = '42501';
+    END IF;
+    IF v_phone IS NULL AND v_email IS NULL THEN
+        RETURN;
+    END IF;
+    RETURN QUERY
+    SELECT u.id, u.full_name, u.phone, u.email, u.gender, u.date_of_birth,
+           u.address, u.exam_category, u.photo_url
+    FROM public.users u
+    WHERE ((v_phone IS NOT NULL AND u.phone = v_phone)
+        OR (v_email IS NOT NULL AND lower(u.email) = v_email))
+      AND u.role IS DISTINCT FROM 'admin'
+      AND NOT EXISTS (SELECT 1 FROM public.libraries l WHERE l.owner_id = u.id)
+    ORDER BY u.created_at DESC
+    LIMIT 1;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.find_user_by_contact(text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.find_user_by_contact(text, text) TO authenticated;
+
+-- contact_in_use — boolean probe: is this phone/email an admin/owner account?
+-- Canonical copy of migrations/2026-06-17_rpc_contact_in_use.sql.
+CREATE OR REPLACE FUNCTION public.contact_in_use(
+    p_phone text DEFAULT NULL,
+    p_email text DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_phone text := nullif(btrim(coalesce(p_phone, '')), '');
+    v_email text := lower(nullif(btrim(coalesce(p_email, '')), ''));
+BEGIN
+    IF auth.uid() IS NULL
+       OR NOT EXISTS (SELECT 1 FROM public.libraries WHERE owner_id = auth.uid()) THEN
+        RAISE EXCEPTION 'not authorized to look up contacts' USING errcode = '42501';
+    END IF;
+    IF v_phone IS NULL AND v_email IS NULL THEN
+        RETURN false;
+    END IF;
+    RETURN EXISTS (
+        SELECT 1 FROM public.users u
+        WHERE ((v_phone IS NOT NULL AND u.phone = v_phone)
+            OR (v_email IS NOT NULL AND lower(u.email) = v_email))
+          AND (u.role = 'admin'
+            OR EXISTS (SELECT 1 FROM public.libraries l WHERE l.owner_id = u.id))
+    );
+END;
+$$;
+REVOKE ALL ON FUNCTION public.contact_in_use(text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.contact_in_use(text, text) TO authenticated;
+
+-- guard_role_change — trigger fn blocking direct role flips (change_my_role()
+-- is the only sanctioned path). Canonical copy of the trigger half of
+-- migrations/2026-06-18_role_change_rpc.sql (change_my_role itself folded above).
+CREATE OR REPLACE FUNCTION public.guard_role_change()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.role IS NOT NULL AND NEW.role IS DISTINCT FROM OLD.role THEN
+        IF current_setting('app.allow_role_change', true) IS DISTINCT FROM 'on' THEN
+            RAISE EXCEPTION 'Role can only be changed through change_my_role()'
+                USING errcode = '42501';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_guard_role_change ON public.users;
+CREATE TRIGGER trg_guard_role_change
+    BEFORE UPDATE OF role ON public.users
+    FOR EACH ROW EXECUTE FUNCTION public.guard_role_change();
+
+-- Account-recovery owner console RPCs + cross-tenant purge.
+-- Canonical copy of migrations/2026-06-18_account_recovery_rpcs.sql.
+-- NOTE: the hard-coded uid is the app-owner account (SupabaseConfig.appOwnerUserId).
+CREATE OR REPLACE FUNCTION public.owner_list_recovery_requests()
+RETURNS TABLE (
+    id uuid, full_name text, email text, phone text, role text,
+    deletion_scheduled_at timestamptz
+)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF auth.uid() <> '1ce8bdfb-8364-4eef-91e1-aa70ab84edc1'::uuid THEN
+        RAISE EXCEPTION 'not authorized' USING errcode = '42501';
+    END IF;
+    RETURN QUERY
+        SELECT u.id, u.full_name, u.email, u.phone, u.role, u.deletion_scheduled_at
+        FROM public.users u
+        WHERE u.scheduled_for_deletion = true
+          AND u.deletion_recovery_status = 'requested'
+        ORDER BY u.deletion_scheduled_at ASC NULLS LAST;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.owner_list_recovery_requests() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.owner_list_recovery_requests() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.owner_decide_recovery(p_user_id uuid, p_approve boolean)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF auth.uid() <> '1ce8bdfb-8364-4eef-91e1-aa70ab84edc1'::uuid THEN
+        RAISE EXCEPTION 'not authorized' USING errcode = '42501';
+    END IF;
+    IF p_approve THEN
+        UPDATE public.users
+           SET scheduled_for_deletion = false,
+               deletion_scheduled_at = NULL,
+               deletion_recovery_status = 'approved'
+         WHERE id = p_user_id;
+        INSERT INTO public.notifications (user_id, title, body, data)
+        VALUES (p_user_id, 'Account restored',
+                'Your account recovery was approved — welcome back!',
+                '{"type":"account_restored"}'::jsonb);
+    ELSE
+        UPDATE public.users
+           SET deletion_recovery_status = 'denied'
+         WHERE id = p_user_id;
+        INSERT INTO public.notifications (user_id, title, body, data)
+        VALUES (p_user_id, 'Recovery request declined',
+                'Your account recovery request was not approved.',
+                '{"type":"account_recovery_denied"}'::jsonb);
+    END IF;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.owner_decide_recovery(uuid, boolean) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.owner_decide_recovery(uuid, boolean) TO authenticated;
+
+-- purge_account — hard-deletes all DB data for a user (cron Edge Function only).
+CREATE OR REPLACE FUNCTION public.purge_account(p_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+    DELETE FROM public.attendance            WHERE member_id = p_user_id;
+    DELETE FROM public.payments              WHERE member_id = p_user_id;
+    DELETE FROM public.seat_change_requests  WHERE member_id = p_user_id;
+    DELETE FROM public.hold_requests         WHERE member_id = p_user_id;
+    DELETE FROM public.join_requests         WHERE member_id = p_user_id;
+    DELETE FROM public.reviews               WHERE member_id = p_user_id;
+    DELETE FROM public.badges                WHERE member_id = p_user_id;
+    DELETE FROM public.referrals             WHERE referrer_member_id = p_user_id OR referred_member_id = p_user_id;
+    DELETE FROM public.queries               WHERE member_id = p_user_id;
+    DELETE FROM public.notifications         WHERE user_id   = p_user_id;
+    DELETE FROM public.device_tokens         WHERE user_id   = p_user_id;
+    DELETE FROM public.transfers             WHERE member_id = p_user_id;
+    BEGIN DELETE FROM public.streaks            WHERE member_id = p_user_id; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM public.member_daily_stats WHERE member_id = p_user_id; EXCEPTION WHEN undefined_table THEN NULL; END;
+    UPDATE public.seats SET status = 'vacant', occupied_by_member_id = NULL
+        WHERE occupied_by_member_id = p_user_id;
+    DELETE FROM public.memberships           WHERE member_id = p_user_id;
+    BEGIN DELETE FROM public.settings    WHERE admin_id = p_user_id; EXCEPTION WHEN undefined_table THEN NULL; END;
+    DELETE FROM public.announcements         WHERE admin_id = p_user_id;
+    DELETE FROM public.audit_log             WHERE admin_id = p_user_id;
+    DELETE FROM public.libraries             WHERE owner_id = p_user_id;
+    DELETE FROM public.users                 WHERE id = p_user_id;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.purge_account(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.purge_account(uuid) TO service_role;

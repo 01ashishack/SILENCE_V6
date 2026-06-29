@@ -230,9 +230,13 @@ Status keys: ⬜ not started · �doing · ✅ done
 - ✅ **8.3** `istNow()` in `admin_home._loadOperationalFeeds` (A1-39) — the "today" feed window is now
   built from IST wall-clock → UTC (`istWallClockToUtc`, matching analytics) so the boundary is true IST
   midnight regardless of device timezone.
-- ⬜ **8.4** Public `USING(true)` read scoping for seats/add_ons occupant data (A2-7) — careful, Explore
-  depends on shift/price reads. **NEEDS LIVE RLS CHANGE + verify — flagged to user (highest realtime/
-  Explore regression risk). Safer alt:** hide `occupied_by_member_id` from public seat reads only.
+- 🟢 **8.4** Public seat occupant-data scoping (A2-7) — **migration authored:**
+  `2026-07-08_seats_tenant_read_scope.sql` replaces the blanket `seats` SELECT `USING(true)` with
+  owner-OR-member-of-library scoping (RLS can't hide a column, so we scope rows). Verified no code
+  change needed: Explore + member join flow don't read seats; occupant is read only in owner/admin
+  screens; members read their own library's seats via embedded membership reads. `add_ons` stays
+  public (price catalog, no PII, needed by prospective joiners). **USER: apply + Explore/layout/
+  add-member/member-seat live test, then fold.**
 - 🟡 **8.5** Double-submit guard in `contact_admin_screen` (A1-48) — **already present** (button disabled
   + `sending` spinner before the await). No-Seat filter optimistic refresh (A1-44) — minor UI, deferred.
 - ⬜ **8.6** Public-config note (A1-36, A2-30): anon key/Firebase keys are public by design; optionally
@@ -242,13 +246,20 @@ Status keys: ⬜ not started · �doing · ✅ done
 
 ## WAVE 9 — Engineering hygiene (P3, post-launch ok)
 
-- ⬜ CI workflow (analyze + test + build + schema-drift check) (A2-26).
-- ⬜ Tests for critical services/RPCs: approve, exit-dues, transfer, payments, offline state (A1-35, A2-27).
-- ⬜ Resolve the 2 baseline `use_build_context_synchronously` infos (A2-28).
-- ⬜ Dependency upgrade pass (A2-29).
-- ⬜ God-file decomposition (member_home/admin_analytics/layout) — large, last (A1-31,32,33).
-- ⬜ Repository/service layer for Supabase calls (A1-34).
-- ⬜ Monetization/billing before paid launch; replace `betaMode` constant with config (A1-38, A2-21).
+- ✅ **CI workflow** (`.github/workflows/ci.yml`): on push/PR to main — `flutter pub get`, schema-drift
+  check, `flutter analyze`, `flutter test`, then a release-mode Android build (debug-signed compile
+  check). (A2-26)
+- ✅ **Schema-drift detection** (`tool/check_schema_drift.dart`): asserts every `CREATE TABLE/FUNCTION`
+  in `migrations/*.sql` is folded into `supabase_schema.sql`. **Caught + fixed real drift:** folded 6
+  previously-unfolded server-tier objects (`find_user_by_contact`, `contact_in_use`, `guard_role_change`
+  trigger fn, `owner_list_recovery_requests`, `owner_decide_recovery`, `purge_account`) that fresh
+  deploys were missing.
+- ✅ **Critical tests:** `test/time_utils_test.dart` (IST clock / DB-bound math behind Wave 8.3 + all
+  day-boundary logic) and `test/storage_urls_test.dart` (path-vs-URL detection behind Wave 2). Join the
+  existing `moderation_service_test.dart`. 21 tests green.
+- ⬜ (Deferred per scope) god-file decomposition, repository/service layer, dependency upgrade pass,
+  monetization/billing — large architectural work, explicitly out of scope for this pass.
+- ⬜ Resolve the 2 baseline `use_build_context_synchronously` infos (A2-28) — pre-existing baseline.
 
 ---
 
