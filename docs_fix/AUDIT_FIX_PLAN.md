@@ -154,13 +154,14 @@ Status keys: ⬜ not started · �doing · ✅ done
 
 ## WAVE 5 — Performance + scale (P1)
 
-### 5.1 ⬜ Dashboard counts via `count: head:true` (A1-14, A2-13)
+### 5.1 ✅ Dashboard counts via `count: head:true` (A1-14, A2-13)
 - Convert `admin_home` `.select('id').length` counts to head-count requests (no row download).
   Already parallelized via `Future.wait`. Files: `admin_home.dart`. No migration.
-- **Regression risk:** low-med — verify the count API for `supabase_flutter` 2.x compiles (codebase
-  doesn't use it yet → confirm syntax). **Safer alt:** keep `Future.wait` + `.length` if API uncertain.
+  **DONE:** used postgrest 2.7 `.count(CountOption.exact)` (HEAD request) for active/expired/
+  expiring-today/expiring-soon members, unread notifications, open queries, exits-today.
+  Revenue + new-joinings still fetch rows (need amounts/dates). `flutter analyze` clean.
 
-### 5.2 ⬜ Missing composite + functional indexes (A1-23,25, A2-16)
+### 5.2 ✅ Missing composite + functional indexes (A1-23,25, A2-16)
 - Migration adds: `notifications(user_id, read_at)`, `queries(library_id, status)`,
   `scheduled_closures(library_id, start_date, end_date)`, `hold_requests(library_id, status)`,
   `seat_change_requests(library_id, status)`, `audit_log(category)`, and a functional index

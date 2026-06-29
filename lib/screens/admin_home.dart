@@ -530,12 +530,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return;
-      final rows = await Supabase.instance.client
+      final int n = await Supabase.instance.client
           .from('notifications')
-          .select('id')
+          .count(CountOption.exact)
           .eq('user_id', user.id)
           .isFilter('read_at', null);
-      if (mounted) setState(() => _unreadNotifications = (rows as List).length);
+      if (mounted) setState(() => _unreadNotifications = n);
     } catch (e) {
       debugPrint('Unread notifications count load failed: $e');
     }
@@ -543,12 +543,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
 
   Future<void> _loadOpenQueriesCount(String libId) async {
     try {
-      final rows = await Supabase.instance.client
+      final int n = await Supabase.instance.client
           .from('queries')
-          .select('id')
+          .count(CountOption.exact)
           .eq('library_id', libId)
           .eq('status', 'open');
-      if (mounted) setState(() => _openQueriesCount = (rows as List).length);
+      if (mounted) setState(() => _openQueriesCount = n);
     } catch (e) {
       debugPrint('Open queries count load failed: $e');
     }
@@ -601,22 +601,24 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       // Perf: these independent stat reads previously ran one-by-one (sequential
       // round-trips → slow dashboard). Run them in parallel; dues + exits stay
       // as their own resilient (try-caught) reads below.
+      // Count-only stats use head-count requests (.count) so they don't download
+      // id rows; revenue (stats[3]) + new-joinings (stats[4]) still need the rows.
       final stats = await Future.wait([
-        supabase.from('memberships').select('id').eq('library_id', libId).eq('status', 'active'),
-        supabase.from('memberships').select('id').eq('library_id', libId).eq('status', 'expired').lt('end_date', todayStr),
-        supabase.from('memberships').select('id').eq('library_id', libId).eq('end_date', todayStr),
+        supabase.from('memberships').count(CountOption.exact).eq('library_id', libId).eq('status', 'active'),
+        supabase.from('memberships').count(CountOption.exact).eq('library_id', libId).eq('status', 'expired').lt('end_date', todayStr),
+        supabase.from('memberships').count(CountOption.exact).eq('library_id', libId).eq('end_date', todayStr),
         supabase.from('payments').select('amount, payment_date').eq('library_id', libId).eq('status', 'confirmed').gte('payment_date', firstDayOfMonthStr),
         supabase.from('memberships').select('created_at').eq('library_id', libId).gte('created_at', firstDayOfMonthStr),
-        supabase.from('memberships').select('id').eq('library_id', libId).gte('end_date', tomorrowStr).lte('end_date', sevenDaysLaterStr),
+        supabase.from('memberships').count(CountOption.exact).eq('library_id', libId).gte('end_date', tomorrowStr).lte('end_date', sevenDaysLaterStr),
       ]);
 
-      _totalActiveMembers = (stats[0] as List).length;
+      _totalActiveMembers = stats[0] as int;
 
       // 2. Expired: status = 'expired' and end_date < today
-      _expiredCount = (stats[1] as List).length;
+      _expiredCount = stats[1] as int;
 
       // Expiring Today: end_date = today
-      _expiringTodayCount = (stats[2] as List).length;
+      _expiringTodayCount = stats[2] as int;
 
       // 3. Revenue This Month: payments amount sum where status = 'confirmed' and payment_date >= first day of month
       // Today's revenue: payment_date = today
@@ -669,20 +671,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
 
       // 4b. Exits today: memberships that left (status 'exited') today.
       try {
-        final exitsRes = await supabase
+        final int exitsCount = await supabase
             .from('memberships')
-            .select('id')
+            .count(CountOption.exact)
             .eq('library_id', libId)
             .eq('status', 'exited')
             .gte('exited_at', todayMidnightIso);
-        _exitsToday = (exitsRes as List).length;
+        _exitsToday = exitsCount;
       } catch (e) {
         debugPrint('Error loading exits today: $e');
         _exitsToday = 0;
       }
 
       // 5. Expiring Soon: memberships end_date between tomorrow and today+7 days
-      _expiringSoonCount = (stats[5] as List).length;
+      _expiringSoonCount = stats[5] as int;
 
       // 6. Live Occupancy: seats occupied for current shift (or all shifts if no current shift)
       final shiftsRes = await supabase

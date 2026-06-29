@@ -2651,3 +2651,24 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.approve_seat_change(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.approve_seat_change(uuid) TO authenticated;
+
+-- ============================================================================
+-- Performance indexes. Canonical copy of migrations/2026-07-07_perf_indexes.sql
+-- (audit P1). Additive composite + 1 functional index — no behaviour change.
+-- audit_log has no `category` column (action + library_id), so it's indexed on
+-- (library_id, created_at) for the recent-first audit-log screen.
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read
+    ON notifications (user_id, read_at);
+CREATE INDEX IF NOT EXISTS idx_queries_library_status
+    ON queries (library_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_scheduled_closures_library_dates
+    ON scheduled_closures (library_id, start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_hold_requests_library_status
+    ON hold_requests (library_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_seat_change_library_status
+    ON seat_change_requests (library_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_log_library_created
+    ON audit_log (library_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_attendance_library_ist_date
+    ON attendance (library_id, ((check_in_time AT TIME ZONE 'Asia/Kolkata')::date));
