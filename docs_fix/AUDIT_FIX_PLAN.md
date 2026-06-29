@@ -230,13 +230,10 @@ Status keys: ⬜ not started · �doing · ✅ done
 - ✅ **8.3** `istNow()` in `admin_home._loadOperationalFeeds` (A1-39) — the "today" feed window is now
   built from IST wall-clock → UTC (`istWallClockToUtc`, matching analytics) so the boundary is true IST
   midnight regardless of device timezone.
-- 🟢 **8.4** Public seat occupant-data scoping (A2-7) — **migration authored:**
-  `2026-07-08_seats_tenant_read_scope.sql` replaces the blanket `seats` SELECT `USING(true)` with
-  owner-OR-member-of-library scoping (RLS can't hide a column, so we scope rows). Verified no code
-  change needed: Explore + member join flow don't read seats; occupant is read only in owner/admin
-  screens; members read their own library's seats via embedded membership reads. `add_ons` stays
-  public (price catalog, no PII, needed by prospective joiners). **USER: apply + Explore/layout/
-  add-member/member-seat live test, then fold.**
+- 🟢 **8.4** Public seat occupant-data scoping (A2-7) — **APPLIED + folded.**
+  `2026-07-08_seats_tenant_read_scope.sql` replaced the blanket `seats` SELECT `USING(true)` with
+  owner-OR-member-of-library scoping. No code change needed. Folded into `supabase_schema.sql`.
+  USER on-device check: layout/add-member/member-seat still work; unrelated user reads 0 seats.
 - 🟡 **8.5** Double-submit guard in `contact_admin_screen` (A1-48) — **already present** (button disabled
   + `sending` spinner before the await). No-Seat filter optimistic refresh (A1-44) — minor UI, deferred.
 - ⬜ **8.6** Public-config note (A1-36, A2-30): anon key/Firebase keys are public by design; optionally

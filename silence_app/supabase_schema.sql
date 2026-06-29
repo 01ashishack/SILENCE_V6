@@ -919,8 +919,24 @@ CREATE POLICY "Read only for others on sections" ON sections
     FOR SELECT USING (true);
 
 -- 4.6 Seats Policies
-CREATE POLICY "Anyone can view seats" ON seats
-    FOR SELECT USING (true);
+-- Tenant-scoped read (audit A2-7): seats carry occupant identity
+-- (occupied_by_member_id), so only the library OWNER or a MEMBER of that library
+-- may read its seat rows. Explore + member join flow don't read seats; members
+-- see their own seat via embedded membership reads. Canonical copy of
+-- migrations/2026-07-08_seats_tenant_read_scope.sql.
+CREATE POLICY "Owner or member can view seats" ON seats
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM libraries l
+             WHERE l.id = seats.library_id
+               AND l.owner_id = auth.uid()
+        )
+        OR EXISTS (
+            SELECT 1 FROM memberships m
+             WHERE m.library_id = seats.library_id
+               AND m.member_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Owner can update seats" ON seats
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
