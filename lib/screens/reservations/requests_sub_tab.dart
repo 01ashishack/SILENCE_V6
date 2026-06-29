@@ -111,12 +111,20 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
   // ── Setup Realtime ────────────────────────────────────────────────────────
   void _setupRealtimeSubscription() {
+    // Tenant-scoped: filter every stream to this library so an admin viewing
+    // library A isn't woken by changes in library B (audit P1 realtime fanout).
+    final libFilter = PostgresChangeFilter(
+      type: PostgresChangeFilterType.eq,
+      column: 'library_id',
+      value: widget.libraryId,
+    );
     _requestsChannel = supabase
-        .channel('public:requests_sub_tab')
+        .channel('public:requests_sub_tab:${widget.libraryId}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'join_requests',
+          filter: libFilter,
           callback: (payload) {
             if (mounted) {
               _fetchRequests();
@@ -127,6 +135,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'checkin_approvals',
+          filter: libFilter,
           callback: (payload) {
             if (mounted) {
               _fetchRequests();
@@ -137,6 +146,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'shift_change_requests',
+          filter: libFilter,
           callback: (payload) {
             if (mounted) {
               _fetchRequests();
@@ -147,6 +157,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'seat_change_requests',
+          filter: libFilter,
           callback: (payload) {
             if (mounted) {
               _fetchRequests();

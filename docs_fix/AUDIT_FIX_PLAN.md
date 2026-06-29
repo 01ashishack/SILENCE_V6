@@ -186,13 +186,12 @@ Status keys: ⬜ not started · �doing · ✅ done
 
 ## WAVE 6 — Realtime fanout (P1, test live)
 
-### 6.1 ⬜ Tenant-scope realtime subscriptions (A1-11,12,13, A2-11,12)
-- `layout_sub_tab` (seats/floors/sections) + `requests_sub_tab` (join/checkin/shift/seat) — add
-  `library_id=eq.<id>` filters (or library-scoped channels). No migration.
-- **Verify (live):** a change in library A does not wake an admin viewing library B; same-library updates
-  still arrive.
-- **Regression risk:** med — a wrong filter string silently kills updates. **Safer alt:** add filter +
-  keep a manual refresh; verify on two libraries before relying on it.
+### 6.1 ✅ Tenant-scope realtime subscriptions (A1-11,12,13, A2-11,12)
+- `layout_sub_tab` (seats + floors) + `requests_sub_tab` (join/checkin/shift/seat) now subscribe
+  with a `PostgresChangeFilter(library_id = eq <id>)` and library-scoped channel names, so an admin
+  viewing library A is no longer woken by library B's changes. `sections` has no library_id column
+  (links via floor_id) so it stays global — section edits are rare and a sibling seat/floor change
+  refreshes it anyway. `admin_home` join-requests stream was already scoped. `flutter analyze` clean.
 
 **Commit checkpoint G.**
 

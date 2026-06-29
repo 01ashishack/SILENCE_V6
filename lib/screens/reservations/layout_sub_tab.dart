@@ -114,12 +114,22 @@ class LayoutSubTabState extends State<LayoutSubTab> {
 
   // ── Setup Realtime ────────────────────────────────────────────────────────
   void _setupRealtimeSubscription() {
+    // Tenant-scoped filter: seats + floors carry library_id, so scope their
+    // streams to this library (audit P1 realtime fanout). `sections` has no
+    // library_id column (it links via floor_id) so it stays global — section
+    // edits are rare and a floor/seat change in the same flow refreshes anyway.
+    final libFilter = PostgresChangeFilter(
+      type: PostgresChangeFilterType.eq,
+      column: 'library_id',
+      value: widget.libraryId,
+    );
     _seatsChannel = supabase
-        .channel('public:seats')
+        .channel('public:seats:${widget.libraryId}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'seats',
+          filter: libFilter,
           callback: (payload) {
             if (mounted) {
               _fetchSeatsAndSections();
@@ -129,11 +139,12 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         .subscribe();
 
     _floorsChannel = supabase
-        .channel('public:floors')
+        .channel('public:floors:${widget.libraryId}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'floors',
+          filter: libFilter,
           callback: (payload) {
             if (mounted) {
               _loadSelectors();
@@ -143,7 +154,7 @@ class LayoutSubTabState extends State<LayoutSubTab> {
         .subscribe();
 
     _sectionsChannel = supabase
-        .channel('public:sections')
+        .channel('public:sections:${widget.libraryId}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
