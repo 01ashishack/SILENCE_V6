@@ -80,7 +80,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   // Dynamic metrics (reflecting actual DB state)
   int _revenueThisMonth = 0;
   int _revenueToday = 0;
-  final int _revenuePending = 0;
+  int _revenuePending = 0;
   int _expiredCount = 0;
   int _newJoiningsThisMonth = 0;
   int _expiringSoonCount = 0;
@@ -646,6 +646,25 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       }
       _revenueThisMonth = revSum;
       _revenueToday = revToday;
+
+      // 3b. Outstanding dues: sum of all PENDING payments for this library
+      // (pay-later approvals + unconfirmed proofs). Shown on the Revenue card so
+      // the admin sees what is yet to be collected.
+      try {
+        final pendingRes = await supabase
+            .from('payments')
+            .select('amount')
+            .eq('library_id', libId)
+            .eq('status', 'pending');
+        int dueSum = 0;
+        for (final p in pendingRes as List) {
+          final amt = (p['amount'] as num?)?.toInt() ?? 0;
+          if (amt > 0) dueSum += amt;
+        }
+        _revenuePending = dueSum;
+      } catch (e) {
+        debugPrint('Pending dues sum failed: $e');
+      }
 
       // 4. New Joinings: memberships created_at >= first day of month
       // Today's count: created_at >= today midnight

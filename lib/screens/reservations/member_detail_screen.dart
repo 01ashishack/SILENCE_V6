@@ -570,6 +570,210 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     return s == 'active' || s == 'trial' || s == 'expiring' || s == 'hold' || s == 'expired';
   }
 
+  bool _canChangeShift() {
+    if (_membershipData == null || _membershipData!['library_id'] == null) return false;
+    final s = _membershipData?['status'];
+    return s == 'active' || s == 'trial' || s == 'expiring' || s == 'hold';
+  }
+
+  /// Admin: move this member to a different shift in the SAME library, with an
+  /// optional new seat (seats belong to a shift) and an optional price
+  /// adjustment. Backed by the atomic transfer_member_shift() RPC.
+  Future<void> _openShiftChange() async {
+    final ms = _membershipData;
+    if (ms == null) return;
+    final membershipId = ms['id']?.toString();
+    final libraryId = ms['library_id']?.toString();
+    final currentShiftId = ms['shift_id']?.toString();
+    if (membershipId == null || libraryId == null) return;
+
+    // Load selectable shifts (exclude the current one + archived).
+    List<Map<String, dynamic>> shifts = [];
+    try {
+      final res = await supabase
+          .from('shifts')
+          .select('id, name, price_monthly')
+          .eq('library_id', libraryId)
+          .eq('is_archived', false);
+      shifts = List<Map<String, dynamic>>.from(res)
+          .where((s) => s['id'].toString() != currentShiftId)
+          .toList();
+    } catch (e) {
+      if (mounted) AppSnackbar.error(context, friendlyError(e));
+      return;
+    }
+    if (!mounted) return;
+    if (shifts.isEmpty) {
+      AppSnackbar.info(context, 'No other shift is available in this library.');
+      return;
+    }
+
+    String? newShiftId;
+    List<Map<String, dynamic>> seats = [];
+    String? newSeatId;
+    final priceCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController();
+    bool chargeNow = true;
+    bool busy = false;
+
+    Future<void> loadSeats(StateSetter setSheet, String shiftId) async {
+      setSheet(() { seats = []; newSeatId = null; });
+      try {
+        final res = await supabase
+            .from('seats')
+            .select('id, seat_label')
+            .eq('library_id', libraryId)
+            .eq('shift_id', shiftId)
+            .eq('status', 'vacant')
+            .order('seat_label');
+        setSheet(() => seats = List<Map<String, dynamic>>.from(res));
+      } catch (_) {/* seats are optional */}
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.palette.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) => Padding(
+          padding: EdgeInsets.only(
+            left: 20, right: 20, top: 18,
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Change / Transfer Shift',
+                    style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
+                const SizedBox(height: 4),
+                Text('The current seat is freed. Optionally assign a seat in the new shift.',
+                    style: GoogleFonts.inter(fontSize: 12, color: context.palette.textSecondary)),
+                const SizedBox(height: 16),
+
+                Text('New shift', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: context.palette.textSecondary)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  initialValue: newShiftId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                  hint: const Text('Select a shift'),
+                  items: shifts.map((s) {
+                    final price = (s['price_monthly'] as num?)?.toInt() ?? 0;
+                    return DropdownMenuItem<String>(
+                      value: s['id'].toString(),
+                      child: Text('${s['name']}  ·  ₹$price/mo', overflow: TextOverflow.ellipsis),
+                    );
+                  }).toList(),
+                  onChanged: busy ? null : (v) {
+                    setSheet(() => newShiftId = v);
+                    if (v != null) loadSeats(setSheet, v);
+                  },
+                ),
+                const SizedBox(height: 14),
+
+                if (newShiftId != null) ...[
+                  Text('Seat in new shift (optional)',
+                      style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: context.palette.textSecondary)),
+                  const SizedBox(height: 6),
+                  if (seats.isEmpty)
+                    Text('No vacant seats in this shift — assign later from the members list.',
+                        style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textMuted))
+                  else
+                    DropdownButtonFormField<String>(
+                      initialValue: newSeatId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                      hint: const Text('No seat (assign later)'),
+                      items: [
+                        const DropdownMenuItem<String>(value: null, child: Text('No seat (assign later)')),
+                        ...seats.map((s) => DropdownMenuItem<String>(
+                              value: s['id'].toString(),
+                              child: Text('Seat ${s['seat_label']}'),
+                            )),
+                      ],
+                      onChanged: busy ? null : (v) => setSheet(() => newSeatId = v),
+                    ),
+                  const SizedBox(height: 14),
+                ],
+
+                Text('Price adjustment (₹, optional)',
+                    style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: context.palette.textSecondary)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(signed: true),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(), isDense: true,
+                    hintText: 'e.g. 200 (extra charge) or -100 (credit)',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  activeThumbColor: const Color(0xFFE65C00),
+                  value: chargeNow,
+                  onChanged: busy ? null : (v) => setSheet(() => chargeNow = v),
+                  title: Text(chargeNow ? 'Mark adjustment as paid' : 'Leave adjustment as pending (due)',
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: reasonCtrl,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(), isDense: true,
+                    labelText: 'Reason (optional)',
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: (newShiftId == null || busy)
+                        ? null
+                        : () async {
+                            setSheet(() => busy = true);
+                            final adj = int.tryParse(priceCtrl.text.trim()) ?? 0;
+                            final params = <String, dynamic>{
+                              'p_membership_id': membershipId,
+                              'p_new_shift_id': newShiftId,
+                              'p_price_adjustment': adj,
+                              'p_charge_now': chargeNow,
+                            };
+                            if (newSeatId != null) params['p_new_seat_id'] = newSeatId;
+                            if (reasonCtrl.text.trim().isNotEmpty) params['p_reason'] = reasonCtrl.text.trim();
+                            try {
+                              await supabase.rpc('transfer_member_shift', params: params);
+                              if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                              if (!mounted) return;
+                              AppSnackbar.success(context, 'Shift changed successfully.');
+                              _fetchMemberData();
+                            } catch (e) {
+                              setSheet(() => busy = false);
+                              if (mounted) AppSnackbar.error(context, friendlyError(e));
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0EA5E9),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: busy
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Confirm shift change'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── Per-member export (CSV / PDF) ──────────────────────────────────────────
   String _fmt(String? iso, String pattern) {
     if (iso == null) return '';
@@ -1722,6 +1926,23 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       ),
                       onPressed: _holdMembership,
                     ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (!_isReadOnly && _canChangeShift()) ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.swap_calls_rounded, size: 18, color: Color(0xFF0EA5E9)),
+                label: Text('Change / Transfer Shift',
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF0EA5E9))),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF0EA5E9)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _openShiftChange,
+              ),
             ),
             const SizedBox(height: 12),
           ],

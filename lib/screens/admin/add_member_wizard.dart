@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/member_draft.dart';
 import '../../models/member_data.dart';
 import '../../services/draft_service.dart';
@@ -552,8 +553,19 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
             ),
           );
         }
+
+        // A manually-added member has no app account yet, so no in-app
+        // notification can reach them. Offer the admin a one-tap WhatsApp
+        // share with all their membership details instead. Awaited so the
+        // wizard stays open until the admin dismisses the sheet.
+        await _showWhatsAppShareSheet(
+          startStr: startStr,
+          endStr: endStr,
+          finalPrice: finalPrice,
+        );
+
         // Close the wizard and signal members_sub_tab to refresh the member list.
-        Navigator.pop(context, true);
+        if (mounted) Navigator.pop(context, true);
       }
     } catch (e) {
       // Log the exact exception (incl. PostgREST/RLS details) AND which write
@@ -607,6 +619,154 @@ class _AddMemberWizardState extends State<AddMemberWizard> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Builds the membership summary text and offers a one-tap WhatsApp share.
+  /// A manually-added member has no app account, so this is the honest way to
+  /// communicate their seat/shift/plan/dates to them.
+  Future<void> _showWhatsAppShareSheet({
+    required String startStr,
+    required String endStr,
+    required int finalPrice,
+  }) async {
+    final libName = _libraryName ?? 'Silence Library';
+    final memberName = _memberData.name.trim().isEmpty ? 'Member' : _memberData.name.trim();
+    final shift = _memberData.selectedShiftName.trim().isEmpty ? '—' : _memberData.selectedShiftName.trim();
+    final seat = (_memberData.selectedSeatLabel ?? '').trim().isEmpty ? 'Not assigned' : _memberData.selectedSeatLabel!.trim();
+    final plan = _memberData.planType.isEmpty ? 'monthly' : _memberData.planType;
+    final joining = _memberData.joiningDate.toIso8601String().substring(0, 10);
+    final payLine = _memberData.paymentFlow == 'paid'
+        ? 'Payment: ₹$finalPrice (Paid)'
+        : 'Payment: ₹$finalPrice (Pending — please pay to confirm)';
+
+    final message = '🙏 Welcome to $libName!\n\n'
+        'Aapki membership add kar di gayi hai. Details:\n\n'
+        '👤 Name: $memberName\n'
+        '🪑 Seat: $seat\n'
+        '🕒 Shift: $shift\n'
+        '📋 Plan: $plan\n'
+        '📅 Joining: $joining\n'
+        '📆 Valid: $startStr → $endStr\n'
+        '💳 $payLine\n\n'
+        'Apni attendance aur details app me dekhne ke liye SILENCE app download karein.\n\n'
+        '— $libName';
+
+    if (!mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.palette.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20, right: 20, top: 20,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Member added — share details?',
+                      style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Yeh member app par nahi hai, isliye unhe membership details WhatsApp par bhej sakte hain.',
+                style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textSecondary),
+              ),
+              const SizedBox(height: 14),
+              // Preview of the message
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: context.palette.scaffold,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: context.palette.border),
+                ),
+                child: Text(
+                  message,
+                  style: GoogleFonts.inter(fontSize: 12, color: context.palette.textPrimary, height: 1.45),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _launchWhatsAppShare(_memberData.phone, message),
+                  icon: const Icon(Icons.chat, size: 18),
+                  label: const Text('Share via WhatsApp'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: Text(
+                    'Skip',
+                    style: GoogleFonts.inter(color: context.palette.textSecondary, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Launches WhatsApp with the prefilled message. If the member's phone is a
+  /// plain 10-digit Indian number, prefix country code 91 so the chat opens
+  /// directly; otherwise fall back to wa.me without a number (user picks chat).
+  Future<void> _launchWhatsAppShare(String rawPhone, String message) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final encoded = Uri.encodeComponent(message);
+    final digits = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    String phonePart = '';
+    if (digits.length == 10) {
+      phonePart = '91$digits';
+    } else if (digits.length > 10) {
+      phonePart = digits;
+    }
+
+    final uri = Uri.parse(
+      phonePart.isNotEmpty
+          ? 'https://wa.me/$phonePart?text=$encoded'
+          : 'https://wa.me/?text=$encoded',
+    );
+
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Could not open WhatsApp. Is it installed?')),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(friendlyError(e))),
+      );
     }
   }
 

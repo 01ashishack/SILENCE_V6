@@ -30,7 +30,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
     },
     {
       'question': 'Can I pause or put my active membership on hold?',
-      'answer': 'Yes. Under the Profile tab, look for your active membership card in the "My Libraries" section. Tap "Request Hold". Select your hold duration and reason, then submit. The admin will review and approve your request.'
+      'answer': 'Yes, holds are arranged by your library. Contact your library owner/admin and request a hold with your dates and reason — they can pause your membership and reserve your seat. Your paused days are added back so you don\'t lose paid time.'
     },
     {
       'question': 'How can I renew my expired membership card?',

@@ -264,6 +264,8 @@ CREATE TABLE IF NOT EXISTS join_requests (
     payment_status TEXT NOT NULL DEFAULT 'unverified' CHECK (payment_status IN ('unverified', 'verified', 'rejected')),
     rejection_reason TEXT,
     existing_member_join_date DATE,
+    correction_note TEXT, -- admin "fix this" ask without rejecting; see migrations/2026-06-29
+    correction_requested_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now(),
     expires_at TIMESTAMPTZ DEFAULT (now() + interval '7 days')
 );
@@ -295,6 +297,26 @@ CREATE TABLE IF NOT EXISTS hold_requests (
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Shift Change Requests Table (2026-07-01) — member asks to move shift; admin
+-- transfers via transfer_member_shift(). See migrations/2026-07-01.
+CREATE TABLE IF NOT EXISTS shift_change_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    membership_id UUID NOT NULL REFERENCES memberships(id) ON DELETE CASCADE,
+    member_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    current_shift_id UUID REFERENCES shifts(id) ON DELETE SET NULL,
+    requested_shift_id UUID REFERENCES shifts(id) ON DELETE SET NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+    decided_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_shift_change_lib_status
+    ON shift_change_requests (library_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_shift_change_member
+    ON shift_change_requests (member_id, status);
 
 -- Check-in Approvals Table (2026-06-22)
 -- A member scanning OUTSIDE their shift window (earlier than 15 min before start,
@@ -747,6 +769,7 @@ ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE join_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE seat_change_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shift_change_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hold_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE checkin_approvals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transfers ENABLE ROW LEVEL SECURITY;
@@ -900,7 +923,8 @@ CREATE POLICY "Admin update (approve, renew, hold, transfer)" ON memberships
 -- RPC (verifies ownership, releases seat, marks exited). The old open
 -- "System can update USING(true)" policy is removed; admin writes stay covered by
 -- the owner-scoped UPDATE policy above and server cron uses service_role.
--- Canonical copy of migrations/2026-06-18_memberships_member_exit_rpc.sql.
+-- Canonical copy of migrations/2026-06-18_memberships_member_exit_rpc.sql +
+-- 2026-06-30_exit_dues_guard.sql (refuses exit while positive pending dues exist).
 CREATE OR REPLACE FUNCTION public.exit_my_membership(p_membership_id uuid)
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
@@ -909,6 +933,7 @@ DECLARE
     v_uid   uuid := auth.uid();
     v_owner uuid;
     v_seat  uuid;
+    v_dues  int;
 BEGIN
     IF v_uid IS NULL THEN
         RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
@@ -920,6 +945,14 @@ BEGIN
     END IF;
     IF v_owner <> v_uid THEN
         RAISE EXCEPTION 'Not your membership' USING errcode = '42501';
+    END IF;
+    SELECT COALESCE(sum(amount), 0) INTO v_dues
+      FROM public.payments
+     WHERE membership_id = p_membership_id AND status = 'pending' AND amount > 0;
+    IF v_dues > 0 THEN
+        RAISE EXCEPTION
+            'You have pending dues of ₹% at this library. Please clear them with the library owner before exiting.', v_dues
+            USING errcode = 'P0001';
     END IF;
     IF v_seat IS NOT NULL THEN
         UPDATE public.seats
@@ -1006,6 +1039,17 @@ CREATE POLICY "Member insert seat change request" ON seat_change_requests
     FOR INSERT WITH CHECK (member_id = auth.uid());
 
 CREATE POLICY "Admin update seat change request" ON seat_change_requests
+    FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
+    WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+
+-- 4.11b Shift Change Requests Policies (2026-07-01)
+CREATE POLICY "Member view own shift change requests" ON shift_change_requests
+    FOR SELECT USING (member_id = auth.uid());
+CREATE POLICY "Admin view shift change requests" ON shift_change_requests
+    FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
+CREATE POLICY "Member insert shift change request" ON shift_change_requests
+    FOR INSERT WITH CHECK (member_id = auth.uid());
+CREATE POLICY "Admin update shift change request" ON shift_change_requests
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
     WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
@@ -2053,17 +2097,19 @@ $$;
 REVOKE ALL ON FUNCTION public.purge_old_notifications() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.purge_old_notifications() TO service_role;
 
--- ── Atomic join-request approval v2 (2026-06-25). Canonical copy of
---    migrations/2026-06-25_approve_join_request_v2.sql. Adds admin discount +
---    start-date overrides and honors existing_member_join_date; records
---    original/discount on the payment. Owner-checked; atomic seat claim. ───────
+-- ── Atomic join-request approval v3 (2026-06-29). Canonical copy of
+--    migrations/2026-06-29_join_approval_v3_paylater_correction.sql. Adds
+--    p_payment_pending (pay-later → payment row stays 'pending' = a due) on top
+--    of v2's discount + start-date overrides. Owner-checked; atomic seat claim. ─
 DROP FUNCTION IF EXISTS public.approve_join_request(uuid, uuid);
+DROP FUNCTION IF EXISTS public.approve_join_request(uuid, uuid, integer, text, date);
 CREATE OR REPLACE FUNCTION public.approve_join_request(
-    p_request_id     uuid,
-    p_seat_id        uuid,
-    p_discount       integer DEFAULT NULL,
-    p_discount_reason text   DEFAULT NULL,
-    p_start_date     date    DEFAULT NULL
+    p_request_id      uuid,
+    p_seat_id         uuid,
+    p_discount        integer DEFAULT NULL,
+    p_discount_reason text    DEFAULT NULL,
+    p_start_date      date    DEFAULT NULL,
+    p_payment_pending boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
@@ -2086,6 +2132,7 @@ DECLARE
     v_start      date;
     v_new_end    date;
     v_renewal    boolean := false;
+    v_pay_status text;
 BEGIN
     IF v_uid IS NULL THEN
         RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
@@ -2153,12 +2200,15 @@ BEGIN
                 v_req.plan_type, v_start, v_new_end, 'active')
         RETURNING id INTO v_mid;
     END IF;
+    v_pay_status := CASE WHEN p_payment_pending THEN 'pending' ELSE 'confirmed' END;
     INSERT INTO public.payments (membership_id, member_id, library_id, amount,
                 original_amount, discount_amount, discount_reason, method,
                 status, payment_date, confirmed_by_admin_id, proof_url, upi_sender_name)
     VALUES (v_mid, v_req.member_id, v_req.library_id, v_amount,
             v_original, v_discount, p_discount_reason,
-            COALESCE(v_req.payment_method, 'cash'), 'confirmed', now(), v_uid,
+            CASE WHEN p_payment_pending THEN 'request' ELSE COALESCE(v_req.payment_method, 'cash') END,
+            v_pay_status, now(),
+            CASE WHEN p_payment_pending THEN NULL ELSE v_uid END,
             v_req.payment_proof_url, v_req.upi_sender_name);
     IF v_req.selected_addon_ids IS NOT NULL
        AND array_length(v_req.selected_addon_ids, 1) > 0 THEN
@@ -2172,8 +2222,10 @@ BEGIN
     VALUES (v_req.member_id,
             CASE WHEN v_renewal THEN 'Membership renewed' ELSE 'Welcome aboard!' END,
             (CASE WHEN v_renewal THEN 'Your renewal is confirmed. ' ELSE 'Your membership is approved. ' END)
-            || 'Seat ' || v_seat_label || ' is assigned. Plan starts ' || v_start
-            || '. Payment of ₹' || v_amount || ' recorded.'
+            || 'Seat ' || v_seat_label || ' is assigned. Plan starts ' || v_start || '. '
+            || CASE WHEN p_payment_pending
+                    THEN 'Payment of ₹' || v_amount || ' is PENDING — please pay to clear your dues.'
+                    ELSE 'Payment of ₹' || v_amount || ' recorded.' END
             || CASE WHEN v_discount > 0
                     THEN ' A discount of ₹' || v_discount
                          || COALESCE(' (' || p_discount_reason || ')', '') || ' was applied.'
@@ -2185,16 +2237,124 @@ BEGIN
             jsonb_build_object('category', 'members',
                 'title', CASE WHEN v_renewal THEN 'Renewed membership' ELSE 'Approved join request' END,
                 'details', 'seat ' || v_seat_label || ' · ₹' || v_amount
+                           || CASE WHEN p_payment_pending THEN ' (payment pending)' ELSE '' END
                            || CASE WHEN v_discount > 0 THEN ' (₹' || v_discount || ' off)' ELSE '' END
                            || ' · plan ' || v_req.plan_type || ' · from ' || v_start,
                 'performer_name', 'Admin'));
     RETURN jsonb_build_object('membership_id', v_mid, 'end_date', v_new_end,
             'start_date', v_start, 'seat_label', v_seat_label, 'amount', v_amount,
-            'discount', v_discount, 'is_renewal', v_renewal);
+            'discount', v_discount, 'is_renewal', v_renewal,
+            'payment_pending', p_payment_pending);
 END;
 $$;
-REVOKE ALL ON FUNCTION public.approve_join_request(uuid, uuid, integer, text, date) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.approve_join_request(uuid, uuid, integer, text, date) TO authenticated;
+REVOKE ALL ON FUNCTION public.approve_join_request(uuid, uuid, integer, text, date, boolean) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.approve_join_request(uuid, uuid, integer, text, date, boolean) TO authenticated;
+
+-- ── Shift transfer (2026-07-01). Canonical copy of
+--    migrations/2026-07-01_shift_change_and_transfer.sql. Owner-checked: frees
+--    the old seat, claims an optional seat in the new shift, records a price
+--    adjustment (paid/pending), notifies + audits. ─────────────────────────────
+CREATE OR REPLACE FUNCTION public.transfer_member_shift(
+    p_membership_id    uuid,
+    p_new_shift_id     uuid,
+    p_new_seat_id      uuid    DEFAULT NULL,
+    p_price_adjustment integer DEFAULT 0,
+    p_charge_now       boolean DEFAULT true,
+    p_reason           text    DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_uid        uuid := auth.uid();
+    v_owner      uuid;
+    v_member     uuid;
+    v_lib        uuid;
+    v_old_shift  uuid;
+    v_old_seat   uuid;
+    v_new_shift  public.shifts%ROWTYPE;
+    v_new_label  text;
+    v_pay_status text;
+BEGIN
+    IF v_uid IS NULL THEN
+        RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
+    END IF;
+    SELECT member_id, library_id, shift_id, seat_id
+      INTO v_member, v_lib, v_old_shift, v_old_seat
+      FROM public.memberships WHERE id = p_membership_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Membership not found' USING errcode = 'P0002';
+    END IF;
+    SELECT owner_id INTO v_owner FROM public.libraries WHERE id = v_lib;
+    IF v_owner IS DISTINCT FROM v_uid THEN
+        RAISE EXCEPTION 'Not authorized for this library' USING errcode = '42501';
+    END IF;
+    SELECT * INTO v_new_shift FROM public.shifts WHERE id = p_new_shift_id;
+    IF NOT FOUND OR v_new_shift.library_id <> v_lib THEN
+        RAISE EXCEPTION 'Target shift not found in this library' USING errcode = 'P0002';
+    END IF;
+    IF p_new_shift_id = v_old_shift THEN
+        RAISE EXCEPTION 'Member is already on that shift' USING errcode = 'P0001';
+    END IF;
+    IF p_new_seat_id IS NOT NULL THEN
+        UPDATE public.seats
+           SET status = 'occupied', occupied_by_member_id = v_member, updated_at = now()
+         WHERE id = p_new_seat_id AND library_id = v_lib
+               AND shift_id = p_new_shift_id AND status = 'vacant'
+         RETURNING seat_label INTO v_new_label;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Chosen seat is not available in the new shift' USING errcode = 'P0001';
+        END IF;
+    END IF;
+    IF v_old_seat IS NOT NULL THEN
+        UPDATE public.seats
+           SET status = 'vacant', occupied_by_member_id = NULL, updated_at = now()
+         WHERE id = v_old_seat;
+    END IF;
+    UPDATE public.memberships
+       SET shift_id = p_new_shift_id, seat_id = p_new_seat_id
+     WHERE id = p_membership_id;
+    IF COALESCE(p_price_adjustment, 0) <> 0 THEN
+        v_pay_status := CASE WHEN p_charge_now THEN 'confirmed' ELSE 'pending' END;
+        INSERT INTO public.payments (membership_id, member_id, library_id, amount,
+                    method, status, payment_date, confirmed_by_admin_id, notes)
+        VALUES (p_membership_id, v_member, v_lib, p_price_adjustment,
+                CASE WHEN p_charge_now THEN 'cash' ELSE 'request' END,
+                v_pay_status, now(),
+                CASE WHEN p_charge_now THEN v_uid ELSE NULL END,
+                'Shift change adjustment'
+                  || CASE WHEN p_reason IS NOT NULL AND length(trim(p_reason)) > 0
+                          THEN ' — ' || p_reason ELSE '' END);
+    END IF;
+    INSERT INTO public.notifications (user_id, title, body, data)
+    VALUES (v_member, 'Shift changed',
+            'Your shift has been changed to ' || v_new_shift.name
+            || COALESCE('. Seat ' || v_new_label, '. A seat will be assigned shortly')
+            || CASE WHEN COALESCE(p_price_adjustment, 0) > 0
+                    THEN '. An adjustment of ₹' || p_price_adjustment
+                         || CASE WHEN p_charge_now THEN ' was recorded.' ELSE ' is pending.' END
+                    WHEN COALESCE(p_price_adjustment, 0) < 0
+                    THEN '. A credit of ₹' || abs(p_price_adjustment) || ' was applied.'
+                    ELSE '.' END,
+            jsonb_build_object('type', 'shift_change', 'route', '/member/home'));
+    INSERT INTO public.audit_log (admin_id, library_id, action, details)
+    VALUES (v_uid, v_lib, 'membership_shift_transfer',
+            jsonb_build_object('category', 'members',
+                'title', 'Transferred shift',
+                'details', 'to ' || v_new_shift.name
+                           || COALESCE(' · seat ' || v_new_label, '')
+                           || CASE WHEN COALESCE(p_price_adjustment,0) <> 0
+                                   THEN ' · adj ₹' || p_price_adjustment
+                                        || CASE WHEN p_charge_now THEN '' ELSE ' (pending)' END
+                                   ELSE '' END,
+                'performer_name', 'Admin'));
+    RETURN jsonb_build_object('membership_id', p_membership_id,
+            'new_shift_id', p_new_shift_id, 'new_seat_label', v_new_label,
+            'price_adjustment', COALESCE(p_price_adjustment, 0));
+END;
+$$;
+REVOKE ALL ON FUNCTION public.transfer_member_shift(uuid, uuid, uuid, integer, boolean, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.transfer_member_shift(uuid, uuid, uuid, integer, boolean, text) TO authenticated;
 
 
 -- copy of migrations/2026-06-18_lock_library_verified.sql. verified/verified_at

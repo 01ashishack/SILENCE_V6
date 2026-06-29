@@ -56,7 +56,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     try {
       final res = await _supabase
           .from('libraries')
-          .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, rules, avg_rating, review_count, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
+          .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, rules, avg_rating, review_count, created_at, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
           .eq('status', 'active');
       
       if (mounted) {
@@ -440,7 +440,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           const SizedBox(height: 20),
 
           Text(
-            'Search Results',
+            query.isEmpty ? 'Explore Study Zones' : 'Search Results',
             style: GoogleFonts.outfit(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -451,7 +451,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
           // Search condition
           if (query.isEmpty)
-            _buildEmptyState()
+            _buildBrowseList()
           else if (_filteredLibraries.isEmpty)
             _buildNoResultsState()
           else
@@ -462,6 +462,74 @@ class _ExploreScreenState extends State<ExploreScreen> {
           const SizedBox(height: 40),
         ],
       ),
+    );
+  }
+
+  Widget _buildBrowseList() {
+    if (_allLibraries.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    // Build a sorted browse view: highest rated first, then most reviewed,
+    // then newest. Gives members something to explore without typing.
+    final List<Map<String, dynamic>> browse = List.from(_allLibraries);
+    browse.sort((a, b) {
+      final aRating = (a['avg_rating'] as num?)?.toDouble() ?? 0.0;
+      final bRating = (b['avg_rating'] as num?)?.toDouble() ?? 0.0;
+      if (aRating != bRating) return bRating.compareTo(aRating);
+      final aReviews = (a['review_count'] as num?)?.toInt() ?? 0;
+      final bReviews = (b['review_count'] as num?)?.toInt() ?? 0;
+      if (aReviews != bReviews) return bReviews.compareTo(aReviews);
+      final aCreated = (a['created_at'] ?? '').toString();
+      final bCreated = (b['created_at'] ?? '').toString();
+      return bCreated.compareTo(aCreated);
+    });
+
+    // Recently added: newest 3 by created_at, flagged with a NEW badge.
+    final List<Map<String, dynamic>> recent = List.from(_allLibraries)
+      ..sort((a, b) {
+        final aCreated = (a['created_at'] ?? '').toString();
+        final bCreated = (b['created_at'] ?? '').toString();
+        return bCreated.compareTo(aCreated);
+      });
+    final recentIds = recent.take(3).map((l) => l['id']).toSet();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Helper hint
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0x14E65C00),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.explore_outlined, size: 18, color: Color(0xFFE65C00)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Browse all available study zones. Search above by name, city, or code.',
+                  style: GoogleFonts.inter(fontSize: 11.5, color: context.palette.textSecondary),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8, top: 4),
+          child: Text(
+            'Popular study zones',
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.palette.textSecondary),
+          ),
+        ),
+
+        ...browse.map((lib) => _buildExploreLibraryCard(lib, isNew: recentIds.contains(lib['id']))),
+      ],
     );
   }
 
@@ -511,7 +579,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  Widget _buildExploreLibraryCard(Map<String, dynamic> lib) {
+  Widget _buildExploreLibraryCard(Map<String, dynamic> lib, {bool isNew = false}) {
     final name = lib['name'] ?? 'SILENCE Zone';
     final street = lib['address_street'] ?? '';
     final city = lib['address_city'] ?? 'Indore';
@@ -562,27 +630,47 @@ class _ExploreScreenState extends State<ExploreScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image Area
-            ClipRRect(
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-              child: photos.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: photos.first.toString(),
-                      height: 130,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        height: 130,
-                        color: const Color(0x1FE65C00),
-                        child: const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
-                            strokeWidth: 2,
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+                  child: photos.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: photos.first.toString(),
+                          height: 130,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            height: 130,
+                            color: const Color(0x1FE65C00),
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00)),
+                                strokeWidth: 2,
+                              ),
+                            ),
                           ),
-                        ),
+                          errorWidget: (context, url, error) => _buildPlaceholderPhoto(),
+                        )
+                      : _buildPlaceholderPhoto(),
+                ),
+                if (isNew)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      errorWidget: (context, url, error) => _buildPlaceholderPhoto(),
-                    )
-                  : _buildPlaceholderPhoto(),
+                      child: Text(
+                        'NEW',
+                        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             
             Padding(

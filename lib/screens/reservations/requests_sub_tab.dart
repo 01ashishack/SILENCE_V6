@@ -25,6 +25,11 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   bool _isProfileComplete = true;
   // Re-entrancy guard so a fast double-tap can't create two memberships/payments.
   bool _isApproving = false;
+  // When approving from the review sheet, whether to leave the payment PENDING
+  // (pay-later → shows as a due both sides). Set just before _onApprovePressed.
+  bool _approvePaymentPending = false;
+  // Review-sheet local: admin's Paid/Pending choice (true = paid).
+  bool _reviewPaymentPaid = true;
 
   // Horizontal Toggle
   int _activeRequestTab = 0; // 0: Join, 1: Seat Changes, 2: Holds, 3: Check-ins
@@ -35,13 +40,8 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   List<Map<String, dynamic>> _holdRequests = [];
   // Out-of-shift check-in approval requests (2026-06-22).
   List<Map<String, dynamic>> _checkinApprovals = [];
-
-  // Local state tracking for UPI confirmations (Request ID -> confirmed in UI)
-  final Set<String> _confirmedPaymentsInUi = {};
-
-  // Honest per-request amount (plan price − discount), Request ID -> ₹. Computed
-  // in _fetchRequests so the card shows a real figure (not a hardcoded one).
-  Map<String, int> _requestAmounts = {};
+  // Member-initiated shift change requests (2026-07-01).
+  List<Map<String, dynamic>> _shiftChangeRequests = [];
 
   // Realtime subscription channels
   RealtimeChannel? _requestsChannel;
@@ -170,22 +170,21 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           .eq('status', 'pending')
           .order('created_at', ascending: true);
 
-      final joinList = List<Map<String, dynamic>>.from(joinRes);
-
-      // Honest amount per join request (plan price − discount). Low volume
-      // (pending only), so a per-request lookup is fine.
-      final Map<String, int> amounts = {};
-      for (final r in joinList) {
-        try {
-          amounts[r['id'].toString()] = await _computeApprovalAmount(
-            shiftId: r['shift_id']?.toString(),
-            planType: (r['plan_type'] ?? 'monthly').toString(),
-            discount: (r['discount_amount'] as int?) ?? 0,
-          );
-        } catch (e) {
-          debugPrint('amount compute failed: $e');
-        }
+      // 5. Fetch pending Shift Change requests
+      List<Map<String, dynamic>> shiftList = [];
+      try {
+        final shiftRes = await supabase
+            .from('shift_change_requests')
+            .select('*, member_id(id, full_name, phone, photo_url), current_shift:current_shift_id(name), requested_shift:requested_shift_id(name)')
+            .eq('library_id', widget.libraryId)
+            .eq('status', 'pending')
+            .order('created_at', ascending: true);
+        shiftList = List<Map<String, dynamic>>.from(shiftRes);
+      } catch (e) {
+        debugPrint('shift_change_requests fetch failed (table may not be applied yet): $e');
       }
+
+      final joinList = List<Map<String, dynamic>>.from(joinRes);
 
       if (mounted) {
         setState(() {
@@ -193,64 +192,13 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           _seatChangeRequests = List<Map<String, dynamic>>.from(changeRes);
           _holdRequests = List<Map<String, dynamic>>.from(holdRes);
           _checkinApprovals = List<Map<String, dynamic>>.from(checkinRes);
-          _requestAmounts = amounts;
+          _shiftChangeRequests = shiftList;
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('Error fetching requests: $e');
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // ── Confirm / Reject Payments ─────────────────────────────────────────────
-  // Payment verification is now SEPARATE from the membership decision. It only
-  // sets join_requests.payment_status; the request stays pending either way, so
-  // the admin can still Approve/Reject. Only the membership Reject cancels it.
-  Future<void> _confirmPayment(String requestId) async {
-    try {
-      await supabase.from('join_requests').update({
-        'payment_status': 'verified',
-      }).eq('id', requestId);
-      if (mounted) setState(() => _confirmedPaymentsInUi.add(requestId));
-      _fetchRequests();
-      if (!mounted) return;
-      AppSnackbar.success(context, 'Payment verified. You can approve now.');
-    } catch (e) {
-      if (!mounted) return;
-      AppSnackbar.error(context, friendlyError(e));
-    }
-  }
-
-  Future<void> _rejectPayment(Map<String, dynamic> request) async {
-    final requestId = request['id']?.toString() ?? '';
-    final memberId = request['member_id']?['id']?.toString();
-    if (requestId.isEmpty) return;
-    try {
-      // Mark the payment unverified — do NOT cancel the join request.
-      await supabase.from('join_requests').update({
-        'payment_status': 'rejected',
-      }).eq('id', requestId);
-      if (mounted) setState(() => _confirmedPaymentsInUi.remove(requestId));
-
-      // Honest: notify the member their payment wasn't verified so they re-pay.
-      if (memberId != null) {
-        await _notifyMember(
-          memberId: memberId,
-          title: 'Payment not verified',
-          message: "We couldn't verify your payment for the join request. "
-              'Please pay again and re-upload the proof — your request is still '
-              'pending and will be reviewed once payment is confirmed.',
-          type: 'payment_rejected',
-        );
-      }
-
-      _fetchRequests();
-      if (!mounted) return;
-      AppSnackbar.info(context, 'Payment marked unverified. Member notified to re-pay. Request kept pending.');
-    } catch (e) {
-      if (!mounted) return;
-      AppSnackbar.error(context, friendlyError(e));
     }
   }
 
@@ -471,6 +419,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         if (discountReason != null && discountReason.trim().isNotEmpty)
           'p_discount_reason': discountReason.trim(),
         if (startDate != null) 'p_start_date': DateFormat('yyyy-MM-dd').format(startDate),
+        if (_approvePaymentPending) 'p_payment_pending': true,
       });
       final data = (res is List && res.isNotEmpty) ? res.first : res;
       final assignedSeat =
@@ -486,6 +435,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       AppSnackbar.error(context, friendlyError(e));
     } finally {
       _isApproving = false;
+      _approvePaymentPending = false;
     }
   }
 
@@ -1051,15 +1001,16 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
 
       await supabase.from('join_requests').update({'status': 'approved'}).eq('id', request['id']);
 
+      final bool payPending = _approvePaymentPending;
       await supabase.from('payments').insert({
         'membership_id': membershipId,
         'member_id': memberId,
         'library_id': widget.libraryId,
         'amount': amount,
-        'method': request['payment_method'] ?? 'cash',
-        'status': 'confirmed',
+        'method': payPending ? 'request' : (request['payment_method'] ?? 'cash'),
+        'status': payPending ? 'pending' : 'confirmed',
         'payment_date': DateTime.now().toIso8601String(),
-        'confirmed_by_admin_id': supabase.auth.currentUser?.id,
+        'confirmed_by_admin_id': payPending ? null : supabase.auth.currentUser?.id,
         'proof_url': request['payment_proof_url'],
         'upi_sender_name': request['upi_sender_name'],
       });
@@ -1067,8 +1018,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       await _notifyMember(
         memberId: memberId,
         title: 'Membership renewed',
-        message:
-            'Your renewal is confirmed. New expiry: ${DateFormat('dd MMM yyyy').format(newEnd)}. Payment of ₹$amount recorded.',
+        message: payPending
+            ? 'Your renewal is confirmed. New expiry: ${DateFormat('dd MMM yyyy').format(newEnd)}. Payment of ₹$amount is PENDING — please clear your dues.'
+            : 'Your renewal is confirmed. New expiry: ${DateFormat('dd MMM yyyy').format(newEnd)}. Payment of ₹$amount recorded.',
         type: 'join_approved',
       );
       await _logAudit(
@@ -1088,6 +1040,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       }
     } finally {
       _isApproving = false;
+      _approvePaymentPending = false;
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -1290,9 +1243,10 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             ? _seatChangeRequests.length
             : index == 2
                 ? _holdRequests.length
-                : _checkinApprovals.length;
-    return Expanded(
-      child: GestureDetector(
+                : index == 3
+                    ? _checkinApprovals.length
+                    : _shiftChangeRequests.length;
+    return GestureDetector(
         onTap: () {
           setState(() {
             _activeRequestTab = index;
@@ -1346,8 +1300,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   /// Past (dead) join requests — rejected + withdrawn — shown in a sheet.
@@ -1516,6 +1469,107 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     );
   }
 
+  /// Ask the member to correct something (e.g. upload ID) WITHOUT rejecting the
+  /// request. Records the note on the request and notifies the member; the
+  /// request stays pending so they can fix it and the admin can re-review.
+  Future<void> _requestCorrection(Map<String, dynamic> request) async {
+    final requestId = request['id']?.toString() ?? '';
+    final memberId = request['member_id']?['id']?.toString();
+    if (requestId.isEmpty || memberId == null) return;
+
+    final noteController = TextEditingController();
+    // Common asks so the admin rarely has to type.
+    const templates = <String>[
+      'Please upload a clear photo of your ID',
+      'Your profile photo is unclear — please re-upload',
+      'Payment could not be verified — share a correct UPI screenshot',
+      'Some details don\'t match — please correct your profile',
+    ];
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Ask for a correction', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('The request stays pending. The member gets your message and can fix it.',
+                    style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textSecondary)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: templates.map((t) {
+                    final selected = noteController.text == t;
+                    return ChoiceChip(
+                      label: Text(t, style: GoogleFonts.inter(fontSize: 11.5)),
+                      selected: selected,
+                      selectedColor: const Color(0xFFE65C00).withValues(alpha: 0.15),
+                      onSelected: (_) => setDialog(() => noteController.text = t),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  maxLines: 2,
+                  onChanged: (_) => setDialog(() {}),
+                  decoration: const InputDecoration(
+                    hintText: 'Message shown to the member',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: noteController.text.trim().isEmpty ? null : () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white),
+              child: const Text('Send'),
+            ),
+          ],
+        ),
+      ),
+    ) ?? false;
+
+    if (!confirm) return;
+    final note = noteController.text.trim();
+    if (note.isEmpty) return;
+
+    try {
+      await supabase.from('join_requests').update({
+        'correction_note': note,
+        'correction_requested_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', requestId);
+
+      await _notifyMember(
+        memberId: memberId,
+        title: 'Action needed on your join request',
+        message: '$note. Your request is still pending — please update and it will be reviewed again.',
+        type: 'join_correction',
+      );
+      await _logAudit(
+        action: 'membership_correction',
+        category: AuditLogger.categoryMembers,
+        title: 'Requested correction',
+        details: '${request['member_id']?['full_name'] ?? 'Member'} · $note',
+      );
+
+      _fetchRequests();
+      if (!mounted) return;
+      AppSnackbar.success(context, 'Correction request sent. The member has been notified.');
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackbar.error(context, friendlyError(e));
+    }
+  }
+
   /// Full applicant review sheet (tap a join-request card). Shows personal
   /// details, ID docs, the application (plan/shift/joining date/payment proof),
   /// returning-member history, and Approve/Reject actions.
@@ -1539,6 +1593,11 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
       debugPrint('applicant review load failed: $e');
     }
     if (!mounted) return;
+
+    // Default the Paid/Pending choice from the request: a pay-later/request
+    // method starts as Pending; otherwise Paid (admin can still toggle).
+    final String reqMethod = (request['payment_method'] ?? '').toString().toLowerCase();
+    _reviewPaymentPaid = !(reqMethod == 'request' || reqMethod == 'pay_later' || reqMethod.isEmpty);
 
     final String name = (p['full_name'] ?? member['full_name'] ?? 'Member').toString();
     final String photo = (p['photo_url'] ?? '').toString();
@@ -1619,25 +1678,119 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
               _reviewRow(Icons.history, 'History', pastCount > 0
                   ? '$pastCount previous membership${pastCount == 1 ? '' : 's'} at this library'
                   : 'First time at this library'),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () { Navigator.pop(sheetCtx); _rejectJoinRequest(request); },
-                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
-                      child: const Text('Reject', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                    ),
+              const SizedBox(height: 16),
+
+              // Already-requested correction banner (if any).
+              if ((request['correction_note'] ?? '').toString().trim().isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0x14F59E0B),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0x33F59E0B)),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () { Navigator.pop(sheetCtx); _onApprovePressed(request); },
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00)),
-                      child: const Text('Approve', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.error_outline, size: 16, color: Color(0xFFB45309)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Correction requested: ${request['correction_note']}',
+                          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFB45309), fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
+                const SizedBox(height: 14),
+              ],
+
+              // Payment + decision area (stateful so the Paid/Pending choice
+              // updates live and feeds into approval).
+              StatefulBuilder(
+                builder: (ctx, setSheet) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Payment', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFE65C00))),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _paymentChoiceChip(
+                              label: 'Paid',
+                              icon: Icons.check_circle_outline,
+                              selected: _reviewPaymentPaid,
+                              color: const Color(0xFF22C55E),
+                              onTap: () => setSheet(() => _reviewPaymentPaid = true),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _paymentChoiceChip(
+                              label: 'Pending (pay later)',
+                              icon: Icons.schedule,
+                              selected: !_reviewPaymentPaid,
+                              color: const Color(0xFFF59E0B),
+                              onTap: () => setSheet(() => _reviewPaymentPaid = false),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _reviewPaymentPaid
+                            ? 'Membership will be approved with payment recorded as paid.'
+                            : 'Membership will be approved but the amount stays as a due (shown pending to both sides).',
+                        style: GoogleFonts.inter(fontSize: 11, color: context.palette.textMuted),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Request correction (no rejection).
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () { Navigator.pop(sheetCtx); _requestCorrection(request); },
+                          icon: const Icon(Icons.edit_note, size: 18, color: Color(0xFFE65C00)),
+                          label: Text('Request correction',
+                              style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: const Color(0xFFE65C00))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFE65C00)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () { Navigator.pop(sheetCtx); _rejectJoinRequest(request); },
+                              style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), padding: const EdgeInsets.symmetric(vertical: 12)),
+                              child: const Text('Reject', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: !_isProfileComplete
+                                  ? () => AppSnackbar.warning(context, 'Complete your profile first to approve requests')
+                                  : () {
+                                      _approvePaymentPending = !_reviewPaymentPaid;
+                                      Navigator.pop(sheetCtx);
+                                      _onApprovePressed(request);
+                                    },
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), padding: const EdgeInsets.symmetric(vertical: 12)),
+                              child: const Text('Approve', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -1646,8 +1799,45 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     );
   }
 
+  /// A selectable Paid / Pending chip for the review sheet.
+  Widget _paymentChoiceChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.12) : context.palette.scaffold,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? color : context.palette.border, width: selected ? 1.5 : 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: selected ? color : context.palette.textMuted),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600,
+                    color: selected ? color : context.palette.textSecondary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildJoinRequestCard(Map<String, dynamic> request) {
-    final String reqId = request['id'];
     final member = request['member_id'];
     if (member == null) return const SizedBox.shrink();
 
@@ -1660,15 +1850,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         ? '1 Month Plan'
         : (request['plan_type'] == '3_month' ? '3 Month Plan' : '6 Month Plan');
     final String payMethod = request['payment_method'] ?? 'cash';
-    final String upiProof = request['payment_proof_url'] ?? '';
-    final String upiSender = request['upi_sender_name'] ?? '';
-
-    // Payment proof confirmation status (persisted on the request now).
-    final bool isUpi = payMethod.toLowerCase() == 'upi';
-    final String paymentStatus = (request['payment_status'] ?? 'unverified').toString();
-    final bool isPaymentConfirmed = !isUpi ||
-        paymentStatus == 'verified' ||
-        _confirmedPaymentsInUi.contains(reqId);
+    final bool hasCorrection = (request['correction_note'] ?? '').toString().trim().isNotEmpty;
 
     // Calculate aging in days
     final DateTime createdAt = DateTime.parse(request['created_at']);
@@ -1751,6 +1933,23 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             ],
           ),
 
+          // Correction-requested badge.
+          if (hasCorrection) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.edit_note, size: 14, color: Color(0xFFB45309)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Correction requested — awaiting member update',
+                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFB45309), fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
           // Aging Warning label (Submitted 3 days ago - warning day 5+)
           if (isAging) ...[
             const SizedBox(height: 8),
@@ -1766,148 +1965,23 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             ),
           ],
 
-          // UPI Payment Proof Block
-          if (isUpi && upiProof.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  // Screenshot preview box
-                  GestureDetector(
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (c) => Dialog(
-                          child: Container(
-                            height: 400,
-                            decoration: BoxDecoration(
-                              image: DecorationImage(image: ResizeImage(NetworkImage(upiProof), width: 1080), fit: BoxFit.contain),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey[300]!),
-                        image: DecorationImage(image: ResizeImage(NetworkImage(upiProof), width: 150), fit: BoxFit.cover),
-                      ),
-                      child: Container(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        child: const Icon(Icons.zoom_in, color: Colors.white, size: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Sender: $upiSender', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF334155))),
-                        const SizedBox(height: 4),
-                        Text(
-                          () {
-                            final amt = _requestAmounts[reqId];
-                            final hasAddons = (request['selected_addon_ids'] is List) &&
-                                (request['selected_addon_ids'] as List).isNotEmpty;
-                            if (amt == null) return 'Amount: as per plan';
-                            return hasAddons ? 'Amount: ₹$amt + add-ons' : 'Amount: ₹$amt';
-                          }(),
-                          style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
           const SizedBox(height: 16),
 
-          // Payment Confirm Buttons (UPI verification steps)
-          if (isUpi && !isPaymentConfirmed) ...[
-            if (paymentStatus == 'rejected') ...[
-              Row(
-                children: [
-                  const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFD97706)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Payment was marked unverified — awaiting the member to re-pay.',
-                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFB45309), fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
+          // Single entry point: review the applicant, then approve/reject/correct.
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _showApplicantReview(request),
+              icon: const Icon(Icons.visibility_outlined, size: 18),
+              label: Text('View Details', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65C00),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              const SizedBox(height: 8),
-            ],
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _confirmPayment(reqId),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF22C55E), elevation: 0),
-                    child: Text('Confirm Pay', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _rejectPayment(request),
-                    style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
-                    child: Text('Reject Pay', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red)),
-                  ),
-                ),
-              ],
             ),
-            const SizedBox(height: 10),
-          ],
-
-          // Approval & Rejection buttons (Approve is grayed-out until Payment is Confirmed)
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: !_isProfileComplete
-                      ? () => AppSnackbar.warning(context, 'Complete your profile first to approve requests')
-                      : (isPaymentConfirmed ? () => _onApprovePressed(request) : null),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isProfileComplete
-                        ? (isPaymentConfirmed ? const Color(0xFFE65C00) : Colors.grey[200])
-                        : const Color(0xFFE65C00).withValues(alpha: 0.5),
-                    disabledBackgroundColor: Colors.grey[200],
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Approve',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: _isProfileComplete
-                          ? (isPaymentConfirmed ? Colors.white : Colors.grey[400])
-                          : Colors.white.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _rejectJoinRequest(request),
-                  child: Text('Reject', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -1995,16 +2069,21 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         Container(
           color: context.palette.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              _buildTabToggle(0, 'Joins', Icons.person_add_outlined),
-              const SizedBox(width: 8),
-              _buildTabToggle(1, 'Seats', Icons.swap_horiz_rounded),
-              const SizedBox(width: 8),
-              _buildTabToggle(2, 'Holds', Icons.pause_circle_outline),
-              const SizedBox(width: 8),
-              _buildTabToggle(3, 'Check-ins', Icons.login_rounded),
-            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildTabToggle(0, 'Joins', Icons.person_add_outlined),
+                const SizedBox(width: 8),
+                _buildTabToggle(1, 'Seats', Icons.swap_horiz_rounded),
+                const SizedBox(width: 8),
+                _buildTabToggle(2, 'Holds', Icons.pause_circle_outline),
+                const SizedBox(width: 8),
+                _buildTabToggle(3, 'Check-ins', Icons.login_rounded),
+                const SizedBox(width: 8),
+                _buildTabToggle(4, 'Shifts', Icons.swap_calls_rounded),
+              ],
+            ),
           ),
         ),
 
@@ -2215,6 +2294,29 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                                 itemCount: _checkinApprovals.length,
                                 itemBuilder: (ctx, index) => _buildCheckinApprovalCard(_checkinApprovals[index]),
                               ),
+
+                        // Toggle 4: Shift change requests
+                        _shiftChangeRequests.isEmpty
+                            ? SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Container(
+                                  height: MediaQuery.of(context).size.height * 0.5,
+                                  alignment: Alignment.center,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.swap_calls_rounded, size: 64, color: Colors.grey[300]),
+                                      const SizedBox(height: 16),
+                                      Text('No pending shift change requests.', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[500])),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                itemCount: _shiftChangeRequests.length,
+                                itemBuilder: (ctx, index) => _buildShiftChangeCard(_shiftChangeRequests[index]),
+                              ),
                       ],
                     ),
                   ),
@@ -2222,6 +2324,201 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
         ),
       ],
     );
+  }
+
+  // ── Shift change requests (2026-07-01) ───────────────────────────────────
+  Widget _buildShiftChangeCard(Map<String, dynamic> r) {
+    final member = r['member_id'];
+    final String name = (member is Map ? member['full_name'] : null)?.toString() ?? 'Member';
+    final String photo = (member is Map ? member['photo_url'] : null)?.toString() ?? '';
+    final String fromShift = r['current_shift']?['name']?.toString() ?? '—';
+    final String toShift = r['requested_shift']?['name']?.toString() ?? '—';
+    final String reason = (r['reason'] ?? '').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0x1FE65C00),
+                backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                child: photo.isEmpty ? const Icon(Icons.person, color: Color(0xFFE65C00)) : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Flexible(child: _shiftPill(fromShift, context.palette.textMuted)),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(Icons.arrow_forward_rounded, size: 16, color: Color(0xFF0EA5E9)),
+              ),
+              Flexible(child: _shiftPill(toShift, const Color(0xFF0EA5E9))),
+            ],
+          ),
+          if (reason.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('Reason: $reason', style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textSecondary)),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _rejectShiftChange(r),
+                  style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), padding: const EdgeInsets.symmetric(vertical: 11)),
+                  child: const Text('Reject', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isProfileComplete
+                      ? () => _approveShiftChange(r)
+                      : () => AppSnackbar.warning(context, 'Complete your profile first to approve requests'),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0EA5E9), padding: const EdgeInsets.symmetric(vertical: 11)),
+                  child: const Text('Approve & transfer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _shiftPill(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+    );
+  }
+
+  Future<void> _rejectShiftChange(Map<String, dynamic> r) async {
+    final requestId = r['id']?.toString();
+    final memberId = r['member_id']?['id']?.toString();
+    if (requestId == null) return;
+    try {
+      await supabase.from('shift_change_requests').update({
+        'status': 'rejected',
+        'decided_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', requestId);
+      if (memberId != null) {
+        await _notifyMember(
+          memberId: memberId,
+          title: 'Shift change not approved',
+          message: 'Your shift change request was not approved. Please contact the admin for details.',
+          type: 'shift_change',
+        );
+      }
+      _fetchRequests();
+      if (!mounted) return;
+      AppSnackbar.info(context, 'Shift change request rejected.');
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackbar.error(context, friendlyError(e));
+    }
+  }
+
+  Future<void> _approveShiftChange(Map<String, dynamic> r) async {
+    final requestId = r['id']?.toString();
+    final membershipId = r['membership_id']?.toString();
+    final newShiftId = r['requested_shift_id']?.toString();
+    if (requestId == null || membershipId == null || newShiftId == null) {
+      AppSnackbar.warning(context, 'This request is missing a target shift.');
+      return;
+    }
+
+    final priceCtrl = TextEditingController();
+    bool chargeNow = true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Approve shift change', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('The current seat is freed; assign a new seat later from the members list.',
+                  style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textSecondary)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceCtrl,
+                keyboardType: const TextInputType.numberWithOptions(signed: true),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(), isDense: true,
+                  labelText: 'Price adjustment ₹ (optional)',
+                  hintText: 'e.g. 200 or -100',
+                ),
+              ),
+              const SizedBox(height: 4),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeThumbColor: const Color(0xFFE65C00),
+                value: chargeNow,
+                onChanged: (v) => setD(() => chargeNow = v),
+                title: Text(chargeNow ? 'Mark adjustment paid' : 'Leave as pending due',
+                    style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0EA5E9), foregroundColor: Colors.white),
+              child: const Text('Transfer'),
+            ),
+          ],
+        ),
+      ),
+    ) ?? false;
+    if (!ok) return;
+
+    final adj = int.tryParse(priceCtrl.text.trim()) ?? 0;
+    try {
+      await supabase.rpc('transfer_member_shift', params: {
+        'p_membership_id': membershipId,
+        'p_new_shift_id': newShiftId,
+        'p_price_adjustment': adj,
+        'p_charge_now': chargeNow,
+        'p_reason': 'Member-requested shift change',
+      });
+      await supabase.from('shift_change_requests').update({
+        'status': 'approved',
+        'decided_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', requestId);
+      _fetchRequests();
+      if (!mounted) return;
+      AppSnackbar.success(context, 'Shift changed. Assign a seat from the members list if needed.');
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackbar.error(context, friendlyError(e));
+    }
   }
 
   DateTime _addMonths(DateTime date, int months) {

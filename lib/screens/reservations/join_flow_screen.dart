@@ -1448,10 +1448,35 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
         _buildPaymentMethodOption('cash', '💵 Cash Payment', 'Pay the total amount in cash directly at the library.'),
         const SizedBox(height: 8),
         _buildPaymentMethodOption('upi', '📱 UPI / Online Transfer', 'Pay the admin via any UPI app, then confirm below.'),
+        const SizedBox(height: 8),
+        _buildPaymentMethodOption('pay_later', '🕒 Pay Later', 'Submit now and pay at the library later. The admin can approve and the amount stays as a due.'),
 
         if (_paymentMethod == 'upi') ...[
           const SizedBox(height: 20),
           _buildUpiCard(_calculateTotalPrice()),
+        ],
+        if (_paymentMethod == 'pay_later') ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0x14F59E0B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0x33F59E0B)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 18, color: Color(0xFFB45309)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Your request will be sent without payment. Once approved, ₹${_calculateTotalPrice().toStringAsFixed(0)} will show as pending dues until you pay the library.',
+                    style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: const Color(0xFFB45309)),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ],
     );
@@ -1742,7 +1767,7 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
               const Divider(height: 20),
               _buildReviewRow('Plan type', _selectedPlan == 'trial' ? '🆓 Free Trial' : '${_selectedPlan == 'monthly' ? 'Monthly' : _selectedPlan == '3_month' ? '3-Month' : '6-Month'} plan'),
               const Divider(height: 20),
-              _buildReviewRow('Payment method', _selectedPlan == 'trial' ? 'Trial (Skip payment)' : _paymentMethod == 'cash' ? 'Cash at Library' : 'UPI transfer'),
+              _buildReviewRow('Payment method', _selectedPlan == 'trial' ? 'Trial (Skip payment)' : _paymentMethod == 'cash' ? 'Cash at Library' : _paymentMethod == 'pay_later' ? 'Pay Later (dues)' : 'UPI transfer'),
               
               if (_paymentMethod == 'upi' && _selectedPlan != 'trial') ...[
                 const Divider(height: 20),

@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../core/offline_sync.dart';
 import '../core/cache_service.dart';
+import '../core/app_snackbar.dart';
 import '../theme/app_palette.dart';
 import '../utils/time_utils.dart';
 import '../services/notification_service.dart';
@@ -6005,6 +6006,161 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
     );
   }
 
+  /// Member-initiated shift change request → admin reviews & transfers.
+  /// Inserts a pending shift_change_requests row + notifies the owner. Honest:
+  /// it's a REQUEST, not an immediate change.
+  void _openShiftChangeRequestSheet(Map<String, dynamic> membership) {
+    final lib = membership['libraries'] as Map<String, dynamic>? ?? {};
+    final currentShift = membership['shifts'] as Map<String, dynamic>? ?? {};
+    final libraryId = (membership['library_id'] ?? lib['id'])?.toString();
+    final membershipId = membership['id']?.toString();
+    final currentShiftId = (membership['shift_id'] ?? currentShift['id'])?.toString();
+    if (libraryId == null || membershipId == null) return;
+
+    List<Map<String, dynamic>> shifts = [];
+    String? requestedShiftId;
+    final reasonCtrl = TextEditingController();
+    bool loading = true;
+    bool busy = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.palette.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) {
+          if (loading) {
+            // Load other shifts once.
+            Supabase.instance.client
+                .from('shifts')
+                .select('id, name, start_time, end_time')
+                .eq('library_id', libraryId)
+                .eq('is_archived', false)
+                .then((res) {
+              if (!sheetCtx.mounted) return;
+              setSheet(() {
+                shifts = List<Map<String, dynamic>>.from(res)
+                    .where((s) => s['id'].toString() != currentShiftId)
+                    .toList();
+                loading = false;
+              });
+            }).catchError((_) {
+              if (sheetCtx.mounted) setSheet(() => loading = false);
+            });
+          }
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 18,
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Request Shift Change',
+                    style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: context.palette.textPrimary)),
+                const SizedBox(height: 4),
+                Text('The admin will review and move you (a price difference may apply).',
+                    style: GoogleFonts.inter(fontSize: 12, color: context.palette.textSecondary)),
+                const SizedBox(height: 16),
+                if (loading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator(color: Color(0xFFE65C00))),
+                  )
+                else if (shifts.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Text('No other shift is available in this library.',
+                        style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary)),
+                  )
+                else ...[
+                  Text('Preferred shift', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: context.palette.textSecondary)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: requestedShiftId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                    hint: const Text('Select a shift'),
+                    items: shifts.map((s) {
+                      final st = (s['start_time'] ?? '').toString();
+                      final en = (s['end_time'] ?? '').toString();
+                      final time = (st.isNotEmpty && en.isNotEmpty) ? '  ($st–$en)' : '';
+                      return DropdownMenuItem<String>(
+                        value: s['id'].toString(),
+                        child: Text('${s['name']}$time', overflow: TextOverflow.ellipsis),
+                      );
+                    }).toList(),
+                    onChanged: busy ? null : (v) => setSheet(() => requestedShiftId = v),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: reasonCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(), isDense: true,
+                      labelText: 'Reason',
+                      hintText: 'Why do you want to change your shift?',
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: (requestedShiftId == null || busy)
+                          ? null
+                          : () async {
+                              if (reasonCtrl.text.trim().isEmpty) {
+                                AppSnackbar.warning(context, 'Please add a short reason.');
+                                return;
+                              }
+                              setSheet(() => busy = true);
+                              final supabase = Supabase.instance.client;
+                              try {
+                                await supabase.from('shift_change_requests').insert({
+                                  'membership_id': membershipId,
+                                  'member_id': supabase.auth.currentUser?.id,
+                                  'library_id': libraryId,
+                                  'current_shift_id': currentShiftId,
+                                  'requested_shift_id': requestedShiftId,
+                                  'reason': reasonCtrl.text.trim(),
+                                  'status': 'pending',
+                                });
+                                await NotificationService.notifyLibraryOwner(
+                                  libraryId: libraryId,
+                                  title: 'Shift change request',
+                                  body: 'A member has requested a shift change. Review it in Reservations → Requests.',
+                                  type: 'shift_change',
+                                );
+                                if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                                if (!mounted) return;
+                                AppSnackbar.success(context, 'Shift change request sent to the admin.');
+                              } catch (e) {
+                                setSheet(() => busy = false);
+                                if (mounted) AppSnackbar.error(context, friendlyError(e));
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0EA5E9),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: busy
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Send request'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _openMembershipMoreOptions(Map<String, dynamic> membership) {
     showModalBottomSheet(
       context: context,
@@ -6042,6 +6198,15 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                 onTap: () {
                   Navigator.pop(context);
                   _openSeatChangeSheet(membership);
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.swap_calls_rounded, color: Color(0xFF0EA5E9)),
+                title: Text('Request Shift Change', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openShiftChangeRequestSheet(membership);
                 },
               ),
               const Divider(),
@@ -6211,7 +6376,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'You have outstanding dues at this library. Please clear all pending payments with your admin before exiting.',
+                            'You have outstanding dues at this library. Please clear all pending payments with your admin, or contact the library owner, before exiting.',
                             style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF7F1D1D), height: 1.4),
                           ),
                         ],
