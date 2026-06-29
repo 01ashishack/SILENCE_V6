@@ -73,10 +73,23 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
 
 ## 5. Current state (keep this in sync)
 
-- Branch `main`. Latest committed checkpoint: **`7cd6690`** (2026-06-26) — dark-mode completion
-  (charts theme-aware + reservations sub-tab surfaces + heatmap cells). Recent line: full per-screen
-  dark migration → structural surfaces/AppColors → input-field text fix → admin App Settings dedup →
-  library create(web image)/delete(cascade)/new-lib flow → charts/sub-tabs/heatmap. Working tree clean.
+- Branch `main`. Latest committed checkpoint: **`3e7b45d`** (2026-07-02) — membership-lifecycle
+  overhaul + performance. Recent line: legal/UGC + marketing posters + member avatars/leaderboard →
+  **membership lifecycle** (pay-later approval, correction-request, dues exit-guard, shift
+  change/transfer) → **bug fixes** (shift-card overflow, shift-request visibility + notif routing,
+  revenue cards, Report-Bug quick action) → **perf** (payments index + admin-dashboard `Future.wait`).
+  Working tree clean. See CLAUDE.md for the full breakdown.
+- **✅ Migrations APPLIED to live DB + folded into `supabase_schema.sql` (2026-06-29 → 07-02), no
+  outstanding live-DB action:** `2026-06-29_join_approval_v3_paylater_correction.sql` (approve v3 +
+  `p_payment_pending`; `join_requests.correction_note`/`correction_requested_at`),
+  `2026-06-30_exit_dues_guard.sql` (`exit_my_membership` refuses exit with pending dues),
+  `2026-07-01_shift_change_and_transfer.sql` (`shift_change_requests` table + RLS +
+  `transfer_member_shift()` RPC), `2026-07-02_payments_perf_index.sql`
+  (`payments(library_id,status,payment_date)` index).
+- **✅ Migrations APPLIED to live DB (2026-06-28):** `2026-06-28_ugc_moderation.sql` (abuse_reports,
+  user_blocks, reviews.hidden), `2026-06-28_marketing_assets.sql` (marketing_assets + public
+  `marketing` bucket), `2026-06-28_member_avatar.sql` (`users.avatar_id` + leaderboard RPC returns
+  avatar_id). All folded. **No outstanding live-DB action.**
 - **✅ Migrations APPLIED to live DB (2026-06-26):** `2026-06-26_overtime_grace_minutes.sql`
   (configurable auto-checkout grace) + `2026-06-26_library_delete_cascade.sql` (RESTRICT→CASCADE FKs to
   libraries on memberships/attendance/payments so library delete works). Both folded into

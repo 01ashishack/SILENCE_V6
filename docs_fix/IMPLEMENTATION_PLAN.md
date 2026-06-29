@@ -384,3 +384,26 @@ The 3-phase plan above is complete; ongoing user-directed work is logged in dedi
   (date-filtered, working CSV/PDF). Admin Analytics attendance tab + Export Center route to them; Export
   Center now asks the period on each export tap and offers date-wise/member-wise for the Attendance Log.
 - **No DB change in the exports batch.** Canonical current state stays in `CLAUDE.md` §0.
+
+### 2026-06-29 → 07-02 — Membership-lifecycle overhaul + performance (committed `2498980`…`3e7b45d`)
+- **Membership lifecycle** (5 batches, migrations APPLIED + folded):
+  - `2026-06-29_join_approval_v3_paylater_correction.sql` — `approve_join_request` **v3** (+`p_payment_pending`
+    → activate membership but leave the payment `pending` as a due) + `join_requests.correction_note`/
+    `correction_requested_at`.
+  - `2026-06-30_exit_dues_guard.sql` — `exit_my_membership` refuses exit while positive pending dues exist.
+  - `2026-07-01_shift_change_and_transfer.sql` — `shift_change_requests` table + RLS (mirrors seat_change) +
+    `transfer_member_shift()` RPC (frees old seat, claims optional new seat, ± price adjustment paid/pending).
+  - `2026-07-02_payments_perf_index.sql` — `payments(library_id, status, payment_date)` index.
+  - UI: Explore browse list + NEW badge; manual-add **WhatsApp share** sheet; join-approval redesign
+    (View Details hub + Paid/Pending toggle + correction templates) + **Pay Later** in join flow; member
+    Exit dues popup wording; admin **Revenue card pending dues** computed; member **Request Shift Change** +
+    admin **Change/Transfer Shift** + a **Shifts** tab in Requests; honest member hold FAQ; **Report Bug**
+    quick action (admin + member).
+- **Bug fixes** (`eef2727`): shift-card 3-plan overflow (Expanded wrap); shift-change request visibility
+  (realtime + per-tab refetch) and notification tap routing (`shift_change_request` type); equal-height
+  analytics Revenue cards; expense subtitle no longer clipped.
+- **Performance** (`3e7b45d`): payments composite index + admin-dashboard 6 stat reads parallelized with
+  `Future.wait` (were sequential). Audited a "5 perf tips" reel — fonts already bundled, covers already
+  `CachedNetworkImage`, lists already lazy `ListView.builder`; only indexing + sequential-fetch were real
+  gaps (fixed). **Remaining lever:** analytics deep-nested over-fetch + `.range()` pagination on large lists.
+- Canonical current state: `CLAUDE.md` §0 + `AGENTS.md` §5.

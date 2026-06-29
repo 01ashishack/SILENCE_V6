@@ -38,6 +38,59 @@
 `auth_screen.dart` `_handleGoogleSignIn()` does the native flow: `GoogleSignIn.instance.initialize(serverClientId: SupabaseConfig.googleWebClientId)` → `authenticate()` → `authorizationClient` for the access token → `supabase.auth.signInWithIdToken(provider: google, idToken, accessToken)`; web falls back to `signInWithOAuth`. After sign-in it bootstraps the `users` row (`_routeAfterAuth`) and routes like login (role null → `/role-select`, else admin/member home); user-cancel (`GoogleSignInException.canceled`) is silent. `google_sign_in: ^7.2.0`. **Web client ID `1085738355311-4pbt15ndhhcngedpp28ob8ru2bsl7bdl...` baked as the `googleWebClientId` default** (public, safe in-APK; `--dart-define=GOOGLE_WEB_CLIENT_ID=` still overrides) so plain `flutter run`/`build` work without flags. **Console DONE (user):** OAuth consent screen (External, test users), Web + Android (`com.silence.app.silence` + debug SHA-1 `7E:39:...:63`) client IDs, Supabase Google provider enabled (Web+Android client IDs, Web secret). Apple → "coming soon".
 - **⚠️ Before Play Store:** add the **release keystore SHA-1** to the Android OAuth client (debug SHA-1 only works for `flutter run`/debug APK). Consent screen is in **Testing** → only added test users can log in until Published.
 
+### ✅ Membership-lifecycle overhaul + performance (2026-06-29 → 07-02) — migrations APPLIED + folded; pushed (`3e7b45d`)
+
+Latest pushed commit: **`3e7b45d`** on `main`. Four migrations applied to live DB + folded into
+`supabase_schema.sql` (no outstanding live-DB action):
+
+- **`2026-06-29_join_approval_v3_paylater_correction.sql`** — `join_requests` gains `correction_note`
+  + `correction_requested_at`. `approve_join_request` **v3** adds `p_payment_pending boolean`: when
+  true the membership activates but the payment row is `status='pending'` (a due shown both sides).
+  Old 5-arg callers still work.
+- **`2026-06-30_exit_dues_guard.sql`** — `exit_my_membership` now refuses exit while positive pending
+  dues exist (server-side; UI already pre-blocked). Defense-in-depth.
+- **`2026-07-01_shift_change_and_transfer.sql`** — new `shift_change_requests` table + RLS (mirrors
+  seat_change) + `transfer_member_shift()` RPC (frees old seat, claims optional new seat in target
+  shift, records ± price adjustment as paid/pending payment, notifies + audits).
+- **`2026-07-02_payments_perf_index.sql`** — `payments(library_id, status, payment_date)` composite
+  index for revenue/dues/analytics reads.
+
+**Feature work (UI):**
+- **Explore** (`member_explore_screen`): empty search now shows a **browse list** (rating → reviews →
+  newest) + green **NEW** badge on the 3 newest libraries (was just an empty prompt).
+- **Manual add** (`add_member_wizard`): after success, a **WhatsApp share sheet** (name/seat/shift/
+  plan/joining/valid dates/payment) — manual members have no app account, so this is the honest
+  channel. `wa.me` deep link (auto `91` prefix for 10-digit numbers).
+- **Join approval redesign** (`requests_sub_tab`): request card → single **View Details**; the review
+  sheet is now the action hub — full details + past history + **Payment Paid/Pending toggle** (feeds
+  pay-later) + **Request correction** (4 templates, keeps request pending, no reject) + Approve/Reject.
+  The old separate payment-verify step was merged in. **Member join flow** (`join_flow_screen`) adds a
+  **"Pay Later"** option.
+- **Dues**: member Exit popup wording adds "contact owner"; admin **Revenue card pending dues** now
+  computed (`_revenuePending` was hardcoded 0); admin mark-paid already existed (member_detail Payments tab).
+- **Shift change**: member "Request Shift Change" (member_home membership menu → `shift_change_requests`
+  + owner notif); admin "Change / Transfer Shift" (member_detail) + a **Shifts** tab in `requests_sub_tab`
+  (toggle now horizontally scrollable) to approve/reject member requests.
+- **Member hold FAQ** corrected (was a dishonest "Request Hold" promise; admin-initiated hold exists).
+
+**Bug fixes (commit `eef2727`):**
+- Shift card pricing row wraps (Expanded) — 3-plan overflow gone (`shift_management`).
+- Shift-change request now visible: `requests_sub_tab` realtime listens to `shift_change_requests` +
+  `seat_change_requests`, and every tab tap refetches. Notification tap fixed — owner notif uses
+  `shift_change_request` type, both `shift_change`/`shift_change_request` now routed in
+  `notifications_screen`.
+- Analytics Revenue cards equal height (`IntrinsicHeight`) + expense subtitle 2 lines (no clip).
+- **Report Bug** quick action added to admin + member home (→ existing help/support screens).
+
+**Performance (commit `3e7b45d`):**
+- `admin_home` dashboard: 6 independent stat reads now run via **`Future.wait`** (was sequential).
+- payments composite index (above).
+- **Audited the "5 perf tips" reel against this codebase:** fonts already bundled
+  (`assets/google_fonts/`, no runtime fetch), cover images already `CachedNetworkImage`, lists already
+  `ListView.builder` (lazy) — so only indexing + sequential-fetch were genuine gaps (both fixed). AI
+  streaming N/A. **Remaining big lever:** analytics deep-nested over-fetch + `.range()` pagination on
+  large lists (members/history) — a future focused pass, ideally device-tested.
+
 ### ✅ Member avatars + leaderboard redesign + analytics animations + profile cleanup (2026-06-28)
 
 - **Preset avatars (no real photos):** `lib/core/member_avatars.dart` — 10 icon-avatars +
