@@ -567,12 +567,18 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
           const SizedBox(height: 8),
           
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.currency_rupee, size: 16, color: _orange),
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.currency_rupee, size: 16, color: _orange),
+              ),
               const SizedBox(width: 8),
-              Text(
-                'Monthly: ₹${shift.priceMonthly}${shift.price3Month != null ? '  |  3-Month: ₹${shift.price3Month}' : ''}${shift.price6Month != null ? '  |  6-Month: ₹${shift.price6Month}' : ''}',
-                style: GoogleFonts.inter(fontSize: 13, color: _grey),
+              Expanded(
+                child: Text(
+                  'Monthly: ₹${shift.priceMonthly}${shift.price3Month != null ? '  |  3-Month: ₹${shift.price3Month}' : ''}${shift.price6Month != null ? '  |  6-Month: ₹${shift.price6Month}' : ''}',
+                  style: GoogleFonts.inter(fontSize: 13, color: _grey),
+                ),
               ),
             ],
           ),

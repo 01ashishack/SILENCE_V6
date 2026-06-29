@@ -132,6 +132,26 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
             }
           },
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'shift_change_requests',
+          callback: (payload) {
+            if (mounted) {
+              _fetchRequests();
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'seat_change_requests',
+          callback: (payload) {
+            if (mounted) {
+              _fetchRequests();
+            }
+          },
+        )
         .subscribe();
   }
 
@@ -1251,6 +1271,7 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
           setState(() {
             _activeRequestTab = index;
           });
+          _fetchRequests();
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),

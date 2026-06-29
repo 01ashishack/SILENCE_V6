@@ -131,6 +131,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         case 'seat_assigned':
         case 'seat_change_approved':
         case 'seat_change_rejected':
+        case 'shift_change':
         case 'membership_renewed':
         case 'membership_transferred':
         case 'membership_removed':
@@ -157,6 +158,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         case 'join_request':
         case 'new_join_request':
         case 'seat_change_request':
+        case 'shift_change_request':
         case 'hold_request':
         case 'payment':
         case 'payment_submitted':
@@ -498,6 +500,8 @@ class _NotifStyle {
       case 'seat_reassigned':
       case 'seat_assigned':
       case 'seat_change_request':
+      case 'shift_change':
+      case 'shift_change_request':
         return const _NotifStyle(Icons.event_seat_rounded, AppColors.info);
       case 'badge':
         return const _NotifStyle(Icons.emoji_events_rounded, AppColors.primary);

@@ -3184,6 +3184,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               color: const Color(0xFFE65C00), // Orange
               onTap: _showCloseLibrarySheet,
             ),
+            _buildCircularActionButton(
+              icon: Icons.bug_report_outlined,
+              label: 'Report Bug',
+              color: const Color(0xFFDC2626), // Red
+              onTap: () => Navigator.pushNamed(context, '/admin/help-support'),
+            ),
           ],
         ),
       ],

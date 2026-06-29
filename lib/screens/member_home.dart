@@ -5384,6 +5384,13 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
             onPressed: _openRenewForPrimary,
             accent: const Color(0xFFE65C00),
           ),
+          const SizedBox(width: 8),
+          _buildQuickActionButton(
+            label: 'Report Bug',
+            icon: Icons.bug_report_outlined,
+            onPressed: () => Navigator.pushNamed(context, '/member/help'),
+            accent: const Color(0xFFDC2626),
+          ),
         ],
       ),
     );
@@ -6131,7 +6138,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                                   libraryId: libraryId,
                                   title: 'Shift change request',
                                   body: 'A member has requested a shift change. Review it in Reservations → Requests.',
-                                  type: 'shift_change',
+                                  type: 'shift_change_request',
                                 );
                                 if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                                 if (!mounted) return;

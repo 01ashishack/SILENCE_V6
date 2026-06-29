@@ -2278,7 +2278,7 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
             const SizedBox(height: 4),
             Text(
               subtitle,
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
                 fontSize: 11,
@@ -2302,27 +2302,30 @@ class _AdminAnalyticsTabState extends State<AdminAnalyticsTab>
       padding: const EdgeInsets.all(16),
       children: [
         // 1. KPI Cards Row
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                title: 'Total Revenue',
-                value: '₹${_totalRevenue.toStringAsFixed(0)}',
-                icon: Icons.payments,
-                subtitle: '$pctSign ${changePct.abs().toStringAsFixed(1)}% vs prev',
-                trendColor: pctColor,
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Total Revenue',
+                  value: '₹${_totalRevenue.toStringAsFixed(0)}',
+                  icon: Icons.payments,
+                  subtitle: '$pctSign ${changePct.abs().toStringAsFixed(1)}% vs prev',
+                  trendColor: pctColor,
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                title: 'Net Profit',
-                value: '₹${_netProfit.toStringAsFixed(0)}',
-                icon: Icons.wallet,
-                subtitle: 'Expenses: ₹${_totalExpenses.toStringAsFixed(0)}  ·  Refunds: $_refundRequestsCount',
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Net Profit',
+                  value: '₹${_netProfit.toStringAsFixed(0)}',
+                  icon: Icons.wallet,
+                  subtitle: 'Expenses: ₹${_totalExpenses.toStringAsFixed(0)}  ·  Refunds: $_refundRequestsCount',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 16),
 
