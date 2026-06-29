@@ -728,6 +728,9 @@ CREATE INDEX IF NOT EXISTS idx_attendance_library_date ON attendance(library_id,
 -- Payments Indexes
 CREATE INDEX IF NOT EXISTS idx_payments_membership ON payments(membership_id);
 CREATE INDEX IF NOT EXISTS idx_payments_member ON payments(member_id);
+-- Hot read paths (revenue, dues, analytics) filter by library + status + date.
+-- See migrations/2026-07-02_payments_perf_index.sql.
+CREATE INDEX IF NOT EXISTS idx_payments_library_status_date ON payments(library_id, status, payment_date);
 
 -- Join Requests Indexes
 CREATE INDEX IF NOT EXISTS idx_join_requests_library_status ON join_requests(library_id, status);

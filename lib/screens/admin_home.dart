@@ -598,45 +598,31 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           .length;
 
       // Total active members: memberships status = 'active'
-      final activeMembershipsRes = await supabase
-          .from('memberships')
-          .select('id')
-          .eq('library_id', libId)
-          .eq('status', 'active');
+      // Perf: these independent stat reads previously ran one-by-one (sequential
+      // round-trips → slow dashboard). Run them in parallel; dues + exits stay
+      // as their own resilient (try-caught) reads below.
+      final stats = await Future.wait([
+        supabase.from('memberships').select('id').eq('library_id', libId).eq('status', 'active'),
+        supabase.from('memberships').select('id').eq('library_id', libId).eq('status', 'expired').lt('end_date', todayStr),
+        supabase.from('memberships').select('id').eq('library_id', libId).eq('end_date', todayStr),
+        supabase.from('payments').select('amount, payment_date').eq('library_id', libId).eq('status', 'confirmed').gte('payment_date', firstDayOfMonthStr),
+        supabase.from('memberships').select('created_at').eq('library_id', libId).gte('created_at', firstDayOfMonthStr),
+        supabase.from('memberships').select('id').eq('library_id', libId).gte('end_date', tomorrowStr).lte('end_date', sevenDaysLaterStr),
+      ]);
 
-      _totalActiveMembers = activeMembershipsRes.length;
+      _totalActiveMembers = (stats[0] as List).length;
 
       // 2. Expired: status = 'expired' and end_date < today
-      final expiredRes = await supabase
-          .from('memberships')
-          .select('id')
-          .eq('library_id', libId)
-          .eq('status', 'expired')
-          .lt('end_date', todayStr);
-
-      _expiredCount = expiredRes.length;
+      _expiredCount = (stats[1] as List).length;
 
       // Expiring Today: end_date = today
-      final expiringTodayRes = await supabase
-          .from('memberships')
-          .select('id')
-          .eq('library_id', libId)
-          .eq('end_date', todayStr);
-
-      _expiringTodayCount = expiringTodayRes.length;
+      _expiringTodayCount = (stats[2] as List).length;
 
       // 3. Revenue This Month: payments amount sum where status = 'confirmed' and payment_date >= first day of month
       // Today's revenue: payment_date = today
-      final paymentsRes = await supabase
-          .from('payments')
-          .select('amount, payment_date')
-          .eq('library_id', libId)
-          .eq('status', 'confirmed')
-          .gte('payment_date', firstDayOfMonthStr);
-
       int revSum = 0;
       int revToday = 0;
-      for (final p in paymentsRes as List) {
+      for (final p in stats[3] as List) {
         final amt = p['amount'] as int? ?? 0;
         revSum += amt;
         final pDateStr = p['payment_date'] as String?;
@@ -668,16 +654,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
 
       // 4. New Joinings: memberships created_at >= first day of month
       // Today's count: created_at >= today midnight
-      final joiningsRes = await supabase
-          .from('memberships')
-          .select('created_at')
-          .eq('library_id', libId)
-          .gte('created_at', firstDayOfMonthStr);
-
       int joinMonth = 0;
       int joinToday = 0;
       final todayMidnightIso = todayMidnight.toIso8601String();
-      for (final m in joiningsRes as List) {
+      for (final m in stats[4] as List) {
         joinMonth++;
         final created = m['created_at'] as String?;
         if (created != null && created.compareTo(todayMidnightIso) >= 0) {
@@ -702,14 +682,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       }
 
       // 5. Expiring Soon: memberships end_date between tomorrow and today+7 days
-      final expiringSoonRes = await supabase
-          .from('memberships')
-          .select('id')
-          .eq('library_id', libId)
-          .gte('end_date', tomorrowStr)
-          .lte('end_date', sevenDaysLaterStr);
-
-      _expiringSoonCount = expiringSoonRes.length;
+      _expiringSoonCount = (stats[5] as List).length;
 
       // 6. Live Occupancy: seats occupied for current shift (or all shifts if no current shift)
       final shiftsRes = await supabase
