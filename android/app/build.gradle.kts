@@ -64,10 +64,24 @@ android {
 
     buildTypes {
         release {
-            // Sign with the real upload keystore when key.properties is present;
-            // otherwise fall back to debug signing so local builds still run.
+            // Sign with the real upload keystore when key.properties is present.
+            // When it is absent: fail-fast in CI / when release signing is
+            // explicitly required (so we never ship a debug-signed release by
+            // accident), but keep the debug fallback for local `flutter run`.
+            // Opt in to the strict check with `-PrequireReleaseSigning=true` or a
+            // CI environment (CI=true). (audit A2-19)
+            val requireReleaseSigning =
+                (project.findProperty("requireReleaseSigning") == "true") ||
+                    (System.getenv("CI") == "true")
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
+            } else if (requireReleaseSigning) {
+                throw GradleException(
+                    "Release signing required but android/key.properties is missing. " +
+                        "Generate a keystore and create key.properties " +
+                        "(see android/key.properties.example), or drop the " +
+                        "requireReleaseSigning flag for a local debug-signed build."
+                )
             } else {
                 signingConfigs.getByName("debug")
             }

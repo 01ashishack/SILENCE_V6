@@ -16,6 +16,7 @@ import 'admin/all_libraries_overview_screen.dart';
 import 'admin_profile_tab.dart';
 import 'scheduled_closures.dart';
 import '../utils/holiday_service.dart';
+import '../utils/time_utils.dart';
 import '../core/calendar_picker.dart';
 import '../widgets/states/shimmer_box.dart';
 
@@ -814,13 +815,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
 
   Future<void> _loadOperationalFeeds(String libId) async {
     final supabase = Supabase.instance.client;
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
-    final endOfDay = DateTime(
-      now.year,
-      now.month,
-      now.day + 1,
-    ).toIso8601String();
+    // Build the "today" window from IST wall-clock converted to UTC (matches
+    // admin_analytics_tab), so the feed boundary is true IST midnight regardless
+    // of the device timezone — not a naive local string compared as UTC. (audit A1-39)
+    final nowIst = istNow();
+    final startOfDay = istWallClockToUtc(
+            DateTime(nowIst.year, nowIst.month, nowIst.day))
+        .toIso8601String();
+    final endOfDay = istWallClockToUtc(
+            DateTime(nowIst.year, nowIst.month, nowIst.day + 1))
+        .toIso8601String();
 
     try {
       final attendanceRes = await supabase

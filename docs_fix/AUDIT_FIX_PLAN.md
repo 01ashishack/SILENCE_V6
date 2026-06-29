@@ -222,13 +222,19 @@ Status keys: ⬜ not started · �doing · ✅ done
 ## WAVE 8 — Release / DevOps / hardening (P2)
 
 - ⬜ **8.1** `send-push` fail-closed when `PUSH_WEBHOOK_SECRET` set in prod (A2-17) — verify live webhook
-  header is set first, else push breaks.
-- ⬜ **8.2** Release build fail-fast when `key.properties` absent in CI/release (A2-19) — keep debug
-  fallback for local `flutter run` only (e.g. gate on a `--dart-define` or build flag).
-- ⬜ **8.3** `istNow()` in `admin_home._loadOperationalFeeds` (A1-39) instead of `DateTime.now()`.
+  header is set first, else push breaks. **NEEDS LIVE EDGE-FUNCTION VERIFY — flagged to user; not
+  touched (FCM is config-pending).**
+- ✅ **8.2** Release build fail-fast when `key.properties` absent (A2-19) — `android/app/build.gradle.kts`
+  release block now throws when signing is required (`-PrequireReleaseSigning=true` or `CI=true`) and
+  key.properties is missing; keeps the debug fallback for local `flutter run`.
+- ✅ **8.3** `istNow()` in `admin_home._loadOperationalFeeds` (A1-39) — the "today" feed window is now
+  built from IST wall-clock → UTC (`istWallClockToUtc`, matching analytics) so the boundary is true IST
+  midnight regardless of device timezone.
 - ⬜ **8.4** Public `USING(true)` read scoping for seats/add_ons occupant data (A2-7) — careful, Explore
-  depends on shift/price reads. **Safer alt:** hide `occupied_by_member_id` from public seat reads only.
-- ⬜ **8.5** Double-submit guard in `contact_admin_screen` (A1-48); No-Seat filter optimistic refresh (A1-44).
+  depends on shift/price reads. **NEEDS LIVE RLS CHANGE + verify — flagged to user (highest realtime/
+  Explore regression risk). Safer alt:** hide `occupied_by_member_id` from public seat reads only.
+- 🟡 **8.5** Double-submit guard in `contact_admin_screen` (A1-48) — **already present** (button disabled
+  + `sending` spinner before the await). No-Seat filter optimistic refresh (A1-44) — minor UI, deferred.
 - ⬜ **8.6** Public-config note (A1-36, A2-30): anon key/Firebase keys are public by design; optionally
   move to `--dart-define-from-file` for env separation. Low urgency.
 
