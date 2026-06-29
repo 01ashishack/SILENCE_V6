@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/image_optimizer.dart';
+import '../core/storage_urls.dart';
 import '../utils/pdf_exporter.dart';
 import 'reservations/join_flow_screen.dart';
 import 'past_library_detail_screen.dart';
@@ -1789,29 +1790,42 @@ class _MemberHistoryTabState extends State<MemberHistoryTab> with SingleTickerPr
                   const SizedBox(height: 16),
                   Text('Payment Proof Image:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.palette.textMuted)),
                   const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () {
-                      // Tap to zoom image dialog
-                      showDialog(
-                        context: context,
-                        builder: (context) => Dialog(
-                          child: InteractiveViewer(
-                            child: Image.network(proof, fit: BoxFit.contain),
+                  FutureBuilder<String?>(
+                    future: StorageUrls.resolve(proof),
+                    builder: (context, snap) {
+                      final url = snap.data;
+                      return GestureDetector(
+                        onTap: url == null
+                            ? null
+                            : () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => Dialog(
+                                    child: InteractiveViewer(
+                                      child: Image.network(url, fit: BoxFit.contain),
+                                    ),
+                                  ),
+                                );
+                              },
+                        child: Container(
+                          height: 180,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
+                          child: url == null
+                              ? (snap.connectionState == ConnectionState.waiting
+                                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.broken_image))
+                              : ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(url, fit: BoxFit.cover, width: double.infinity,
+                                      errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.broken_image))),
+                                ),
                         ),
                       );
                     },
-                    child: Container(
-                      height: 180,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(proof, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.broken_image))),
-                      ),
-                    ),
                   ),
                 ],
 
@@ -2779,7 +2793,8 @@ class _ReuploadProofBottomSheetState extends State<ReuploadProofBottomSheet> {
             ),
           );
 
-      final proofUrl = await _supabase.storage.from('silence_private').createSignedUrl(path, 3600);
+      // Store the storage PATH (signed on view) — not a 1-hour signed URL. (audit P0)
+      final proofUrl = path;
 
       // Update payment status to pending and re-save transaction data
       await _supabase.from('payments').update({

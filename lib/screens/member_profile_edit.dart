@@ -12,6 +12,7 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/image_optimizer.dart';
+import '../core/storage_urls.dart';
 import '../widgets/styled_dropdown_button.dart';
 import 'package:flutter/services.dart';
 import '../utils/error_messages.dart';
@@ -381,7 +382,10 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
         if (uploadType == 'profile') {
           publicUrl = supabase.storage.from(bucketName).getPublicUrl(path);
         } else {
-          publicUrl = await supabase.storage.from(bucketName).createSignedUrl(path, 3600);
+          // Private ID docs: store the storage PATH (not a 1-hour signed URL,
+          // which expired before admin review). Signed on view via
+          // StorageUrls.resolve(). (audit P0 — signed-URL expiry)
+          publicUrl = path;
         }
 
         if (mounted) {
@@ -1075,29 +1079,55 @@ class _MemberProfileEditScreenState extends State<MemberProfileEditScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: CachedNetworkImage(
-                          imageUrl: docUrl,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => const Center(
-                            child: SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.image_not_supported_outlined,
-                                  size: 22, color: Color(0xFF94A3B8)),
-                              const SizedBox(height: 4),
-                              Text('Tap to re-upload',
-                                  style: GoogleFonts.inter(
-                                      fontSize: 10, color: context.palette.textMuted)),
-                            ],
-                          ),
+                        child: FutureBuilder<String?>(
+                          future: StorageUrls.resolve(docUrl),
+                          builder: (context, snap) {
+                            final resolved = snap.data;
+                            if (resolved == null) {
+                              return Center(
+                                child: snap.connectionState == ConnectionState.waiting
+                                    ? const SizedBox(
+                                        width: 22, height: 22,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))),
+                                      )
+                                    : Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.image_not_supported_outlined, size: 22, color: Color(0xFF94A3B8)),
+                                          const SizedBox(height: 4),
+                                          Text('Tap to re-upload',
+                                              style: GoogleFonts.inter(fontSize: 10, color: context.palette.textMuted)),
+                                        ],
+                                      ),
+                              );
+                            }
+                            return CachedNetworkImage(
+                              imageUrl: resolved,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE65C00))),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.image_not_supported_outlined,
+                                      size: 22, color: Color(0xFF94A3B8)),
+                                  const SizedBox(height: 4),
+                                  Text('Tap to re-upload',
+                                      style: GoogleFonts.inter(
+                                          fontSize: 10, color: context.palette.textMuted)),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ),
                       Container(

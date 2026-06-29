@@ -5,6 +5,7 @@ import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 
 import 'attendance_format.dart';
+import '../core/storage_urls.dart';
 
 /// SILENCE — unified PDF report engine.
 ///
@@ -1202,7 +1203,11 @@ class PdfExporter {
   static Future<pw.ImageProvider?> _tryNetworkImage(String? url) async {
     if (url == null || url.trim().isEmpty) return null;
     try {
-      return await networkImage(url.trim());
+      // Private docs (ID/proof) are now stored as storage PATHS — resolve to a
+      // fresh signed URL before fetching. Public URLs pass through unchanged.
+      final resolved = await StorageUrls.resolve(url.trim());
+      if (resolved == null) return null;
+      return await networkImage(resolved);
     } catch (_) {
       return null;
     }

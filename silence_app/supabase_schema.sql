@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS users (
     date_of_birth DATE,
     photo_url TEXT,
     avatar_id INT,  -- preset leaderboard avatar index (0–9); null → initials
+    show_on_leaderboard BOOLEAN NOT NULL DEFAULT true,  -- privacy (2026-07-04)
+    show_hours BOOLEAN NOT NULL DEFAULT true,
+    hide_nickname BOOLEAN NOT NULL DEFAULT false,
     exam_category TEXT,
     address TEXT,
     phone_verified BOOLEAN DEFAULT false,
@@ -115,6 +118,7 @@ CREATE TABLE IF NOT EXISTS libraries (
     avg_rating NUMERIC(2,1) DEFAULT 0,
     review_count INTEGER DEFAULT 0,
     auto_checkout_overtime BOOLEAN NOT NULL DEFAULT true,
+    auto_checkout_grace_minutes INTEGER NOT NULL DEFAULT 30 CHECK (auto_checkout_grace_minutes BETWEEN 5 AND 360), -- see migrations/2026-06-26
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -448,6 +452,26 @@ CREATE TABLE IF NOT EXISTS notifications (
     sent_at TIMESTAMPTZ DEFAULT now(),
     read_at TIMESTAMPTZ
 );
+
+-- Device Tokens Table (FCM per-device push registry). Canonical copy of
+-- migrations/2026-06-17_device_tokens.sql (was missing from canonical → fresh
+-- deploys broke push). Self-contained: table + index + RLS + policies.
+CREATE TABLE IF NOT EXISTS device_tokens (
+    token       text PRIMARY KEY,
+    user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform    text,
+    updated_at  timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON device_tokens(user_id);
+ALTER TABLE device_tokens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "own device tokens select" ON device_tokens
+    FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "own device tokens insert" ON device_tokens
+    FOR INSERT WITH CHECK (user_id = auth.uid());
+CREATE POLICY "own device tokens update" ON device_tokens
+    FOR UPDATE USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "own device tokens delete" ON device_tokens
+    FOR DELETE USING (user_id = auth.uid());
 
 -- Audit Log Table
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -1001,6 +1025,33 @@ CREATE POLICY "Admin view all payments of their libraries" ON payments
 CREATE POLICY "Member insert (upload proof)" ON payments
     FOR INSERT WITH CHECK (member_id = auth.uid());
 
+-- Guard: a non-owner (member) payment insert can never self-confirm. Canonical
+-- copy of migrations/2026-07-03_payments_status_guard.sql. Owner/RPC/cron inserts
+-- (auth.uid() is the owner or NULL) keep their status.
+CREATE OR REPLACE FUNCTION public.guard_payment_status()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_uid uuid := auth.uid();
+BEGIN
+    IF v_uid IS NULL THEN
+        RETURN NEW;
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.libraries
+                WHERE id = NEW.library_id AND owner_id = v_uid) THEN
+        RETURN NEW;
+    END IF;
+    NEW.status := 'pending';
+    NEW.confirmed_by_admin_id := NULL;
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_guard_payment_status ON public.payments;
+CREATE TRIGGER trg_guard_payment_status
+    BEFORE INSERT ON public.payments
+    FOR EACH ROW EXECUTE FUNCTION public.guard_payment_status();
+
 -- Owner records a member's payment via the Add-Member wizard / approval flow.
 -- (member_id is the member, not the owner, so the member-insert policy above
 -- does not cover this — see migrations/2026-06-12_payments_admin_insert_rls.sql)
@@ -1039,7 +1090,7 @@ CREATE POLICY "Admin view seat change requests" ON seat_change_requests
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
 CREATE POLICY "Member insert seat change request" ON seat_change_requests
-    FOR INSERT WITH CHECK (member_id = auth.uid());
+    FOR INSERT WITH CHECK (member_id = auth.uid() AND status = 'pending');
 
 CREATE POLICY "Admin update seat change request" ON seat_change_requests
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
@@ -1051,7 +1102,7 @@ CREATE POLICY "Member view own shift change requests" ON shift_change_requests
 CREATE POLICY "Admin view shift change requests" ON shift_change_requests
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 CREATE POLICY "Member insert shift change request" ON shift_change_requests
-    FOR INSERT WITH CHECK (member_id = auth.uid());
+    FOR INSERT WITH CHECK (member_id = auth.uid() AND status = 'pending');
 CREATE POLICY "Admin update shift change request" ON shift_change_requests
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
     WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
@@ -1064,7 +1115,7 @@ CREATE POLICY "Admin view hold requests" ON hold_requests
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
 CREATE POLICY "Member insert hold request" ON hold_requests
-    FOR INSERT WITH CHECK (member_id = auth.uid());
+    FOR INSERT WITH CHECK (member_id = auth.uid() AND status = 'pending');
 
 CREATE POLICY "Admin update hold request" ON hold_requests
     FOR UPDATE USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()))
@@ -1641,7 +1692,8 @@ BEGIN
     END IF;
     RETURN QUERY
         SELECT mds.member_id,
-               COALESCE(NULLIF(public.sanitize_display_name(
+               CASE WHEN COALESCE(u.hide_nickname, false) THEN 'Member'
+                    ELSE COALESCE(NULLIF(public.sanitize_display_name(
                  CASE
                    WHEN u.nickname IS NOT NULL AND btrim(u.nickname) <> ''
                        THEN split_part(btrim(u.nickname), ' ', 1)
@@ -1650,14 +1702,16 @@ BEGIN
                             || left(split_part(btrim(u.full_name), ' ', 2), 1) || '.'
                    ELSE coalesce(nullif(btrim(u.full_name), ''), 'User')
                  END
-               ), ''), 'User') AS name,
+               ), ''), 'User') END AS name,
                sum(mds.total_minutes)::bigint AS total_minutes,
                u.avatar_id AS avatar_id
         FROM public.member_daily_stats mds
         JOIN public.users u ON u.id = mds.member_id
         WHERE mds.library_id = p_library
           AND mds.date BETWEEN p_start AND p_end
-        GROUP BY mds.member_id, u.nickname, u.full_name, u.avatar_id
+          AND COALESCE(u.show_on_leaderboard, true)   -- privacy (2026-07-04): opted-out excluded
+          AND COALESCE(u.show_hours, true)            -- hours hidden → excluded
+        GROUP BY mds.member_id, u.nickname, u.full_name, u.avatar_id, u.hide_nickname
         HAVING sum(mds.total_minutes) > 0
         ORDER BY total_minutes DESC;
 END;
@@ -1709,34 +1763,36 @@ DECLARE
     v_warned       INTEGER := 0;
     v_closed       INTEGER := 0;
     v_dur          INTEGER;
-    v_ot           INTEGER;
+    v_grace        INTEGER;
 BEGIN
     FOR r IN
         SELECT a.id, a.member_id, a.check_in_time, a.overtime_warned,
                s.end_time, s.name AS shift_name,
-               COALESCE(l.auto_checkout_overtime, true) AS auto_checkout
+               COALESCE(l.auto_checkout_overtime, true) AS auto_checkout,
+               COALESCE(l.auto_checkout_grace_minutes, 30) AS grace_minutes
           FROM public.attendance a
           JOIN public.shifts s    ON s.id = a.shift_id
           JOIN public.libraries l ON l.id = a.library_id
          WHERE a.check_out_time IS NULL
     LOOP
+        v_grace := GREATEST(1, COALESCE(r.grace_minutes, 30));
         v_shift_end := (((r.check_in_time AT TIME ZONE 'Asia/Kolkata')::date
                           + r.end_time) AT TIME ZONE 'Asia/Kolkata');
-        v_cap_checkout := GREATEST(v_shift_end, r.check_in_time) + interval '30 minutes';
+        v_cap_checkout := GREATEST(v_shift_end, r.check_in_time) + make_interval(mins => v_grace);
 
         IF r.auto_checkout AND now() >= v_cap_checkout THEN
             v_dur := GREATEST(0, CEIL(EXTRACT(EPOCH FROM (v_cap_checkout - r.check_in_time)) / 60.0))::int;
-            v_ot  := 30;
             UPDATE public.attendance
                SET check_out_time   = v_cap_checkout,
                    duration_minutes = v_dur,
                    session_type     = 'auto_checkout',
                    is_overtime      = true,
-                   overtime_minutes = v_ot
+                   overtime_minutes = v_grace
              WHERE id = r.id;
             INSERT INTO public.notifications (user_id, title, body, data)
             VALUES (r.member_id, 'Auto checked out',
-                    'You did not check out, so we automatically checked you out 30 minutes after your '
+                    'You did not check out, so we automatically checked you out '
+                    || v_grace || ' minutes after your '
                     || r.shift_name || ' shift ended. This session is tagged as overtime.',
                     jsonb_build_object('type', 'auto_checkout', 'route', '/member/home'));
             v_closed := v_closed + 1;
@@ -1748,7 +1804,7 @@ BEGIN
                     'Your ' || r.shift_name || ' shift is over. Please scan to check out.'
                     || CASE WHEN r.auto_checkout
                             THEN ' If you stay, the extra time counts as overtime and you will be '
-                                 || 'auto-checked-out after 30 minutes.'
+                                 || 'auto-checked-out after ' || v_grace || ' minutes.'
                             ELSE ' Any extra time will be recorded as overtime.' END,
                     jsonb_build_object('type', 'shift_end', 'route', '/member/home'));
             v_warned := v_warned + 1;

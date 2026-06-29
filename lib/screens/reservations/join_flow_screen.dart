@@ -542,8 +542,10 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
           );
 
       if (!mounted) return false;
-      final String publicUrl = await supabase.storage.from('silence_private').createSignedUrl(path, 3600);
-      _proofUrl = publicUrl;
+      // Store the STORAGE PATH (not a short-lived signed URL): admin review may
+      // happen hours later, so the viewer mints a fresh signed URL on demand
+      // via StorageUrls.resolve(). (audit P0 — signed-URL expiry)
+      _proofUrl = path;
       return true;
     } catch (e) {
       debugPrint('Error uploading proof photo: $e');

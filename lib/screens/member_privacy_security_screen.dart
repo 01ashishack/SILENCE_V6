@@ -106,22 +106,20 @@ class _MemberPrivacySecurityScreenState extends State<MemberPrivacySecurityScree
       final prefs = await SharedPreferences.getInstance();
       final suffix = _userId!;
 
-      // Save locally
+      // Save locally (offline cache mirror)
       await prefs.setBool('privacy_show_leaderboard_$suffix', _showOnLeaderboard);
       await prefs.setBool('privacy_show_hours_$suffix', _showHours);
       await prefs.setBool('privacy_hide_nickname_$suffix', _hideNickname);
 
-      // Save in Supabase (graceful error handling)
-      try {
-        await supabase.from('users').update({
-          'show_on_leaderboard': _showOnLeaderboard,
-          'show_hours': _showHours,
-          'hide_nickname': _hideNickname,
-        }).eq('id', _userId!);
-        if (!mounted) return;
-      } catch (dbError) {
-        debugPrint('Column missing in Supabase, using local: $dbError');
-      }
+      // Persist to Supabase. The columns exist (migration 2026-07-04) and the
+      // library_leaderboard RPC honours them — so a failure here is a REAL
+      // failure and must NOT be reported as success (no dishonest UI).
+      await supabase.from('users').update({
+        'show_on_leaderboard': _showOnLeaderboard,
+        'show_hours': _showHours,
+        'hide_nickname': _hideNickname,
+      }).eq('id', _userId!);
+      if (!mounted) return;
 
       _showSuccessSnackBar('Privacy settings updated! ✓');
       if (mounted) Navigator.pop(context);

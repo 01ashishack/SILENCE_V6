@@ -292,10 +292,10 @@ class _RenewalScreenState extends State<RenewalScreen> {
             ),
           );
 
-      // Payment proof is financial PII → private bucket + signed URL (member
-      // detail re-signs it for the admin on view). Not the public bucket.
-      final String publicUrl = await _supabase.storage.from('silence_private').createSignedUrl(path, 3600);
-      _proofUrl = publicUrl;
+      // Payment proof is financial PII → private bucket. Store the storage PATH
+      // (not a 1-hour signed URL that expires before review); the viewer signs
+      // on demand via StorageUrls.resolve(). (audit P0)
+      _proofUrl = path;
       return true;
     } catch (e) {
       debugPrint('Error uploading proof photo: $e');

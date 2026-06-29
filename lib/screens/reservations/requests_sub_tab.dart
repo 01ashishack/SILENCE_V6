@@ -9,6 +9,7 @@ import '../../utils/error_messages.dart';
 import '../../utils/time_utils.dart';
 import '../../core/picker_theme.dart';
 import '../../core/app_snackbar.dart';
+import '../../core/storage_urls.dart';
 import '../../widgets/states/shimmer_box.dart';
 
 class RequestsSubTab extends StatefulWidget {
@@ -1462,31 +1463,48 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     );
   }
 
-  Widget _docThumb(String url, String label) {
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: () => showDialog(
-            context: context,
-            builder: (c) => Dialog(
-              child: InteractiveViewer(
-                child: Image.network(url, fit: BoxFit.contain, cacheWidth: 1080,
-                    errorBuilder: (ctx, err, stack) => const SizedBox(height: 200, child: Center(child: Text('Could not load image')))),
+  Widget _docThumb(String value, String label) {
+    return FutureBuilder<String?>(
+      future: StorageUrls.resolve(value),
+      builder: (ctx, snap) {
+        final url = snap.data;
+        final loading = snap.connectionState == ConnectionState.waiting;
+        return Column(
+          children: [
+            GestureDetector(
+              onTap: url == null
+                  ? null
+                  : () => showDialog(
+                        context: context,
+                        builder: (c) => Dialog(
+                          child: InteractiveViewer(
+                            child: Image.network(url, fit: BoxFit.contain, cacheWidth: 1080,
+                                errorBuilder: (ctx, err, stack) => const SizedBox(height: 200, child: Center(child: Text('Could not load image')))),
+                          ),
+                        ),
+                      ),
+              child: Container(
+                width: 100, height: 70,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  image: url != null
+                      ? DecorationImage(image: ResizeImage(NetworkImage(url), width: 300), fit: BoxFit.cover)
+                      : null,
+                ),
+                child: url != null
+                    ? null
+                    : (loading
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8), size: 22)),
               ),
             ),
-          ),
-          child: Container(
-            width: 100, height: 70,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              image: DecorationImage(image: ResizeImage(NetworkImage(url), width: 300), fit: BoxFit.cover),
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: GoogleFonts.inter(fontSize: 10, color: context.palette.textMuted)),
-      ],
+            const SizedBox(height: 4),
+            Text(label, style: GoogleFonts.inter(fontSize: 10, color: context.palette.textMuted)),
+          ],
+        );
+      },
     );
   }
 
