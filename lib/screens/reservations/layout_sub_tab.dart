@@ -729,31 +729,13 @@ class LayoutSubTabState extends State<LayoutSubTab> {
     final newLabel = (chosen['seat_label'] ?? 'seat').toString();
 
     try {
-      // Re-validate the target is still vacant (avoid a race).
-      final check = await supabase.from('seats').select('status').eq('id', newSeatId).single();
-      if (check['status'] != 'vacant') {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('That seat was just taken. Try another.')),
-        );
-        return;
-      }
-
-      // Free old, occupy new, sync membership.
-      await supabase.from('seats').update({
-        'status': 'vacant',
-        'occupied_by_member_id': null,
-      }).eq('id', oldSeatId);
-      await supabase.from('seats').update({
-        'status': 'occupied',
-        'occupied_by_member_id': memberId,
-      }).eq('id', newSeatId);
-      await supabase
-          .from('memberships')
-          .update({'seat_id': newSeatId})
-          .eq('member_id', memberId)
-          .eq('library_id', widget.libraryId)
-          .eq('seat_id', oldSeatId);
+      // Atomic reassignment (claim new seat + free old + sync membership) via a
+      // single owner-checked RPC so concurrent admins can't double-book. (audit P1)
+      await supabase.rpc('reassign_seat', params: {
+        'p_member_id': memberId,
+        'p_library_id': widget.libraryId,
+        'p_new_seat_id': newSeatId,
+      });
 
       await _notifySeatMember(
         memberId,

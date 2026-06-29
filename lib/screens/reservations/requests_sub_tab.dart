@@ -619,7 +619,6 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     final membershipId = request['membership_id']?.toString();
     final memberId =
         request['member_id']?['id']?.toString() ?? request['member_id']?.toString();
-    final oldSeatId = request['current_seat_id']?.toString();
     final newSeatId = request['new_seat_id']?.toString();
     final newSeatLabel =
         request['new_seat']?['seat_label']?.toString() ?? 'the new seat';
@@ -637,39 +636,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
     try {
       setState(() => _isLoading = true);
 
-      final newSeat = await supabase
-          .from('seats')
-          .select('status, occupied_by_member_id, seat_label')
-          .eq('id', newSeatId)
-          .single();
-
-      final occupiedBy = newSeat['occupied_by_member_id'];
-      if (newSeat['status'] != 'vacant' &&
-          occupiedBy != null &&
-          occupiedBy.toString() != memberId) {
-        throw 'Target seat is no longer vacant. Please choose another seat.';
-      }
-
-      await supabase.from('memberships').update({
-        'seat_id': newSeatId,
-      }).eq('id', membershipId);
-
-      if (oldSeatId != null && oldSeatId.isNotEmpty) {
-        await supabase.from('seats').update({
-          'status': 'vacant',
-          'occupied_by_member_id': null,
-        }).eq('id', oldSeatId);
-      }
-
-      await supabase.from('seats').update({
-        'status': 'occupied',
-        'occupied_by_member_id': memberId,
-      }).eq('id', newSeatId);
-
-      await supabase.from('seat_change_requests').update({
-        'status': 'approved',
-        'approved_at': DateTime.now().toIso8601String(),
-      }).eq('id', requestId);
+      // Atomic approval: claim new seat + free old + sync membership + mark the
+      // request approved, in one owner-checked RPC (no interleave). (audit P1)
+      await supabase.rpc('approve_seat_change', params: {'p_request_id': requestId});
 
       await _logAudit(
         title: 'Seat Change Approved',

@@ -111,7 +111,7 @@ Status keys: ⬜ not started · �doing · ✅ done
 
 ## WAVE 3 — Write-path integrity RLS (P0/P1, test-heavy)
 
-### 3.1 ⬜ Attendance + payment insert relationship checks (A2-5, A2-6)
+### 3.1 ✅ Attendance + payment insert relationship checks (A2-5, A2-6)
 - **Problem:** insert policies validate only `member_id = auth.uid()`, not that
   `membership_id/library_id/shift_id` belong to an active membership of that member → forgeable rows.
 - **Change:** migration tightens the member INSERT `WITH CHECK` with
@@ -124,7 +124,7 @@ Status keys: ⬜ not started · �doing · ✅ done
   **Safer alt:** keep current policy live; add the new policy in a test project / behind verification;
   only replace after a member round-trip passes. Offline check-in path also writes attendance — verify it.
 
-### 3.2 ⬜ Owner cannot rewrite member email/phone (A1-3)
+### 3.2 ✅ Owner cannot rewrite member email/phone (A1-3)
 - **Change:** scope `"Owner can update their library members"` to non-identity columns, OR route owner
   edits through an RPC that excludes `email`/`phone`. Migration `2026-07-05_owner_update_scope.sql`.
 - **Verify:** owner can still edit allowed fields (name/avatar/etc.); email/phone update by owner rejected.
@@ -136,7 +136,7 @@ Status keys: ⬜ not started · �doing · ✅ done
 
 ## WAVE 4 — Seat transaction integrity (P1)
 
-### 4.1 ⬜ Atomic seat assignment + seat-change approval (A2-9, A2-10)
+### 4.1 ✅ Atomic seat assignment + seat-change approval (A2-9, A2-10)
 - **Problem:** layout reassign + `_approveSeatChangeRequest` do multi-step client read→free→occupy→update
   without a transaction → races / double-book.
 - **Change:** migration adds `reassign_seat(...)` + `approve_seat_change(...)` SECURITY DEFINER RPCs

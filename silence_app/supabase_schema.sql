@@ -1002,7 +1002,16 @@ CREATE POLICY "Admin view all attendance of their libraries" ON attendance
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
 CREATE POLICY "Member insert (check-in/out)" ON attendance
-    FOR INSERT WITH CHECK (member_id = auth.uid());
+    FOR INSERT WITH CHECK (
+        member_id = auth.uid()
+        AND EXISTS (
+            SELECT 1 FROM memberships m
+            WHERE m.id = attendance.membership_id
+              AND m.member_id = auth.uid()
+              AND m.library_id = attendance.library_id
+              AND m.status IN ('active', 'trial')
+        )
+    );
 
 CREATE POLICY "Admin insert (manual check-in)" ON attendance
     FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
@@ -1023,7 +1032,15 @@ CREATE POLICY "Admin view all payments of their libraries" ON payments
     FOR SELECT USING (EXISTS (SELECT 1 FROM libraries WHERE id = library_id AND owner_id = auth.uid()));
 
 CREATE POLICY "Member insert (upload proof)" ON payments
-    FOR INSERT WITH CHECK (member_id = auth.uid());
+    FOR INSERT WITH CHECK (
+        member_id = auth.uid()
+        AND EXISTS (
+            SELECT 1 FROM memberships m
+            WHERE m.id = payments.membership_id
+              AND m.member_id = auth.uid()
+              AND m.library_id = payments.library_id
+        )
+    );
 
 -- Guard: a non-owner (member) payment insert can never self-confirm. Canonical
 -- copy of migrations/2026-07-03_payments_status_guard.sql. Owner/RPC/cron inserts
@@ -1457,6 +1474,27 @@ CREATE TRIGGER trg_guard_user_privileged_columns
     ON public.users
     FOR EACH ROW
     EXECUTE FUNCTION public.guard_user_privileged_columns();
+
+-- Lock member email/phone against non-self (owner) edits. Canonical copy of
+-- migrations/2026-07-05_write_relationship_rls.sql (part B). Self-edits and
+-- service/definer flows (auth.uid() NULL) pass; an owner editing a member's row
+-- has those two columns silently reverted to their old values.
+CREATE OR REPLACE FUNCTION public.guard_user_contact_columns()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF auth.uid() IS NOT NULL AND auth.uid() IS DISTINCT FROM NEW.id THEN
+        NEW.email := OLD.email;
+        NEW.phone := OLD.phone;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_guard_user_contact_columns ON public.users;
+CREATE TRIGGER trg_guard_user_contact_columns
+    BEFORE UPDATE OF email, phone ON public.users
+    FOR EACH ROW EXECUTE FUNCTION public.guard_user_contact_columns();
 
 CREATE OR REPLACE FUNCTION public.start_my_trial()
 RETURNS void
@@ -2500,3 +2538,116 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.claim_verified_badge(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.claim_verified_badge(uuid) TO authenticated;
+
+-- ============================================================================
+-- Atomic seat mutation RPCs. Canonical copy of migrations/2026-07-06_seat_rpcs.sql
+-- (audit P1: non-transactional seat ops could double-book / orphan occupancy).
+-- Owner-checked SECURITY DEFINER; claim-new (conditional UPDATE) + free-old +
+-- sync membership in one transaction. Notifications + audit stay client-side.
+-- ============================================================================
+
+-- reassign_seat: admin moves a member to another vacant seat (layout tab).
+CREATE OR REPLACE FUNCTION public.reassign_seat(
+    p_member_id  uuid,
+    p_library_id uuid,
+    p_new_seat_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_uid       uuid := auth.uid();
+    v_mid       uuid;
+    v_old_seat  uuid;
+    v_new_label text;
+BEGIN
+    IF v_uid IS NULL THEN
+        RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.libraries
+                    WHERE id = p_library_id AND owner_id = v_uid) THEN
+        RAISE EXCEPTION 'Not authorized for this library' USING errcode = '42501';
+    END IF;
+
+    SELECT id, seat_id INTO v_mid, v_old_seat
+      FROM public.memberships
+     WHERE member_id = p_member_id AND library_id = p_library_id
+       AND status IN ('active', 'trial')
+     ORDER BY created_at DESC LIMIT 1;
+    IF v_mid IS NULL THEN
+        RAISE EXCEPTION 'No active membership for this member' USING errcode = 'P0002';
+    END IF;
+
+    UPDATE public.seats
+       SET status = 'occupied', occupied_by_member_id = p_member_id, updated_at = now()
+     WHERE id = p_new_seat_id AND library_id = p_library_id AND status = 'vacant'
+     RETURNING seat_label INTO v_new_label;
+    IF v_new_label IS NULL THEN
+        RAISE EXCEPTION 'That seat was just taken — pick another' USING errcode = 'P0001';
+    END IF;
+
+    IF v_old_seat IS NOT NULL AND v_old_seat <> p_new_seat_id THEN
+        UPDATE public.seats
+           SET status = 'vacant', occupied_by_member_id = NULL, updated_at = now()
+         WHERE id = v_old_seat;
+    END IF;
+
+    UPDATE public.memberships SET seat_id = p_new_seat_id WHERE id = v_mid;
+
+    RETURN jsonb_build_object('membership_id', v_mid, 'new_seat_label', v_new_label);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.reassign_seat(uuid, uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.reassign_seat(uuid, uuid, uuid) TO authenticated;
+
+-- approve_seat_change: owner approves a member's seat-change request.
+CREATE OR REPLACE FUNCTION public.approve_seat_change(p_request_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_uid       uuid := auth.uid();
+    v_req       public.seat_change_requests%ROWTYPE;
+    v_new_label text;
+BEGIN
+    IF v_uid IS NULL THEN
+        RAISE EXCEPTION 'Not signed in' USING errcode = '42501';
+    END IF;
+    SELECT * INTO v_req FROM public.seat_change_requests WHERE id = p_request_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Request not found' USING errcode = 'P0002';
+    END IF;
+    IF v_req.status <> 'pending' THEN
+        RAISE EXCEPTION 'This request has already been processed' USING errcode = 'P0001';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.libraries
+                    WHERE id = v_req.library_id AND owner_id = v_uid) THEN
+        RAISE EXCEPTION 'Not authorized for this library' USING errcode = '42501';
+    END IF;
+    IF v_req.new_seat_id IS NULL THEN
+        RAISE EXCEPTION 'This request has no selected target seat' USING errcode = 'P0001';
+    END IF;
+
+    UPDATE public.seats
+       SET status = 'occupied', occupied_by_member_id = v_req.member_id, updated_at = now()
+     WHERE id = v_req.new_seat_id AND library_id = v_req.library_id
+       AND (status = 'vacant' OR occupied_by_member_id = v_req.member_id)
+     RETURNING seat_label INTO v_new_label;
+    IF v_new_label IS NULL THEN
+        RAISE EXCEPTION 'Target seat is no longer vacant — choose another' USING errcode = 'P0001';
+    END IF;
+
+    IF v_req.current_seat_id IS NOT NULL AND v_req.current_seat_id <> v_req.new_seat_id THEN
+        UPDATE public.seats
+           SET status = 'vacant', occupied_by_member_id = NULL, updated_at = now()
+         WHERE id = v_req.current_seat_id;
+    END IF;
+
+    UPDATE public.memberships SET seat_id = v_req.new_seat_id WHERE id = v_req.membership_id;
+    UPDATE public.seat_change_requests
+       SET status = 'approved', approved_at = now() WHERE id = p_request_id;
+
+    RETURN jsonb_build_object('member_id', v_req.member_id, 'new_seat_label', v_new_label);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.approve_seat_change(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.approve_seat_change(uuid) TO authenticated;
