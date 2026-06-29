@@ -168,16 +168,17 @@ Status keys: ⬜ not started · �doing · ✅ done
   `attendance(((check_in_time AT TIME ZONE 'Asia/Kolkata')::date))`.
 - **Migration:** `2026-07-07_perf_indexes.sql` (USER applies). Additive, near-zero risk.
 
-### 5.3 ⬜ Server-side explore search + pagination (A1-15, A2-15)
-- `member_explore_screen` / `member_home`: push name/city/code filter to PostgREST (`ilike`/`eq`) +
-  `.range()`; browse list capped + load-more. No migration.
-- **Regression risk:** med (changes query + UI). **Safer alt:** add `.limit(50)` cap first (bounds payload,
-  no UI change), full server-search later.
+### 5.3 ✅ Server-side explore search + pagination (A1-15, A2-15)
+- `member_explore_screen`: browse list now `.order(created_at desc).limit(50)` (bounded payload);
+  search pushes name/city/code to PostgREST via `.or(ilike)` + `.limit(50)` so it covers the whole
+  DB (not just the capped browse list), with input sanitized for the or() grammar, a stale-result
+  guard, and a search spinner. No migration. `flutter analyze` clean.
 
-### 5.4 ⬜ History + analytics + audit-log pagination (A1-16–20,43, A2-14)
-- `member_history_tab`, `admin_analytics_tab`, `audit_log_screen` — `.range()` + load-more; analytics
-  charts move to aggregate RPC where feasible. Larger effort; do incrementally per screen.
-- **Regression risk:** med (UI). **Safer alt:** cap with `.limit()` first.
+### 5.4 🟡 History + analytics + audit-log pagination (A1-16–20,43, A2-14)
+- `audit_log_screen` already capped at `.limit(40)`. `admin_analytics_tab` queries are date-range
+  bounded (natural window). `member_history_tab` attendance query feeds in-memory session/stats
+  math — a blind `.limit()` would silently corrupt totals, so it needs true paged loading + a
+  server-side aggregate for stats. DEFERRED (UI rework + correctness risk); revisit post-launch.
 
 **Commit checkpoints F1–F4 (one per sub-item).**
 

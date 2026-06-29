@@ -17,6 +17,7 @@ class ExploreScreen extends StatefulWidget {
 class _ExploreScreenState extends State<ExploreScreen> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = true;
+  bool _isSearching = false;
   String? _errorMessage;
 
   List<Map<String, dynamic>> _allLibraries = [];
@@ -57,7 +58,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final res = await _supabase
           .from('libraries')
           .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, rules, avg_rating, review_count, created_at, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .order('created_at', ascending: false)
+          .limit(50);
       
       if (mounted) {
         setState(() {
@@ -72,7 +75,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
         final fallbackRes = await _supabase
             .from('libraries')
             .select('id, name, address_city, verified, photos, amenities, library_code, status, avg_rating, review_count, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
-            .eq('status', 'active');
+            .eq('status', 'active')
+            .limit(50);
         if (mounted) {
           setState(() {
             _allLibraries = List<Map<String, dynamic>>.from(fallbackRes);
@@ -93,35 +97,49 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void _onSearchChanged() {
     if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      _filterLibraries();
+      _searchLibraries();
     });
   }
 
-  void _filterLibraries() {
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) {
+  // Server-side search: push the name/city/code filter to PostgREST (ilike) with
+  // a bounded result set, so search covers the whole DB — not just the capped
+  // browse list — without downloading every library to the client. (audit P1)
+  Future<void> _searchLibraries() async {
+    final raw = _searchController.text.trim();
+    if (raw.isEmpty) {
       setState(() {
         _filteredLibraries = [];
+        _isSearching = false;
       });
       return;
     }
+    // Sanitize: strip chars that would break the PostgREST or() filter grammar.
+    final q = raw.replaceAll(RegExp(r'[,()%*:\\]'), ' ').trim();
+    if (q.isEmpty) {
+      setState(() => _filteredLibraries = []);
+      return;
+    }
 
-    final matched = _allLibraries.where((lib) {
-      final name = (lib['name'] ?? '').toString().toLowerCase();
-      final city = (lib['address_city'] ?? '').toString().toLowerCase();
-      final code = (lib['library_code'] ?? '').toString().toLowerCase();
-      return name.contains(query) || city.contains(query) || code.contains(query);
-    }).toList();
+    setState(() => _isSearching = true);
+    try {
+      final res = await _supabase
+          .from('libraries')
+          .select('id, name, address_city, address_street, verified, photos, amenities, library_code, status, rules, avg_rating, review_count, created_at, shifts(id, name, price_monthly, trial_days, start_time, end_time)')
+          .eq('status', 'active')
+          .or('name.ilike.%$q%,address_city.ilike.%$q%,library_code.ilike.%$q%')
+          .order('name', ascending: true)
+          .limit(50);
 
-    matched.sort((a, b) {
-      final nameA = (a['name'] ?? '').toString().toLowerCase();
-      final nameB = (b['name'] ?? '').toString().toLowerCase();
-      return nameA.compareTo(nameB);
-    });
-
-    setState(() {
-      _filteredLibraries = matched;
-    });
+      // Drop stale results if the user kept typing while this query was in flight.
+      if (!mounted || _searchController.text.trim() != raw) return;
+      setState(() {
+        _filteredLibraries = List<Map<String, dynamic>>.from(res);
+        _isSearching = false;
+      });
+    } catch (e) {
+      debugPrint('Explore search failed: $e');
+      if (mounted) setState(() => _isSearching = false);
+    }
   }
 
 
@@ -452,6 +470,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
           // Search condition
           if (query.isEmpty)
             _buildBrowseList()
+          else if (_isSearching)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            )
           else if (_filteredLibraries.isEmpty)
             _buildNoResultsState()
           else
