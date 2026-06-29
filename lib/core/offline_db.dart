@@ -20,9 +20,21 @@ class OfflineDatabase {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
+  }
+
+  // v1 → v2: dead-letter support. Failed scans are kept (status='failed') with
+  // the last error instead of being silently deleted after max retries, so the
+  // user can see "couldn't sync" rather than losing the scan. (audit P1)
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute(
+          "ALTER TABLE offline_scan_queue ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'");
+      await db.execute('ALTER TABLE offline_scan_queue ADD COLUMN last_error TEXT');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -39,6 +51,8 @@ class OfflineDatabase {
         device_id TEXT,
         retry_count INTEGER DEFAULT 0,
         synced INTEGER DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending',
+        last_error TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     ''');
@@ -152,5 +166,25 @@ class OfflineDatabase {
   Future<void> close() async {
     final db = await instance.database;
     db.close();
+  }
+
+  /// Count of scans that exhausted their retries and were dead-lettered
+  /// (status='failed'). Surfaced as a visible "couldn't sync" indicator. (audit P1)
+  Future<int> failedScanCount() async {
+    final db = await instance.database;
+    final rows = await db.rawQuery(
+        "SELECT COUNT(*) AS c FROM offline_scan_queue WHERE status = 'failed'");
+    return (rows.first['c'] as int?) ?? 0;
+  }
+
+  /// Re-arm dead-lettered scans for another sync attempt (status→pending,
+  /// retry_count→0). Returns how many rows were reset.
+  Future<int> retryFailedScans() async {
+    final db = await instance.database;
+    return db.update(
+      'offline_scan_queue',
+      {'status': 'pending', 'retry_count': 0},
+      where: "status = 'failed'",
+    );
   }
 }

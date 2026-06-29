@@ -230,14 +230,21 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           return;
         }
 
-        // Check if checked in locally or based on last cached check-in
-        final List<Map<String, dynamic>> localCheckins = await db.query(
+        // Decide check-in vs checkout from the member's LATEST queued scan, not
+        // "any unsynced check-in exists" — otherwise after an offline
+        // checkin→checkout pair the stale check-in row keeps forcing 'checkout'
+        // forever (state-loop). Latest 'checkin' → currently in; 'checkout' or
+        // none → currently out. (audit P1 A1-26)
+        final List<Map<String, dynamic>> lastScanRows = await db.query(
           'offline_scan_queue',
-          where: 'member_id = ? AND type = "checkin" AND synced = 0',
+          where: 'member_id = ? AND synced = 0',
+          whereArgs: [user.id],
+          orderBy: 'timestamp DESC',
           limit: 1,
         );
 
-        final bool isCurrentlyCheckedInOffline = localCheckins.isNotEmpty;
+        final bool isCurrentlyCheckedInOffline =
+            lastScanRows.isNotEmpty && lastScanRows.first['type'] == 'checkin';
 
         final scanId = const Uuid().v4();
         final timestampStr = DateTime.now().toIso8601String();
@@ -261,7 +268,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           libraryName: 'SILENCE Study Zone (Offline)',
           seatLabel: 'Reserved Seat',
           timeStr: DateFormat('hh:mm a').format(DateTime.now()),
-          durationStr: 'Saved offline. Will sync when online.',
+          durationStr: 'Saved offline — pending sync.',
           isOffline: true,
         );
 

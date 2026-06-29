@@ -199,20 +199,21 @@ Status keys: ⬜ not started · �doing · ✅ done
 
 ## WAVE 7 — Offline integrity (P1)
 
-### 7.1 ⬜ Offline checkout state-loop (A1-26)
-- `qr_scanner_screen` offline path: decide check-in vs checkout from the **latest** queued scan for the
-  user, not "any unsynced row". Files: `qr_scanner_screen.dart`, possibly `offline_db.dart` query.
-- **Regression risk:** med (offline path hard to test). **Safer alt:** add a unit test around the
-  state-decision helper.
+### 7.1 ✅ Offline checkout state-loop (A1-26)
+- `qr_scanner_screen` offline path now decides check-in vs checkout from the member's **latest**
+  queued scan (`ORDER BY timestamp DESC LIMIT 1`, type check) instead of "any unsynced check-in
+  exists" — which got stuck forcing 'checkout' forever after an offline checkin→checkout pair. Also
+  fixed a missing `whereArgs` bind. `flutter analyze` clean.
 
-### 7.2 ⬜ Offline sync dead-letter instead of delete (A1-27, A2-24)
-- `offline_sync.dart`: after max retries, flag `status='failed'` (keep row) + surface a visible
-  "couldn't sync" state, rather than `db.delete`. Files: `offline_sync.dart`, `offline_db.dart` (column),
-  a small UI indicator.
-- **Regression risk:** low-med.
+### 7.2 ✅ Offline sync dead-letter instead of delete (A1-27, A2-24)
+- `offline_db.dart`: schema v2 (onUpgrade ALTER TABLE) adds `status` + `last_error` to
+  `offline_scan_queue`, plus `failedScanCount()` / `retryFailedScans()` helpers.
+- `offline_sync.dart`: on retry exhaustion the scan is flagged `status='failed'` (kept, with the
+  error) instead of deleted; pending query scoped to `status='pending'`; after each sync pass a
+  visible red "couldn't sync — retry" SnackBar surfaces any dead-lettered scans. `flutter analyze` clean.
 
-### 7.3 ⬜ Honest offline check-in label (A2-25)
-- `qr_scanner` success card → "Saved offline — pending sync" wording. Tiny.
+### 7.3 ✅ Honest offline check-in label (A2-25)
+- `qr_scanner` offline success card now reads "Saved offline — pending sync."
 
 **Commit checkpoint H.**
 

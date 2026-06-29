@@ -34,10 +34,12 @@ class OfflineSyncManager {
     try {
       final db = await OfflineDatabase.instance.database;
       
-      // Fetch all unsynced scans in FIFO order (older scans first, max 3 retries)
+      // Fetch all unsynced scans in FIFO order (older scans first, max 3 retries).
+      // Only 'pending' rows are eligible; 'failed' rows are dead-lettered and
+      // stay put until the user retries them.
       final List<Map<String, dynamic>> pending = await db.query(
         'offline_scan_queue',
-        where: 'synced = 0 AND retry_count < 3',
+        where: "synced = 0 AND status = 'pending' AND retry_count < 3",
         orderBy: 'created_at ASC',
       );
 
@@ -188,13 +190,24 @@ class OfflineSyncManager {
             // Keep in queue to retry later
             final currentRetry = scan['retry_count'] as int? ?? 0;
             if (currentRetry >= 2) {
-              // Delete permanently after 3 attempts (attempt 0, 1, 2)
-              await db.delete('offline_scan_queue', where: 'id = ?', whereArgs: [scanId]);
-              debugPrint('Scan $scanId permanently failed and removed from queue after 3 attempts.');
+              // Dead-letter after 3 attempts (0,1,2): keep the row flagged
+              // 'failed' with the error instead of deleting it, so the scan
+              // isn't silently lost and a "couldn't sync" state can surface.
+              await db.update(
+                'offline_scan_queue',
+                {
+                  'status': 'failed',
+                  'retry_count': currentRetry + 1,
+                  'last_error': e.toString(),
+                },
+                where: 'id = ?',
+                whereArgs: [scanId],
+              );
+              debugPrint('Scan $scanId dead-lettered (status=failed) after 3 attempts.');
             } else {
               await db.update(
                 'offline_scan_queue',
-                {'retry_count': currentRetry + 1},
+                {'retry_count': currentRetry + 1, 'last_error': e.toString()},
                 where: 'id = ?',
                 whereArgs: [scanId],
               );
@@ -210,6 +223,22 @@ class OfflineSyncManager {
             content: Text(
               'Synced $successCount offline scan events to cloud! ✓',
               style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        );
+      }
+
+      // Surface a visible "couldn't sync" state for any dead-lettered scans so
+      // they aren't silently lost (audit P1). Honest + actionable.
+      final int failed = await OfflineDatabase.instance.failedScanCount();
+      if (failed > 0 && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFFB91C1C),
+            duration: const Duration(seconds: 6),
+            content: Text(
+              "$failed offline scan${failed == 1 ? '' : 's'} couldn't sync. Pull to refresh or re-scan to retry.",
+              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
         );
