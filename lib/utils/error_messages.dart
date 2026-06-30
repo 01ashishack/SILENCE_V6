@@ -21,6 +21,13 @@ String friendlyError(Object? error) {
     return _looksTechnical(error) ? 'Something went wrong. Please try again.' : error;
   }
 
+  // Connectivity problems can arrive wrapped in AuthException / ClientException
+  // etc., so detect them up-front before the typed branches — otherwise a
+  // network failure leaks a raw "SocketException: Failed host lookup" to the UI.
+  if (_isNetworkError(error.toString().toLowerCase())) {
+    return 'No internet connection. Please check your network and try again.';
+  }
+
   if (error is AuthException) {
     final m = error.message.toLowerCase();
     if (m.contains('invalid login') || m.contains('invalid credentials')) {

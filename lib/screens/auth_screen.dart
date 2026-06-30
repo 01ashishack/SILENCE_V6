@@ -181,27 +181,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           data: {'full_name': name},
         );
       } on AuthException catch (e) {
-        // The email already exists in auth — almost always a previous half-
-        // finished attempt (e.g. the profile write failed last time). Instead of
-        // dead-ending on "already registered", seamlessly sign in with the SAME
-        // credentials the user just typed and continue the flow.
+        if (!mounted) return;
         if (_isAlreadyRegisteredError(e)) {
-          try {
-            response = await supabase.auth.signInWithPassword(email: email, password: password);
-          } on AuthException catch (signInErr) {
-            if (!mounted) return;
-            final m = signInErr.message.toLowerCase();
-            if (m.contains('not confirmed') || m.contains('confirm')) {
-              _showErrorSnackBar('Please confirm your email, then login.');
-            } else {
-              _showErrorSnackBar('This email is already registered. Please login.');
-            }
-            _tabController.animateTo(0); // switch to Login tab
-            return;
-          }
+          // Honest, actionable message — do NOT silently sign them in and
+          // re-write the profile (that reset an existing member's role to null
+          // and tripped the guard_role_change trigger with a raw error).
+          _showErrorSnackBar('An account with this email already exists. Please log in.');
+          _tabController.animateTo(0); // switch to Login tab
         } else {
-          rethrow;
+          // Network / other auth errors → friendly, offline-aware message.
+          _showErrorSnackBar(friendlyError(e));
         }
+        return;
       }
 
       // Supabase returns an obfuscated user with empty identities when the email
@@ -209,7 +200,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       final user = response.user;
       if (user != null && (user.identities?.isEmpty ?? false) && response.session == null) {
         if (!mounted) return;
-        _showErrorSnackBar('Email already registered. Please login.');
+        _showErrorSnackBar('An account with this email already exists. Please log in.');
         _tabController.animateTo(0);
         return;
       }
@@ -233,12 +224,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
       // Session is active → valid JWT → safe to create/repair the profile row.
       // This write is the real "signup success" marker.
+      // NOTE: do NOT send `role` here — new rows default to a null role (→ role
+      // select). Sending role:null on a row that already has a role would trip
+      // the guard_role_change trigger; this only seeds id/email/name/nickname.
       await supabase.from('users').upsert({
         'id': user.id,
         'email': user.email ?? email,
         'full_name': name,
         'nickname': name.split(' ').first,
-        'role': null,
       });
 
       if (!mounted) return;
@@ -246,13 +239,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       Navigator.of(context).pushReplacementNamed('/role-select');
     } on PostgrestException catch (e) {
       if (!mounted) return;
-      _showErrorSnackBar('Signup failed: ${e.message}');
+      _showErrorSnackBar(friendlyError(e));
     } on AuthException catch (e) {
       if (!mounted) return;
-      _showErrorSnackBar(e.message);
+      _showErrorSnackBar(friendlyError(e));
     } catch (e) {
       if (!mounted) return;
-      _showErrorSnackBar('Signup failed. Please try again.');
+      _showErrorSnackBar(friendlyError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
