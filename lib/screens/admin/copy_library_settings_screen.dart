@@ -161,7 +161,7 @@ class _CopyLibrarySettingsScreenState extends State<CopyLibrarySettingsScreen> {
       }
     }
 
-    // ── Business rules (settings scope + libraries.rules_metadata) ───────────
+    // ── Business rules (settings table, scope 'business_rules') ──────────────
     if (_copyRules) {
       try {
         final rules = await AdminSettingsService.load(
@@ -174,20 +174,11 @@ class _CopyLibrarySettingsScreenState extends State<CopyLibrarySettingsScreen> {
             libraryId: widget.targetLibraryId,
             value: rules,
           );
+          summary.add('business rules');
         }
-        // Mirror the denormalised copy some screens read.
-        final src = await _supabase
-            .from('libraries')
-            .select('rules_metadata')
-            .eq('id', source)
-            .maybeSingle();
-        final meta = src?['rules_metadata'];
-        if (meta != null) {
-          await _supabase
-              .from('libraries')
-              .update({'rules_metadata': meta}).eq('id', widget.targetLibraryId);
-        }
-        if (rules.isNotEmpty || meta != null) summary.add('business rules');
+        // NOTE: the old `libraries.rules_metadata` column does not exist; the
+        // prior denormalised copy here threw a (swallowed) 42703 that wrongly
+        // marked this section "failed". Business rules live only in `settings`.
       } catch (e) {
         failures.add('business rules');
         debugPrint('copy rules failed: $e');

@@ -18,6 +18,7 @@ import '../utils/error_messages.dart';
 import '../core/plan_service.dart';
 import '../widgets/upgrade_sheet.dart';
 import 'library_public_profile_screen.dart';
+import 'admin/copy_library_settings_screen.dart';
 import 'payment_methods_screen.dart';
 import '../core/active_library_store.dart';
 import '../widgets/change_password_sheet.dart';
@@ -1047,6 +1048,26 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                               feature: AdminFeature.auditLog, featureLabel: 'Audit log'),
                           _buildSettingsItem(context, Icons.card_giftcard_outlined, 'Referral Rewards', '/admin/settings/referrals',
                               feature: AdminFeature.referralConfig, featureLabel: 'Referral rewards'),
+                          // Manual "copy settings from another branch" — only useful
+                          // with 2+ libraries (a new library already auto-copies on
+                          // creation). Pushes the (otherwise orphaned) screen.
+                          if (_myLibrariesList.length > 1 && _activeLibrary != null)
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                              leading: const Icon(Icons.copy_all_outlined, size: 20, color: Color(0xFFE65C00)),
+                              title: Text('Copy Settings to This Branch',
+                                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: context.palette.textPrimary)),
+                              trailing: const Icon(Icons.chevron_right, size: 20, color: Color(0xFF9CA3AF)),
+                              onTap: () {
+                                final lib = _activeLibrary!;
+                                Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => CopyLibrarySettingsScreen(
+                                    targetLibraryId: lib['id'].toString(),
+                                    targetLibraryName: (lib['name'] ?? 'this library').toString(),
+                                  ),
+                                ));
+                              },
+                            ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -1063,6 +1084,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
                           _buildSettingsItem(context, Icons.payments_outlined, 'Refund Policy', '/policy/refund'),
                           _buildSettingsItem(context, Icons.cancel_outlined, 'Cancellation Policy', '/policy/cancellation'),
                           _buildSettingsItem(context, Icons.groups_outlined, 'Community Guidelines', '/policy/community'),
+                          _buildSettingsItem(context, Icons.privacy_tip_outlined, 'Privacy Policy', '/member/privacy-policy'),
                         ],
                       ),
                       const SizedBox(height: 16),

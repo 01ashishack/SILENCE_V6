@@ -1386,24 +1386,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
       case MemberState.expiringSoon:
         return null; // eligible to check in / out
       case MemberState.expired:
-        final expiredM = _allMemberships.firstWhere(
-          (m) => _isExpiredMembership(m),
-          orElse: () => {},
-        );
-        if (expiredM.isNotEmpty) {
-          final lib = expiredM['libraries'] as Map<String, dynamic>? ?? {};
-          final rawRules = lib['rules_metadata'] ?? lib['rules'];
-          Map<String, dynamic> rules = {};
-          if (rawRules is Map) {
-            rules = Map<String, dynamic>.from(rawRules);
-          } else if (rawRules is String) {
-            try {
-              rules = Map<String, dynamic>.from(jsonDecode(rawRules));
-            } catch (_) {}
-          }
-          if (rules['allow_expired_checkin'] == true) return null;
-        }
-        return 'Your membership has expired. Renew it to check in again.';
+        // Expired member access: Always allow check-in with a warning (no hard block).
+        return null;
       case MemberState.onHold:
         return 'Your membership is on hold. Ask the admin to resume it before checking in.';
       case MemberState.applicationPending:
@@ -2302,7 +2286,6 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
         rules = Map<String, dynamic>.from(jsonDecode(rawRules));
       } catch (_) {}
     }
-    final bool allowScan = rules['allow_expired_checkin'] == true;
     final graceDays = rules['grace_days'] as int? ?? 3;
 
     final seat = expiredM['seats'] as Map<String, dynamic>? ?? {};
@@ -2333,27 +2316,25 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: allowScan ? const Color(0x1FE65C00) : const Color(0xFFFEF2F2),
+                      color: const Color(0x1FE65C00),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: allowScan ? const Color(0x33E65C00) : const Color(0xFFFCA5A5)),
+                      border: Border.all(color: const Color(0x33E65C00)),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          allowScan ? Icons.qr_code_scanner : Icons.block,
-                          color: allowScan ? const Color(0xFFD97706) : const Color(0xFFDC2626),
+                        const Icon(
+                          Icons.qr_code_scanner,
+                          color: Color(0xFFD97706),
                           size: 20,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            allowScan
-                                ? '📱 You can still scan QR. Renew soon to secure your seat.'
-                                : '⛔ QR check-in blocked. Renew to check in again.',
+                            '📱 You can still scan QR. Renew soon to secure your seat.',
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: allowScan ? const Color(0xFFB45309) : const Color(0xFF991B1B),
+                              color: const Color(0xFFB45309),
                             ),
                           ),
                         )
@@ -2403,37 +2384,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   ),
                   const SizedBox(height: 16),
 
-                  // Today's attendance (only if allowed)
-                  if (allowScan)
-                    _buildTodayAttendanceCard()
-                  else
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(12)),
-                      child: Column(
-                        children: [
-                          Icon(Icons.lock, color: Colors.grey[300], size: 48),
-                          const SizedBox(height: 12),
-                          Text('Check-in is blocked', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.grey[700])),
-                          Text('Renew your plan to resume checking in.', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[550])),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => RenewalScreen(
-                                    libraryId: expiredM['library_id'],
-                                  ),
-                                ),
-                              ).then((_) => _loadInitialData());
-                            },
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65C00), foregroundColor: Colors.white),
-                            child: const Text('Renew Plan Now'),
-                          )
-                        ],
-                      ),
-                    ),
+                  // Today's attendance
+                  _buildTodayAttendanceCard(),
                   const SizedBox(height: 80),
                 ],
               ),

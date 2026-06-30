@@ -84,6 +84,18 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
           .eq('library_id', _libId!)
           .eq('active', true);
 
+      // Fetch actual allocations to compute exact counts (P2/Honest UI)
+      final List<dynamic> allocationsRes = await _supabase
+          .from('member_add_ons')
+          .select('add_on_id');
+      final Map<String, int> allocationCounts = {};
+      for (final row in allocationsRes) {
+        final addonId = row['add_on_id']?.toString();
+        if (addonId != null) {
+          allocationCounts[addonId] = (allocationCounts[addonId] ?? 0) + 1;
+        }
+      }
+
       debugPrint('AddonServicesScreen: Supabase returned ${response.length} rows for library $_libId.');
 
       final List<AddonItem> loadedItems = [];
@@ -93,18 +105,7 @@ class _AddonServicesScreenState extends State<AddonServicesScreen> {
         final price = (row['price'] as num?)?.toDouble() ?? 0.0;
         final deposit = (row['refundable_deposit'] as num?)?.toDouble() ?? 0.0;
         final totalInventory = (row['max_available'] as num?)?.toInt() ?? 0;
-
-        // Derive simulated allocated count based on keywords
-        int allocated = 0;
-        if (name.toLowerCase().contains('locker')) {
-          allocated = (totalInventory * 0.45).toInt();
-        } else if (name.toLowerCase().contains('vip') || name.toLowerCase().contains('ac')) {
-          allocated = (totalInventory * 0.41).toInt();
-        } else if (name.toLowerCase().contains('parking')) {
-          allocated = (totalInventory * 0.6).toInt();
-        } else if (totalInventory > 0) {
-          allocated = (totalInventory * 0.25).toInt();
-        }
+        final int allocated = allocationCounts[id] ?? 0;
 
         // Determine icon based on name
         IconData icon = Icons.add_shopping_cart;

@@ -49,18 +49,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
         _holdCountController.text = storedRules['max_holds']?.toString() ?? '2';
         _allowExpiredCheckIn = storedRules['allow_expired_checkin'] as bool? ?? false;
 
-        // Optionally fetch from supabase libraries metadata/rules field if it exists
-        if (_libId != null) {
-          final libData = await _supabase.from('libraries').select('rules_metadata').eq('id', _libId!).maybeSingle();
-          if (libData != null && libData['rules_metadata'] != null) {
-            final rules = Map<String, dynamic>.from(libData['rules_metadata']);
-            _discountController.text = rules['max_discount']?.toString() ?? _discountController.text;
-            _graceDaysController.text = rules['grace_days']?.toString() ?? _graceDaysController.text;
-            _holdDurationController.text = rules['max_hold_days']?.toString() ?? _holdDurationController.text;
-            _holdCountController.text = rules['max_holds']?.toString() ?? _holdCountController.text;
-            _allowExpiredCheckIn = rules['allow_expired_checkin'] ?? _allowExpiredCheckIn;
-          }
-        }
+        // Business rules are loaded from AdminSettingsService (settings table)
       } catch (e) {
         debugPrint('Error loading business rules: $e');
       }
@@ -87,14 +76,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
         value: rulesMap,
       );
 
-      if (_libId != null) {
-        try {
-          await _supabase.from('libraries').update({
-            'rules_metadata': rulesMap,
-          }).eq('id', _libId!);
-          if (!mounted) return;
-        } catch (_) {}
-      }
+      // Business rules are saved to AdminSettingsService (settings table)
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

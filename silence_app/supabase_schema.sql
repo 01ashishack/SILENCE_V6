@@ -1395,6 +1395,12 @@ CREATE POLICY "admin_manage_expenditures" ON expenditures
 CREATE POLICY "Admin manage own settings" ON settings
     FOR ALL USING (admin_id = auth.uid())
     WITH CHECK (admin_id = auth.uid());
+CREATE POLICY "Members view library settings" ON settings
+    FOR SELECT USING (
+        library_id IN (
+            SELECT library_id FROM memberships WHERE member_id = auth.uid()
+        )
+    );
 
 -- 4.27 Streaks Policies (Phase C)
 CREATE POLICY "Member view own streaks" ON streaks

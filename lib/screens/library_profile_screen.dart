@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
-import '../core/admin_settings_service.dart';
 import 'admin/reply_to_review_bottom_sheet.dart';
 
 class LibraryProfileScreen extends StatefulWidget {
@@ -62,27 +61,12 @@ class _LibraryProfileScreenState extends State<LibraryProfileScreen> {
       _shifts = List<Map<String, dynamic>>.from(shiftsRes);
 
       // 3. Fetch add-ons
-      final settings = await AdminSettingsService.load(
-        scope: 'addon_services',
-        libraryId: currentLibId,
-      );
-      final storedAddons = settings['items'];
-      final List<Map<String, dynamic>> enrichedAddons = [];
-      if (storedAddons is Map) {
-        storedAddons.forEach((key, val) {
-          if (val is Map) {
-            enrichedAddons.add({
-              'id': key,
-              'name': val['name'] ?? key,
-              'monthly_rate': val['monthly_rate'] ?? 0,
-              'security_deposit': val['security_deposit'] ?? 0,
-              'total_inventory': val['total_inventory'] ?? 0,
-              'allocated_count': val['allocated_count'] ?? 0,
-            });
-          }
-        });
-      }
-      _addons = enrichedAddons;
+      final addOnsRes = await _supabase
+          .from('add_ons')
+          .select()
+          .eq('library_id', currentLibId)
+          .eq('active', true);
+      _addons = List<Map<String, dynamic>>.from(addOnsRes);
 
       // 4. Fetch reviews (last 5)
       final reviewsRes = await _supabase

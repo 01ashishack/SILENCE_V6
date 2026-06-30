@@ -30,7 +30,6 @@ import 'screens/help_support_screen.dart';
 import 'screens/terms_screen.dart';
 import 'screens/app_settings_screen.dart';
 import 'screens/verified_badge_screen.dart';
-import 'screens/pricing_plans.dart';
 import 'screens/shift_management.dart';
 import 'screens/business_rules.dart';
 import 'screens/marketing_posters_screen.dart';
@@ -297,7 +296,6 @@ class SilenceApp extends StatelessWidget {
         '/admin/app-settings': (context) => const AppSettingsScreen(),
         '/admin/verified-badge': (context) => const VerifiedBadgeScreen(),
         '/admin/settings/shifts': (context) => const ShiftManagementScreen(),
-        '/admin/settings/pricing': (context) => const PricingPlansScreen(),
         '/admin/settings/business-rules': (context) => const BusinessRulesScreen(),
         '/admin/marketing-posters': (context) => const MarketingPostersScreen(),
         '/admin/settings/qr': (context) => const QRAssetsScreen(),

@@ -13,6 +13,7 @@ import '../../utils/csv_exporter.dart';
 import '../../core/picker_theme.dart';
 import '../../core/app_snackbar.dart';
 import 'member_transfer_screen.dart';
+import 'admin_renew_sheet.dart';
 
 class MemberDetailScreen extends StatefulWidget {
   final String? memberId;
@@ -560,6 +561,33 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   bool _canHoldOrResume() {
     final s = _membershipData?['status'];
     return s == 'active' || s == 'trial' || s == 'expiring' || s == 'hold';
+  }
+
+  // Renew is offered for any live/lapsed membership (not for exited/transferred).
+  bool _canRenew() {
+    if (_membershipData == null || _membershipData!['id'] == null) return false;
+    final s = _membershipData?['status'];
+    return s == 'active' || s == 'trial' || s == 'expiring' || s == 'expired' || s == 'hold';
+  }
+
+  /// Admin: open the direct-renew sheet for this member's current membership
+  /// (extends end_date + records a confirmed payment). Reloads on success.
+  Future<void> _openRenew() async {
+    final ms = _membershipData;
+    if (ms == null) return;
+    // Pass the member name so the sheet shows it (member_id on the row is a bare
+    // UUID; the sheet reads an embedded map for the display name).
+    final membership = {
+      ...ms,
+      'member_id': {
+        'id': _memberId ?? _userProfile?['id'],
+        'full_name': _userProfile?['full_name'] ?? 'Member',
+      },
+    };
+    final ok = await showAdminRenewSheet(context, membership: membership);
+    if (ok == true && mounted) {
+      _fetchMemberData();
+    }
   }
 
   bool _canTransfer() {
@@ -1902,6 +1930,23 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
           // 7. Admin Actions
           const SizedBox(height: 8),
+          if (!_isReadOnly && _canRenew()) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.autorenew_rounded, size: 18, color: Colors.white),
+                label: Text('Renew Membership',
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65C00),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _openRenew,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (!_isReadOnly && _canHoldOrResume()) ...[
             SizedBox(
               width: double.infinity,

@@ -327,7 +327,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           .select('*, libraries(name, verified, qr_version), shifts(id, name, start_time, end_time), seats(seat_label)')
           .eq('member_id', user.id)
           .eq('library_id', libraryId)
-          .inFilter('status', ['active', 'trial'])
+          .inFilter('status', ['active', 'trial', 'expired'])
           .order('end_date', ascending: false)
           .limit(1);
       final membershipRes = (membershipRows as List).isNotEmpty
@@ -344,7 +344,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       }
 
       final String membershipStatus = membershipRes['status'] ?? '';
-      if (membershipStatus != 'active' && membershipStatus != 'trial') {
+      if (membershipStatus != 'active' && membershipStatus != 'trial' && membershipStatus != 'expired') {
         _handleFailure('Not a member here', 'No active membership found for this library.');
         return;
       }

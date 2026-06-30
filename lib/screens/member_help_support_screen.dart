@@ -621,7 +621,16 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
+          GestureDetector(
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('App walkthrough is coming soon — stay tuned!'),
+                  backgroundColor: Color(0xFFE65C00),
+                ),
+              );
+            },
+            child: Container(
             height: 160,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
@@ -666,6 +675,7 @@ class _MemberHelpSupportScreenState extends State<MemberHelpSupportScreen> {
                 ),
               ],
             ),
+          ),
           ),
           const SizedBox(height: 12),
           Text(

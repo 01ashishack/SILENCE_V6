@@ -732,11 +732,11 @@ class _JoinFlowScreenState extends State<JoinFlowScreen> {
       final refCode = _referralCtrl.text.trim();
       if (refCode.isNotEmpty) {
         try {
-          // nickname is not unique → limit(1) so a collision can't throw.
+          // referral_code is unique.
           final referrerRes = await supabase
               .from('users')
               .select('id')
-              .eq('nickname', refCode)
+              .eq('referral_code', refCode)
               .limit(1)
               .maybeSingle();
 

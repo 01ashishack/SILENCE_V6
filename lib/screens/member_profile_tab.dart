@@ -109,12 +109,25 @@ class _MemberProfileTabState extends State<MemberProfileTab> {
         return ['active', 'trial', 'hold', 'expired'].contains(status);
       }).toList();
 
-      // Check if any library has referral_rewards_enabled
+      // Check if any library has referral rewards enabled in settings
       _referralRewardsEnabled = false;
-      for (var m in allMemberships) {
-        final lib = m['libraries'] as Map<String, dynamic>?;
-        if (lib != null && lib['referral_rewards_enabled'] == true) {
-          _referralRewardsEnabled = true;
+      final libIds = allMemberships.map((m) => m['library_id'] as String?).whereType<String>().toList();
+      if (libIds.isNotEmpty) {
+        try {
+          final settingsRes = await _supabase
+              .from('settings')
+              .select('library_id, value')
+              .inFilter('library_id', libIds)
+              .eq('scope', 'referral_settings');
+          for (final row in settingsRes) {
+            final val = row['value'];
+            if (val is Map && val['enabled'] == true) {
+              _referralRewardsEnabled = true;
+              break;
+            }
+          }
+        } catch (e) {
+          debugPrint('Error loading referral settings: $e');
         }
       }
 

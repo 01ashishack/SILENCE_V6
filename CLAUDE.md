@@ -38,6 +38,16 @@
 `auth_screen.dart` `_handleGoogleSignIn()` does the native flow: `GoogleSignIn.instance.initialize(serverClientId: SupabaseConfig.googleWebClientId)` → `authenticate()` → `authorizationClient` for the access token → `supabase.auth.signInWithIdToken(provider: google, idToken, accessToken)`; web falls back to `signInWithOAuth`. After sign-in it bootstraps the `users` row (`_routeAfterAuth`) and routes like login (role null → `/role-select`, else admin/member home); user-cancel (`GoogleSignInException.canceled`) is silent. `google_sign_in: ^7.2.0`. **Web client ID `1085738355311-4pbt15ndhhcngedpp28ob8ru2bsl7bdl...` baked as the `googleWebClientId` default** (public, safe in-APK; `--dart-define=GOOGLE_WEB_CLIENT_ID=` still overrides) so plain `flutter run`/`build` work without flags. **Console DONE (user):** OAuth consent screen (External, test users), Web + Android (`com.silence.app.silence` + debug SHA-1 `7E:39:...:63`) client IDs, Supabase Google provider enabled (Web+Android client IDs, Web secret). Apple → "coming soon".
 - **⚠️ Before Play Store:** add the **release keystore SHA-1** to the Android OAuth client (debug SHA-1 only works for `flutter run`/debug APK). Consent screen is in **Testing** → only added test users can log in until Published.
 
+### ✅ Pre-production Verification Audit Fixes (2026-06-30) — code DONE; RLS policy migration authored & folded
+
+Resolved all identified blocker P1 and P2 functional/compliance issues to prepare the app for release:
+- **Referral Loop:** Fixed referral code lookup in `join_flow_screen.dart` (now matches `referral_code` instead of `nickname`). Gated referral panel in `member_profile_tab.dart` now loads settings scope `'referral_settings'` from settings table. Added SELECT policy for members to view settings associated with their libraries.
+- **Expired Member Check-in:** Removed hard blocks on check-in for expired memberships in `member_home.dart` (eligibility reason now returns `null`) and updated dashboard view, warning banner, and `qr_scanner_screen.dart` status validation to permit expired scans with warning.
+- **Add-on Display:** Updated `library_profile_screen.dart` to fetch active add-ons directly from the database `add_ons` table. Removed fake simulation counts in `addon_services.dart` and replaced them with actual counted allocations from `member_add_ons`.
+- **Database Exceptions:** Dropped direct queries/updates to the non-existent `rules_metadata` column in `business_rules.dart`, relying entirely on settings table.
+- **Compliance:** Added Privacy Policy link under 'App & Support' in `admin_profile_tab.dart`.
+- All `flutter analyze` clean (0 new warnings/errors; baseline intact), and all 22 unit tests pass.
+
 ### ✅ Membership-lifecycle overhaul + performance (2026-06-29 → 07-02) — migrations APPLIED + folded; pushed (`3e7b45d`)
 
 Latest pushed commit: **`3e7b45d`** on `main`. Four migrations applied to live DB + folded into

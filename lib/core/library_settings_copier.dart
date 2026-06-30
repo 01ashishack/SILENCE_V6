@@ -90,15 +90,10 @@ class LibrarySettingsCopier {
           value: rules,
         );
       }
-      final src = await _sb
-          .from('libraries')
-          .select('rules_metadata')
-          .eq('id', sourceId)
-          .maybeSingle();
-      final meta = src?['rules_metadata'];
-      if (meta != null) {
-        await _sb.from('libraries').update({'rules_metadata': meta}).eq('id', targetId);
-      }
+      // NOTE: business rules live in the `settings` table (scope 'business_rules'),
+      // copied above. The old `libraries.rules_metadata` column does not exist in
+      // the schema — querying it threw a (swallowed) PostgREST 42703 and copied
+      // nothing, so that dead block was removed.
     } catch (e) {
       debugPrint('copyRules failed: $e');
     }
