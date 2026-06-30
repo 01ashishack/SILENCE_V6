@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_palette.dart';
 import '../core/app_snackbar.dart';
 import '../utils/error_messages.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -852,14 +852,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildSocialRow() {
+    // Apple sign-in only makes sense on Apple platforms. On Android (Play Store)
+    // and elsewhere we hide it entirely so there's no "coming soon" element for
+    // reviewers to question; the code path stays for a future iOS build.
+    final bool showApple = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _buildSocialCircleButton('Google', () => _handleOAuth('Google'), enabled: true),
-        const SizedBox(width: 20),
-        // Apple sign-in isn't wired yet — show it visibly "Soon" instead of a
-        // button that always errors on tap.
-        _buildSocialCircleButton('Apple', () => _handleOAuth('Apple'), enabled: false),
+        if (showApple) ...[
+          const SizedBox(width: 20),
+          _buildSocialCircleButton('Apple', () => _handleOAuth('Apple'), enabled: false),
+        ],
       ],
     );
   }
