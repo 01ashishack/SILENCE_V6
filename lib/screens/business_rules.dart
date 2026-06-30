@@ -25,6 +25,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
   final _holdDurationController = TextEditingController(text: '15');
   final _holdCountController = TextEditingController(text: '2');
   bool _allowExpiredCheckIn = false;
+  bool _requireOutOfShiftApproval = true; // out-of-shift check-in needs admin OK
 
   @override
   void initState() {
@@ -48,6 +49,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
         _holdDurationController.text = storedRules['max_hold_days']?.toString() ?? '15';
         _holdCountController.text = storedRules['max_holds']?.toString() ?? '2';
         _allowExpiredCheckIn = storedRules['allow_expired_checkin'] as bool? ?? false;
+        _requireOutOfShiftApproval = storedRules['require_outofshift_approval'] as bool? ?? true;
 
         // Business rules are loaded from AdminSettingsService (settings table)
       } catch (e) {
@@ -68,6 +70,7 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
         'max_hold_days': int.tryParse(_holdDurationController.text) ?? 15,
         'max_holds': int.tryParse(_holdCountController.text) ?? 2,
         'allow_expired_checkin': _allowExpiredCheckIn,
+        'require_outofshift_approval': _requireOutOfShiftApproval,
       };
 
       await AdminSettingsService.save(
@@ -239,21 +242,42 @@ class _BusinessRulesScreenState extends State<BusinessRulesScreen> {
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
-                          child: SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              'Allow Check-in after Expiry',
-                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
-                            ),
-                            subtitle: Text(
-                              'If disabled, scanner will block entries immediately when a plan ends.',
-                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
-                            ),
-                            value: _allowExpiredCheckIn,
-                            activeThumbColor: const Color(0xFFE65C00),
-                            onChanged: (val) {
-                              setState(() => _allowExpiredCheckIn = val);
-                            },
+                          child: Column(
+                            children: [
+                              SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  'Allow Check-in after Expiry',
+                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
+                                ),
+                                subtitle: Text(
+                                  'If disabled, scanner will block entries immediately when a plan ends.',
+                                  style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
+                                ),
+                                value: _allowExpiredCheckIn,
+                                activeThumbColor: const Color(0xFFE65C00),
+                                onChanged: (val) {
+                                  setState(() => _allowExpiredCheckIn = val);
+                                },
+                              ),
+                              const Divider(height: 1),
+                              SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  'Require approval for out-of-shift check-in',
+                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
+                                ),
+                                subtitle: Text(
+                                  'If ON, a member checking in outside their shift hours needs your approval (you get a notification). If OFF, out-of-shift check-ins are allowed directly and counted as overtime.',
+                                  style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
+                                ),
+                                value: _requireOutOfShiftApproval,
+                                activeThumbColor: const Color(0xFFE65C00),
+                                onChanged: (val) {
+                                  setState(() => _requireOutOfShiftApproval = val);
+                                },
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 32),

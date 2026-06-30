@@ -9,6 +9,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../../core/offline_db.dart';
+import '../../core/cache_service.dart';
 import '../library_public_profile_screen.dart';
 import '../../utils/time_utils.dart';
 
@@ -246,6 +247,32 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
         final bool isCurrentlyCheckedInOffline =
             lastScanRows.isNotEmpty && lastScanRows.first['type'] == 'checkin';
 
+        // Offline out-of-shift gate: a CHECK-IN outside the member's shift hours
+        // needs admin approval, which is impossible offline → block it honestly
+        // and tell them to come online (mirrors the online approval flow). A
+        // checkout, or a check-in within the window (or when shift times aren't
+        // cached), queues normally.
+        if (!isCurrentlyCheckedInOffline) {
+          final win = await _cachedShiftWindowFor(libraryId);
+          if (win != null) {
+            final nowIst = toIST(DateTime.now().toUtc());
+            final startIst = _shiftDateTimeIst(win['start']!, nowIst);
+            final endIst = _shiftDateTimeIst(win['end']!, nowIst);
+            final openIst = startIst.subtract(const Duration(minutes: 15));
+            final withinWindow =
+                !nowIst.isBefore(openIst) && !nowIst.isAfter(endIst);
+            if (!withinWindow) {
+              _handleFailure(
+                'Approval needed — you are offline',
+                "You're trying to check in outside your shift hours. An out-of-shift "
+                "check-in needs your admin's approval, which requires an internet "
+                "connection. Please connect to the internet and scan again.",
+              );
+              return;
+            }
+          }
+        }
+
         final scanId = const Uuid().v4();
         final timestampStr = DateTime.now().toIso8601String();
 
@@ -443,36 +470,43 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
         String? approvalToConsume;
 
         if (!withinWindow) {
-          // Is there an APPROVED, unexpired approval to ride in on?
-          final approved = await supabase
-              .from('checkin_approvals')
-              .select('id, approval_expires_at')
-              .eq('member_id', user.id)
-              .eq('library_id', libraryId)
-              .eq('status', 'approved')
-              .order('created_at', ascending: false)
-              .limit(1)
-              .maybeSingle();
-          final String? expiresStr = approved?['approval_expires_at'] as String?;
-          final bool approvedValid = approved != null &&
-              (expiresStr == null ||
-                  parseDBTimeToUtc(expiresStr).isAfter(nowUtc));
-
-          if (approvedValid) {
-            // Ride the approval in — counts as overtime; mark it used after.
+          final requireApproval = await _outOfShiftApprovalRequired(libraryId);
+          if (!requireApproval) {
+            // Admin disabled the out-of-shift approval gate → allow this check-in
+            // directly; still flag it as overtime since it's outside the window.
             isOvertimeCheckin = true;
-            approvalToConsume = approved['id']?.toString();
           } else {
-            // No valid approval → file/await one and STOP (no check-in yet).
-            await _requestOutOfShiftApproval(
-              membershipId: membershipId,
-              libraryId: libraryId,
-              shiftId: shift['id'] ?? membershipRes['shift_id'],
-              shiftName: shift['name']?.toString() ?? 'your',
-              attemptedIst: nowIst,
-              beforeStart: nowIst.isBefore(windowOpenIst),
-            );
-            return;
+            // Is there an APPROVED, unexpired approval to ride in on?
+            final approved = await supabase
+                .from('checkin_approvals')
+                .select('id, approval_expires_at')
+                .eq('member_id', user.id)
+                .eq('library_id', libraryId)
+                .eq('status', 'approved')
+                .order('created_at', ascending: false)
+                .limit(1)
+                .maybeSingle();
+            final String? expiresStr = approved?['approval_expires_at'] as String?;
+            final bool approvedValid = approved != null &&
+                (expiresStr == null ||
+                    parseDBTimeToUtc(expiresStr).isAfter(nowUtc));
+
+            if (approvedValid) {
+              // Ride the approval in — counts as overtime; mark it used after.
+              isOvertimeCheckin = true;
+              approvalToConsume = approved['id']?.toString();
+            } else {
+              // No valid approval → file/await one and STOP (no check-in yet).
+              await _requestOutOfShiftApproval(
+                membershipId: membershipId,
+                libraryId: libraryId,
+                shiftId: shift['id'] ?? membershipRes['shift_id'],
+                shiftName: shift['name']?.toString() ?? 'your',
+                attemptedIst: nowIst,
+                beforeStart: nowIst.isBefore(windowOpenIst),
+              );
+              return;
+            }
           }
         }
 
@@ -1047,6 +1081,54 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
   /// approval. File a PENDING checkin_approval (unless one is already pending) +
   /// notify the library owner, then show the member a warning card telling them
   /// to wait for approval or contact the admin. No attendance row is written.
+  /// Member-safe read of the library's "require out-of-shift approval" toggle
+  /// (business_rules settings). Default ON (require approval), also on any error.
+  Future<bool> _outOfShiftApprovalRequired(String libraryId) async {
+    try {
+      final res = await Supabase.instance.client
+          .from('settings')
+          .select('value')
+          .eq('library_id', libraryId)
+          .eq('scope', 'business_rules')
+          .limit(1)
+          .maybeSingle();
+      final v = res?['value'];
+      if (v is Map && v['require_outofshift_approval'] == false) return false;
+      return true;
+    } catch (_) {
+      return true; // fail safe → require approval
+    }
+  }
+
+  /// The member's cached shift window (start/end as 'HH:mm[:ss]') for
+  /// [libraryIdOrCode], read from the offline membership cache. Null when it
+  /// can't be determined offline (then the caller queues normally).
+  Future<Map<String, String>?> _cachedShiftWindowFor(String libraryIdOrCode) async {
+    try {
+      final cached = await CacheService.instance.readCache('member_memberships');
+      if (cached is! List) return null;
+      for (final m in cached) {
+        if (m is! Map) continue;
+        final status = (m['status'] ?? '').toString();
+        if (status != 'active' && status != 'trial' && status != 'expiring') continue;
+        final libId = m['library_id']?.toString();
+        final lib = m['libraries'];
+        final code = lib is Map ? lib['library_code']?.toString() : null;
+        if (libId == libraryIdOrCode || code == libraryIdOrCode) {
+          final shift = m['shifts'];
+          if (shift is Map) {
+            final st = shift['start_time']?.toString();
+            final et = shift['end_time']?.toString();
+            if (st != null && et != null) {
+              return {'start': st, 'end': et};
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _requestOutOfShiftApproval({
     required dynamic membershipId,
     required String libraryId,
