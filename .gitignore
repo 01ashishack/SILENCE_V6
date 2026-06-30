@@ -61,3 +61,38 @@ supabase/.temp/
 # (see tools/build_static_fonts.py). The generated statics live in
 # assets/google_fonts/ and ARE committed; these large VF sources are not.
 tools/_var_cache/
+
+###############################################################################
+# Secrets (NEVER COMMIT THESE)
+###############################################################################
+
+# Android signing
+android/key.properties
+android/*.jks
+android/*.keystore
+*.jks
+*.keystore
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Firebase / Google credentials
+google-services.json.backup
+GoogleService-Info.plist.backup
+
+# Service accounts
+service-account*.json
+firebase-adminsdk*.json
+
+# Local secret overrides
+secrets/
+secret/
+private/
+credentials/
+
+# Plain-text secret notes (keystore passwords, API keys, etc.)
+PROJECT_SECRETS.md
+PROJECT_SECRETS*.md
+*.secrets.md
