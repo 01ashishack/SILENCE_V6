@@ -9,6 +9,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../core/offline_sync.dart';
+import '../core/offline_db.dart';
 import '../core/cache_service.dart';
 import '../core/app_snackbar.dart';
 import '../theme/app_palette.dart';
@@ -83,6 +84,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   // Session data
   bool _isCheckedIn = false;
+  bool _isOfflineSession = false; // active session derived from the offline queue
   bool _hasSessionEndedToday = false;
   bool _shiftEndedWithoutCheckin = false;
   DateTime? _checkInTime;
@@ -646,9 +648,63 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
           .where((m) => ['active', 'trial', 'hold', 'expired'].contains(m['status']))
           .toList();
       _pastMemberships = all.where((m) => m['status'] == 'exited').toList();
-      // We can't trust live attendance offline; show the not-checked-in card.
+
+      // Reflect an OFFLINE check-in (queued, not yet synced) as a live session so
+      // the running timer works offline. The latest unsynced scan being a
+      // 'checkin' (with no later 'checkout') means the member is currently in; we
+      // synthesize a minimal active-attendance map from the cached membership so
+      // _buildActiveSessionCard + the timer render. Server writes (auto-checkout
+      // / shift-end warning) are skipped for this session (no row id + the
+      // _isOfflineSession guard) until it syncs online.
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
+          final db = await OfflineDatabase.instance.database;
+          final rows = await db.query(
+            'offline_scan_queue',
+            where: "member_id = ? AND synced = 0 AND (status = 'pending' OR status IS NULL)",
+            whereArgs: [user.id],
+            orderBy: 'timestamp DESC',
+            limit: 1,
+          );
+          if (rows.isNotEmpty && rows.first['type'] == 'checkin') {
+            final ts = rows.first['timestamp']?.toString();
+            final scanLibId = rows.first['library_id']?.toString();
+            final checkInTime = ts != null ? DateTime.tryParse(ts) : null;
+            if (checkInTime != null && _myMemberships.isNotEmpty) {
+              final m = _myMemberships.firstWhere(
+                (mm) =>
+                    mm['library_id']?.toString() == scanLibId ||
+                    (mm['libraries'] is Map &&
+                        (mm['libraries'] as Map)['library_code']?.toString() == scanLibId),
+                orElse: () => _myMemberships.first,
+              );
+              _activeAttendance = {
+                'check_in_time': ts,
+                'check_out_time': null,
+                'library_id': m['library_id'],
+                'shift_id': m['shift_id'],
+                'shifts': m['shifts'],
+                'seats': m['seats'],
+                'memberships': m,
+                'libraries': m['libraries'],
+                '_offline': true,
+              };
+              _isCheckedIn = true;
+              _isOfflineSession = true;
+              _checkInTime = checkInTime;
+              _checkOutTime = null;
+              _startSessionTimer();
+              return _myMemberships.isNotEmpty;
+            }
+          }
+        } catch (_) {/* fall through to not-checked-in */}
+      }
+
+      // No offline open session → show the not-checked-in card.
       _activeAttendance = null;
       _isCheckedIn = false;
+      _isOfflineSession = false;
       _stopSessionTimer();
       return _myMemberships.isNotEmpty;
     } catch (e) {
@@ -676,6 +732,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
 
   Future<void> _determineCurrentState() async {
     debugPrint('[HOME] _determineCurrentState() executing. Active session is: $_activeAttendance');
+    _isOfflineSession = false; // online path: a real attendance row drives state
     if (_activeAttendance != null && _activeAttendance?['check_out_time'] == null && _activeAttendance?['check_in_time'] != null) {
       _isCheckedIn = true;
       _hasSessionEndedToday = false;
@@ -796,6 +853,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   /// attendance.overtime_warned so the server cron does not double-warn. Skips
   /// if the cron already warned (the loaded row says so).
   void _maybeWarnShiftEnd(Duration remaining) {
+    if (_isOfflineSession) return; // no server writes for an offline session
     if (!remaining.isNegative || _shiftEndWarnSent) return;
     final att = _activeAttendance;
     if (att == null) return;
@@ -830,6 +888,7 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
   /// setting. Caps overtime at 30 min and tags the session, then stops the timer
   /// and reloads. Server cron is the backstop when the app is closed.
   void _maybeAutoCheckout(Duration remaining, DateTime shiftEndIst) {
+    if (_isOfflineSession) return; // offline: can't write checkout; member re-scans
     if (!_autoCheckoutOvertime || _autoCheckoutSent) return;
     if (remaining.inSeconds > -(_graceMinutes * 60)) return; // not yet grace min past shift end
     final att = _activeAttendance;
