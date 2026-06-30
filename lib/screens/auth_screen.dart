@@ -9,6 +9,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/gestures.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/supabase_config.dart';
 
 
@@ -138,6 +139,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
         if (!mounted) return;
 
+        // Remember the last-known role so a future OFFLINE cold start can open
+        // straight to the cached dashboard (see SplashScreen._routeOfflineOrFail).
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final r = userData?['role'] as String?;
+          if (r == null) {
+            await prefs.remove('last_known_role');
+          } else {
+            await prefs.setString('last_known_role', r);
+          }
+          await prefs.setBool(
+              'last_known_deletion', userData?['scheduled_for_deletion'] == true);
+        } catch (_) {}
+
+        if (!mounted) return;
         if (userData == null || userData['role'] == null) {
           Navigator.of(context).pushReplacementNamed('/role-select');
         } else {

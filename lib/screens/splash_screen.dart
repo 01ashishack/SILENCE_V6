@@ -33,17 +33,18 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkSession() async {
     if (mounted) setState(() => _connectionFailed = false);
-    // Enforce 1.5 seconds splash duration
-    await Future.delayed(const Duration(milliseconds: 1500));
+    // The minimum splash time runs CONCURRENTLY with the session check (instead
+    // of a sequential 1.5s sleep + then the query), so we route as soon as both
+    // the short splash and the decision are ready — no dead time.
+    final minSplash = Future.delayed(const Duration(milliseconds: 700));
 
     final supabase = Supabase.instance.client;
     final session = supabase.auth.currentSession;
     final user = supabase.auth.currentUser;
 
-    if (!mounted) return;
-
     if (session == null || user == null) {
-      // No session -> Auth (S002)
+      await minSplash;
+      if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/auth');
       return;
     }
@@ -55,7 +56,7 @@ class _SplashScreenState extends State<SplashScreen> {
           .select()
           .eq('id', user.id)
           .maybeSingle()
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 5));
 
       if (!mounted) return;
 
@@ -64,38 +65,80 @@ class _SplashScreenState extends State<SplashScreen> {
         await supabase.auth.signOut();
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();
+        await minSplash;
         if (mounted) Navigator.of(context).pushReplacementNamed('/auth');
         return;
       }
 
-      if (userData['role'] == null) {
-        // Session but no role -> Role Selection (S003)
-        Navigator.of(context).pushReplacementNamed('/role-select');
-      } else if (userData['scheduled_for_deletion'] == true) {
-        // Account scheduled for deletion → freeze (block the dashboard).
-        Navigator.of(context).pushReplacementNamed('/account-frozen');
-      } else if (userData['role'] == 'admin') {
-        // Admin (with or without libraries) -> Admin Home (handles setup state).
-        Navigator.of(context).pushReplacementNamed('/admin/home');
-      } else {
-        // Member -> Member Home (S040)
-        Navigator.of(context).pushReplacementNamed('/member/home');
-      }
+      final role = userData['role'] as String?;
+      final scheduledForDeletion = userData['scheduled_for_deletion'] == true;
+      // Remember the last-known routing decision so the next cold start can open
+      // straight to the cached dashboard even when offline.
+      await _saveLastKnown(role, scheduledForDeletion);
+
+      await minSplash;
+      if (!mounted) return;
+      _routeForRole(role, scheduledForDeletion);
     } on TimeoutException {
-      // Slow / no network — keep the (valid) session and let the user retry
-      // instead of force-logging-out or hanging forever.
-      if (mounted) setState(() => _connectionFailed = true);
+      await _routeOfflineOrFail(minSplash);
     } catch (e) {
       debugPrint('Error checking user session in splash: $e');
       if (isNetworkError(e)) {
-        if (mounted) setState(() => _connectionFailed = true);
+        await _routeOfflineOrFail(minSplash);
       } else {
         // A genuine (non-network) error → clean up the stale session.
         try {
           await supabase.auth.signOut();
         } catch (_) {}
+        await minSplash;
         if (mounted) Navigator.of(context).pushReplacementNamed('/auth');
       }
+    }
+  }
+
+  void _routeForRole(String? role, bool scheduledForDeletion) {
+    if (role == null) {
+      Navigator.of(context).pushReplacementNamed('/role-select');
+    } else if (scheduledForDeletion) {
+      Navigator.of(context).pushReplacementNamed('/account-frozen');
+    } else if (role == 'admin') {
+      Navigator.of(context).pushReplacementNamed('/admin/home');
+    } else {
+      Navigator.of(context).pushReplacementNamed('/member/home');
+    }
+  }
+
+  Future<void> _saveLastKnown(String? role, bool scheduledForDeletion) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (role == null) {
+        await prefs.remove('last_known_role');
+      } else {
+        await prefs.setString('last_known_role', role);
+      }
+      await prefs.setBool('last_known_deletion', scheduledForDeletion);
+    } catch (_) {}
+  }
+
+  /// Offline / network failure WITH a valid session: open straight to the last
+  /// known cached dashboard (it renders cached data + an offline banner) instead
+  /// of dead-ending on a "connection failed" screen. Falls back to that screen
+  /// only when we have no remembered role to route to (e.g. first launch with no
+  /// network).
+  Future<void> _routeOfflineOrFail(Future<void> minSplash) async {
+    String? role;
+    bool scheduled = false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      role = prefs.getString('last_known_role');
+      scheduled = prefs.getBool('last_known_deletion') ?? false;
+    } catch (_) {}
+    await minSplash;
+    if (!mounted) return;
+    if (role != null) {
+      _routeForRole(role, scheduled);
+    } else {
+      setState(() => _connectionFailed = true);
     }
   }
 
