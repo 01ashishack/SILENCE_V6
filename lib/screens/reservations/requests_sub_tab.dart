@@ -44,6 +44,15 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   // Member-initiated shift change requests (2026-07-01).
   List<Map<String, dynamic>> _shiftChangeRequests = [];
 
+  // Per-type load-failure flags (BUG 4). Each embedded select runs in its own
+  // try/catch so one failing embed can't blank the others; when a type fails we
+  // show an honest error/retry tile instead of the dishonest "No pending X" state.
+  bool _joinLoadFailed = false;
+  bool _seatChangeLoadFailed = false;
+  bool _holdLoadFailed = false;
+  bool _checkinLoadFailed = false;
+  bool _shiftChangeLoadFailed = false;
+
   // Realtime subscription channels
   RealtimeChannel? _requestsChannel;
 
@@ -168,70 +177,145 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
   }
 
   // ── Fetch Requests ───────────────────────────────────────────────────────
+  // Each request type is fetched in its OWN try/catch so a single failing embed
+  // (a PostgREST relationship error or an RLS block on one embedded table) can no
+  // longer throw out of the whole method and blank all five lists. A failing type
+  // sets its `_xLoadFailed` flag → the tab renders an honest error/retry tile
+  // instead of the dishonest "No pending X" empty state, while the healthy lists
+  // still render normally (BUG 4, Req 2.5).
   Future<void> _fetchRequests() async {
+    // 1. Pending Join Requests
+    List<Map<String, dynamic>> joinList = [];
+    bool joinFailed = false;
     try {
-      // 1. Fetch pending Join Requests
       final joinRes = await supabase
           .from('join_requests')
           .select('*, member_id(id, full_name, phone, photo_url), shifts(name), seats:requested_seat_id(seat_label)')
           .eq('library_id', widget.libraryId)
           .eq('status', 'pending')
           .order('created_at', ascending: true);
+      joinList = List<Map<String, dynamic>>.from(joinRes);
+    } catch (e) {
+      debugPrint('join_requests fetch failed: $e');
+      joinFailed = true;
+    }
 
-      // 2. Fetch pending Seat Changes
+    // 2. Pending Seat Changes (two FKs to seats → aliased current_seat/new_seat)
+    List<Map<String, dynamic>> changeList = [];
+    bool seatChangeFailed = false;
+    try {
       final changeRes = await supabase
           .from('seat_change_requests')
           .select('*, member_id(id, full_name, phone, photo_url), current_seat:current_seat_id(seat_label), new_seat:new_seat_id(seat_label)')
           .eq('library_id', widget.libraryId)
           .eq('status', 'pending')
           .order('created_at', ascending: true);
+      changeList = List<Map<String, dynamic>>.from(changeRes);
+    } catch (e) {
+      debugPrint('seat_change_requests fetch failed: $e');
+      seatChangeFailed = true;
+    }
 
-      // 3. Fetch pending Holds
+    // 3. Pending Holds
+    List<Map<String, dynamic>> holdList = [];
+    bool holdFailed = false;
+    try {
       final holdRes = await supabase
           .from('hold_requests')
           .select('*, member_id(id, full_name, phone, photo_url)')
           .eq('library_id', widget.libraryId)
           .eq('status', 'pending')
           .order('created_at', ascending: true);
+      holdList = List<Map<String, dynamic>>.from(holdRes);
+    } catch (e) {
+      debugPrint('hold_requests fetch failed: $e');
+      holdFailed = true;
+    }
 
-      // 4. Fetch pending out-of-shift Check-in approvals
+    // 4. Pending out-of-shift Check-in approvals
+    List<Map<String, dynamic>> checkinList = [];
+    bool checkinFailed = false;
+    try {
       final checkinRes = await supabase
           .from('checkin_approvals')
           .select('*, member_id(id, full_name, phone, photo_url), shifts(name, start_time, end_time)')
           .eq('library_id', widget.libraryId)
           .eq('status', 'pending')
           .order('created_at', ascending: true);
-
-      // 5. Fetch pending Shift Change requests
-      List<Map<String, dynamic>> shiftList = [];
-      try {
-        final shiftRes = await supabase
-            .from('shift_change_requests')
-            .select('*, member_id(id, full_name, phone, photo_url), current_shift:current_shift_id(name), requested_shift:requested_shift_id(name)')
-            .eq('library_id', widget.libraryId)
-            .eq('status', 'pending')
-            .order('created_at', ascending: true);
-        shiftList = List<Map<String, dynamic>>.from(shiftRes);
-      } catch (e) {
-        debugPrint('shift_change_requests fetch failed (table may not be applied yet): $e');
-      }
-
-      final joinList = List<Map<String, dynamic>>.from(joinRes);
-
-      if (mounted) {
-        setState(() {
-          _joinRequests = joinList;
-          _seatChangeRequests = List<Map<String, dynamic>>.from(changeRes);
-          _holdRequests = List<Map<String, dynamic>>.from(holdRes);
-          _checkinApprovals = List<Map<String, dynamic>>.from(checkinRes);
-          _shiftChangeRequests = shiftList;
-          _isLoading = false;
-        });
-      }
+      checkinList = List<Map<String, dynamic>>.from(checkinRes);
     } catch (e) {
-      debugPrint('Error fetching requests: $e');
-      if (mounted) setState(() => _isLoading = false);
+      debugPrint('checkin_approvals fetch failed: $e');
+      checkinFailed = true;
     }
+
+    // 5. Pending Shift Change requests
+    List<Map<String, dynamic>> shiftList = [];
+    bool shiftChangeFailed = false;
+    try {
+      final shiftRes = await supabase
+          .from('shift_change_requests')
+          .select('*, member_id(id, full_name, phone, photo_url), current_shift:current_shift_id(name), requested_shift:requested_shift_id(name)')
+          .eq('library_id', widget.libraryId)
+          .eq('status', 'pending')
+          .order('created_at', ascending: true);
+      shiftList = List<Map<String, dynamic>>.from(shiftRes);
+    } catch (e) {
+      debugPrint('shift_change_requests fetch failed (table may not be applied yet): $e');
+      shiftChangeFailed = true;
+    }
+
+    if (mounted) {
+      setState(() {
+        _joinRequests = joinList;
+        _joinLoadFailed = joinFailed;
+        _seatChangeRequests = changeList;
+        _seatChangeLoadFailed = seatChangeFailed;
+        _holdRequests = holdList;
+        _holdLoadFailed = holdFailed;
+        _checkinApprovals = checkinList;
+        _checkinLoadFailed = checkinFailed;
+        _shiftChangeRequests = shiftList;
+        _shiftChangeLoadFailed = shiftChangeFailed;
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Honest per-type load-failure state (BUG 4): shown only when that type's fetch
+  // actually threw — never in place of a genuine empty list. Warm-orange M3 style
+  // with a simple Retry that re-runs the isolated fetches.
+  Widget _buildLoadErrorTile(String label) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 64, color: const Color(0xFFE65C00).withValues(alpha: 0.4)),
+            const SizedBox(height: 16),
+            Text("Couldn't load $label.",
+                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: context.palette.textSecondary)),
+            const SizedBox(height: 6),
+            Text('Check your connection and try again.',
+                style: GoogleFonts.inter(fontSize: 13, color: context.palette.textMuted)),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _fetchRequests,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFE65C00),
+                side: const BorderSide(color: Color(0xFFE65C00)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              label: Text('Retry', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ── Reject Join Request ───────────────────────────────────────────────────
@@ -2131,7 +2215,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                               ),
                             ),
                             Expanded(
-                              child: _joinRequests.isEmpty
+                              child: _joinLoadFailed
+                                  ? _buildLoadErrorTile('join requests')
+                                  : _joinRequests.isEmpty
                                   ? SingleChildScrollView(
                                       physics: const AlwaysScrollableScrollPhysics(),
                                       child: Container(
@@ -2157,7 +2243,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                         ),
 
                         // Toggle 1: Seat Changes list (Placeholder / simple Empty matching specs)
-                        _seatChangeRequests.isEmpty
+                        _seatChangeLoadFailed
+                            ? _buildLoadErrorTile('seat changes')
+                            : _seatChangeRequests.isEmpty
                             ? SingleChildScrollView(
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 child: Container(
@@ -2211,7 +2299,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                               ),
 
                         // Toggle 2: Holds list
-                        _holdRequests.isEmpty
+                        _holdLoadFailed
+                            ? _buildLoadErrorTile('hold requests')
+                            : _holdRequests.isEmpty
                             ? SingleChildScrollView(
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 child: Container(
@@ -2292,7 +2382,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                               ),
 
                         // Toggle 3: Out-of-shift Check-in approvals
-                        _checkinApprovals.isEmpty
+                        _checkinLoadFailed
+                            ? _buildLoadErrorTile('check-in approvals')
+                            : _checkinApprovals.isEmpty
                             ? SingleChildScrollView(
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 child: Container(
@@ -2315,7 +2407,9 @@ class _RequestsSubTabState extends State<RequestsSubTab> {
                               ),
 
                         // Toggle 4: Shift change requests
-                        _shiftChangeRequests.isEmpty
+                        _shiftChangeLoadFailed
+                            ? _buildLoadErrorTile('shift change requests')
+                            : _shiftChangeRequests.isEmpty
                             ? SingleChildScrollView(
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 child: Container(

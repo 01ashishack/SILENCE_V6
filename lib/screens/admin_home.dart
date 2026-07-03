@@ -145,6 +145,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     // React to "switch to this library" requests from other screens (e.g. the
     // notification center tapping a notification that belongs to another lib).
     ActiveLibraryStore.switchRequest.addListener(_onExternalSwitchRequest);
+    // React to "jump to this destination" requests (e.g. tapping a request
+    // notification → open Reservations → Requests). Registered AFTER the switch
+    // listener so, when both fire, the library switch is applied before the
+    // sub-tab jump and `initialSubTab` lands on the correct library.
+    ActiveLibraryStore.adminDestinationRequest
+        .addListener(_onExternalDestinationRequest);
     // Restore the last-active library FIRST so the cached + fresh loads below
     // can prefer it over "the first library".
     ActiveLibraryStore.load().then((id) {
@@ -191,6 +197,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     ActiveLibraryStore.switchRequest.value = null;
   }
 
+  /// Handles a "jump to destination" request from another screen (notification
+  /// center / push tap). A `'requests'` value opens the Reservations → Requests
+  /// sub-tab via the existing navigation helper. Runs after any pending library
+  /// switch (see initState ordering) so the sub-tab lands on the right library.
+  void _onExternalDestinationRequest() {
+    final dest = ActiveLibraryStore.adminDestinationRequest.value;
+    if (dest == null) return;
+    if (dest == 'requests' && mounted) {
+      _navigateToReservationsRequestsTab();
+    }
+    // Consume the request (won't re-trigger: the null guard above returns early).
+    ActiveLibraryStore.adminDestinationRequest.value = null;
+  }
+
   Future<void> _checkRoleGuard() async {
     try {
       final supabase = Supabase.instance.client;
@@ -211,6 +231,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   @override
   void dispose() {
     ActiveLibraryStore.switchRequest.removeListener(_onExternalSwitchRequest);
+    ActiveLibraryStore.adminDestinationRequest
+        .removeListener(_onExternalDestinationRequest);
     _nameController.dispose();
     _phoneController.dispose();
     _libNameController.dispose();

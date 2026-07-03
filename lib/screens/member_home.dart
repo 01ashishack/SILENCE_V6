@@ -6099,15 +6099,31 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> with SingleTickerPr
                   DropdownButtonFormField<String>(
                     initialValue: requestedShiftId,
                     isExpanded: true,
-                    decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                    // White, curved-corner opened menu (Req 2.4 / BUG 3).
+                    dropdownColor: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      // Warm-orange (#E65C00) focus accent, matching the app's M3 palette.
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE65C00)),
+                      ),
+                    ),
                     hint: const Text('Select a shift'),
                     items: shifts.map((s) {
-                      final st = (s['start_time'] ?? '').toString();
-                      final en = (s['end_time'] ?? '').toString();
-                      final time = (st.isNotEmpty && en.isNotEmpty) ? '  ($st–$en)' : '';
+                      // Reuse the existing 12-hour formatter (e.g. "6:00 AM – 12:00 PM").
+                      // '—' is the helper's placeholder for shifts with no displayable
+                      // times — in that case show the shift name only.
+                      final range = _formatShiftRange(s);
+                      final label = (range.isNotEmpty && range != '—')
+                          ? '${s['name']}  ($range)'
+                          : '${s['name']}';
                       return DropdownMenuItem<String>(
                         value: s['id'].toString(),
-                        child: Text('${s['name']}$time', overflow: TextOverflow.ellipsis),
+                        child: Text(label, overflow: TextOverflow.ellipsis),
                       );
                     }).toList(),
                     onChanged: busy ? null : (v) => setSheet(() => requestedShiftId = v),

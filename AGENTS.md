@@ -77,8 +77,11 @@ Member (student). Single-tier "fat client": direct `.from(...)` REST writes, **n
   overhaul + performance. Recent line: legal/UGC + marketing posters + member avatars/leaderboard →
   **membership lifecycle** (pay-later approval, correction-request, dues exit-guard, shift
   change/transfer) → **bug fixes** (shift-card overflow, shift-request visibility + notif routing,
-  revenue cards, Report-Bug quick action) → **perf** (payments index + admin-dashboard `Future.wait`).
-  Working tree clean. See CLAUDE.md for the full breakdown.
+  revenue cards, Report-Bug quick action) → **perf** (payments index + admin-dashboard `Future.wait`)
+  → **shift & requests bugfixes** (2026-07-03: conditional opening-hours reminder, 12h shift-change
+  labels, white/rounded shift dropdown, resilient Requests-sub-tab fetch + honest error tiles +
+  request-notification routing to the Requests sub-tab — spec `.kiro/specs/shift-requests-bugfixes/`,
+  62/62 tests pass, no live-DB change). See CLAUDE.md for the full breakdown.
 - **✅ Migrations APPLIED to live DB + folded into `supabase_schema.sql` (2026-06-29 → 07-02), no
   outstanding live-DB action:** `2026-06-29_join_approval_v3_paylater_correction.sql` (approve v3 +
   `p_payment_pending`; `join_requests.correction_note`/`correction_requested_at`),

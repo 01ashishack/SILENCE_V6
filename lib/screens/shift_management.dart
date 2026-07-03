@@ -15,6 +15,123 @@ class ShiftManagementScreen extends StatefulWidget {
   State<ShiftManagementScreen> createState() => _ShiftManagementScreenState();
 }
 
+// ── BUG 1: pure opening-hours reminder decision logic ────────────────────────
+//
+// These helpers are top-level + pure so the reminder decision can be exercised
+// directly by tests (the production `_handleSave` is a private, DB-coupled State
+// method with no seam). `_handleSave` delegates its "should the reminder show?"
+// decision to `shouldShowOpeningHoursReminder`.
+
+/// A parsed opening-hours window, expressed in minutes-since-midnight.
+///
+/// [closeMinutes] is normalized: when the window crosses midnight it is
+/// expressed as > 1440 (e.g. a 10 PM–2 AM window closes at 26:00 = 1560).
+/// [allDay] marks 24-hour libraries, which are never "out of hours".
+class OpeningHoursRange {
+  final bool allDay;
+  final int openMinutes;
+  final int closeMinutes;
+  const OpeningHoursRange(this.openMinutes, this.closeMinutes, {this.allDay = false});
+
+  /// A 24-hour "always open" window.
+  static const OpeningHoursRange allDayRange =
+      OpeningHoursRange(0, 24 * 60, allDay: true);
+}
+
+/// A shift timing (minutes-since-midnight) fed to the reminder decision.
+class ShiftTiming {
+  final int startMinutes;
+  final int endMinutes;
+  const ShiftTiming(this.startMinutes, this.endMinutes);
+}
+
+/// Minutes-since-midnight for a [TimeOfDay].
+int minutesOfDay(TimeOfDay t) => t.hour * 60 + t.minute;
+
+/// Parse the free-text `libraries.opening_hours` column into a range.
+///
+/// Best-effort (the column is free text set by the admin):
+///  * all-day forms (`24 hours`, `24/7`, `24x7`, `all day`, `always open`,
+///    `open 24`) → [OpeningHoursRange.allDayRange];
+///  * otherwise extract time tokens `(\d{1,2})(?::(\d{2}))?\s*(am|pm)?`, taking
+///    the FIRST token as open and the LAST as close (12- or 24-hour);
+///  * fewer than two tokens (blank/garbled) → `null` (unparseable).
+OpeningHoursRange? parseOpeningHours(String? raw) {
+  if (raw == null) return null;
+  final text = raw.trim().toLowerCase();
+  if (text.isEmpty) return null;
+
+  // All-day detection.
+  final compact = text.replaceAll(RegExp(r'\s+'), ' ');
+  final noSpace = compact.replaceAll(' ', '');
+  final isAllDay = (compact.contains('24') && compact.contains('hour')) ||
+      noSpace.contains('24/7') ||
+      noSpace.contains('24x7') ||
+      compact.contains('all day') ||
+      compact.contains('always open') ||
+      compact.contains('open 24');
+  if (isAllDay) return OpeningHoursRange.allDayRange;
+
+  // Extract time tokens.
+  final matches =
+      RegExp(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?').allMatches(compact).toList();
+  final tokens = <int>[];
+  for (final m in matches) {
+    final rawHour = int.tryParse(m.group(1) ?? '');
+    if (rawHour == null) continue;
+    final minute = int.tryParse(m.group(2) ?? '0') ?? 0;
+    final ampm = m.group(3);
+    var hour = rawHour;
+    if (ampm == 'pm' && hour != 12) {
+      hour += 12;
+    } else if (ampm == 'am' && hour == 12) {
+      hour = 0;
+    }
+    if (hour < 0 || hour > 24 || minute < 0 || minute > 59) continue;
+    tokens.add(hour * 60 + minute);
+  }
+
+  if (tokens.length < 2) return null;
+
+  final open = tokens.first;
+  var close = tokens.last;
+  // Window crosses midnight (or degenerate) → push close past midnight.
+  if (close <= open) close += 24 * 60;
+  return OpeningHoursRange(open, close);
+}
+
+/// True iff a shift `[startMin, endMin]` falls within [range].
+///
+/// Minutes-since-midnight; a shift that ends past midnight (`end <= start`) is
+/// normalized by adding 24h to its end. All-day ranges always contain any shift.
+bool timingWithinHours(int startMin, int endMin, OpeningHoursRange range) {
+  if (range.allDay) return true;
+  var end = endMin;
+  if (end <= startMin) end += 24 * 60;
+  return range.openMinutes <= startMin && end <= range.closeMinutes;
+}
+
+/// Pure decision for the "Update Opening Hours?" reminder (design BUG 1).
+///
+///  * [changedTimings] empty ⇒ nothing timing-related changed → `false` (Req 2.2);
+///  * opening hours all-day ⇒ `false`;
+///  * parseable range ⇒ `true` iff ANY changed timing is NOT within it
+///    (Req 2.1 / 2.7);
+///  * unparseable/blank ⇒ `true` (conservative fallback — prefer a false-positive
+///    reminder over silently drifting public hours out of sync).
+bool shouldShowOpeningHoursReminder(
+  List<ShiftTiming> changedTimings,
+  String? openingHoursRaw,
+) {
+  if (changedTimings.isEmpty) return false;
+  final range = parseOpeningHours(openingHoursRaw);
+  if (range == null) return true; // unparseable/blank → conservative prompt
+  if (range.allDay) return false;
+  return changedTimings.any(
+    (t) => !timingWithinHours(t.startMinutes, t.endMinutes, range),
+  );
+}
+
 class _ShiftModel {
   String? id;
   String name;
@@ -72,6 +189,12 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
   // ── Shifts ────────────────────────────────────────────────────────────────
   final List<_ShiftModel> _shifts = [];
 
+  // BUG 1: snapshot of each loaded shift's original timing (keyed by shift id)
+  // so we can tell whether a timing actually changed, plus the library's raw
+  // free-text opening hours to compare a changed timing against.
+  final Map<String, (TimeOfDay, TimeOfDay)> _originalTimings = {};
+  String? _openingHoursRaw;
+
   // ── Payment Options ───────────────────────────────────────────────────────
   bool _cashEnabled = true;
   final List<String> _upiIds = [];
@@ -119,6 +242,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
           final shiftData = await _supabase.from('shifts').select().eq('library_id', _libraryId!).eq('is_archived', false);
           if ((shiftData as List).isNotEmpty) {
             _shifts.clear();
+            _originalTimings.clear();
             for (final s in shiftData) {
               final startStr = s['start_time'] as String? ?? '08:00';
               final endStr = s['end_time'] as String? ?? '17:00';
@@ -128,7 +252,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
               final startMinute = sp.length > 1 ? (int.tryParse(sp[1]) ?? 0) : 0;
               final endHour = ep.isNotEmpty ? (int.tryParse(ep[0]) ?? 17) : 17;
               final endMinute = ep.length > 1 ? (int.tryParse(ep[1]) ?? 0) : 0;
-              _shifts.add(_ShiftModel(
+              final model = _ShiftModel(
                 id: s['id'],
                 name: s['name'] ?? '',
                 startTime: TimeOfDay(hour: startHour.clamp(0, 23), minute: startMinute.clamp(0, 59)),
@@ -139,12 +263,18 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 trialDays: s['trial_days'] ?? 0,
                 shiftType: s['shift_type'] ?? 'fixed',
                 hoursPerDay: s['hours_per_day'] ?? 4,
-              ));
+              );
+              _shifts.add(model);
+              // Snapshot the loaded timing so we can detect real timing changes.
+              if (model.id != null) {
+                _originalTimings[model.id!] = (model.startTime, model.endTime);
+              }
             }
           }
 
-          // Load payment settings from social_links column
-          final libData = await _supabase.from('libraries').select('social_links').eq('id', _libraryId!).maybeSingle();
+          // Load payment settings + public opening hours from the library row.
+          final libData = await _supabase.from('libraries').select('social_links, opening_hours').eq('id', _libraryId!).maybeSingle();
+          _openingHoursRaw = libData?['opening_hours'] as String?;
           final socialLinks = libData?['social_links'] as Map<String, dynamic>?;
           if (socialLinks != null) {
             _cashEnabled = socialLinks['cash_enabled'] as bool? ?? true;
@@ -232,6 +362,23 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     for (final s in _shifts) {
       if (s.name.trim().isEmpty) { _showError('Shift names cannot be empty.'); return; }
       if (s.priceMonthly <= 0) { _showError('Monthly price must be greater than ₹0.'); return; }
+    }
+
+    // BUG 1: capture which timings changed BEFORE persistence assigns ids to new
+    // shifts (a new shift has id == null now; after insert it gets an id). A
+    // shift counts as changed if it is new, or its start/end differs from the
+    // snapshot taken at load.
+    final changedTimings = <ShiftTiming>[];
+    for (final s in _shifts) {
+      final orig = s.id == null ? null : _originalTimings[s.id!];
+      final isChanged = orig == null ||
+          orig.$1 != s.startTime ||
+          orig.$2 != s.endTime;
+      if (isChanged) {
+        changedTimings.add(
+          ShiftTiming(minutesOfDay(s.startTime), minutesOfDay(s.endTime)),
+        );
+      }
     }
 
     setState(() => _isLoading = true);
@@ -357,8 +504,12 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
 
       _showSuccess('Shifts & payment options saved successfully! ✓');
       if (!mounted) return;
-      await _showOpeningHoursReminder();
-      if (!mounted) return;
+      // Only remind about the public "Opening Hours" label when a new/changed
+      // shift timing actually falls OUTSIDE the configured opening hours.
+      if (shouldShowOpeningHoursReminder(changedTimings, _openingHoursRaw)) {
+        await _showOpeningHoursReminder();
+        if (!mounted) return;
+      }
       Navigator.pop(context, true);
     } catch (e) {
       _showError('Error saving: $e');

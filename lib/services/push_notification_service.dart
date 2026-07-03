@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/active_library_store.dart';
 import 'notification_service.dart';
 
 /// Registers this device for FCM push, shows a heads-up banner when a push
@@ -166,17 +167,30 @@ class PushNotificationService {
     final nav = navigatorKey.currentState;
     if (nav == null) return;
 
+    final type = data['type'] is String ? data['type'] as String : '';
+
     String? route;
     final rawRoute = data['route'];
     if (rawRoute is String && rawRoute.trim().isNotEmpty) {
       route = rawRoute.trim();
-    } else {
-      final type = data['type'];
-      if (type is String && type.isNotEmpty) {
-        route = NotificationService.routeForType(type);
-      }
+    } else if (type.isNotEmpty) {
+      route = NotificationService.routeForType(type);
     }
     route ??= '/member/notifications'; // user-scoped center (works for any role)
+
+    // Request-type notifications open the Reservations → Requests sub-tab.
+    // Set the library switch FIRST (when stamped) so the admin shell applies it
+    // before the sub-tab jump, then broadcast the destination intent. The route
+    // itself stays `/admin/home` (via routeForType). Non-request types are
+    // untouched.
+    if (NotificationService.isRequestNotification(type)) {
+      final rawLib = data['library_id'];
+      final libId = (rawLib is String && rawLib.trim().isNotEmpty)
+          ? rawLib.trim()
+          : null;
+      if (libId != null) ActiveLibraryStore.requestSwitch(libId);
+      ActiveLibraryStore.requestAdminDestination('requests');
+    }
 
     try {
       nav.pushNamed(route);

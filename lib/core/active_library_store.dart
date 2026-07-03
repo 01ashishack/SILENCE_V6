@@ -19,10 +19,24 @@ class ActiveLibraryStore {
   /// the listener resets it to null after consuming.
   static final ValueNotifier<String?> switchRequest = ValueNotifier<String?>(null);
 
+  /// Lets any screen (e.g. the notification center) ask the admin shell to jump
+  /// to a specific destination after opening. A value of `'requests'` means
+  /// "open Reservations → Requests". `admin_home` listens to this and performs
+  /// the jump, then resets it to null after consuming. Mirrors [switchRequest].
+  static final ValueNotifier<String?> adminDestinationRequest =
+      ValueNotifier<String?>(null);
+
   /// Persist + broadcast a request to make [libraryId] the active library.
   static void requestSwitch(String libraryId) {
     save(libraryId);
     switchRequest.value = libraryId;
+  }
+
+  /// Broadcast a request to open the admin shell at [destination]
+  /// (e.g. `'requests'` for Reservations → Requests). The listener resets it to
+  /// null after consuming.
+  static void requestAdminDestination(String destination) {
+    adminDestinationRequest.value = destination;
   }
 
   /// Returns the persisted active-library id, or null if none saved yet.

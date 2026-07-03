@@ -38,6 +38,41 @@
 `auth_screen.dart` `_handleGoogleSignIn()` does the native flow: `GoogleSignIn.instance.initialize(serverClientId: SupabaseConfig.googleWebClientId)` → `authenticate()` → `authorizationClient` for the access token → `supabase.auth.signInWithIdToken(provider: google, idToken, accessToken)`; web falls back to `signInWithOAuth`. After sign-in it bootstraps the `users` row (`_routeAfterAuth`) and routes like login (role null → `/role-select`, else admin/member home); user-cancel (`GoogleSignInException.canceled`) is silent. `google_sign_in: ^7.2.0`. **Web client ID `1085738355311-4pbt15ndhhcngedpp28ob8ru2bsl7bdl...` baked as the `googleWebClientId` default** (public, safe in-APK; `--dart-define=GOOGLE_WEB_CLIENT_ID=` still overrides) so plain `flutter run`/`build` work without flags. **Console DONE (user):** OAuth consent screen (External, test users), Web + Android (`com.silence.app.silence` + debug SHA-1 `7E:39:...:63`) client IDs, Supabase Google provider enabled (Web+Android client IDs, Web secret). Apple → "coming soon".
 - **⚠️ Before Play Store:** add the **release keystore SHA-1** to the Android OAuth client (debug SHA-1 only works for `flutter run`/debug APK). Consent screen is in **Testing** → only added test users can log in until Published.
 
+### ✅ Shift & Requests bugfixes (2026-07-03) — code DONE; tests pass; analyze clean (uncommitted → this commit)
+
+Spec-driven bugfix batch (`.kiro/specs/shift-requests-bugfixes/` — requirements/design/tasks +
+exploration/preservation tests). Four reported defects fixed; 62/62 tests pass, `flutter analyze`
+0 new over baseline, no dishonest UI, warm-orange M3 intact.
+
+- **BUG 1 — "Update Opening Hours?" popup fired on every shift save** (`shift_management.dart`).
+  `_handleSave` now only shows the reminder when a **new/changed** shift timing falls **outside** the
+  library's configured `opening_hours`. Added: original-timing snapshot on load, `opening_hours` read,
+  a free-text parser (`parseOpeningHours` → 12h/24h, `to`/dash, `24 hours`/`24-7`/`all day`,
+  midnight-cross), `timingWithinHours`, and `shouldShowOpeningHoursReminder` (top-level, testable).
+  Unparseable/blank hours → conservative prompt (honors "no dishonest UI"). Persistence path unchanged.
+- **BUG 2 — 24h `HH:mm:ss` shift timings on member "Request Shift Change"** (`member_home.dart`
+  `_openShiftChangeRequestSheet`). Dropdown label now reuses the existing `_formatShiftRange(s)` helper
+  → `6:00 AM – 12:00 PM` (no new helper; name-only fallback when no times).
+- **BUG 3 — shift selection popup styling** (same sheet). `DropdownButtonFormField` now
+  `dropdownColor: Colors.white` + `borderRadius: 12` and rounded `OutlineInputBorder`s with the
+  warm-orange (`#E65C00`) focus accent.
+- **BUG 4 — admin Requests sub-tab showed only counts (no items) + notification tap didn't open it.**
+  Root cause: `requests_sub_tab._fetchRequests` ran the join/seat-change/hold/check-in embedded selects
+  under ONE `try/catch`, so a single failing embed blanked all five lists while the lightweight count
+  badge still showed a number. Now each fetch is **isolated** (own `try/catch` + per-type `*LoadFailed`
+  flag) with an **honest error/retry tile** (replaces the dishonest "No pending X"). Routing: added a
+  consumed navigation-intent `ActiveLibraryStore.adminDestinationRequest` (mirrors `switchRequest`) +
+  `NotificationService.isRequestNotification`/`requestNotificationTypes`; request-type notifications
+  (incl. the previously-dropped `shift_change_request`) now set the intent so the admin lands on
+  Reservations → Requests (`admin_home._onExternalDestinationRequest` → existing
+  `_navigateToReservationsRequestsTab`). Non-request notifications route unchanged (Req 3.7).
+
+Files: `shift_management.dart`, `member_home.dart`, `reservations/requests_sub_tab.dart`,
+`notification_service.dart`, `active_library_store.dart`, `notifications_screen.dart`,
+`push_notification_service.dart`, `admin_home.dart` + 5 test files under `test/`.
+**Note:** widget/unit + pure-function tests only — on-device smoke test of the shift-change flow and
+the requests-notification tap still recommended before release.
+
 ### ✅ Pre-production Verification Audit Fixes (2026-06-30) — code DONE; RLS policy migration authored & folded
 
 Resolved all identified blocker P1 and P2 functional/compliance issues to prepare the app for release:

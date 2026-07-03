@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../widgets/states/states.dart';
 import '../core/active_library_store.dart';
+import '../services/notification_service.dart';
 import 'contact_admin_screen.dart';
 
 /// Member-facing notification center. Reads the real `notifications` table for
@@ -174,6 +175,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           // notification belongs to before opening the dashboard.
           if (libId != null && _libNames.containsKey(libId)) {
             ActiveLibraryStore.requestSwitch(libId);
+          }
+          // Request-type notifications open the Reservations → Requests sub-tab.
+          // Set this AFTER the library switch so the admin shell applies the
+          // switch first, then the sub-tab jump (honoring the target library).
+          // Non-request admin types (payment_submitted, check_in, daily_summary,
+          // …) fall through untouched and stay on the dashboard.
+          if (NotificationService.isRequestNotification(type)) {
+            ActiveLibraryStore.requestAdminDestination('requests');
           }
           Navigator.of(context).pushNamed('/admin/home');
           break;

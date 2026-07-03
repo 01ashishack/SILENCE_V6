@@ -54,6 +54,7 @@ class NotificationService {
       case 'join_request':
       case 'new_join_request':
       case 'seat_change_request':
+      case 'shift_change_request':
       case 'hold_request':
       case 'checkin_approval_request':
       case 'payment_submitted':
@@ -68,6 +69,23 @@ class NotificationService {
         return null; // query_reply / new_query / refund_request / new_review / announcement
     }
   }
+
+  /// Admin "request" notification types — the ones that should land on the
+  /// Reservations → Requests sub-tab (not the bare dashboard). Kept as a single
+  /// source of truth so the in-app center and the push deep-link handler agree.
+  static const Set<String> requestNotificationTypes = {
+    'join_request',
+    'new_join_request',
+    'seat_change_request',
+    'shift_change_request',
+    'hold_request',
+    'checkin_approval_request',
+  };
+
+  /// True when [type] is an admin request notification whose tap should open the
+  /// Reservations → Requests sub-tab.
+  static bool isRequestNotification(String type) =>
+      requestNotificationTypes.contains(type);
 
   /// Send one notification to a single user.
   static Future<void> send({
